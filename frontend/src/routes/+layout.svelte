@@ -25,6 +25,8 @@
         <a href="/products">Browse</a>
         {#if $authStore.isAuthenticated}
           <a href="/dashboard">My Products</a>
+          <a href="/purchases">My Purchases</a>
+          <a href="/inbox">Inbox</a>
         {/if}
       </div>
 

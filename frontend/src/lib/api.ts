@@ -60,6 +60,17 @@ export interface Bid {
   censorName?: boolean;
 }
 
+export interface Message {
+  id: string;
+  product: string | Product;
+  sender: string | User;
+  receiver: string | User;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Fetch all products
 export async function fetchProducts(): Promise<Product[]> {
   try {
@@ -280,5 +291,155 @@ export async function fetchProductBids(productId: string): Promise<Bid[]> {
   } catch (error) {
     console.error('Error fetching bids:', error);
     return [];
+  }
+}
+
+// Fetch user's purchases (products they won)
+export async function fetchMyPurchases(): Promise<Product[]> {
+  try {
+    const response = await fetch(`${API_URL}/api/products?where[status][in][0]=sold&where[status][in][1]=ended&limit=100`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch purchases');
+    }
+
+    const data = await response.json();
+    const products = data.docs || [];
+
+    // Filter to only include products where the current user is the highest bidder
+    const currentUser = await getCurrentUser();
+    if (!currentUser) return [];
+
+    const purchases: Product[] = [];
+    for (const product of products) {
+      // Fetch bids for this product to check if user is the winner
+      const bids = await fetchProductBids(product.id);
+      if (bids.length > 0) {
+        const highestBid = bids[0];
+        const bidderId = typeof highestBid.bidder === 'object' ? highestBid.bidder.id : highestBid.bidder;
+        if (bidderId === currentUser.id) {
+          purchases.push(product);
+        }
+      }
+    }
+
+    return purchases;
+  } catch (error) {
+    console.error('Error fetching purchases:', error);
+    return [];
+  }
+}
+
+// Send a message
+export async function sendMessage(productId: string, receiverId: string, message: string): Promise<Message | null> {
+  try {
+    const response = await fetch(`${API_URL}/api/messages`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({
+        product: productId,
+        receiver: receiverId,
+        message,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to send message');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error sending message:', error);
+    return null;
+  }
+}
+
+// Fetch messages for a product (conversation between buyer and seller)
+export async function fetchProductMessages(productId: string): Promise<Message[]> {
+  try {
+    const response = await fetch(`${API_URL}/api/messages?where[product][equals]=${productId}&sort=createdAt`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch messages');
+    }
+
+    const data = await response.json();
+    return data.docs || [];
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    return [];
+  }
+}
+
+// Fetch all conversations (grouped by product)
+export async function fetchConversations(): Promise<{ product: Product; lastMessage: Message; unreadCount: number }[]> {
+  try {
+    const response = await fetch(`${API_URL}/api/messages?limit=1000&sort=-createdAt`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch conversations');
+    }
+
+    const data = await response.json();
+    const messages: Message[] = data.docs || [];
+
+    // Group messages by product
+    const conversationsMap = new Map<string, { product: Product; lastMessage: Message; unreadCount: number }>();
+
+    for (const message of messages) {
+      const product = typeof message.product === 'object' ? message.product : null;
+      if (!product) continue;
+
+      const productId = product.id;
+
+      if (!conversationsMap.has(productId)) {
+        conversationsMap.set(productId, {
+          product,
+          lastMessage: message,
+          unreadCount: 0,
+        });
+      }
+
+      // Count unread messages (received by current user)
+      const currentUser = await getCurrentUser();
+      if (currentUser) {
+        const receiverId = typeof message.receiver === 'object' ? message.receiver.id : message.receiver;
+        if (receiverId === currentUser.id && !message.read) {
+          conversationsMap.get(productId)!.unreadCount++;
+        }
+      }
+    }
+
+    return Array.from(conversationsMap.values());
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    return [];
+  }
+}
+
+// Mark message as read
+export async function markMessageAsRead(messageId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/api/messages/${messageId}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ read: true }),
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.error('Error marking message as read:', error);
+    return false;
   }
 }

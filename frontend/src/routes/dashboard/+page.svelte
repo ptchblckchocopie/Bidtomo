@@ -4,6 +4,10 @@
 
   export let data: PageData;
 
+  // Separate active and sold products
+  $: activeProducts = data.products.filter(p => p.status === 'active');
+  $: soldProducts = data.products.filter(p => p.status === 'sold' || p.status === 'ended');
+
   let showEditModal = false;
   let editingProduct: Product | null = null;
   let editForm = {
@@ -140,11 +144,13 @@
       <a href="/sell" class="btn-primary">Create Your First Product</a>
     </div>
   {:else}
-    <div class="products-section">
-      <h2>Your Products ({data.products.length})</h2>
+    <!-- Active Products Section -->
+    {#if activeProducts.length > 0}
+      <div class="products-section">
+        <h2>Active Listings ({activeProducts.length})</h2>
 
-      <div class="products-grid">
-        {#each data.products as product}
+        <div class="products-grid">
+          {#each activeProducts as product}
           <div class="product-card">
             <div class="product-image">
               {#if product.images && product.images.length > 0}
@@ -201,9 +207,64 @@
               </div>
             </div>
           </div>
-        {/each}
+          {/each}
+        </div>
       </div>
-    </div>
+    {/if}
+
+    <!-- Sold Products Section -->
+    {#if soldProducts.length > 0}
+      <div class="products-section sold-section">
+        <h2>Sold & Ended Listings ({soldProducts.length})</h2>
+
+        <div class="sold-products-list">
+          {#each soldProducts as product}
+            <div class="sold-product-item">
+              <div class="sold-product-image">
+                {#if product.images && product.images.length > 0}
+                  <img src="{product.images[0].image.url}" alt="{product.title}" />
+                {:else}
+                  <div class="placeholder-image-small">📦</div>
+                {/if}
+              </div>
+
+              <div class="sold-product-info">
+                <h3>{product.title}</h3>
+                <div class="sold-meta">
+                  <span class="status-badge-small" style="background-color: {getStatusColor(product.status)}">
+                    {product.status}
+                  </span>
+                  <span class="sold-date">Ended: {formatDate(product.auctionEndDate)}</span>
+                </div>
+              </div>
+
+              <div class="sold-product-price">
+                <div class="price-label">Final Price</div>
+                <div class="price-value">
+                  {product.currentBid ? formatPrice(product.currentBid, product.seller.currency) : formatPrice(product.startingPrice, product.seller.currency)}
+                </div>
+              </div>
+
+              <div class="sold-product-actions">
+                <a href="/products/{product.id}" class="btn-view-small" target="_blank" rel="noopener noreferrer">
+                  View
+                </a>
+                {#if product.currentBid}
+                  <a href="/inbox?product={product.id}" class="btn-message">
+                    💬 Message Buyer
+                  </a>
+                {/if}
+                {#if product.status !== 'sold'}
+                  <button on:click={() => openEditModal(product)} class="btn-edit-small">
+                    Edit
+                  </button>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -391,10 +452,20 @@
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
   }
 
+  .products-section {
+    margin-bottom: 3rem;
+  }
+
   .products-section h2 {
     font-size: 1.75rem;
     margin-bottom: 1.5rem;
     color: #333;
+    border-bottom: 3px solid #dc2626;
+    padding-bottom: 0.5rem;
+  }
+
+  .sold-section h2 {
+    border-bottom-color: #6b7280;
   }
 
   .products-grid {
@@ -752,5 +823,185 @@
     opacity: 0.6;
     cursor: not-allowed;
     transform: none;
+  }
+
+  /* Sold Products List */
+  .sold-products-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .sold-product-item {
+    background-color: white;
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    gap: 1.25rem;
+    align-items: center;
+    transition: box-shadow 0.2s;
+  }
+
+  .sold-product-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .sold-product-image {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    background-color: #f3f4f6;
+  }
+
+  .sold-product-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .placeholder-image-small {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+  }
+
+  .sold-product-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sold-product-info h3 {
+    font-size: 1.125rem;
+    margin: 0 0 0.5rem 0;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sold-meta {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .status-badge-small {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    border-radius: 4px;
+    color: white;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+  }
+
+  .sold-date {
+    font-size: 0.875rem;
+    color: #666;
+  }
+
+  .sold-product-price {
+    text-align: right;
+    padding: 0 1rem;
+  }
+
+  .price-label {
+    font-size: 0.75rem;
+    color: #666;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .price-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #10b981;
+  }
+
+  .sold-product-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .btn-view-small,
+  .btn-message,
+  .btn-edit-small {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-decoration: none;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+    white-space: nowrap;
+  }
+
+  .btn-view-small {
+    background-color: #3b82f6;
+    color: white;
+  }
+
+  .btn-view-small:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+  }
+
+  .btn-message {
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    color: white;
+  }
+
+  .btn-message:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
+  }
+
+  .btn-edit-small {
+    background-color: #f59e0b;
+    color: white;
+    border: none;
+    cursor: pointer;
+  }
+
+  .btn-edit-small:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+  }
+
+  @media (max-width: 1024px) {
+    .sold-product-item {
+      flex-wrap: wrap;
+    }
+
+    .sold-product-price {
+      order: 3;
+      padding: 0;
+      text-align: left;
+    }
+
+    .sold-product-actions {
+      order: 4;
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .sold-product-actions {
+      flex-direction: column;
+    }
+
+    .btn-view-small,
+    .btn-message,
+    .btn-edit-small {
+      width: 100%;
+    }
   }
 </style>

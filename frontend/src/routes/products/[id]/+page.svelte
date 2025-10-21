@@ -534,6 +534,23 @@
           {/if}
         {/if}
 
+        <!-- Contact Section -->
+        {#if $authStore.isAuthenticated && !isOwner}
+          <!-- Buyers can always contact seller -->
+          <div class="contact-section">
+            <a href="/inbox?product={data.product.id}" class="contact-btn">
+              💬 Contact Seller
+            </a>
+          </div>
+        {:else if $authStore.isAuthenticated && isOwner && highestBid}
+          <!-- Sellers can contact buyer once there's a bid -->
+          <div class="contact-section">
+            <a href="/inbox?product={data.product.id}" class="contact-btn">
+              💬 Contact Buyer
+            </a>
+          </div>
+        {/if}
+
         {#if sortedBids.length > 0}
           <div class="bid-history">
             <h3>Bid History</h3>
@@ -1112,6 +1129,29 @@
     display: flex;
     flex-direction: column;
     min-height: 220px;
+  }
+
+  .contact-section {
+    margin-bottom: 2rem;
+  }
+
+  .contact-btn {
+    display: block;
+    width: 100%;
+    padding: 1rem;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    color: white;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1.1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .contact-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
   }
 
   .bid-form {

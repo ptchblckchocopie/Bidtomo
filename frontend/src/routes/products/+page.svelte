@@ -7,6 +7,60 @@
   let countdowns: { [key: string]: string } = {};
   let countdownInterval: ReturnType<typeof setInterval> | null = null;
 
+  // Search and pagination
+  let searchQuery = '';
+  let activeCurrentPage = 1;
+  let endedCurrentPage = 1;
+  const itemsPerPage = 12;
+
+  // Filter products based on search query
+  $: filteredProducts = data.products.filter(p => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      p.title.toLowerCase().includes(query) ||
+      p.description.toLowerCase().includes(query) ||
+      p.seller.name.toLowerCase().includes(query)
+    );
+  });
+
+  // Separate products into active and ended
+  $: activeProducts = filteredProducts.filter(p => p.status === 'active');
+  $: endedProducts = filteredProducts.filter(p => p.status === 'ended' || p.status === 'sold' || p.status === 'cancelled');
+
+  // Pagination
+  $: activeTotalPages = Math.ceil(activeProducts.length / itemsPerPage);
+  $: endedTotalPages = Math.ceil(endedProducts.length / itemsPerPage);
+
+  $: paginatedActiveProducts = activeProducts.slice(
+    (activeCurrentPage - 1) * itemsPerPage,
+    activeCurrentPage * itemsPerPage
+  );
+
+  $: paginatedEndedProducts = endedProducts.slice(
+    (endedCurrentPage - 1) * itemsPerPage,
+    endedCurrentPage * itemsPerPage
+  );
+
+  // Reset pagination when search changes
+  $: if (searchQuery) {
+    activeCurrentPage = 1;
+    endedCurrentPage = 1;
+  }
+
+  function goToActivePage(page: number) {
+    activeCurrentPage = page;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function goToEndedPage(page: number) {
+    endedCurrentPage = page;
+    const endedSection = document.querySelector('.ended-section');
+    if (endedSection) {
+      endedSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  }
+
   function formatPrice(price: number, currency: string = 'PHP'): string {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -79,59 +133,210 @@
 </svelte:head>
 
 <div class="products-page">
-  <h1>Browse Products</h1>
+  <div class="page-header">
+    <h1>Browse Products</h1>
+
+    <!-- Search Bar -->
+    <div class="search-container">
+      <input
+        type="text"
+        bind:value={searchQuery}
+        placeholder="Search by title, description, or seller..."
+        class="search-input"
+      />
+      {#if searchQuery}
+        <button class="clear-search" on:click={() => searchQuery = ''}>✕</button>
+      {/if}
+    </div>
+
+    {#if searchQuery && filteredProducts.length > 0}
+      <p class="search-results">Found {filteredProducts.length} result{filteredProducts.length !== 1 ? 's' : ''}</p>
+    {/if}
+  </div>
 
   {#if data.products.length === 0}
     <div class="empty-state">
       <p>No products listed yet.</p>
       <p><a href="/sell">Be the first to list a product!</a></p>
     </div>
-  {:else}
-    <div class="products-grid">
-      {#each data.products as product}
-        <a href="/products/{product.id}" class="product-card">
-          <div class="product-image">
-            {#if product.images && product.images.length > 0 && product.images[0].image}
-              <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" />
-            {:else}
-              <div class="placeholder-image">
-                <span>No Image</span>
-              </div>
-            {/if}
-          </div>
-
-          <div class="product-info">
-            <h3>{product.title}</h3>
-            <p class="description">{product.description.substring(0, 100)}{product.description.length > 100 ? '...' : ''}</p>
-
-            <div class="pricing">
-              <div>
-                <span class="label">Starting Price:</span>
-                <span class="price">{formatPrice(product.startingPrice, product.seller.currency)}</span>
-              </div>
-
-              {#if product.currentBid}
-                <div>
-                  <span class="label">Current Bid:</span>
-                  <span class="price current-bid">{formatPrice(product.currentBid, product.seller.currency)}</span>
-                </div>
-              {/if}
-            </div>
-
-            <div class="auction-info">
-              <span class="status status-{product.status}">{product.status}</span>
-              <div class="countdown-badge countdown-{getUrgencyClass(product.auctionEndDate)}">
-                <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-                <span>{countdowns[product.id] || 'Loading...'}</span>
-              </div>
-            </div>
-          </div>
-        </a>
-      {/each}
+  {:else if filteredProducts.length === 0}
+    <div class="empty-state">
+      <p>No products found matching "{searchQuery}"</p>
+      <button class="btn-clear-search" on:click={() => searchQuery = ''}>Clear Search</button>
     </div>
+  {:else}
+    <!-- Active Auctions Section -->
+    {#if activeProducts.length > 0}
+      <section class="auction-section">
+        <h2 class="section-title">Active Auctions ({activeProducts.length})</h2>
+        <div class="products-grid">
+          {#each paginatedActiveProducts as product}
+            <a href="/products/{product.id}" class="product-card">
+              <div class="product-image">
+                {#if product.images && product.images.length > 0 && product.images[0].image}
+                  <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" />
+                {:else}
+                  <div class="placeholder-image">
+                    <span>No Image</span>
+                  </div>
+                {/if}
+              </div>
+
+              <div class="product-info">
+                <h3>{product.title}</h3>
+                <p class="description">{product.description.substring(0, 100)}{product.description.length > 100 ? '...' : ''}</p>
+
+                <div class="pricing">
+                  <div>
+                    <span class="label">Starting Price:</span>
+                    <span class="price">{formatPrice(product.startingPrice, product.seller.currency)}</span>
+                  </div>
+
+                  {#if product.currentBid}
+                    <div>
+                      <span class="label">Current Bid:</span>
+                      <span class="price current-bid">{formatPrice(product.currentBid, product.seller.currency)}</span>
+                    </div>
+                  {/if}
+                </div>
+
+                <div class="auction-info">
+                  <span class="status status-{product.status}">{product.status}</span>
+                  <div class="countdown-badge countdown-{getUrgencyClass(product.auctionEndDate)}">
+                    <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <span>{countdowns[product.id] || 'Loading...'}</span>
+                  </div>
+                </div>
+              </div>
+            </a>
+          {/each}
+        </div>
+
+        <!-- Active Pagination -->
+        {#if activeTotalPages > 1}
+          <div class="pagination">
+            <button
+              class="pagination-btn"
+              disabled={activeCurrentPage === 1}
+              on:click={() => goToActivePage(activeCurrentPage - 1)}
+            >
+              ← Previous
+            </button>
+
+            <div class="pagination-numbers">
+              {#each Array(activeTotalPages) as _, i}
+                <button
+                  class="pagination-number"
+                  class:active={activeCurrentPage === i + 1}
+                  on:click={() => goToActivePage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              {/each}
+            </div>
+
+            <button
+              class="pagination-btn"
+              disabled={activeCurrentPage === activeTotalPages}
+              on:click={() => goToActivePage(activeCurrentPage + 1)}
+            >
+              Next →
+            </button>
+          </div>
+        {/if}
+      </section>
+    {/if}
+
+    <!-- Ended Auctions Section -->
+    {#if endedProducts.length > 0}
+      <section class="auction-section ended-section">
+        <h2 class="section-title">Ended Auctions ({endedProducts.length})</h2>
+        <div class="products-grid">
+          {#each paginatedEndedProducts as product}
+            <a href="/products/{product.id}" class="product-card ended-card">
+              <div class="product-image">
+                {#if product.images && product.images.length > 0 && product.images[0].image}
+                  <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" />
+                {:else}
+                  <div class="placeholder-image">
+                    <span>No Image</span>
+                  </div>
+                {/if}
+                <div class="ended-overlay">
+                  {product.status === 'sold' ? '✓ SOLD' : product.status.toUpperCase()}
+                </div>
+              </div>
+
+              <div class="product-info">
+                <h3>{product.title}</h3>
+                <p class="description">{product.description.substring(0, 100)}{product.description.length > 100 ? '...' : ''}</p>
+
+                <div class="pricing">
+                  <div>
+                    <span class="label">Starting Price:</span>
+                    <span class="price">{formatPrice(product.startingPrice, product.seller.currency)}</span>
+                  </div>
+
+                  {#if product.currentBid}
+                    <div>
+                      <span class="label">{product.status === 'sold' ? 'Sold For:' : 'Final Bid:'}</span>
+                      <span class="price current-bid">{formatPrice(product.currentBid, product.seller.currency)}</span>
+                    </div>
+                  {/if}
+                </div>
+
+                <div class="auction-info">
+                  <span class="status status-{product.status}">{product.status}</span>
+                  <div class="countdown-badge countdown-ended">
+                    <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <span>Ended</span>
+                  </div>
+                </div>
+              </div>
+            </a>
+          {/each}
+        </div>
+
+        <!-- Ended Pagination -->
+        {#if endedTotalPages > 1}
+          <div class="pagination">
+            <button
+              class="pagination-btn"
+              disabled={endedCurrentPage === 1}
+              on:click={() => goToEndedPage(endedCurrentPage - 1)}
+            >
+              ← Previous
+            </button>
+
+            <div class="pagination-numbers">
+              {#each Array(endedTotalPages) as _, i}
+                <button
+                  class="pagination-number"
+                  class:active={endedCurrentPage === i + 1}
+                  on:click={() => goToEndedPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              {/each}
+            </div>
+
+            <button
+              class="pagination-btn"
+              disabled={endedCurrentPage === endedTotalPages}
+              on:click={() => goToEndedPage(endedCurrentPage + 1)}
+            >
+              Next →
+            </button>
+          </div>
+        {/if}
+      </section>
+    {/if}
   {/if}
 </div>
 
@@ -140,9 +345,115 @@
     padding: 2rem 0;
   }
 
-  h1 {
+  .page-header {
     margin-bottom: 2rem;
+  }
+
+  h1 {
+    margin-bottom: 1.5rem;
     font-size: 2.5rem;
+  }
+
+  .search-container {
+    position: relative;
+    max-width: 600px;
+    margin-bottom: 1rem;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 1rem 3rem 1rem 1rem;
+    font-size: 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    transition: border-color 0.2s;
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+
+  .clear-search {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    color: #999;
+    cursor: pointer;
+    padding: 0.5rem;
+    line-height: 1;
+    transition: color 0.2s;
+  }
+
+  .clear-search:hover {
+    color: #dc2626;
+  }
+
+  .search-results {
+    color: #666;
+    font-size: 0.95rem;
+    margin: 0;
+  }
+
+  .btn-clear-search {
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .btn-clear-search:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+  }
+
+  .auction-section {
+    margin-bottom: 3rem;
+  }
+
+  .section-title {
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    color: #333;
+    border-bottom: 3px solid #dc2626;
+    padding-bottom: 0.5rem;
+  }
+
+  .ended-section .section-title {
+    border-bottom-color: #6b7280;
+  }
+
+  .ended-card {
+    opacity: 0.85;
+  }
+
+  .ended-card:hover {
+    opacity: 1;
+  }
+
+  .ended-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    pointer-events: none;
   }
 
   .empty-state {
@@ -186,6 +497,7 @@
   }
 
   .product-image {
+    position: relative;
     width: 100%;
     height: 200px;
     overflow: hidden;
@@ -372,5 +684,68 @@
       transform: scale(1.05);
       box-shadow: 0 6px 16px rgba(220, 38, 38, 0.6);
     }
+  }
+
+  /* Pagination */
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 2rem;
+    padding: 1rem;
+  }
+
+  .pagination-btn {
+    padding: 0.625rem 1.25rem;
+    background-color: white;
+    border: 2px solid #dc2626;
+    color: #dc2626;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .pagination-btn:hover:not(:disabled) {
+    background-color: #dc2626;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+  }
+
+  .pagination-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    border-color: #ccc;
+    color: #ccc;
+  }
+
+  .pagination-numbers {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .pagination-number {
+    min-width: 2.5rem;
+    padding: 0.625rem 0.75rem;
+    background-color: white;
+    border: 2px solid #e5e7eb;
+    color: #666;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .pagination-number:hover {
+    border-color: #dc2626;
+    color: #dc2626;
+  }
+
+  .pagination-number.active {
+    background-color: #dc2626;
+    border-color: #dc2626;
+    color: white;
   }
 </style>

@@ -74,7 +74,20 @@ export default buildConfig({
       access: {
         read: () => true,
         create: ({ req }) => !!req.user,
-        update: ({ req }) => req.user?.role === 'admin' || req.user?.role === 'seller',
+        update: ({ req }) => {
+          if (!req.user) return false;
+          if (req.user.role === 'admin') return true;
+          if (req.user.role === 'seller') {
+            // Sellers cannot edit sold products
+            return {
+              and: [
+                { seller: { equals: req.user.id } },
+                { status: { not_equals: 'sold' } },
+              ],
+            };
+          }
+          return false;
+        },
         delete: ({ req }) => req.user?.role === 'admin',
       },
       hooks: {
@@ -316,6 +329,93 @@ export default buildConfig({
           defaultValue: false,
           admin: {
             description: 'Hide bidder full name in bid history (shows only first letters)',
+          },
+        },
+      ],
+    },
+    {
+      slug: 'messages',
+      admin: {
+        useAsTitle: 'id',
+      },
+      access: {
+        read: ({ req }) => {
+          // Users can only read messages they sent or received
+          if (!req.user) return false;
+          // Return true - filtering will be done via hooks
+          return true;
+        },
+        create: ({ req }) => !!req.user,
+        update: ({ req }) => !!req.user,
+        delete: ({ req }) => req.user?.role === 'admin',
+      },
+      hooks: {
+        beforeChange: [
+          ({ req, data }) => {
+            // Automatically set sender to the logged-in user
+            if (req.user && !data.sender) {
+              data.sender = req.user.id;
+            }
+            return data;
+          },
+        ],
+        afterRead: [
+          async ({ req, doc }) => {
+            // Filter out messages user shouldn't see
+            if (!req.user) return null;
+
+            const senderId = typeof doc.sender === 'object' ? doc.sender.id : doc.sender;
+            const receiverId = typeof doc.receiver === 'object' ? doc.receiver.id : doc.receiver;
+
+            if (senderId === req.user.id || receiverId === req.user.id) {
+              return doc;
+            }
+
+            return null;
+          },
+        ],
+      },
+      fields: [
+        {
+          name: 'product',
+          type: 'relationship',
+          relationTo: 'products',
+          required: true,
+          admin: {
+            description: 'Product this conversation is about',
+          },
+        },
+        {
+          name: 'sender',
+          type: 'relationship',
+          relationTo: 'users',
+          required: true,
+          admin: {
+            readOnly: true,
+            position: 'sidebar',
+            description: 'Automatically set to the current user',
+          },
+        },
+        {
+          name: 'receiver',
+          type: 'relationship',
+          relationTo: 'users',
+          required: true,
+          admin: {
+            description: 'User receiving this message',
+          },
+        },
+        {
+          name: 'message',
+          type: 'textarea',
+          required: true,
+        },
+        {
+          name: 'read',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            description: 'Has the receiver read this message?',
           },
         },
       ],
