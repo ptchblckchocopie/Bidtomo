@@ -159,6 +159,171 @@ const start = async () => {
     }
   });
 
+  // Endpoint to get product update status (lightweight check for changes)
+  app.get('/api/products/:id/status', async (req, res) => {
+    try {
+      const productId = req.params.id;
+
+      // Fetch product with minimal fields
+      const product = await payload.findByID({
+        collection: 'products',
+        id: productId,
+      });
+
+      if (!product) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+
+      // Get the latest bid timestamp
+      const latestBid = await payload.find({
+        collection: 'bids',
+        where: {
+          product: {
+            equals: productId,
+          },
+        },
+        sort: '-bidTime',
+        limit: 1,
+      });
+
+      const latestBidTime = latestBid.docs.length > 0 ? latestBid.docs[0].bidTime : null;
+
+      // Return minimal data for comparison
+      res.json({
+        id: product.id,
+        updatedAt: product.updatedAt,
+        status: product.status,
+        currentBid: product.currentBid,
+        latestBidTime,
+        bidCount: latestBid.totalDocs,
+      });
+    } catch (error: any) {
+      console.error('Error fetching product status:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Server-Sent Events endpoint for real-time product updates
+  // Store active SSE connections per product
+  const productListeners = new Map<string, Set<any>>();
+
+  app.get('/api/products/:id/stream', async (req, res) => {
+    const productId = req.params.id;
+
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: 'connected', productId })}\n\n`);
+
+    // Add this connection to listeners
+    if (!productListeners.has(productId)) {
+      productListeners.set(productId, new Set());
+    }
+    productListeners.get(productId)!.add(res);
+
+    console.log(`SSE client connected for product ${productId}. Total listeners: ${productListeners.get(productId)!.size}`);
+
+    // Send initial product status
+    try {
+      const product = await payload.findByID({
+        collection: 'products',
+        id: productId,
+      });
+
+      const latestBid = await payload.find({
+        collection: 'bids',
+        where: { product: { equals: productId } },
+        sort: '-bidTime',
+        limit: 1,
+      });
+
+      const status = {
+        type: 'update',
+        id: product.id,
+        updatedAt: product.updatedAt,
+        status: product.status,
+        currentBid: product.currentBid,
+        latestBidTime: latestBid.docs.length > 0 ? latestBid.docs[0].bidTime : null,
+        bidCount: latestBid.totalDocs,
+      };
+
+      res.write(`data: ${JSON.stringify(status)}\n\n`);
+    } catch (error) {
+      console.error('Error sending initial status:', error);
+    }
+
+    // Keep connection alive with heartbeat every 30 seconds
+    const heartbeat = setInterval(() => {
+      res.write(`:heartbeat\n\n`);
+    }, 30000);
+
+    // Handle client disconnect
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      const listeners = productListeners.get(productId);
+      if (listeners) {
+        listeners.delete(res);
+        console.log(`SSE client disconnected for product ${productId}. Remaining: ${listeners.size}`);
+        if (listeners.size === 0) {
+          productListeners.delete(productId);
+        }
+      }
+    });
+  });
+
+  // Helper function to broadcast updates to all listeners of a product
+  const broadcastProductUpdate = async (productId: string) => {
+    const listeners = productListeners.get(productId);
+    if (!listeners || listeners.size === 0) return;
+
+    try {
+      const product = await payload.findByID({
+        collection: 'products',
+        id: productId,
+      });
+
+      const latestBid = await payload.find({
+        collection: 'bids',
+        where: { product: { equals: productId } },
+        sort: '-bidTime',
+        limit: 1,
+      });
+
+      const status = {
+        type: 'update',
+        id: product.id,
+        updatedAt: product.updatedAt,
+        status: product.status,
+        currentBid: product.currentBid,
+        latestBidTime: latestBid.docs.length > 0 ? latestBid.docs[0].bidTime : null,
+        bidCount: latestBid.totalDocs,
+      };
+
+      const message = `data: ${JSON.stringify(status)}\n\n`;
+
+      // Send to all listeners
+      listeners.forEach((res) => {
+        try {
+          res.write(message);
+        } catch (error) {
+          console.error('Error broadcasting to client:', error);
+          listeners.delete(res);
+        }
+      });
+
+      console.log(`Broadcasted update for product ${productId} to ${listeners.size} clients`);
+    } catch (error) {
+      console.error('Error broadcasting product update:', error);
+    }
+  };
+
+  // Expose broadcast function globally so hooks can call it
+  (global as any).broadcastProductUpdate = broadcastProductUpdate;
+
   // Sync endpoint to update product currentBid with highest bid
   app.post('/api/sync-bids', async (req, res) => {
     try {

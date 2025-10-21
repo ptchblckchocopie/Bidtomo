@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { placeBid, fetchProductBids, updateProduct } from '$lib/api';
+  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   import type { PageData } from './$types';
+  import KeywordInput from '$lib/components/KeywordInput.svelte';
 
   export let data: PageData;
 
@@ -30,6 +31,7 @@
   let editForm = {
     title: '',
     description: '',
+    keywords: [] as string[],
     bidInterval: 0,
     auctionEndDate: '',
     status: 'active' as 'active' | 'ended' | 'sold' | 'cancelled'
@@ -48,6 +50,26 @@
   // Countdown timer
   let timeRemaining = '';
   let countdownInterval: ReturnType<typeof setInterval> | null = null;
+
+  // Real-time update with SSE
+  let eventSource: EventSource | null = null;
+  let pollingInterval: ReturnType<typeof setInterval> | null = null;
+  let lastKnownState = {
+    updatedAt: data.product?.updatedAt || '',
+    latestBidTime: '',
+    bidCount: data.bids.length,
+    status: data.product?.status || 'active',
+    currentBid: data.product?.currentBid
+  };
+  let isUpdating = false;
+  let connectionStatus: 'connected' | 'connecting' | 'disconnected' = 'connecting';
+
+  // Animation tracking
+  let previousBids: any[] = [...data.bids];
+  let newBidIds = new Set<string>();
+  let priceChanged = false;
+  let showConfetti = false;
+  let animatingBidId: string | null = null;
 
   async function updateCountdown() {
     if (!data.product?.auctionEndDate) return;
@@ -103,9 +125,280 @@
     }
   }
 
-  import { onDestroy } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
+
+  // Function to check for updates and refresh data if needed
+  async function checkForUpdates() {
+    if (!data.product || isUpdating) return;
+
+    try {
+      const status = await checkProductStatus(data.product.id);
+
+      if (!status) return;
+
+      // Check if anything changed
+      const hasProductUpdate = status.updatedAt !== lastKnownState.updatedAt;
+      const hasBidUpdate = status.latestBidTime !== lastKnownState.latestBidTime;
+      const hasBidCountUpdate = status.bidCount !== lastKnownState.bidCount;
+      const hasStatusUpdate = status.status !== lastKnownState.status;
+      const hasPriceUpdate = status.currentBid !== lastKnownState.currentBid;
+
+      if (hasProductUpdate || hasBidUpdate || hasBidCountUpdate || hasStatusUpdate || hasPriceUpdate) {
+        console.log('Changes detected, updating...', {
+          hasProductUpdate,
+          hasBidUpdate,
+          hasBidCountUpdate,
+          hasStatusUpdate,
+          hasPriceUpdate
+        });
+
+        isUpdating = true;
+
+        // Fetch updated product data
+        if (hasProductUpdate || hasStatusUpdate || hasPriceUpdate) {
+          const updatedProduct = await fetchProduct(data.product.id);
+          if (updatedProduct) {
+            data.product = updatedProduct;
+          }
+        }
+
+        // Fetch updated bids and detect changes
+        if (hasBidUpdate || hasBidCountUpdate) {
+          const updatedBids = await fetchProductBids(data.product.id);
+
+          // Identify new bids for animation
+          const previousBidIds = new Set(previousBids.map(b => b.id));
+          newBidIds = new Set(
+            updatedBids
+              .filter(b => !previousBidIds.has(b.id))
+              .map(b => b.id)
+          );
+
+          // Store previous bids
+          previousBids = [...updatedBids];
+
+          data.bids = updatedBids;
+
+          // Trigger animations for new bids
+          if (newBidIds.size > 0) {
+            setTimeout(() => {
+              newBidIds = new Set();
+            }, 3000);
+          }
+        }
+
+        // Detect price change and trigger confetti
+        if (hasPriceUpdate) {
+          priceChanged = true;
+          showConfetti = true;
+
+          setTimeout(() => {
+            priceChanged = false;
+          }, 1000);
+
+          setTimeout(() => {
+            showConfetti = false;
+          }, 3000);
+        }
+
+        // Update last known state
+        lastKnownState = {
+          updatedAt: status.updatedAt,
+          latestBidTime: status.latestBidTime || '',
+          bidCount: status.bidCount,
+          status: status.status,
+          currentBid: status.currentBid
+        };
+
+        // Save to localStorage
+        if (data.product) {
+          localStorage.setItem(`product_${data.product.id}_state`, JSON.stringify(lastKnownState));
+        }
+
+        // Trigger reactivity
+        data = { ...data };
+
+        isUpdating = false;
+      }
+    } catch (error) {
+      console.error('Error checking for updates:', error);
+      isUpdating = false;
+    }
+  }
+
+  // Force immediate update check (useful after placing a bid)
+  async function forceUpdateCheck() {
+    await checkForUpdates();
+  }
+
+  // Connect to SSE for real-time updates
+  function connectSSE() {
+    if (!data.product) return;
+
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const url = `${API_URL}/api/products/${data.product.id}/stream`;
+
+    connectionStatus = 'connecting';
+    eventSource = new EventSource(url);
+
+    eventSource.onopen = () => {
+      console.log('SSE connection established');
+      connectionStatus = 'connected';
+    };
+
+    eventSource.onmessage = async (event) => {
+      try {
+        const update = JSON.parse(event.data);
+
+        if (update.type === 'connected') {
+          console.log('SSE connected for product:', update.productId);
+          return;
+        }
+
+        if (update.type === 'update') {
+          await handleRealtimeUpdate(update);
+        }
+      } catch (error) {
+        console.error('Error parsing SSE message:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE error:', error);
+      connectionStatus = 'disconnected';
+
+      // Close and attempt reconnection after 3 seconds
+      eventSource?.close();
+      setTimeout(() => {
+        if (!eventSource || eventSource.readyState === EventSource.CLOSED) {
+          console.log('Attempting to reconnect SSE...');
+          connectSSE();
+        }
+      }, 3000);
+    };
+  }
+
+  // Handle real-time update from SSE
+  async function handleRealtimeUpdate(status: any) {
+    if (isUpdating) return;
+
+    // Check if anything changed
+    const hasProductUpdate = status.updatedAt !== lastKnownState.updatedAt;
+    const hasBidUpdate = status.latestBidTime !== lastKnownState.latestBidTime;
+    const hasBidCountUpdate = status.bidCount !== lastKnownState.bidCount;
+    const hasStatusUpdate = status.status !== lastKnownState.status;
+    const hasPriceUpdate = status.currentBid !== lastKnownState.currentBid;
+
+    if (hasProductUpdate || hasBidUpdate || hasBidCountUpdate || hasStatusUpdate || hasPriceUpdate) {
+      console.log('Real-time update detected:', {
+        hasProductUpdate,
+        hasBidUpdate,
+        hasBidCountUpdate,
+        hasStatusUpdate,
+        hasPriceUpdate
+      });
+
+      isUpdating = true;
+
+      // Fetch updated product data
+      if (hasProductUpdate || hasStatusUpdate || hasPriceUpdate) {
+        const updatedProduct = await fetchProduct(data.product!.id);
+        if (updatedProduct) {
+          data.product = updatedProduct;
+        }
+      }
+
+      // Fetch updated bids and detect changes
+      if (hasBidUpdate || hasBidCountUpdate) {
+        const updatedBids = await fetchProductBids(data.product!.id);
+
+        // Identify new bids for animation
+        const previousBidIds = new Set(previousBids.map(b => b.id));
+        newBidIds = new Set(
+          updatedBids
+            .filter(b => !previousBidIds.has(b.id))
+            .map(b => b.id)
+        );
+
+        // Store previous bids
+        previousBids = [...updatedBids];
+
+        data.bids = updatedBids;
+
+        // Trigger animations for new bids
+        if (newBidIds.size > 0) {
+          setTimeout(() => {
+            newBidIds = new Set();
+          }, 3000);
+        }
+      }
+
+      // Detect price change and trigger confetti
+      if (hasPriceUpdate) {
+        priceChanged = true;
+        showConfetti = true;
+
+        setTimeout(() => {
+          priceChanged = false;
+        }, 1000);
+
+        setTimeout(() => {
+          showConfetti = false;
+        }, 3000);
+      }
+
+      // Update last known state
+      lastKnownState = {
+        updatedAt: status.updatedAt,
+        latestBidTime: status.latestBidTime || '',
+        bidCount: status.bidCount,
+        status: status.status,
+        currentBid: status.currentBid
+      };
+
+      // Save to localStorage
+      if (data.product) {
+        localStorage.setItem(`product_${data.product.id}_state`, JSON.stringify(lastKnownState));
+      }
+
+      // Trigger reactivity
+      data = { ...data };
+
+      isUpdating = false;
+    }
+  }
+
+  onMount(() => {
+    // Load last known state from localStorage if available
+    const savedState = localStorage.getItem(`product_${data.product?.id}_state`);
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        lastKnownState = parsed;
+      } catch (e) {
+        console.error('Error parsing saved state:', e);
+      }
+    }
+
+    // Connect to SSE for real-time updates
+    connectSSE();
+
+    // Fallback polling every 30 seconds (in case SSE disconnects)
+    pollingInterval = setInterval(() => {
+      if (connectionStatus === 'disconnected') {
+        console.log('Fallback polling triggered due to SSE disconnection');
+        checkForUpdates();
+      }
+    }, 30000);
+  });
+
   onDestroy(() => {
     if (countdownInterval) clearInterval(countdownInterval);
+    if (pollingInterval) clearInterval(pollingInterval);
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
   });
 
   function formatPrice(price: number, currency: string = 'PHP'): string {
@@ -178,14 +471,51 @@
       if (result) {
         bidSuccess = true;
         bidError = '';
+
+        // Trigger price animation immediately
+        priceChanged = true;
+        showConfetti = true;
+
         // Reload bids
-        data.bids = await fetchProductBids(data.product.id);
+        const updatedBids = await fetchProductBids(data.product.id);
+
+        // Mark the new bid for animation
+        const previousBidIds = new Set(data.bids.map(b => b.id));
+        newBidIds = new Set(
+          updatedBids
+            .filter(b => !previousBidIds.has(b.id))
+            .map(b => b.id)
+        );
+
+        data.bids = updatedBids;
+
         // Update product current bid
         if (data.product) {
           data.product.currentBid = bidAmount;
         }
         // Reset bid amount to new minimum
         bidAmount = bidAmount + bidInterval;
+
+        // Clear animations after delay
+        setTimeout(() => {
+          priceChanged = false;
+        }, 1000);
+
+        setTimeout(() => {
+          showConfetti = false;
+        }, 3000);
+
+        setTimeout(() => {
+          newBidIds = new Set();
+        }, 3000);
+
+        // Collapse bid section after successful bid
+        bidSectionOpen = false;
+
+        // Force immediate update check to get latest data
+        setTimeout(() => {
+          forceUpdateCheck();
+        }, 500);
 
         // Auto-close success message after 5 seconds
         setTimeout(() => {
@@ -256,6 +586,7 @@
     editForm = {
       title: data.product.title,
       description: data.product.description,
+      keywords: data.product.keywords?.map(k => k.keyword) || [],
       bidInterval: data.product.bidInterval || 1,
       auctionEndDate: formattedDate,
       status: data.product.status
@@ -280,6 +611,7 @@
       const result = await updateProduct(data.product.id, {
         title: editForm.title,
         description: editForm.description,
+        keywords: editForm.keywords.map(k => ({ keyword: k })),
         bidInterval: editForm.bidInterval,
         auctionEndDate: new Date(editForm.auctionEndDate).toISOString(),
         status: editForm.status
@@ -398,7 +730,20 @@
 
     <div class="product-content">
       <div class="product-gallery">
-        <h1>{data.product.title}</h1>
+        <div class="title-container">
+          <h1>{data.product.title}</h1>
+          <div
+            class="live-indicator"
+            class:updating={isUpdating}
+            class:connected={connectionStatus === 'connected'}
+            class:connecting={connectionStatus === 'connecting'}
+            class:disconnected={connectionStatus === 'disconnected'}
+            title={connectionStatus === 'connected' ? 'Real-time updates active' : connectionStatus === 'connecting' ? 'Connecting...' : 'Reconnecting...'}
+          >
+            <span class="live-dot"></span>
+            <span class="live-text">{connectionStatus === 'connected' ? 'LIVE' : connectionStatus === 'connecting' ? 'CONNECTING' : 'RECONNECTING'}</span>
+          </div>
+        </div>
 
         <div class="status-badge status-{data.product.status}">
           {data.product.status}
@@ -427,10 +772,18 @@
 
       <div class="product-details">
         <div class="price-info" class:sold-info={data.product.status === 'sold'}>
+          {#if showConfetti}
+            <div class="confetti-container">
+              {#each Array(50) as _, i}
+                <div class="confetti" style="--delay: {i * 0.02}s; --x: {Math.random() * 100}%; --rotation: {Math.random() * 360}deg; --color: {['#ff6b6b', '#4ecdc4', '#45b7d1', '#feca57', '#ff6348', '#1dd1a1'][i % 6]}"></div>
+              {/each}
+            </div>
+          {/if}
+
           {#if data.product.status === 'sold'}
             <div class="highest-bid-container">
               <div class="sold-badge">✓ SOLD</div>
-              <div class="highest-bid-amount">{formatPrice(data.product.currentBid || data.product.startingPrice, sellerCurrency)}</div>
+              <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid || data.product.startingPrice, sellerCurrency)}</div>
               {#if highestBid}
                 <div class="sold-to-info">Sold to: {getBidderName(highestBid)}</div>
               {/if}
@@ -438,8 +791,8 @@
             </div>
           {:else if data.product.currentBid}
             <div class="highest-bid-container">
-              <div class="highest-bid-label">CURRENT HIGHEST BID</div>
-              <div class="highest-bid-amount">{formatPrice(data.product.currentBid, sellerCurrency)}</div>
+              <div class="highest-bid-label" class:label-pulse={priceChanged}>CURRENT HIGHEST BID</div>
+              <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid, sellerCurrency)}</div>
               <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
             </div>
           {:else}
@@ -576,8 +929,8 @@
               </a>
             </div>
           {/if}
-        {:else if $authStore.isAuthenticated && isOwner && highestBid}
-          <!-- Sellers can contact buyer once there's a bid -->
+        {:else if $authStore.isAuthenticated && isOwner && highestBid && data.product.status === 'sold'}
+          <!-- Sellers can contact buyer only after accepting the bid -->
           <div class="contact-section">
             <a href="/inbox?product={data.product.id}" class="contact-btn">
               💬 Contact Buyer
@@ -589,12 +942,16 @@
           <div class="bid-history">
             <h3>Bid History</h3>
             <div class="bid-history-list">
-              {#each sortedBids.slice(0, 10) as bid, index}
+              {#each sortedBids.slice(0, 10) as bid, index (bid.id)}
                 <div
                   class="bid-history-item"
                   class:rank-1={index === 0}
-                  style="--rank: {index + 1}"
+                  class:new-bid={newBidIds.has(bid.id)}
+                  style="--rank: {index + 1}; --delay: {index * 0.05}s"
                 >
+                  {#if newBidIds.has(bid.id)}
+                    <div class="new-bid-indicator">NEW!</div>
+                  {/if}
                   <div class="bid-rank">#{index + 1}</div>
                   <div class="bid-info">
                     <div class="bid-amount">{formatPrice(bid.amount, sellerCurrency)}</div>
@@ -839,6 +1196,11 @@
               required
               disabled={saving}
             ></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="edit-keywords">Keywords (for search & SEO)</label>
+            <KeywordInput bind:keywords={editForm.keywords} disabled={saving} />
           </div>
 
           <div class="form-group">
@@ -2243,5 +2605,256 @@
     to {
       width: 0%;
     }
+  }
+
+  /* Live Update Indicator */
+  .title-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .title-container h1 {
+    margin: 0;
+  }
+
+  .live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.625rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    transition: all 0.3s;
+  }
+
+  /* Connected state - Green */
+  .live-indicator.connected {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #059669;
+  }
+
+  .live-indicator.connected .live-dot {
+    background: #10b981;
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  /* Connecting state - Yellow */
+  .live-indicator.connecting {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #d97706;
+  }
+
+  .live-indicator.connecting .live-dot {
+    background: #f59e0b;
+    animation: pulse-dot 0.8s ease-in-out infinite;
+  }
+
+  /* Disconnected state - Red */
+  .live-indicator.disconnected {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #dc2626;
+  }
+
+  .live-indicator.disconnected .live-dot {
+    background: #ef4444;
+    animation: pulse-dot 0.5s ease-in-out infinite;
+  }
+
+  /* Updating state - Blue */
+  .live-indicator.updating {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #2563eb;
+  }
+
+  .live-indicator.updating .live-dot {
+    background: #3b82f6;
+    animation: pulse-dot 0.5s ease-in-out infinite;
+  }
+
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .live-text {
+    letter-spacing: 0.05em;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.5;
+      transform: scale(1.2);
+    }
+  }
+
+  /* Confetti Animation */
+  .confetti-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 100;
+  }
+
+  .confetti {
+    position: absolute;
+    top: -10px;
+    left: var(--x);
+    width: 10px;
+    height: 10px;
+    background: var(--color);
+    opacity: 0;
+    animation: confettiFall 3s ease-out var(--delay) forwards;
+    transform: rotate(var(--rotation));
+  }
+
+  @keyframes confettiFall {
+    0% {
+      opacity: 1;
+      top: -10px;
+      transform: rotate(var(--rotation)) translateY(0);
+    }
+    100% {
+      opacity: 0;
+      top: 100%;
+      transform: rotate(calc(var(--rotation) + 360deg)) translateY(100px);
+    }
+  }
+
+  /* Price Change Animation */
+  .price-animate {
+    animation: priceChange 0.8s ease-out;
+  }
+
+  @keyframes priceChange {
+    0% {
+      transform: scale(1);
+    }
+    25% {
+      transform: scale(1.3);
+      color: #10b981;
+    }
+    50% {
+      transform: scale(0.95);
+    }
+    75% {
+      transform: scale(1.1);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  /* Label Pulse Animation */
+  .label-pulse {
+    animation: labelPulse 0.6s ease-out;
+  }
+
+  @keyframes labelPulse {
+    0%, 100% {
+      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+      transform: scale(1);
+    }
+    50% {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      transform: scale(1.05);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+    }
+  }
+
+  /* New Bid Highlight Animation */
+  .bid-history-item {
+    position: relative;
+    animation: slideIn var(--delay) ease-out;
+  }
+
+  .bid-history-item.new-bid {
+    animation: newBidHighlight 2s ease-out;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .new-bid-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    padding: 0.25rem 0.625rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    animation: newBadgePulse 1s ease-in-out infinite;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+    z-index: 10;
+  }
+
+  @keyframes newBidHighlight {
+    0% {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      transform: translateX(-100%) scale(0.95);
+      opacity: 0;
+    }
+    15% {
+      transform: translateX(0) scale(1.02);
+      opacity: 1;
+    }
+    30% {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
+    }
+    50% {
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    }
+    75% {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+    100% {
+      background: white;
+      transform: translateX(0) scale(1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+  }
+
+  @keyframes newBadgePulse {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Price Info Container */
+  .price-info {
+    position: relative;
+    overflow: visible;
   }
 </style>

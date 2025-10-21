@@ -162,6 +162,16 @@ export default buildConfig({
               });
             }
 
+            // Broadcast product update via SSE for any product change
+            if (operation === 'update') {
+              const broadcast = (global as any).broadcastProductUpdate;
+              if (broadcast) {
+                setImmediate(() => {
+                  broadcast(String(doc.id));
+                });
+              }
+            }
+
             return doc;
           },
         ],
@@ -176,6 +186,20 @@ export default buildConfig({
           name: 'description',
           type: 'textarea',
           required: true,
+        },
+        {
+          name: 'keywords',
+          type: 'array',
+          admin: {
+            description: 'Keywords for search and SEO purposes',
+          },
+          fields: [
+            {
+              name: 'keyword',
+              type: 'text',
+              required: true,
+            },
+          ],
         },
         {
           name: 'images',
@@ -344,6 +368,12 @@ export default buildConfig({
                         currentBid: doc.amount,
                       },
                     });
+                  }
+
+                  // Broadcast real-time update via SSE
+                  const broadcast = (global as any).broadcastProductUpdate;
+                  if (broadcast) {
+                    await broadcast(String(productId));
                   }
                 } catch (error) {
                   console.error('Background error updating currentBid:', error);
