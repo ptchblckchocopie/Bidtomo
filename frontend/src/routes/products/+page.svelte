@@ -17,10 +17,17 @@
   $: filteredProducts = data.products.filter(p => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
+
+    // Check keywords
+    const keywordMatch = p.keywords?.some(k =>
+      k.keyword.toLowerCase().includes(query)
+    ) || false;
+
     return (
       p.title.toLowerCase().includes(query) ||
       p.description.toLowerCase().includes(query) ||
-      p.seller.name.toLowerCase().includes(query)
+      p.seller.name.toLowerCase().includes(query) ||
+      keywordMatch
     );
   });
 
@@ -141,7 +148,7 @@
       <input
         type="text"
         bind:value={searchQuery}
-        placeholder="Search by title, description, or seller..."
+        placeholder="Search by title, description, keywords, or seller..."
         class="search-input"
       />
       {#if searchQuery}

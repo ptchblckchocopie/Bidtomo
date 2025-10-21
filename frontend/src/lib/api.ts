@@ -22,6 +22,9 @@ export interface Product {
   id: string;
   title: string;
   description: string;
+  keywords?: Array<{
+    keyword: string;
+  }>;
   startingPrice: number;
   bidInterval: number;
   currentBid?: number;
@@ -140,11 +143,38 @@ export async function fetchProduct(id: string): Promise<Product | null> {
   }
 }
 
+// Check product status for updates (lightweight endpoint)
+export async function checkProductStatus(id: string): Promise<{
+  id: string;
+  updatedAt: string;
+  status: string;
+  currentBid?: number;
+  latestBidTime?: string;
+  bidCount: number;
+} | null> {
+  try {
+    const response = await fetch(`${API_URL}/api/products/${id}/status`, {
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to check product status');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error checking product status:', error);
+    return null;
+  }
+}
+
 // Create a new product
 export async function createProduct(productData: {
   title: string;
   description: string;
+  keywords?: Array<{ keyword: string }>;
   startingPrice: number;
+  bidInterval?: number;
   auctionEndDate: string;
 }): Promise<Product | null> {
   try {
@@ -172,6 +202,7 @@ export async function updateProduct(
   productData: {
     title?: string;
     description?: string;
+    keywords?: Array<{ keyword: string }>;
     bidInterval?: number;
     auctionEndDate?: string;
     status?: 'active' | 'ended' | 'sold' | 'cancelled';

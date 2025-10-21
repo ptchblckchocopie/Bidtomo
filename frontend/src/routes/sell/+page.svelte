@@ -3,9 +3,11 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { onMount } from 'svelte';
+  import KeywordInput from '$lib/components/KeywordInput.svelte';
 
   let title = '';
   let description = '';
+  let keywords: string[] = [];
   let startingPrice = 0;
   let auctionEndDate = '';
 
@@ -35,6 +37,9 @@
 
   // Get user's currency
   $: userCurrency = $authStore.user?.currency || 'PHP';
+
+  // Set default bid interval based on currency: 50 for PHP, 1 for others
+  $: bidInterval = userCurrency === 'PHP' ? 50 : 1;
 
   // Check authentication on mount
   onMount(() => {
@@ -104,7 +109,9 @@
     const result = await createProduct({
       title,
       description,
+      keywords: keywords.map(k => ({ keyword: k })),
       startingPrice,
+      bidInterval,
       auctionEndDate: new Date(auctionEndDate).toISOString(),
     });
 
@@ -165,6 +172,11 @@
         required
         disabled={submitting}
       ></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="keywords">Keywords (for search & SEO)</label>
+      <KeywordInput bind:keywords disabled={submitting} />
     </div>
 
     <div class="form-group">
