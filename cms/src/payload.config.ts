@@ -74,28 +74,33 @@ export default buildConfig({
       access: {
         read: () => true,
         create: ({ req }) => !!req.user,
-        update: ({ req }) => {
-          if (!req.user) return false;
-          if (req.user.role === 'admin') return true;
-          if (req.user.role === 'seller') {
-            // Sellers cannot edit sold products
-            return {
-              and: [
-                { seller: { equals: req.user.id } },
-                { status: { not_equals: 'sold' } },
-              ],
-            };
-          }
-          return false;
-        },
+        update: ({ req }) => req.user?.role === 'admin' || req.user?.role === 'seller',
         delete: ({ req }) => req.user?.role === 'admin',
       },
       hooks: {
         beforeChange: [
-          ({ req, data }) => {
+          ({ req, data, operation }) => {
             // Automatically set seller to the logged-in user if not provided
             if (req.user && !data.seller) {
               data.seller = req.user.id;
+            }
+
+            // Prevent editing sold products (except by admin)
+            if (operation === 'update' && req.user?.role !== 'admin') {
+              // We need to check the current product status
+              // This will be handled in beforeValidate hook instead
+            }
+
+            return data;
+          },
+        ],
+        beforeValidate: [
+          async ({ req, data, operation, originalDoc }) => {
+            // Prevent editing sold products (except by admin)
+            if (operation === 'update' && req.user?.role !== 'admin') {
+              if (originalDoc?.status === 'sold') {
+                throw new Error('Cannot edit products that have been sold');
+              }
             }
             return data;
           },
