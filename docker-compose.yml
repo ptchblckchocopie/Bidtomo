@@ -1,0 +1,74 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: marketplace-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: marketplace
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - marketplace-network
+
+  # PayloadCMS Backend
+  backend:
+    build:
+      context: ./cms
+      dockerfile: Dockerfile
+    container_name: marketplace-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/marketplace
+      PAYLOAD_SECRET: a61dfa584654666a49675f4c5fd77812c2e47622072f1c65eb48d32b973c7625
+      PORT: 3001
+      SERVER_URL: http://localhost:3001
+      NODE_ENV: development
+    volumes:
+      - ./cms/src:/app/src
+      - ./cms/media:/app/media
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - marketplace-network
+
+  # SvelteKit Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: marketplace-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      PUBLIC_API_URL: http://localhost:3001
+      VITE_API_URL: http://localhost:3001
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/static:/app/static
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - marketplace-network
+
+networks:
+  marketplace-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

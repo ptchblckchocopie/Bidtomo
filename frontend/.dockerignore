@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+.env
+.env.local
+build
+.svelte-kit
+.logs
+*.log
+.DS_Store

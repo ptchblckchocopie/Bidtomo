@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+.svelte-kit/
+.output/
+
+# Logs
+.logs/
+*.log
+
+# PayloadCMS
+cms/media/
+cms/dist/
+cms/src/payload-types.ts
+cms/src/generated-schema.graphql
+
+# Frontend
+frontend/.svelte-kit/
+frontend/build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+
+# Misc
+.cache/
+
+# Docker
+.env.docker.local
+docker-compose.override.yml
