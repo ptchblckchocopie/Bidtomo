@@ -25,6 +25,140 @@ const start = async () => {
     },
   });
 
+  // Create conversations for sold products
+  app.post('/api/create-conversations', async (req, res) => {
+    try {
+      console.log('Starting conversation creation for sold products...');
+
+      // Find all sold products
+      const soldProducts = await payload.find({
+        collection: 'products',
+        where: {
+          status: {
+            equals: 'sold',
+          },
+        },
+        limit: 1000,
+      });
+
+      let conversationsCreated = 0;
+      let skipped = 0;
+      const results = [];
+
+      for (const product of soldProducts.docs) {
+        try {
+          // Check if conversation already exists
+          const existingMessages = await payload.find({
+            collection: 'messages',
+            where: {
+              product: {
+                equals: product.id,
+              },
+            },
+            limit: 1,
+          });
+
+          const conversationExists = existingMessages.docs && existingMessages.docs.length > 0;
+
+          // Find the highest bidder
+          const bids = await payload.find({
+            collection: 'bids',
+            where: {
+              product: {
+                equals: product.id,
+              },
+            },
+            sort: '-amount',
+            limit: 1,
+          });
+
+          if (!bids.docs || bids.docs.length === 0) {
+            results.push({ product: product.title, status: 'skipped', reason: 'no bids found' });
+            skipped++;
+            continue;
+          }
+
+          const highestBid: any = bids.docs[0];
+          const bidderId = typeof highestBid.bidder === 'object' && highestBid.bidder ? highestBid.bidder.id : highestBid.bidder;
+          const sellerId = typeof product.seller === 'object' && product.seller ? (product.seller as any).id : product.seller;
+
+          let conversationCreated = false;
+          let transactionCreated = false;
+
+          // Create initial message from seller to buyer if it doesn't exist
+          if (!conversationExists) {
+            await payload.create({
+              collection: 'messages',
+              data: {
+                product: product.id,
+                sender: sellerId,
+                receiver: bidderId,
+                message: `Congratulations! Your bid has been accepted for "${product.title}". Let's discuss the next steps for completing this transaction.`,
+                read: false,
+              },
+            });
+            conversationCreated = true;
+            conversationsCreated++;
+          }
+
+          // Check if transaction already exists
+          const existingTransaction = await payload.find({
+            collection: 'transactions',
+            where: {
+              product: {
+                equals: product.id,
+              },
+            },
+            limit: 1,
+          });
+
+          // Create transaction if it doesn't exist
+          if (!existingTransaction.docs || existingTransaction.docs.length === 0) {
+            await payload.create({
+              collection: 'transactions',
+              data: {
+                product: product.id,
+                seller: sellerId,
+                buyer: bidderId,
+                amount: highestBid.amount,
+                status: 'pending',
+                notes: `Transaction created for "${product.title}" with winning bid of ${highestBid.amount}`,
+              },
+            });
+            transactionCreated = true;
+          }
+
+          // Build status message
+          if (conversationCreated && transactionCreated) {
+            results.push({ product: product.title, status: 'created conversation and transaction' });
+          } else if (conversationCreated && !transactionCreated) {
+            results.push({ product: product.title, status: 'created conversation (transaction exists)' });
+          } else if (!conversationCreated && transactionCreated) {
+            results.push({ product: product.title, status: 'created transaction (conversation exists)' });
+          } else {
+            results.push({ product: product.title, status: 'skipped (both exist)' });
+            skipped++;
+          }
+        } catch (error: any) {
+          results.push({ product: product.title, status: 'error', error: error.message });
+        }
+      }
+
+      res.json({
+        success: true,
+        summary: {
+          totalSoldProducts: soldProducts.docs.length,
+          conversationsCreated,
+          skipped,
+        },
+        results,
+      });
+    } catch (error: any) {
+      console.error('Error creating conversations:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Sync endpoint to update product currentBid with highest bid
   app.post('/api/sync-bids', async (req, res) => {
     try {

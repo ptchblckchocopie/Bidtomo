@@ -105,6 +105,66 @@ export default buildConfig({
             return data;
           },
         ],
+        afterChange: [
+          async ({ req, doc, operation, previousDoc }) => {
+            // Create automatic conversation when product is sold
+            if (operation === 'update' && doc.status === 'sold' && previousDoc?.status !== 'sold') {
+              // Run in background without blocking the response
+              setImmediate(async () => {
+                try {
+                  // Find the highest bidder
+                  const bids = await req.payload.find({
+                    collection: 'bids',
+                    where: {
+                      product: {
+                        equals: doc.id,
+                      },
+                    },
+                    sort: '-amount',
+                    limit: 1,
+                  });
+
+                  if (bids.docs.length > 0) {
+                    const highestBid: any = bids.docs[0];
+                    const bidderId = typeof highestBid.bidder === 'object' && highestBid.bidder ? highestBid.bidder.id : highestBid.bidder;
+                    const sellerId = typeof doc.seller === 'object' && doc.seller ? (doc.seller as any).id : doc.seller;
+
+                    // Create initial message from seller to buyer
+                    await req.payload.create({
+                      collection: 'messages',
+                      data: {
+                        product: doc.id,
+                        sender: sellerId,
+                        receiver: bidderId,
+                        message: `Congratulations! Your bid has been accepted for "${doc.title}". Let's discuss the next steps for completing this transaction.`,
+                        read: false,
+                      },
+                    });
+
+                    // Create transaction record
+                    await req.payload.create({
+                      collection: 'transactions',
+                      data: {
+                        product: doc.id,
+                        seller: sellerId,
+                        buyer: bidderId,
+                        amount: highestBid.amount,
+                        status: 'pending',
+                        notes: `Transaction created for "${doc.title}" with winning bid of ${highestBid.amount}`,
+                      },
+                    });
+
+                    console.log(`Auto-created conversation and transaction for sold product: ${doc.title} (ID: ${doc.id})`);
+                  }
+                } catch (error) {
+                  console.error('Error creating automatic conversation:', error);
+                }
+              });
+            }
+
+            return doc;
+          },
+        ],
       },
       fields: [
         {
@@ -421,6 +481,95 @@ export default buildConfig({
           defaultValue: false,
           admin: {
             description: 'Has the receiver read this message?',
+          },
+        },
+      ],
+    },
+    {
+      slug: 'transactions',
+      admin: {
+        useAsTitle: 'id',
+      },
+      access: {
+        read: ({ req }) => {
+          // Users can only read their own transactions
+          if (!req.user) return false;
+          return true; // Filtering done via hooks
+        },
+        create: ({ req }) => req.user?.role === 'admin',
+        update: ({ req }) => !!req.user,
+        delete: ({ req }) => req.user?.role === 'admin',
+      },
+      hooks: {
+        afterRead: [
+          async ({ req, doc }) => {
+            // Filter out transactions user shouldn't see
+            if (!req.user) return null;
+
+            const buyerId = typeof doc.buyer === 'object' ? doc.buyer.id : doc.buyer;
+            const sellerId = typeof doc.seller === 'object' ? doc.seller.id : doc.seller;
+
+            if (buyerId === req.user.id || sellerId === req.user.id) {
+              return doc;
+            }
+
+            return null;
+          },
+        ],
+      },
+      fields: [
+        {
+          name: 'product',
+          type: 'relationship',
+          relationTo: 'products',
+          required: true,
+          admin: {
+            description: 'Product that was sold',
+          },
+        },
+        {
+          name: 'seller',
+          type: 'relationship',
+          relationTo: 'users',
+          required: true,
+          admin: {
+            description: 'Seller of the product',
+          },
+        },
+        {
+          name: 'buyer',
+          type: 'relationship',
+          relationTo: 'users',
+          required: true,
+          admin: {
+            description: 'Buyer who won the auction',
+          },
+        },
+        {
+          name: 'amount',
+          type: 'number',
+          required: true,
+          admin: {
+            description: 'Final sale price',
+          },
+        },
+        {
+          name: 'status',
+          type: 'select',
+          options: [
+            { label: 'Pending', value: 'pending' },
+            { label: 'In Progress', value: 'in_progress' },
+            { label: 'Completed', value: 'completed' },
+            { label: 'Cancelled', value: 'cancelled' },
+          ],
+          defaultValue: 'pending',
+          required: true,
+        },
+        {
+          name: 'notes',
+          type: 'textarea',
+          admin: {
+            description: 'Transaction notes or details',
           },
         },
       ],

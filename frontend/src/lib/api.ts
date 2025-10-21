@@ -71,6 +71,18 @@ export interface Message {
   updatedAt: string;
 }
 
+export interface Transaction {
+  id: string;
+  product: string | Product;
+  seller: string | User;
+  buyer: string | User;
+  amount: number;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Fetch all products
 export async function fetchProducts(): Promise<Product[]> {
   try {
@@ -166,21 +178,39 @@ export async function updateProduct(
   }
 ): Promise<Product | null> {
   try {
+    console.log('Updating product:', productId, productData);
+
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
     const response = await fetch(`${API_URL}/api/products/${productId}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
       credentials: 'include',
       body: JSON.stringify(productData),
+      signal: controller.signal,
     });
 
+    clearTimeout(timeoutId);
+    console.log('Update response status:', response.status);
+
     if (!response.ok) {
-      throw new Error('Failed to update product');
+      const errorText = await response.text();
+      console.error('Update failed with status:', response.status, errorText);
+      throw new Error(`Failed to update product: ${response.status} - ${errorText}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('Update successful:', result);
+    return result;
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('Update timed out after 30 seconds');
+      throw new Error('Request timed out. The server might be processing your request.');
+    }
     console.error('Error updating product:', error);
-    return null;
+    throw error;
   }
 }
 
@@ -441,5 +471,50 @@ export async function markMessageAsRead(messageId: string): Promise<boolean> {
   } catch (error) {
     console.error('Error marking message as read:', error);
     return false;
+  }
+}
+
+// Fetch user's transactions
+export async function fetchMyTransactions(): Promise<Transaction[]> {
+  try {
+    const response = await fetch(`${API_URL}/api/transactions?limit=100&sort=-createdAt`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch transactions');
+    }
+
+    const data = await response.json();
+    return data.docs || [];
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    return [];
+  }
+}
+
+// Update transaction status
+export async function updateTransactionStatus(
+  transactionId: string,
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled',
+  notes?: string
+): Promise<Transaction | null> {
+  try {
+    const response = await fetch(`${API_URL}/api/transactions/${transactionId}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ status, ...(notes && { notes }) }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update transaction');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating transaction:', error);
+    return null;
   }
 }

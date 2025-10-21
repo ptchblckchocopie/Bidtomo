@@ -22,6 +22,7 @@
   let showConfirmBidModal = false;
   let showEditModal = false;
   let showAcceptBidModal = false;
+  let bidSectionOpen = false;
   let censorMyName = false;
   let accepting = false;
   let acceptError = '';
@@ -185,6 +186,11 @@
         }
         // Reset bid amount to new minimum
         bidAmount = bidAmount + bidInterval;
+
+        // Auto-close success message after 5 seconds
+        setTimeout(() => {
+          bidSuccess = false;
+        }, 5000);
       } else {
         bidError = 'Failed to place bid. Please try again.';
       }
@@ -199,6 +205,10 @@
   function cancelBid() {
     showConfirmBidModal = false;
     censorMyName = false;
+  }
+
+  function closeSuccessAlert() {
+    bidSuccess = false;
   }
 
   // Function to censor a name (show first letter + asterisks)
@@ -310,23 +320,29 @@
     acceptSuccess = false;
 
     try {
+      console.log('Accepting bid for product:', data.product.id);
+
       // Update product status to 'sold'
       const result = await updateProduct(data.product.id, {
         status: 'sold'
       });
 
+      console.log('Update result:', result);
+
       if (result) {
         acceptSuccess = true;
+        console.log('Bid accepted successfully, reloading page in 1.5s');
         setTimeout(() => {
           // Refresh the page to show updated status
           window.location.reload();
         }, 1500);
       } else {
-        acceptError = 'Failed to accept bid';
+        console.error('Failed to accept bid - no result returned');
+        acceptError = 'Failed to accept bid. Please try again.';
       }
     } catch (error) {
       console.error('Error accepting bid:', error);
-      acceptError = 'An error occurred while accepting the bid';
+      acceptError = 'An error occurred while accepting the bid: ' + (error instanceof Error ? error.message : String(error));
     } finally {
       accepting = false;
     }
@@ -466,82 +482,100 @@
           {:else}
             <!-- Bidder view - Place Bid section -->
             <div class="bid-section">
-              <div class="bid-section-header">
-                <h3>Place Your Bid</h3>
+              <div class="bid-section-header-wrapper">
+                <button
+                  class="bid-section-header-btn"
+                  on:click={() => bidSectionOpen = !bidSectionOpen}
+                  type="button"
+                >
+                  <h3>Place Your Bid</h3>
+                  <svg
+                    class="accordion-arrow"
+                    class:open={bidSectionOpen}
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
                 <div class="countdown-timer-inline">
                   <span class="countdown-label">Ends in:</span>
                   <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
                 </div>
               </div>
 
-              {#if !$authStore.isAuthenticated}
-                <div class="info-message">
-                  <p>🔒 You must be logged in to place a bid</p>
-                </div>
-              {/if}
-
-              {#if bidSuccess}
-                <div class="success-message">
-                  Bid placed successfully! You are now the highest bidder.
-                </div>
-              {/if}
-
-              {#if bidError}
-                <div class="error-message">
-                  {bidError}
-                </div>
-              {/if}
-
-              <div class="bid-form">
-                <div class="bid-input-group">
-                  <label>Your Bid Amount</label>
-                  <div class="bid-control">
-                    <button
-                      class="bid-arrow-btn"
-                      on:click={decrementBid}
-                      disabled={bidding || bidAmount <= minBid}
-                      type="button"
-                      aria-label="Decrease bid"
-                    >
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                      </svg>
-                    </button>
-                    <div class="bid-amount-display">
-                      {formatPrice(bidAmount, sellerCurrency)}
-                    </div>
-                    <button
-                      class="bid-arrow-btn"
-                      on:click={incrementBid}
-                      disabled={bidding}
-                      type="button"
-                      aria-label="Increase bid"
-                    >
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="18 15 12 9 6 15"></polyline>
-                      </svg>
-                    </button>
+              {#if bidSectionOpen}
+                {#if !$authStore.isAuthenticated}
+                  <div class="info-message">
+                    <p>🔒 You must be logged in to place a bid</p>
                   </div>
-                  <p class="bid-hint">
-                    Minimum bid: {formatPrice(minBid, sellerCurrency)} • Increment: {formatPrice(bidInterval, sellerCurrency)}
-                  </p>
+                {/if}
+
+                {#if bidError}
+                  <div class="error-message">
+                    {bidError}
+                  </div>
+                {/if}
+
+                <div class="bid-form">
+                  <div class="bid-input-group">
+                    <label>Your Bid Amount</label>
+                    <div class="bid-row">
+                      <div class="bid-control">
+                        <button
+                          class="bid-arrow-btn"
+                          on:click={decrementBid}
+                          disabled={bidding || bidAmount <= minBid}
+                          type="button"
+                          aria-label="Decrease bid"
+                        >
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                          </svg>
+                        </button>
+                        <div class="bid-amount-display">
+                          {formatPrice(bidAmount, sellerCurrency)}
+                        </div>
+                        <button
+                          class="bid-arrow-btn"
+                          on:click={incrementBid}
+                          disabled={bidding}
+                          type="button"
+                          aria-label="Increase bid"
+                        >
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="18 15 12 9 6 15"></polyline>
+                          </svg>
+                        </button>
+                      </div>
+                      <button class="place-bid-btn" on:click={handlePlaceBid} disabled={bidding}>
+                        {bidding ? 'Placing Bid...' : 'Place Bid'}
+                      </button>
+                    </div>
+                    <p class="bid-hint">
+                      Minimum bid: {formatPrice(minBid, sellerCurrency)} • Increment: {formatPrice(bidInterval, sellerCurrency)}
+                    </p>
+                  </div>
                 </div>
-                <button class="place-bid-btn" on:click={handlePlaceBid} disabled={bidding}>
-                  {bidding ? 'Placing Bid...' : 'Place Bid'}
-                </button>
-              </div>
+              {/if}
             </div>
           {/if}
         {/if}
 
         <!-- Contact Section -->
-        {#if $authStore.isAuthenticated && !isOwner}
-          <!-- Buyers can always contact seller -->
-          <div class="contact-section">
-            <a href="/inbox?product={data.product.id}" class="contact-btn">
-              💬 Contact Seller
-            </a>
-          </div>
+        {#if $authStore.isAuthenticated && !isOwner && (data.product.status === 'ended' || data.product.status === 'sold') && highestBid}
+          <!-- Buyers can contact seller only if auction is closed and they are the winning bidder -->
+          {#if (typeof highestBid.bidder === 'object' ? highestBid.bidder.id : highestBid.bidder) === $authStore.user?.id}
+            <div class="contact-section">
+              <a href="/inbox?product={data.product.id}" class="contact-btn">
+                💬 Contact Seller
+              </a>
+            </div>
+          {/if}
         {:else if $authStore.isAuthenticated && isOwner && highestBid}
           <!-- Sellers can contact buyer once there's a bid -->
           <div class="contact-section">
@@ -704,6 +738,29 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Success Alert Modal -->
+{#if bidSuccess}
+  <div class="success-alert-overlay" on:click={closeSuccessAlert}>
+    <div class="success-alert-content" on:click|stopPropagation>
+      <button class="success-alert-close" on:click={closeSuccessAlert} aria-label="Close">
+        &times;
+      </button>
+
+      <div class="success-alert-icon">
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+      </div>
+
+      <h2>Bid Placed Successfully!</h2>
+      <p>You are now the highest bidder.</p>
+
+      <div class="success-alert-progress"></div>
     </div>
   </div>
 {/if}
@@ -1018,15 +1075,42 @@
     color: white;
   }
 
-  .bid-section-header {
+  .bid-section-header-wrapper {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
+    margin-bottom: 0;
   }
 
-  .bid-section-header h3 {
+  .bid-section-header-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: opacity 0.2s;
+  }
+
+  .bid-section-header-btn:hover {
+    opacity: 0.8;
+  }
+
+  .bid-section-header-btn h3 {
     margin: 0;
+    color: #1f2937;
+    font-size: 1.5rem;
+    text-align: left;
+  }
+
+  .accordion-arrow {
+    transition: transform 0.3s ease;
+    color: #ef4444;
+  }
+
+  .accordion-arrow.open {
+    transform: rotate(180deg);
   }
 
   .countdown-timer-inline {
@@ -1128,7 +1212,7 @@
     margin-bottom: 2rem;
     display: flex;
     flex-direction: column;
-    min-height: 220px;
+    transition: all 0.3s ease;
   }
 
   .contact-section {
@@ -1155,14 +1239,32 @@
   }
 
   .bid-form {
-    display: flex;
-    gap: 1rem;
     margin-top: 1rem;
-    align-items: flex-end;
+    animation: slideDown 0.3s ease-out;
+    transform-origin: top;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+      max-height: 0;
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      max-height: 500px;
+    }
   }
 
   .bid-input-group {
-    flex: 1;
+    width: 100%;
+  }
+
+  .bid-row {
+    display: flex;
+    gap: 1rem;
+    align-items: stretch;
   }
 
   .bid-input-group label {
@@ -1180,6 +1282,8 @@
     border: 2px solid #667eea;
     border-radius: 8px;
     padding: 0.5rem;
+    flex: 1;
+    min-height: 64px;
   }
 
   .bid-arrow-btn {
@@ -1234,7 +1338,7 @@
   }
 
   .place-bid-btn {
-    padding: 0.875rem 2.5rem;
+    padding: 0 2.5rem;
     font-size: 1.1rem;
     font-weight: 700;
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
@@ -1244,6 +1348,11 @@
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
     white-space: nowrap;
+    min-height: 64px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .place-bid-btn:hover:not(:disabled) {
@@ -1263,6 +1372,7 @@
     padding: 1rem;
     border-radius: 4px;
     margin-bottom: 1rem;
+    animation: slideDown 0.3s ease-out;
   }
 
   .error-message {
@@ -1271,6 +1381,7 @@
     padding: 1rem;
     border-radius: 4px;
     margin-bottom: 1rem;
+    animation: slideDown 0.3s ease-out;
   }
 
   .info-message {
@@ -1280,6 +1391,7 @@
     border-radius: 6px;
     margin-bottom: 1rem;
     text-align: center;
+    animation: slideDown 0.3s ease-out;
   }
 
   .info-message p {
@@ -1316,7 +1428,7 @@
   }
 
   .bid-history-item {
-    --scale: calc(1 - (var(--rank) - 1) * 0.06);
+    --scale: calc(1 - (min(var(--rank), 4) - 1) * 0.06);
     display: flex;
     align-items: center;
     gap: calc(1rem * var(--scale));
@@ -2002,5 +2114,134 @@
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
+  }
+
+  /* Success Alert Styles */
+  .success-alert-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .success-alert-content {
+    background: white;
+    border-radius: 24px;
+    padding: 3rem;
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.4s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(50px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .success-alert-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    font-size: 2.5rem;
+    color: #999;
+    cursor: pointer;
+    line-height: 1;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+
+  .success-alert-close:hover {
+    background-color: #f0f0f0;
+    color: #333;
+  }
+
+  .success-alert-icon {
+    margin: 0 auto 1.5rem;
+    color: #10b981;
+    animation: checkmark 0.6s ease-out;
+  }
+
+  @keyframes checkmark {
+    0% {
+      transform: scale(0) rotate(-45deg);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1.2) rotate(0deg);
+    }
+    100% {
+      transform: scale(1) rotate(0deg);
+      opacity: 1;
+    }
+  }
+
+  .success-alert-content h2 {
+    font-size: 2rem;
+    margin: 0 0 1rem 0;
+    color: #1f2937;
+    font-weight: 700;
+  }
+
+  .success-alert-content p {
+    font-size: 1.25rem;
+    color: #6b7280;
+    margin: 0 0 2rem 0;
+  }
+
+  .success-alert-progress {
+    height: 4px;
+    background: #e5e7eb;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 2rem;
+  }
+
+  .success-alert-progress::after {
+    content: '';
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #059669);
+    animation: progress 5s linear;
+  }
+
+  @keyframes progress {
+    from {
+      width: 100%;
+    }
+    to {
+      width: 0%;
+    }
   }
 </style>
