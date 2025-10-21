@@ -21,7 +21,7 @@
   <header>
     <nav>
       <div class="nav-left">
-        <a href="/" class="logo">🏪 Marketplace</a>
+        <a href="/" class="logo">🔨 BidMo.to</a>
         <a href="/products">Browse</a>
         {#if $authStore.isAuthenticated}
           <a href="/dashboard">My Products</a>
@@ -48,7 +48,7 @@
   </main>
 
   <footer>
-    <p>&copy; 2025 Marketplace Platform</p>
+    <p>&copy; 2025 BidMo.to - Bid mo 'to!</p>
   </footer>
 </div>
 
@@ -61,7 +61,7 @@
 
   header {
     padding: 1rem 2rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
     color: white;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
@@ -101,7 +101,7 @@
 
   .btn-register {
     background-color: white;
-    color: #667eea;
+    color: #dc2626;
     padding: 0.5rem 1.5rem;
     border-radius: 6px;
     font-weight: 600;

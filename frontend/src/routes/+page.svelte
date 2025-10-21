@@ -2,8 +2,8 @@
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   export let params: any = {};
 
-  let title = 'Marketplace Platform';
-  let description = 'Buy and bid on unique items from sellers worldwide';
+  let title = 'BidMo.to';
+  let description = 'Bid mo \'to! The best place to buy and bid on unique items';
 </script>
 
 <svelte:head>
@@ -66,7 +66,7 @@
   }
 
   .button.primary {
-    background-color: #0066cc;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
     color: white;
   }
 

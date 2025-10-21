@@ -96,7 +96,7 @@
 </script>
 
 <svelte:head>
-  <title>Register - Marketplace Platform</title>
+  <title>Register - BidMo.to</title>
 </svelte:head>
 
 <div class="register-page">
@@ -192,7 +192,7 @@
     align-items: center;
     justify-content: center;
     padding: 2rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
   }
 
   .register-container {
@@ -259,8 +259,8 @@
 
   input:focus {
     outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
   }
 
   input:disabled {
@@ -273,7 +273,7 @@
     padding: 1rem;
     font-size: 1.1rem;
     font-weight: 600;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
     color: white;
     border: none;
     border-radius: 6px;
@@ -284,7 +284,7 @@
 
   button:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
   }
 
   button:disabled {
@@ -304,7 +304,7 @@
   }
 
   .additional-info a {
-    color: #667eea;
+    color: #dc2626;
     text-decoration: none;
     font-weight: 600;
   }

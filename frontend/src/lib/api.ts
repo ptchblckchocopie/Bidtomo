@@ -57,6 +57,7 @@ export interface Bid {
   bidder: string | User;
   amount: number;
   bidTime: string;
+  censorName?: boolean;
 }
 
 // Fetch all products
@@ -230,9 +231,9 @@ export async function getCurrentUser(): Promise<User | null> {
 }
 
 // Place a bid
-export async function placeBid(productId: string, amount: number): Promise<Bid | null> {
+export async function placeBid(productId: string, amount: number, censorName: boolean = false): Promise<Bid | null> {
   try {
-    console.log('Placing bid:', { productId, amount, headers: getAuthHeaders() });
+    console.log('Placing bid:', { productId, amount, censorName, headers: getAuthHeaders() });
 
     const response = await fetch(`${API_URL}/api/bids`, {
       method: 'POST',
@@ -241,6 +242,7 @@ export async function placeBid(productId: string, amount: number): Promise<Bid |
       body: JSON.stringify({
         product: productId,
         amount,
+        censorName,
         // bidder and bidTime are set automatically by backend
       }),
     });

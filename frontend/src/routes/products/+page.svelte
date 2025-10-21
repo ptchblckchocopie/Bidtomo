@@ -1,7 +1,11 @@
 <script lang="ts">
   import type { PageData } from './$types';
+  import { onMount, onDestroy } from 'svelte';
 
   export let data: PageData;
+
+  let countdowns: { [key: string]: string } = {};
+  let countdownInterval: ReturnType<typeof setInterval> | null = null;
 
   function formatPrice(price: number, currency: string = 'PHP'): string {
     return new Intl.NumberFormat('en-US', {
@@ -20,23 +24,58 @@
     });
   }
 
-  function getTimeRemaining(endDate: string): string {
+  function updateCountdowns() {
+    data.products.forEach(product => {
+      const now = new Date().getTime();
+      const end = new Date(product.auctionEndDate).getTime();
+      const diff = end - now;
+
+      if (diff <= 0) {
+        countdowns[product.id] = 'Ended';
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      if (days > 0) {
+        countdowns[product.id] = `${days}d ${hours}h ${minutes}m`;
+      } else if (hours > 0) {
+        countdowns[product.id] = `${hours}h ${minutes}m ${seconds}s`;
+      } else {
+        countdowns[product.id] = `${minutes}m ${seconds}s`;
+      }
+    });
+    countdowns = { ...countdowns }; // Trigger reactivity
+  }
+
+  function getUrgencyClass(endDate: string): string {
     const now = new Date().getTime();
     const end = new Date(endDate).getTime();
     const diff = end - now;
+    const hoursLeft = diff / (1000 * 60 * 60);
 
-    if (diff <= 0) return 'Ended';
-
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-
-    if (days > 0) return `${days}d ${hours}h remaining`;
-    return `${hours}h remaining`;
+    if (diff <= 0) return 'ended';
+    if (hoursLeft <= 3) return 'critical'; // Less than 3 hours
+    if (hoursLeft <= 12) return 'urgent'; // Less than 12 hours
+    if (hoursLeft <= 24) return 'warning'; // Less than 24 hours
+    return 'normal';
   }
+
+  onMount(() => {
+    updateCountdowns();
+    countdownInterval = setInterval(updateCountdowns, 1000);
+  });
+
+  onDestroy(() => {
+    if (countdownInterval) clearInterval(countdownInterval);
+  });
 </script>
 
 <svelte:head>
-  <title>Browse Products - Marketplace Platform</title>
+  <title>Browse Products - BidMo.to</title>
 </svelte:head>
 
 <div class="products-page">
@@ -81,7 +120,13 @@
 
             <div class="auction-info">
               <span class="status status-{product.status}">{product.status}</span>
-              <span class="time-remaining">{getTimeRemaining(product.auctionEndDate)}</span>
+              <div class="countdown-badge countdown-{getUrgencyClass(product.auctionEndDate)}">
+                <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>{countdowns[product.id] || 'Loading...'}</span>
+              </div>
             </div>
           </div>
         </a>
@@ -242,8 +287,90 @@
     color: white;
   }
 
-  .time-remaining {
-    color: #666;
-    font-size: 0.9rem;
+  .countdown-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    transition: all 0.3s;
+  }
+
+  .countdown-icon {
+    flex-shrink: 0;
+  }
+
+  /* Normal - More than 24 hours */
+  .countdown-normal {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #7dd3fc;
+  }
+
+  /* Warning - Less than 24 hours */
+  .countdown-warning {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fbbf24;
+    animation: pulse-warning 2s ease-in-out infinite;
+  }
+
+  /* Urgent - Less than 12 hours */
+  .countdown-urgent {
+    background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+    color: #9a3412;
+    border: 2px solid #f97316;
+    animation: pulse-urgent 1.5s ease-in-out infinite;
+    box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+  }
+
+  /* Critical - Less than 3 hours */
+  .countdown-critical {
+    background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+    color: #991b1b;
+    border: 2px solid #dc2626;
+    animation: pulse-critical 1s ease-in-out infinite;
+    box-shadow: 0 2px 12px rgba(220, 38, 38, 0.4);
+  }
+
+  /* Ended */
+  .countdown-ended {
+    background-color: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+  }
+
+  @keyframes pulse-warning {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.02);
+    }
+  }
+
+  @keyframes pulse-urgent {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+    }
+    50% {
+      transform: scale(1.03);
+      box-shadow: 0 4px 12px rgba(249, 115, 22, 0.5);
+    }
+  }
+
+  @keyframes pulse-critical {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 2px 12px rgba(220, 38, 38, 0.4);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 6px 16px rgba(220, 38, 38, 0.6);
+    }
   }
 </style>

@@ -13,15 +13,73 @@
   let error = '';
   let success = false;
 
-  // Set minimum date to today
-  const today = new Date().toISOString().split('T')[0];
+  let customDays = 0;
+  let customHours = 0;
+  let durationTab: 'manual' | 'quick' | 'custom' = 'quick';
+
+  // Set default auction end date to 24 hours from now
+  function getDefaultEndDate(): string {
+    const date = new Date();
+    date.setHours(date.getHours() + 24);
+    return date.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:mm
+  }
+
+  // Set minimum date to 1 hour from now
+  function getMinimumEndDate(): string {
+    const date = new Date();
+    date.setHours(date.getHours() + 1);
+    return date.toISOString().slice(0, 16);
+  }
+
+  let minEndDate = getMinimumEndDate();
+
+  // Get user's currency
+  $: userCurrency = $authStore.user?.currency || 'PHP';
 
   // Check authentication on mount
   onMount(() => {
     if (!$authStore.isAuthenticated) {
       goto('/login?redirect=/sell');
     }
+
+    // Set default auction end date
+    if (!auctionEndDate) {
+      auctionEndDate = getDefaultEndDate();
+    }
+
+    // Update minimum date every minute to keep it current
+    const interval = setInterval(() => {
+      minEndDate = getMinimumEndDate();
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
   });
+
+  // Set duration in hours from now
+  function setDuration(hours: number) {
+    const date = new Date();
+    date.setHours(date.getHours() + hours);
+    auctionEndDate = date.toISOString().slice(0, 16);
+  }
+
+  // Apply custom duration (days + hours)
+  function applyCustomDuration() {
+    const totalHours = (customDays * 24) + customHours;
+
+    if (totalHours < 1) {
+      error = 'Duration must be at least 1 hour';
+      return;
+    }
+
+    const date = new Date();
+    date.setHours(date.getHours() + totalHours);
+    auctionEndDate = date.toISOString().slice(0, 16);
+
+    // Clear error if it was about duration
+    if (error.includes('Duration')) {
+      error = '';
+    }
+  }
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
@@ -33,6 +91,12 @@
     // Validation
     if (!title || !description || startingPrice <= 0 || !auctionEndDate) {
       error = 'Please fill in all fields';
+      submitting = false;
+      return;
+    }
+
+    if (startingPrice < 500) {
+      error = 'Starting price must be at least 500';
       submitting = false;
       return;
     }
@@ -104,29 +168,109 @@
     </div>
 
     <div class="form-group">
-      <label for="startingPrice">Starting Price ($) *</label>
+      <label for="startingPrice">Starting Price ({userCurrency}) *</label>
       <input
         id="startingPrice"
         type="number"
         bind:value={startingPrice}
-        min="1"
+        min="500"
         step="0.01"
-        placeholder="0.00"
+        placeholder="500.00"
         required
         disabled={submitting}
       />
+      <p class="field-hint">Minimum starting price: 500 {userCurrency}</p>
     </div>
 
     <div class="form-group">
       <label for="auctionEndDate">Auction End Date *</label>
-      <input
-        id="auctionEndDate"
-        type="datetime-local"
-        bind:value={auctionEndDate}
-        min={today}
-        required
-        disabled={submitting}
-      />
+
+      <div class="duration-tabs">
+        <button
+          type="button"
+          class="tab-btn"
+          class:active={durationTab === 'manual'}
+          on:click={() => durationTab = 'manual'}
+          disabled={submitting}
+        >
+          Manual
+        </button>
+        <button
+          type="button"
+          class="tab-btn"
+          class:active={durationTab === 'quick'}
+          on:click={() => durationTab = 'quick'}
+          disabled={submitting}
+        >
+          Quick Duration
+        </button>
+        <button
+          type="button"
+          class="tab-btn"
+          class:active={durationTab === 'custom'}
+          on:click={() => durationTab = 'custom'}
+          disabled={submitting}
+        >
+          Custom Duration
+        </button>
+      </div>
+
+      <div class="tab-content">
+        {#if durationTab === 'manual'}
+          <div class="tab-pane">
+            <input
+              id="auctionEndDate"
+              type="datetime-local"
+              bind:value={auctionEndDate}
+              min={minEndDate}
+              required
+              disabled={submitting}
+            />
+            <p class="field-hint">Minimum 1 hour from now.</p>
+          </div>
+        {:else if durationTab === 'quick'}
+          <div class="tab-pane">
+            <div class="duration-buttons">
+              <button type="button" class="duration-btn" on:click={() => setDuration(1)} disabled={submitting}>1 Hour</button>
+              <button type="button" class="duration-btn" on:click={() => setDuration(6)} disabled={submitting}>6 Hours</button>
+              <button type="button" class="duration-btn" on:click={() => setDuration(12)} disabled={submitting}>12 Hours</button>
+              <button type="button" class="duration-btn" on:click={() => setDuration(24)} disabled={submitting}>24 Hours</button>
+            </div>
+            <p class="field-hint">Selected: {auctionEndDate ? new Date(auctionEndDate).toLocaleString() : 'None'}</p>
+          </div>
+        {:else if durationTab === 'custom'}
+          <div class="tab-pane">
+            <div class="custom-duration-inputs">
+              <div class="duration-input-group">
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  class="duration-input"
+                  bind:value={customDays}
+                  disabled={submitting}
+                />
+                <span class="duration-unit">Days</span>
+              </div>
+              <div class="duration-input-group">
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  class="duration-input"
+                  bind:value={customHours}
+                  disabled={submitting}
+                />
+                <span class="duration-unit">Hours</span>
+              </div>
+              <button type="button" class="apply-duration-btn" on:click={applyCustomDuration} disabled={submitting}>
+                Apply
+              </button>
+            </div>
+            <p class="field-hint">Selected: {auctionEndDate ? new Date(auctionEndDate).toLocaleString() : 'None'}</p>
+          </div>
+        {/if}
+      </div>
     </div>
 
     <div class="form-actions">
@@ -287,5 +431,154 @@
 
   .info-box li {
     margin-bottom: 0.5rem;
+  }
+
+  .field-hint {
+    margin: 0.5rem 0 0 0;
+    font-size: 0.875rem;
+    color: #666;
+    font-style: italic;
+  }
+
+  /* Tab Styles */
+  .duration-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+  }
+
+  .tab-btn {
+    padding: 0.75rem 1.5rem;
+    background-color: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #666;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: -2px;
+  }
+
+  .tab-btn:hover:not(:disabled) {
+    color: #dc2626;
+  }
+
+  .tab-btn.active {
+    color: #dc2626;
+    border-bottom-color: #dc2626;
+  }
+
+  .tab-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .tab-content {
+    margin-top: 1.5rem;
+  }
+
+  .tab-pane {
+    animation: fadeIn 0.2s ease-in;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .duration-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .duration-btn {
+    padding: 0.75rem 1.25rem;
+    background-color: white;
+    border: 2px solid #dc2626;
+    color: #dc2626;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .duration-btn:hover:not(:disabled) {
+    background-color: #dc2626;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+  }
+
+  .duration-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .custom-duration-inputs {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .duration-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .duration-input {
+    width: 80px;
+    padding: 0.625rem;
+    font-size: 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    font-family: inherit;
+  }
+
+  .duration-input:focus {
+    outline: none;
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+
+  .duration-unit {
+    font-size: 0.875rem;
+    color: #666;
+    font-weight: 500;
+  }
+
+  .apply-duration-btn {
+    padding: 0.625rem 1.5rem;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .apply-duration-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+  }
+
+  .apply-duration-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
   }
 </style>

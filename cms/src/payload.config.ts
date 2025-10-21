@@ -114,7 +114,10 @@ export default buildConfig({
           name: 'startingPrice',
           type: 'number',
           required: true,
-          min: 0,
+          min: 500,
+          admin: {
+            description: 'Minimum starting price: 500',
+          },
         },
         {
           name: 'bidInterval',
@@ -154,10 +157,15 @@ export default buildConfig({
             return tomorrow.toISOString();
           },
           validate: (value: string) => {
+            if (!value) return true; // Allow empty for now, required will catch it
+
             const auctionEnd = new Date(value);
             const now = new Date();
 
-            if (auctionEnd <= now) {
+            // Add 30 seconds buffer to account for request processing time
+            const minTime = new Date(now.getTime() - 30000);
+
+            if (auctionEnd <= minTime) {
               return 'Auction end date must be in the future';
             }
 
@@ -300,6 +308,14 @@ export default buildConfig({
               pickerAppearance: 'dayAndTime',
             },
             description: 'Automatically set to current time',
+          },
+        },
+        {
+          name: 'censorName',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            description: 'Hide bidder full name in bid history (shows only first letters)',
           },
         },
       ],

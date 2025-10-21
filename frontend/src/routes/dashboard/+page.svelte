@@ -123,7 +123,7 @@
 </script>
 
 <svelte:head>
-  <title>Seller Dashboard - Marketplace Platform</title>
+  <title>Seller Dashboard - BidMo.to</title>
 </svelte:head>
 
 <div class="dashboard">
@@ -341,7 +341,7 @@
 
   .btn-create {
     padding: 0.875rem 1.5rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
     color: white;
     text-decoration: none;
     border-radius: 8px;
@@ -351,7 +351,7 @@
 
   .btn-create:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
   }
 
   .empty-state {
