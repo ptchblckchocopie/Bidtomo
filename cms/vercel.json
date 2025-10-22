@@ -1,5 +1,7 @@
 {
   "version": 2,
+  "buildCommand": "npm ci --legacy-peer-deps && npm run vercel-build",
+  "installCommand": "npm ci --legacy-peer-deps",
   "functions": {
     "api/**/*.js": {
       "maxDuration": 30
