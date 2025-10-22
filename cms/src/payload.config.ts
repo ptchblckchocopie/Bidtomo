@@ -355,6 +355,15 @@ export default buildConfig({
           ],
           defaultValue: 'active',
         },
+        {
+          name: 'hideFromBrowse',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            description: 'Hide this product from public Browse Products page',
+            position: 'sidebar',
+          },
+        },
       ],
     },
     {

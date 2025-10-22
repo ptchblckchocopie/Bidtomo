@@ -109,6 +109,9 @@ export async function fetchProducts(params?: {
       }
     }
 
+    // Filter out products hidden from browse page
+    queryParams.append('where[hideFromBrowse][not_equals]', 'true');
+
     // Search - using OR logic for title, description, and keywords
     if (params?.search && params.search.trim()) {
       const searchTerm = params.search.trim();
