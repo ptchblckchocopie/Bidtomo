@@ -5,9 +5,10 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts nodemon",
-    "build": "payload build",
+    "build": "tsc && payload build",
     "serve": "cross-env PAYLOAD_CONFIG_PATH=dist/payload.config.js NODE_ENV=production node dist/server.js",
-    "generate:types": "payload generate:types"
+    "generate:types": "payload generate:types",
+    "vercel-build": "tsc && payload build"
   },
   "dependencies": {
     "@payloadcms/bundler-webpack": "^1.0.7",

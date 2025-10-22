@@ -457,7 +457,11 @@ const start = async () => {
   }
 };
 
-start();
+// Only auto-start in local development
+if (!process.env.VERCEL) {
+  start();
+}
 
-// Export app for Vercel serverless
+// Export for Vercel serverless - export both app and start function
+export { app, start };
 export default app;

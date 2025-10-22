@@ -6,8 +6,20 @@ import path from 'path';
 
 export default buildConfig({
   serverURL: process.env.SERVER_URL || 'http://localhost:3001',
-  cors: ['http://localhost:5173', 'http://localhost:3001','http://192.168.18.117:5173', 'http://192.168.18.117:3001'],
-  csrf: ['http://localhost:5173', 'http://localhost:3001','http://192.168.18.117:5173', 'http://192.168.18.117:3001'],
+  cors: [
+    'http://localhost:5173',
+    'http://localhost:3001',
+    'http://192.168.18.117:5173',
+    'http://192.168.18.117:3001',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean),
+  csrf: [
+    'http://localhost:5173',
+    'http://localhost:3001',
+    'http://192.168.18.117:5173',
+    'http://192.168.18.117:3001',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean),
   admin: {
     user: 'users',
     bundler: webpackBundler(),
@@ -15,7 +27,7 @@ export default buildConfig({
   editor: lexicalEditor({}),
   db: postgresAdapter({
     pool: {
-      connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/marketplace',
+      connectionString: process.env.DATABASE_URI || process.env.DATABASE_URL || 'postgresql://localhost:5432/marketplace',
     },
   }),
   collections: [
