@@ -23,12 +23,20 @@ postgresql://username:password@host:port/database?sslmode=require
 
 ### 2. Build Configuration
 
-The build command in Vercel should be:
+Vercel will automatically detect and use the `vercel-build` script from package.json:
 ```
-npm run build
+npm run vercel-build
 ```
 
-Make sure Vercel is deploying from the `/cms` directory (set as Root Directory in project settings).
+This runs: `tsc && payload build`
+
+**Important Settings in Vercel:**
+- **Root Directory**: Set to `cms`
+- **Build Command**: Leave as default (Vercel auto-detects `vercel-build`)
+- **Output Directory**: Leave empty (uses `dist` automatically)
+- **Install Command**: `npm install`
+
+Make sure the `src/` directory is **NOT** excluded from deployment (check `.vercelignore`).
 
 ### 3. Deploy
 
