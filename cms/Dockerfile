@@ -4,13 +4,10 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Set environment to production
-ENV NODE_ENV=production
-
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies (production-ready)
+# Install ALL dependencies including devDependencies (needed for build)
 RUN npm ci --legacy-peer-deps
 
 # Copy source code
@@ -21,6 +18,9 @@ RUN npm run build
 
 # Create media directory
 RUN mkdir -p media
+
+# Set environment to production (after build)
+ENV NODE_ENV=production
 
 # Expose port (Railway uses PORT env var, defaults to 3001)
 EXPOSE 3001
