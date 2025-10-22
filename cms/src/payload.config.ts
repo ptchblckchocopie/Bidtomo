@@ -23,6 +23,7 @@ export default buildConfig({
   admin: {
     user: 'users',
     bundler: webpackBundler(),
+    disable: process.env.VERCEL === '1', // Disable admin UI on Vercel serverless
   },
   editor: lexicalEditor({}),
   db: postgresAdapter({

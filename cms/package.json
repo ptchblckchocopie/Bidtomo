@@ -8,7 +8,7 @@
     "build": "tsc && payload build",
     "serve": "cross-env PAYLOAD_CONFIG_PATH=dist/payload.config.js NODE_ENV=production node dist/server.js",
     "generate:types": "payload generate:types",
-    "vercel-build": "tsc && payload build"
+    "vercel-build": "tsc"
   },
   "dependencies": {
     "@payloadcms/bundler-webpack": "^1.0.7",
