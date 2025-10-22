@@ -5,7 +5,7 @@ import { webpackBundler } from '@payloadcms/bundler-webpack';
 import path from 'path';
 
 export default buildConfig({
-  serverURL: process.env.SERVER_URL || 'http://localhost:3001',
+  serverURL: process.env.SERVER_URL || 'https://app.bidmo.to',
   cors: [
     'http://localhost:5173',
     'http://localhost:3001',
