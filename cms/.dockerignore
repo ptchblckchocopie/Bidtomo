@@ -1,11 +1,9 @@
 node_modules
-npm-debug.log
+.git
 .env
 .env.local
-dist
-.logs
 media
-*.log
-.DS_Store
-.claude
-.git
+*.md
+../start.sh
+../start-docker.sh
+../setup-db.sh
