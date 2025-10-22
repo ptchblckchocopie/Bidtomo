@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createProduct } from '$lib/api';
+  import { createProduct, uploadMedia } from '$lib/api';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { onMount } from 'svelte';
@@ -10,6 +10,7 @@
   let keywords: string[] = [];
   let startingPrice = 0;
   let auctionEndDate = '';
+  let imageFiles: File[] = [];
 
   let submitting = false;
   let error = '';
@@ -90,6 +91,48 @@
     }
   }
 
+  // Handle image file selection
+  function handleImageSelect(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files) return;
+
+    const newFiles = Array.from(input.files);
+    const remainingSlots = 5 - imageFiles.length;
+
+    if (newFiles.length > remainingSlots) {
+      error = `You can only upload ${remainingSlots} more image(s). Maximum is 5 images.`;
+      return;
+    }
+
+    // Validate file types and sizes
+    for (const file of newFiles) {
+      if (!file.type.startsWith('image/')) {
+        error = 'Only image files are allowed';
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        error = 'Each image must be less than 10MB';
+        return;
+      }
+    }
+
+    imageFiles = [...imageFiles, ...newFiles];
+    error = '';
+
+    // Reset input
+    input.value = '';
+  }
+
+  // Remove image from selection
+  function removeImage(index: number) {
+    imageFiles = imageFiles.filter((_, i) => i !== index);
+  }
+
+  // Create preview URL for image
+  function getImagePreview(file: File): string {
+    return URL.createObjectURL(file);
+  }
+
   async function handleSubmit(e: Event) {
     e.preventDefault();
 
@@ -110,24 +153,53 @@
       return;
     }
 
-    const result = await createProduct({
-      title,
-      description,
-      keywords: keywords.map(k => ({ keyword: k })),
-      startingPrice,
-      bidInterval,
-      auctionEndDate: new Date(auctionEndDate).toISOString(),
-    });
+    if (imageFiles.length === 0) {
+      error = 'Please upload at least one product image';
+      submitting = false;
+      return;
+    }
 
-    if (result) {
-      console.log('Product created:', result);
-      success = true;
-      // Redirect to product page
-      setTimeout(() => {
-        goto(`/products/${result.id}`);
-      }, 1500);
-    } else {
-      error = 'Failed to create product listing. Please make sure you are logged in.';
+    try {
+      // First, upload all images
+      const uploadedImageIds: string[] = [];
+
+      for (const file of imageFiles) {
+        const imageId = await uploadMedia(file);
+        if (imageId) {
+          uploadedImageIds.push(imageId);
+        }
+      }
+
+      if (uploadedImageIds.length === 0) {
+        error = 'Failed to upload images. Please try again.';
+        submitting = false;
+        return;
+      }
+
+      // Create product with image references
+      const result = await createProduct({
+        title,
+        description,
+        keywords: keywords.map(k => ({ keyword: k })),
+        startingPrice,
+        bidInterval,
+        auctionEndDate: new Date(auctionEndDate).toISOString(),
+        images: uploadedImageIds.map(imageId => ({ image: imageId })),
+      });
+
+      if (result) {
+        console.log('Product created:', result);
+        success = true;
+        // Redirect to product page
+        setTimeout(() => {
+          goto(`/products/${result.id}`);
+        }, 1500);
+      } else {
+        error = 'Failed to create product listing. Please make sure you are logged in.';
+      }
+    } catch (err) {
+      error = 'An error occurred while creating the product. Please try again.';
+      console.error('Error:', err);
     }
 
     submitting = false;
@@ -182,6 +254,47 @@
     <div class="form-group">
       <label for="keywords">Keywords (for search & SEO)</label>
       <KeywordInput bind:keywords disabled={submitting} />
+    </div>
+
+    <div class="form-group">
+      <label for="images">Product Images * (1-5 images)</label>
+      <div class="image-upload-container">
+        {#if imageFiles.length < 5}
+          <label class="image-upload-btn" class:disabled={submitting}>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              on:change={handleImageSelect}
+              disabled={submitting}
+              style="display: none;"
+            />
+            <span class="upload-icon">📷</span>
+            <span>Add Images ({imageFiles.length}/5)</span>
+          </label>
+        {/if}
+
+        {#if imageFiles.length > 0}
+          <div class="image-preview-grid">
+            {#each imageFiles as file, index}
+              <div class="image-preview-item">
+                <img src={getImagePreview(file)} alt="Preview {index + 1}" />
+                <button
+                  type="button"
+                  class="remove-image-btn"
+                  on:click={() => removeImage(index)}
+                  disabled={submitting}
+                  title="Remove image"
+                >
+                  ✕
+                </button>
+                <span class="image-number">{index + 1}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+      <p class="field-hint">Upload 1-5 high-quality images of your product. Each image must be less than 10MB.</p>
     </div>
 
     <div class="form-group">
@@ -587,5 +700,110 @@
     font-size: 0.875rem;
     color: #666;
     font-weight: 500;
+  }
+
+  /* Image Upload Styles */
+  .image-upload-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .image-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 2rem;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    color: white;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: none;
+    font-size: 1rem;
+  }
+
+  .image-upload-btn:hover:not(.disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+  }
+
+  .image-upload-btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .upload-icon {
+    font-size: 1.5rem;
+  }
+
+  .image-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+  }
+
+  .image-preview-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid #e5e7eb;
+    background: #f9fafb;
+  }
+
+  .image-preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .remove-image-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 32px;
+    height: 32px;
+    background: rgba(220, 38, 38, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-weight: bold;
+    line-height: 1;
+  }
+
+  .remove-image-btn:hover:not(:disabled) {
+    background: #991b1b;
+    transform: scale(1.1);
+  }
+
+  .remove-image-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .image-number {
+    position: absolute;
+    bottom: 0.5rem;
+    left: 0.5rem;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  @media (max-width: 768px) {
+    .image-preview-grid {
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
   }
 </style>

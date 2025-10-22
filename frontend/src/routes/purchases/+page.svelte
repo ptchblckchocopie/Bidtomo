@@ -82,54 +82,43 @@
       <a href="/products" class="btn-browse">Browse Products</a>
     </div>
   {:else}
-    <div class="purchases-grid">
+    <div class="purchases-list">
       {#each purchases as product}
-        <div class="purchase-card">
-          <a href="/products/{product.id}" class="product-link">
-            <div class="product-image">
-              {#if product.images && product.images.length > 0 && product.images[0].image}
-                <img src={product.images[0].image.url} alt={product.images[0].image.alt || product.title} />
-              {:else}
-                <div class="no-image">📦</div>
-              {/if}
-              <div class="status-badge {getStatusBadgeClass(product.status)}">
+        <div class="purchase-item">
+          <div class="purchase-image">
+            {#if product.images && product.images.length > 0 && product.images[0].image}
+              <img src={product.images[0].image.url} alt={product.images[0].image.alt || product.title} />
+            {:else}
+              <div class="placeholder-image-small">📦</div>
+            {/if}
+          </div>
+
+          <div class="purchase-info">
+            <h3>{product.title}</h3>
+            <div class="purchase-meta">
+              <span class="status-badge-small {getStatusBadgeClass(product.status)}">
                 {product.status === 'sold' ? '✓ Sold' : 'Ended'}
-              </div>
+              </span>
+              <span class="seller-info">Seller: {product.seller.name}</span>
+              <span class="purchase-date">Ended: {formatDate(product.auctionEndDate)}</span>
             </div>
+          </div>
 
-            <div class="product-info">
-              <h3>{product.title}</h3>
-              <p class="description">{product.description.substring(0, 100)}{product.description.length > 100 ? '...' : ''}</p>
-
-              <div class="price-info">
-                <div class="price-row">
-                  <span class="label">Winning Bid:</span>
-                  <span class="price">{formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}</span>
-                </div>
-                <div class="price-row small">
-                  <span class="label">Starting Price:</span>
-                  <span class="price">{formatPrice(product.startingPrice, product.seller.currency)}</span>
-                </div>
-              </div>
-
-              <div class="product-details">
-                <div class="detail">
-                  <span class="detail-label">Seller:</span>
-                  <span class="detail-value">{product.seller.name}</span>
-                </div>
-                <div class="detail">
-                  <span class="detail-label">Ended:</span>
-                  <span class="detail-value">{formatDate(product.auctionEndDate)}</span>
-                </div>
-              </div>
-
-              <div class="action-buttons">
-                <a href="/inbox?product={product.id}" class="btn-message">
-                  💬 Message Seller
-                </a>
-              </div>
+          <div class="purchase-price">
+            <div class="price-label">Winning Bid</div>
+            <div class="price-value">
+              {formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}
             </div>
-          </a>
+          </div>
+
+          <div class="purchase-actions">
+            <a href="/products/{product.id}" class="btn-view-small">
+              View
+            </a>
+            <a href="/inbox?product={product.id}" class="btn-message">
+              💬 Message Seller
+            </a>
+          </div>
         </div>
       {/each}
     </div>
@@ -214,63 +203,80 @@
     box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
   }
 
-  .purchases-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 2rem;
+  .purchases-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
   }
 
-  .purchase-card {
+  .purchase-item {
     background-color: white;
-    border-radius: 12px;
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    gap: 1.25rem;
+    align-items: center;
+    transition: box-shadow 0.2s;
+  }
+
+  .purchase-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .purchase-image {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    border-radius: 6px;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s, box-shadow 0.2s;
+    background-color: #f3f4f6;
   }
 
-  .purchase-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
-  }
-
-  .product-link {
-    text-decoration: none;
-    color: inherit;
-    display: block;
-  }
-
-  .product-image {
-    position: relative;
-    width: 100%;
-    height: 200px;
-    background-color: #f5f5f5;
-    overflow: hidden;
-  }
-
-  .product-image img {
+  .purchase-image img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
 
-  .no-image {
+  .placeholder-image-small {
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    font-size: 4rem;
-    color: #ccc;
+    font-size: 2rem;
   }
 
-  .status-badge {
-    position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
-    padding: 0.375rem 0.75rem;
-    border-radius: 20px;
-    font-size: 0.875rem;
-    font-weight: 600;
+  .purchase-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .purchase-info h3 {
+    font-size: 1.125rem;
+    margin: 0 0 0.5rem 0;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .purchase-meta {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .status-badge-small {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    border-radius: 4px;
     color: white;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
   }
 
   .status-sold {
@@ -281,101 +287,93 @@
     background-color: #6b7280;
   }
 
-  .product-info {
-    padding: 1.5rem;
-  }
-
-  h3 {
-    font-size: 1.25rem;
-    margin-bottom: 0.5rem;
-    color: #333;
-  }
-
-  .description {
+  .seller-info,
+  .purchase-date {
+    font-size: 0.875rem;
     color: #666;
-    font-size: 0.95rem;
-    margin-bottom: 1rem;
-    line-height: 1.5;
   }
 
-  .price-info {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    padding: 1rem;
-    border-radius: 8px;
-    margin-bottom: 1rem;
+  .purchase-price {
+    text-align: right;
+    padding: 0 1rem;
   }
 
-  .price-row {
+  .price-label {
+    font-size: 0.75rem;
+    color: #666;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .price-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #10b981;
+  }
+
+  .purchase-actions {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .btn-view-small,
+  .btn-message {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-decoration: none;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+    white-space: nowrap;
+  }
+
+  .btn-view-small {
+    background-color: #3b82f6;
     color: white;
   }
 
-  .price-row.small {
-    font-size: 0.875rem;
-    margin-top: 0.5rem;
-    opacity: 0.9;
-  }
-
-  .price-row .label {
-    font-weight: 500;
-  }
-
-  .price-row .price {
-    font-size: 1.5rem;
-    font-weight: 700;
-  }
-
-  .price-row.small .price {
-    font-size: 1rem;
-    font-weight: 500;
-  }
-
-  .product-details {
-    margin-bottom: 1rem;
-  }
-
-  .detail {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #f0f0f0;
-  }
-
-  .detail:last-child {
-    border-bottom: none;
-  }
-
-  .detail-label {
-    color: #666;
-    font-size: 0.9rem;
-  }
-
-  .detail-value {
-    color: #333;
-    font-weight: 500;
-    font-size: 0.9rem;
-  }
-
-  .action-buttons {
-    display: flex;
-    gap: 0.5rem;
+  .btn-view-small:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
   }
 
   .btn-message {
-    flex: 1;
-    padding: 0.75rem 1rem;
-    background-color: #dc2626;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
     color: white;
-    text-decoration: none;
-    text-align: center;
-    border-radius: 6px;
-    font-weight: 600;
-    transition: background-color 0.2s;
   }
 
   .btn-message:hover {
-    background-color: #b91c1c;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .purchase-item {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .purchase-image {
+      width: 100%;
+      height: 150px;
+    }
+
+    .purchase-price {
+      padding: 0;
+      text-align: left;
+    }
+
+    .purchase-actions {
+      width: 100%;
+    }
+
+    .btn-view-small,
+    .btn-message {
+      flex: 1;
+    }
   }
 </style>

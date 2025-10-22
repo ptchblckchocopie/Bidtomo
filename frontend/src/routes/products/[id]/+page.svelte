@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct } from '$lib/api';
+  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct, uploadMedia, deleteMedia } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import type { PageData } from './$types';
   import KeywordInput from '$lib/components/KeywordInput.svelte';
+  import ImageSlider from '$lib/components/ImageSlider.svelte';
 
   export let data: PageData;
 
@@ -70,6 +71,11 @@
   let editCustomDays = 0;
   let editCustomHours = 0;
   let editDurationTab: 'manual' | 'quick' | 'custom' = 'quick';
+
+  // Image upload state
+  let existingImages: Array<{ id: string; image: { id: string; url: string; alt?: string } }> = [];
+  let newImageFiles: File[] = [];
+  let imagesToDelete: string[] = []; // Track media IDs to delete
 
   // Sort bids by amount (highest to lowest)
   $: sortedBids = [...data.bids].sort((a, b) => b.amount - a.amount);
@@ -298,6 +304,40 @@
 
     // Initial check
     checkForUpdates();
+
+    // Handle visibility change - stop polling when tab is not visible
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is hidden, stop all intervals to save resources
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+        }
+        if (countdownInterval) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+        }
+      } else {
+        // Tab is visible again, restart intervals
+        if (!pollingInterval) {
+          pollingInterval = setInterval(() => {
+            checkForUpdates();
+          }, 3000);
+          checkForUpdates(); // Immediate update when returning
+        }
+        if (!countdownInterval && data.product?.auctionEndDate) {
+          updateCountdown(); // Immediate update
+          countdownInterval = setInterval(updateCountdown, 1000);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup visibility listener on destroy
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   });
 
   onDestroy(() => {
@@ -499,6 +539,16 @@
       auctionEndDate: formattedDate,
       status: data.product.status
     };
+
+    // Load existing images
+    existingImages = data.product.images?.map((img, index) => ({
+      id: `existing-${index}`,
+      image: typeof img.image === 'object' ? img.image : { id: img.image, url: '', alt: '' }
+    })) || [];
+
+    newImageFiles = [];
+    imagesToDelete = [];
+
     showEditModal = true;
     editError = '';
     editSuccess = false;
@@ -508,21 +558,99 @@
     showEditModal = false;
   }
 
+  // Handle new image selection in edit modal
+  function handleEditImageSelect(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files) return;
+
+    const newFiles = Array.from(input.files);
+    const totalImages = existingImages.length + newImageFiles.length + newFiles.length;
+
+    if (totalImages > 5) {
+      editError = `Maximum 5 images allowed. You can add ${5 - (existingImages.length + newImageFiles.length)} more.`;
+      return;
+    }
+
+    // Validate file types and sizes
+    for (const file of newFiles) {
+      if (!file.type.startsWith('image/')) {
+        editError = 'Only image files are allowed';
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        editError = 'Each image must be less than 10MB';
+        return;
+      }
+    }
+
+    newImageFiles = [...newImageFiles, ...newFiles];
+    editError = '';
+    input.value = '';
+  }
+
+  // Remove existing image (mark for deletion)
+  function removeExistingImage(imageId: string) {
+    const img = existingImages.find(i => i.image.id === imageId);
+    if (img) {
+      imagesToDelete = [...imagesToDelete, img.image.id];
+      existingImages = existingImages.filter(i => i.image.id !== imageId);
+    }
+  }
+
+  // Remove new image file
+  function removeNewImage(index: number) {
+    newImageFiles = newImageFiles.filter((_, i) => i !== index);
+  }
+
+  // Create preview URL for new image
+  function getEditImagePreview(file: File): string {
+    return URL.createObjectURL(file);
+  }
+
   async function handleSaveProduct() {
     if (!data.product) return;
+
+    // Validate at least one image
+    const totalImages = existingImages.length + newImageFiles.length;
+    if (totalImages === 0) {
+      editError = 'Please provide at least one product image';
+      return;
+    }
 
     saving = true;
     editError = '';
     editSuccess = false;
 
     try {
+      // First, delete marked images from PayloadCMS
+      for (const mediaId of imagesToDelete) {
+        await deleteMedia(mediaId);
+      }
+
+      // Upload new images
+      const uploadedImageIds: string[] = [];
+      for (const file of newImageFiles) {
+        const imageId = await uploadMedia(file);
+        if (imageId) {
+          uploadedImageIds.push(imageId);
+        }
+      }
+
+      // Combine existing and new image IDs
+      const allImageIds = [
+        ...existingImages.map(img => img.image.id),
+        ...uploadedImageIds
+      ];
+
+      // Update product with new image array
       const result = await updateProduct(data.product.id, {
         title: editForm.title,
         description: editForm.description,
         keywords: editForm.keywords.map(k => ({ keyword: k })),
         bidInterval: editForm.bidInterval,
         auctionEndDate: new Date(editForm.auctionEndDate).toISOString(),
-        status: editForm.status
+        status: editForm.status,
+        images: allImageIds.map(id => ({ image: id }))
       });
 
       if (result) {
@@ -654,15 +782,7 @@
           {data.product.status}
         </div>
 
-        {#if data.product.images && data.product.images.length > 0}
-          {#each data.product.images as imageItem}
-            <img src="{imageItem.image.url}" alt="{imageItem.image.alt || data.product.title}" />
-          {/each}
-        {:else}
-          <div class="placeholder-image">
-            <span>No Image Available</span>
-          </div>
-        {/if}
+        <ImageSlider images={data.product.images || []} productTitle={data.product.title} />
 
         <div class="description-section">
           <h3>Description</h3>
@@ -1181,6 +1301,67 @@
           </div>
 
           <div class="form-group">
+            <label for="edit-images">Product Images * (1-5 images)</label>
+            <div class="image-upload-container">
+              {#if existingImages.length + newImageFiles.length < 5}
+                <label class="image-upload-btn" class:disabled={saving}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    on:change={handleEditImageSelect}
+                    disabled={saving}
+                    style="display: none;"
+                  />
+                  <span class="upload-icon">📷</span>
+                  <span>Add Images ({existingImages.length + newImageFiles.length}/5)</span>
+                </label>
+              {/if}
+
+              {#if existingImages.length > 0 || newImageFiles.length > 0}
+                <div class="image-preview-grid">
+                  <!-- Existing images -->
+                  {#each existingImages as img, index}
+                    <div class="image-preview-item">
+                      <img src={img.image.url} alt="Existing {index + 1}" />
+                      <button
+                        type="button"
+                        class="remove-image-btn"
+                        on:click={() => removeExistingImage(img.image.id)}
+                        disabled={saving}
+                        title="Remove image"
+                      >
+                        ✕
+                      </button>
+                      <span class="image-number">{index + 1}</span>
+                      <span class="image-type">Current</span>
+                    </div>
+                  {/each}
+
+                  <!-- New images -->
+                  {#each newImageFiles as file, index}
+                    <div class="image-preview-item">
+                      <img src={getEditImagePreview(file)} alt="New {index + 1}" />
+                      <button
+                        type="button"
+                        class="remove-image-btn"
+                        on:click={() => removeNewImage(index)}
+                        disabled={saving}
+                        title="Remove image"
+                      >
+                        ✕
+                      </button>
+                      <span class="image-number">{existingImages.length + index + 1}</span>
+                      <span class="image-type">New</span>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+            <p class="field-hint">Upload 1-5 high-quality images. Each image must be less than 10MB.</p>
+          </div>
+
+          <div class="form-group">
             <label for="edit-bidInterval">Bid Interval ({sellerCurrency})</label>
             <input
               id="edit-bidInterval"
@@ -1365,6 +1546,40 @@
     .product-content {
       grid-template-columns: 1fr;
     }
+
+    /* Make modals scrollable on mobile */
+    .modal-overlay {
+      align-items: flex-start;
+      padding: 0.5rem;
+    }
+
+    .modal-content {
+      width: 100%;
+      max-height: calc(100vh - 1rem);
+      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .edit-modal {
+      max-width: 100%;
+    }
+
+    .modal-header {
+      padding: 1.5rem 1rem 1rem 1rem;
+    }
+
+    .modal-header h2 {
+      font-size: 1.5rem;
+    }
+
+    .modal-body {
+      padding: 0 1rem 1rem 1rem;
+    }
+
+    .modal-close {
+      top: 0.5rem;
+      right: 0.5rem;
+    }
   }
 
   .product-gallery h1 {
@@ -1372,24 +1587,6 @@
     margin-top: 0;
     margin-bottom: 1rem;
     color: #333;
-  }
-
-  .product-gallery img {
-    width: 100%;
-    border-radius: 8px;
-    margin-bottom: 1rem;
-  }
-
-  .placeholder-image {
-    width: 100%;
-    height: 400px;
-    background-color: #e0e0e0;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #999;
-    font-size: 1.5rem;
   }
 
   .status-badge {
@@ -2024,6 +2221,8 @@
     justify-content: center;
     z-index: 1000;
     animation: fadeIn 0.2s ease-out;
+    overflow-y: auto;
+    padding: 1rem;
   }
 
   @keyframes fadeIn {
@@ -2040,9 +2239,12 @@
     border-radius: 12px;
     max-width: 500px;
     width: 90%;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     position: relative;
     animation: slideUp 0.3s ease-out;
+    margin: auto;
   }
 
   @keyframes slideUp {
@@ -2963,5 +3165,124 @@
   .price-info {
     position: relative;
     overflow: visible;
+  }
+
+  /* Image Upload Styles */
+  .image-upload-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .image-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 2rem;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    color: white;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: none;
+    font-size: 1rem;
+  }
+
+  .image-upload-btn:hover:not(.disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+  }
+
+  .image-upload-btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .upload-icon {
+    font-size: 1.5rem;
+  }
+
+  .image-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+  }
+
+  .image-preview-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid #e5e7eb;
+    background: #f9fafb;
+  }
+
+  .image-preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .remove-image-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 32px;
+    height: 32px;
+    background: rgba(220, 38, 38, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-weight: bold;
+    line-height: 1;
+    z-index: 2;
+  }
+
+  .remove-image-btn:hover:not(:disabled) {
+    background: #991b1b;
+    transform: scale(1.1);
+  }
+
+  .remove-image-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .image-number {
+    position: absolute;
+    bottom: 0.5rem;
+    left: 0.5rem;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .image-type {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    background: rgba(16, 185, 129, 0.9);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 768px) {
+    .image-preview-grid {
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
   }
 </style>

@@ -3,6 +3,8 @@ import { postgresAdapter } from '@payloadcms/db-postgres';
 import { lexicalEditor } from '@payloadcms/richtext-lexical';
 import { webpackBundler } from '@payloadcms/bundler-webpack';
 import path from 'path';
+import { S3Client } from '@aws-sdk/client-s3';
+import { afterChangeHook, afterDeleteHook } from './collections/Media/hooks';
 
 export default buildConfig({
   serverURL: process.env.SERVER_URL || 'https://app.bidmo.to',
@@ -30,8 +32,35 @@ export default buildConfig({
     user: 'users',
     bundler: webpackBundler(),
     disable: process.env.VERCEL === '1', // Disable admin UI on Vercel serverless
+    webpack: (config) => {
+      // Externalize Node.js built-in modules for the admin bundle
+      const existingExternals = config.externals && typeof config.externals === 'object' ? config.externals : {};
+      config.externals = {
+        ...existingExternals,
+        fs: 'commonjs fs',
+        path: 'commonjs path',
+      };
+      return config;
+    },
   },
   editor: lexicalEditor({}),
+
+  // Initialize S3 client for DigitalOcean Spaces
+  ...(process.env.S3_ACCESS_KEY_ID && {
+    onInit: async (payload) => {
+      const s3Client = new S3Client({
+        credentials: {
+          accessKeyId: process.env.S3_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
+        },
+        region: process.env.S3_REGION!,
+        endpoint: process.env.S3_ENDPOINT,
+        forcePathStyle: true,
+      });
+      (payload as any).s3Client = s3Client;
+    },
+  }),
+
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URI || process.env.DATABASE_URL || 'postgresql://localhost:5432/marketplace',
@@ -232,11 +261,17 @@ export default buildConfig({
         {
           name: 'images',
           type: 'array',
+          minRows: 1,
+          maxRows: 5,
+          admin: {
+            description: 'Upload 1-5 product images',
+          },
           fields: [
             {
               name: 'image',
               type: 'upload',
               relationTo: 'media',
+              required: true,
             },
           ],
         },
@@ -638,12 +673,28 @@ export default buildConfig({
         staticURL: '/media',
         staticDir: 'media',
         mimeTypes: ['image/*'],
+        imageSizes: [
+          {
+            name: 'thumbnail',
+            width: 400,
+            height: 300,
+          },
+          {
+            name: 'card',
+            width: 768,
+            height: 1024,
+          },
+        ],
       },
       access: {
         read: () => true,
         create: ({ req }) => !!req.user,
         update: ({ req }) => !!req.user,
         delete: ({ req }) => req.user?.role === 'admin',
+      },
+      hooks: {
+        afterChange: [afterChangeHook],
+        afterDelete: [afterDeleteHook],
       },
       fields: [
         {

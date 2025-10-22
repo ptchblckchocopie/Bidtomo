@@ -2,15 +2,22 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
-  import { fetchConversations, fetchProductMessages, fetchProduct, sendMessage, markMessageAsRead, setTypingStatus, getTypingStatus } from '$lib/api';
+  import { fetchConversations, fetchProductMessages, fetchProduct, fetchProductBids, sendMessage, markMessageAsRead, setTypingStatus, getTypingStatus } from '$lib/api';
   import type { Product, Message } from '$lib/api';
   import { goto } from '$app/navigation';
+
+  function handleBackToList() {
+    selectedProduct = null;
+    // Clear URL parameter
+    goto('/inbox', { replaceState: true });
+  }
 
   let conversations: { product: Product; lastMessage: Message; unreadCount: number }[] = [];
   let selectedProduct: Product | null = null;
   let messages: Message[] = [];
   let newMessage = '';
   let loading = true;
+  let loadingConversation = false;
   let sendingMessage = false;
   let error = '';
   let pollingInterval: ReturnType<typeof setInterval> | null = null;
@@ -353,59 +360,65 @@
   }
 
   async function selectConversation(product: Product) {
-    selectedProduct = product;
+    loadingConversation = true;
 
-    // Reset chat permission state
-    canChat = true;
-    chatBlockedReason = '';
+    try {
+      selectedProduct = product;
 
-    // Check chat permission
-    const permission = await checkChatPermission(product);
-    canChat = permission.allowed;
-    chatBlockedReason = permission.reason || '';
+      // Reset chat permission state
+      canChat = true;
+      chatBlockedReason = '';
 
-    // Load only the latest 10 messages
-    messages = await fetchProductMessages(product.id, undefined, {
-      limit: MESSAGE_PAGE_SIZE,
-      latest: true
-    });
+      // Check chat permission
+      const permission = await checkChatPermission(product);
+      canChat = permission.allowed;
+      chatBlockedReason = permission.reason || '';
 
-    // Reset pagination state
-    hasMoreMessages = messages.length === MESSAGE_PAGE_SIZE;
+      // Load only the latest 10 messages
+      messages = await fetchProductMessages(product.id, undefined, {
+        limit: MESSAGE_PAGE_SIZE,
+        latest: true
+      });
 
-    // Update last message time for polling
-    if (messages.length > 0) {
-      lastMessageTime = messages[messages.length - 1].createdAt;
-    } else {
-      lastMessageTime = new Date().toISOString();
-    }
+      // Reset pagination state
+      hasMoreMessages = messages.length === MESSAGE_PAGE_SIZE;
 
-    // Mark messages as read
-    for (const msg of messages) {
-      const receiverId = typeof msg.receiver === 'object' ? msg.receiver.id : msg.receiver;
-      if (receiverId === $authStore.user?.id && !msg.read) {
-        await markMessageAsRead(msg.id);
+      // Update last message time for polling
+      if (messages.length > 0) {
+        lastMessageTime = messages[messages.length - 1].createdAt;
+      } else {
+        lastMessageTime = new Date().toISOString();
       }
-    }
 
-    // Start polling for new messages
-    startPolling();
-
-    // Start polling for typing status
-    startTypingPolling();
-
-    // Reset typing state
-    iAmTyping = false;
-    otherUserTyping = false;
-
-    // Reset auto-scroll and scroll to bottom
-    shouldAutoScroll = true;
-    setTimeout(() => {
-      scrollToBottom(true);
-      if (chatInputElement) {
-        chatInputElement.focus();
+      // Mark messages as read
+      for (const msg of messages) {
+        const receiverId = typeof msg.receiver === 'object' ? msg.receiver.id : msg.receiver;
+        if (receiverId === $authStore.user?.id && !msg.read) {
+          await markMessageAsRead(msg.id);
+        }
       }
-    }, 100);
+
+      // Start polling for new messages
+      startPolling();
+
+      // Start polling for typing status
+      startTypingPolling();
+
+      // Reset typing state
+      iAmTyping = false;
+      otherUserTyping = false;
+
+      // Reset auto-scroll and scroll to bottom
+      shouldAutoScroll = true;
+      setTimeout(() => {
+        scrollToBottom(true);
+        if (chatInputElement) {
+          chatInputElement.focus();
+        }
+      }, 100);
+    } finally {
+      loadingConversation = false;
+    }
   }
 
   // Poll for new messages
@@ -610,6 +623,31 @@
     }
 
     await loadConversations();
+
+    // Handle visibility change - stop polling when tab is not visible
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is hidden, stop all polling to save resources
+        stopPolling();
+        stopTypingPolling();
+        stopConversationListPolling();
+      } else {
+        // Tab is visible again, restart polling if we have a selected product
+        if (selectedProduct) {
+          startPolling();
+          startTypingPolling();
+        }
+        // Always restart conversation list polling
+        startConversationListPolling();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup visibility listener on destroy
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   });
 
   // Auto-scroll when typing indicator appears (but not when I'm typing)
@@ -652,7 +690,7 @@
   {:else}
     <div class="inbox-container">
       <!-- Conversations List -->
-      <aside class="conversations-list">
+      <aside class="conversations-list" class:hide-on-mobile={selectedProduct}>
         <div class="tabs">
           <button
             class="tab"
@@ -688,7 +726,9 @@
           <button
             class="conversation-item"
             class:active={selectedProduct?.id === conv.product.id}
+            class:loading={loadingConversation && selectedProduct?.id === conv.product.id}
             on:click={() => selectConversation(conv.product)}
+            disabled={loadingConversation}
           >
             <div class="conversation-image">
               {#if conv.product.images && conv.product.images.length > 0 && conv.product.images[0].image}
@@ -734,9 +774,12 @@
       </aside>
 
       <!-- Chat Area -->
-      <main class="chat-area">
+      <main class="chat-area" class:show-on-mobile={selectedProduct}>
         {#if selectedProduct}
           <div class="chat-header">
+            <button class="back-btn" on:click={handleBackToList} disabled={loadingConversation}>
+              ← Back
+            </button>
             <div class="product-summary">
               <h3>{selectedProduct.title}</h3>
               <p class="product-price">
@@ -749,14 +792,20 @@
           </div>
 
           <div class="chat-messages" bind:this={chatMessagesElement} on:scroll={handleScroll}>
-            {#if loadingOlderMessages}
-              <div class="loading-older">
+            {#if loadingConversation}
+              <div class="loading-conversation">
                 <div class="loading-spinner"></div>
-                <span>Loading older messages...</span>
+                <span>Loading conversation...</span>
               </div>
-            {/if}
+            {:else}
+              {#if loadingOlderMessages}
+                <div class="loading-older">
+                  <div class="loading-spinner"></div>
+                  <span>Loading older messages...</span>
+                </div>
+              {/if}
 
-            {#each messages as message}
+              {#each messages as message}
               {@const isMine = $authStore.user?.id === (typeof message.sender === 'object' ? message.sender.id : message.sender)}
               {@const sender = typeof message.sender === 'object' ? message.sender : null}
 
@@ -771,15 +820,16 @@
               </div>
             {/each}
 
-            {#if otherUserTyping && !iAmTyping}
-              <div class="typing-indicator">
-                <div class="typing-dots">
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
+              {#if otherUserTyping && !iAmTyping}
+                <div class="typing-indicator">
+                  <div class="typing-dots">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                  </div>
+                  <span class="typing-text">typing...</span>
                 </div>
-                <span class="typing-text">typing...</span>
-              </div>
+              {/if}
             {/if}
           </div>
 
@@ -979,6 +1029,16 @@
   .conversation-item.active {
     background-color: #fee;
     border-left: 4px solid #dc2626;
+  }
+
+  .conversation-item.loading {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  .conversation-item:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
   }
 
   .conversation-image {
@@ -1305,6 +1365,19 @@
     font-size: 0.9rem;
   }
 
+  /* Loading Conversation */
+  .loading-conversation {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 3rem 1rem;
+    color: #666;
+    font-size: 1rem;
+    min-height: 200px;
+  }
+
   .loading-spinner {
     width: 20px;
     height: 20px;
@@ -1312,6 +1385,12 @@
     border-top-color: #dc2626;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
+  }
+
+  .loading-conversation .loading-spinner {
+    width: 30px;
+    height: 30px;
+    border-width: 4px;
   }
 
   @keyframes spin {
@@ -1358,5 +1437,98 @@
   .view-product-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+  }
+
+  /* Back button - hidden by default, shown on mobile */
+  .back-btn {
+    display: none;
+    padding: 0.5rem 1rem;
+    background: white;
+    color: #dc2626;
+    border: 2px solid #dc2626;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .back-btn:hover:not(:disabled) {
+    background: #dc2626;
+    color: white;
+  }
+
+  .back-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Mobile Responsive */
+  @media (max-width: 768px) {
+    .inbox-page {
+      padding: 1rem 0;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+    }
+
+    .inbox-container {
+      grid-template-columns: 1fr;
+      gap: 0;
+      height: calc(100vh - 180px);
+    }
+
+    /* Hide conversations list when chat is selected on mobile */
+    .conversations-list.hide-on-mobile {
+      display: none;
+    }
+
+    .chat-area {
+      display: none;
+    }
+
+    .chat-area.show-on-mobile {
+      display: flex;
+    }
+
+    /* Show back button on mobile */
+    .back-btn {
+      display: block;
+    }
+
+    .chat-header {
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .product-summary {
+      flex: 1;
+      min-width: 100%;
+      order: 2;
+    }
+
+    .back-btn {
+      order: 1;
+    }
+
+    .view-product-link {
+      order: 3;
+      width: 100%;
+      text-align: center;
+    }
+
+    .message-content {
+      max-width: 80%;
+    }
+
+    .tabs {
+      flex-direction: column;
+    }
+
+    .tab {
+      width: 100%;
+    }
   }
 </style>

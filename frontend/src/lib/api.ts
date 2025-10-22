@@ -219,6 +219,7 @@ export async function createProduct(productData: {
   startingPrice: number;
   bidInterval?: number;
   auctionEndDate: string;
+  images?: Array<{ image: string }>;
 }): Promise<Product | null> {
   try {
     const response = await fetch(`${API_URL}/api/products`, {
@@ -255,6 +256,7 @@ export async function updateProduct(
     bidInterval?: number;
     auctionEndDate?: string;
     status?: 'active' | 'ended' | 'sold' | 'cancelled';
+    images?: Array<{ image: string }>;
   }
 ): Promise<Product | null> {
   try {
@@ -677,6 +679,59 @@ export async function updateTransactionStatus(
     return await response.json();
   } catch (error) {
     console.error('Error updating transaction:', error);
+    return null;
+  }
+}
+
+// Delete media from PayloadCMS
+export async function deleteMedia(mediaId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/api/media/${mediaId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      console.error('Failed to delete media:', response.status);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting media:', error);
+    return false;
+  }
+}
+
+// Upload media to PayloadCMS
+export async function uploadMedia(file: File): Promise<string | null> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = getAuthToken();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `JWT ${token}`;
+    }
+
+    const response = await fetch(`${API_URL}/api/media`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      console.error('Failed to upload media:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.doc?.id || data.id;
+  } catch (error) {
+    console.error('Error uploading media:', error);
     return null;
   }
 }

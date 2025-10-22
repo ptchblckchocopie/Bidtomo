@@ -132,6 +132,28 @@
   onMount(() => {
     updateCountdowns();
     countdownInterval = setInterval(updateCountdowns, 1000);
+
+    // Handle visibility change - stop countdown when tab is not visible
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is hidden, stop countdown to save resources
+        if (countdownInterval) clearInterval(countdownInterval);
+        countdownInterval = null;
+      } else {
+        // Tab is visible again, restart countdown
+        if (!countdownInterval) {
+          updateCountdowns(); // Immediate update when returning
+          countdownInterval = setInterval(updateCountdowns, 1000);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup visibility listener on destroy
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   });
 
   onDestroy(() => {
