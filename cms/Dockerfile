@@ -4,13 +4,14 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Accept build arguments
-ARG SERVER_URL
+# Accept build arguments (Railway passes these automatically)
+ARG RAILWAY_PUBLIC_DOMAIN
 ARG DATABASE_URL
 ARG PAYLOAD_SECRET
 
 # Set environment variables for build
-ENV SERVER_URL=${SERVER_URL}
+# Use Railway's public domain to construct SERVER_URL
+ENV SERVER_URL=https://${RAILWAY_PUBLIC_DOMAIN}
 ENV DATABASE_URL=${DATABASE_URL}
 ENV PAYLOAD_SECRET=${PAYLOAD_SECRET}
 
