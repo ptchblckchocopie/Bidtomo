@@ -7,3 +7,7 @@ media
 ../start.sh
 ../start-docker.sh
 ../setup-db.sh
+.claude
+**/.claude
+dist
+.logs
