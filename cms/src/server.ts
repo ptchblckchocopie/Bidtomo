@@ -33,6 +33,22 @@ const start = async () => {
     },
   });
 
+  // Root route - API info
+  app.get('/', (req, res) => {
+    res.json({
+      message: 'Marketplace CMS API',
+      status: 'running',
+      admin: '/admin',
+      endpoints: {
+        products: '/api/products',
+        users: '/api/users',
+        bids: '/api/bids',
+        messages: '/api/messages',
+        transactions: '/api/transactions',
+      },
+    });
+  });
+
   // Create conversations for sold products
   app.post('/api/create-conversations', async (req, res) => {
     try {
