@@ -17,6 +17,9 @@ COPY . .
 # Build TypeScript and Payload admin
 RUN npm run build
 
+# Generate migrations (if migrations directory doesn't exist, create initial migration)
+RUN npx cross-env PAYLOAD_CONFIG_PATH=dist/payload.config.js payload migrate:create || true
+
 # Create media directory
 RUN mkdir -p media
 
@@ -26,5 +29,5 @@ ENV NODE_ENV=production
 # Expose port (Railway uses PORT env var, defaults to 3001)
 EXPOSE 3001
 
-# Start the application in production mode
+# Start the application in production mode (includes migration run)
 CMD ["npm", "start"]
