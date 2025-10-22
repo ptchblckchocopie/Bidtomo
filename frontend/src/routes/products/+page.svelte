@@ -212,7 +212,7 @@
       <section class="auction-section">
         <div class="products-grid">
           {#each data.products as product}
-            <a href="/products/{product.id}" class="product-card" class:ended-card={data.status === 'ended'}>
+            <a href="/products/{product.id}?from=browse" class="product-card" class:ended-card={data.status === 'ended'}>
               <div class="product-image">
                 {#if product.images && product.images.length > 0 && product.images[0].image}
                   <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" />

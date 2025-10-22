@@ -2,10 +2,37 @@
   import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import type { PageData } from './$types';
   import KeywordInput from '$lib/components/KeywordInput.svelte';
 
   export let data: PageData;
+
+  // Dynamic back link based on 'from' parameter
+  $: backLink = (() => {
+    const from = $page.url.searchParams.get('from');
+    switch (from) {
+      case 'inbox':
+        // When going back to inbox, include the product parameter so the conversation is selected
+        return `/inbox?product=${data.product?.id || ''}`;
+      case 'browse':
+        return '/products';
+      default:
+        return '/products';
+    }
+  })();
+
+  $: backLinkText = (() => {
+    const from = $page.url.searchParams.get('from');
+    switch (from) {
+      case 'inbox':
+        return 'Back to Inbox';
+      case 'browse':
+        return 'Back to Products';
+      default:
+        return 'Back to Products';
+    }
+  })();
 
   let bidAmount = 0;
 
@@ -595,12 +622,12 @@
   <div class="error">
     <h1>Product Not Found</h1>
     <p>The product you're looking for doesn't exist.</p>
-    <a href="/products">Back to Products</a>
+    <a href={backLink}>{backLinkText}</a>
   </div>
 {:else}
   <div class="product-detail">
     <div class="product-header">
-      <a href="/products" class="back-link">&larr; Back to Products</a>
+      <a href={backLink} class="back-link">&larr; {backLinkText}</a>
       {#if isOwner}
         <button class="edit-product-btn" on:click={openEditModal}>
           ✏️ Edit Product
@@ -712,38 +739,40 @@
       </div>
 
       <div class="product-details">
-        <div class="price-info" class:sold-info={data.product.status === 'sold'}>
-          {#if showConfetti}
-            <div class="confetti-container">
-              {#each Array(50) as _, i}
-                <div class="confetti" style="--delay: {i * 0.02}s; --x: {Math.random() * 100}%; --rotation: {Math.random() * 360}deg; --color: {['#ff6b6b', '#4ecdc4', '#45b7d1', '#feca57', '#ff6348', '#1dd1a1'][i % 6]}"></div>
-              {/each}
-            </div>
-          {/if}
+        {#if !isOwner}
+          <div class="price-info" class:sold-info={data.product.status === 'sold'}>
+            {#if showConfetti}
+              <div class="confetti-container">
+                {#each Array(50) as _, i}
+                  <div class="confetti" style="--delay: {i * 0.02}s; --x: {Math.random() * 100}%; --rotation: {Math.random() * 360}deg; --color: {['#ff6b6b', '#4ecdc4', '#45b7d1', '#feca57', '#ff6348', '#1dd1a1'][i % 6]}"></div>
+                {/each}
+              </div>
+            {/if}
 
-          {#if data.product.status === 'sold'}
-            <div class="highest-bid-container">
-              <div class="sold-badge">✓ SOLD</div>
-              <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid || data.product.startingPrice, sellerCurrency)}</div>
-              {#if highestBid}
-                <div class="sold-to-info">Sold to: {getBidderName(highestBid)}</div>
-              {/if}
-              <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
-            </div>
-          {:else if data.product.currentBid}
-            <div class="highest-bid-container">
-              <div class="highest-bid-label" class:label-pulse={priceChanged}>CURRENT HIGHEST BID</div>
-              <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid, sellerCurrency)}</div>
-              <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
-            </div>
-          {:else}
-            <div class="highest-bid-container">
-              <div class="highest-bid-label">STARTING BID</div>
-              <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
-              <div class="starting-price-small">No bids yet - be the first!</div>
-            </div>
-          {/if}
-        </div>
+            {#if data.product.status === 'sold'}
+              <div class="highest-bid-container">
+                <div class="sold-badge">✓ SOLD</div>
+                <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid || data.product.startingPrice, sellerCurrency)}</div>
+                {#if highestBid}
+                  <div class="sold-to-info">Sold to: {getBidderName(highestBid)}</div>
+                {/if}
+                <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+              </div>
+            {:else if data.product.currentBid}
+              <div class="highest-bid-container">
+                <div class="highest-bid-label" class:label-pulse={priceChanged}>CURRENT HIGHEST BID</div>
+                <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid, sellerCurrency)}</div>
+                <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+              </div>
+            {:else}
+              <div class="highest-bid-container">
+                <div class="highest-bid-label">STARTING BID</div>
+                <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+                <div class="starting-price-small">No bids yet - be the first!</div>
+              </div>
+            {/if}
+          </div>
+        {/if}
 
         {#if isHighestBidder && data.product.status === 'active' && !isOwner}
           <div class="highest-bidder-alert">

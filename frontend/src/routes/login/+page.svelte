@@ -106,7 +106,7 @@
     </form>
 
     <div class="additional-info">
-      <p>Don't have an account? <a href="/register">Register here</a></p>
+      <p>Don't have an account? <a href="/register?redirect={encodeURIComponent(redirectUrl)}">Register here</a></p>
     </div>
   </div>
 </div>

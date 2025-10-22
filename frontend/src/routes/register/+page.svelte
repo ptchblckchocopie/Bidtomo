@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { authStore } from '$lib/stores/auth';
 
   let name = '';
   let email = '';
@@ -82,6 +83,13 @@
           if (data.user) {
             localStorage.setItem('user_data', JSON.stringify(data.user));
           }
+
+          // Update auth store
+          authStore.set({
+            isAuthenticated: true,
+            user: data.user,
+            token: data.token,
+          });
 
           // Redirect to the intended page or homepage
           goto(redirectUrl);
@@ -171,7 +179,7 @@
     </form>
 
     <div class="additional-info">
-      <p>Already have an account? <a href="/login">Login here</a></p>
+      <p>Already have an account? <a href="/login?redirect={encodeURIComponent(redirectUrl)}">Login here</a></p>
       <div class="features">
         <h3>Why join?</h3>
         <ul>

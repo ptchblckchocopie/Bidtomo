@@ -745,7 +745,7 @@
                 <span class="status-badge status-{selectedProduct.status}">{selectedProduct.status}</span>
               </p>
             </div>
-            <a href="/products/{selectedProduct.id}" class="view-product-link">View Product →</a>
+            <a href="/products/{selectedProduct.id}?from=inbox" class="view-product-link">View Product →</a>
           </div>
 
           <div class="chat-messages" bind:this={chatMessagesElement} on:scroll={handleScroll}>
@@ -791,7 +791,7 @@
             <div class="chat-blocked-message">
               <div class="blocked-icon">🔒</div>
               <p class="blocked-text">{chatBlockedReason}</p>
-              <a href="/products/{selectedProduct.id}" class="view-product-btn">
+              <a href="/products/{selectedProduct.id}?from=inbox" class="view-product-btn">
                 View Product Page
               </a>
             </div>

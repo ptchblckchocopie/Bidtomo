@@ -2,11 +2,15 @@
   import '../app.css';
   import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { logout as apiLogout } from '$lib/api';
   import type { LayoutData } from './$types';
 
   // Accept props to avoid warnings
   export let data: LayoutData;
+
+  // Track active route
+  $: currentPath = $page.url.pathname;
 
   async function handleLogout() {
     await apiLogout();
@@ -19,18 +23,20 @@
   <header>
     <nav>
       <div class="nav-left">
-        <a href="/" class="logo">🔨 BidMo.to</a>
-        <a href="/products">Browse</a>
+        <a href="/" class="logo">
+          <img src="/bidmo.to.png" alt="BidMo.to" class="logo-img" />
+        </a>
+        <a href="/products" class:active={currentPath.startsWith('/products')}>Browse</a>
         {#if $authStore.isAuthenticated}
-          <a href="/dashboard">My Products</a>
-          <a href="/purchases">My Purchases</a>
-          <a href="/inbox">Inbox</a>
+          <a href="/dashboard" class:active={currentPath === '/dashboard'}>My Products</a>
+          <a href="/purchases" class:active={currentPath === '/purchases'}>My Purchases</a>
+          <a href="/inbox" class:active={currentPath === '/inbox'}>Inbox</a>
         {/if}
       </div>
 
       <div class="nav-right">
         {#if $authStore.isAuthenticated}
-          <a href="/sell" class="btn-sell">+ Sell</a>
+          <a href="/sell" class="btn-sell" class:active={currentPath === '/sell'}>+ Sell</a>
           <div class="user-menu">
             <span class="user-name">Hi, {$authStore.user?.name || 'User'}!</span>
             <button on:click={handleLogout} class="btn-logout">Logout</button>
@@ -86,17 +92,53 @@
     font-weight: bold;
     color: white !important;
     text-decoration: none !important;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+  }
+
+  .logo:hover {
+    background-color: transparent !important;
+  }
+
+  .logo::after {
+    display: none !important;
+  }
+
+  .logo-img {
+    height: 40px;
+    width: auto;
+    display: block;
   }
 
   nav a {
     color: white;
     text-decoration: none;
     font-weight: 500;
-    transition: opacity 0.2s;
+    transition: all 0.2s;
+    position: relative;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
   }
 
   nav a:hover {
-    opacity: 0.8;
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  nav a.active {
+    background-color: rgba(255, 255, 255, 0.2);
+    font-weight: 600;
+  }
+
+  nav a.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0.75rem;
+    right: 0.75rem;
+    height: 3px;
+    background-color: white;
+    border-radius: 2px 2px 0 0;
   }
 
   .btn-register {
@@ -119,6 +161,22 @@
     padding: 0.5rem 1.5rem;
     border-radius: 6px;
     font-weight: 600;
+    transition: all 0.2s;
+  }
+
+  .btn-sell:hover {
+    background-color: #059669 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  }
+
+  .btn-sell.active {
+    background-color: #059669;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+  }
+
+  .btn-sell.active::after {
+    display: none;
   }
 
   .user-menu {
