@@ -4,6 +4,16 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
+# Accept build arguments
+ARG SERVER_URL
+ARG DATABASE_URL
+ARG PAYLOAD_SECRET
+
+# Set environment variables for build
+ENV SERVER_URL=${SERVER_URL}
+ENV DATABASE_URL=${DATABASE_URL}
+ENV PAYLOAD_SECRET=${PAYLOAD_SECRET}
+
 # Copy package files
 COPY package*.json ./
 
@@ -14,7 +24,7 @@ RUN NODE_ENV=development npm ci --include=dev --legacy-peer-deps
 # Copy source code
 COPY . .
 
-# Build TypeScript and Payload admin
+# Build TypeScript and Payload admin (SERVER_URL is now available)
 RUN npm run build
 
 # Generate migrations (if migrations directory doesn't exist, create initial migration)
