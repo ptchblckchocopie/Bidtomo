@@ -8,9 +8,17 @@ dotenv.config();
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
-// Configure CORS to allow requests from the frontend
+// Configure CORS to allow requests from the frontend (including Vercel URLs)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3001',
+  'http://192.168.18.117:5173',
+  'http://192.168.18.117:3001',
+  process.env.FRONTEND_URL, // Add your Vercel frontend URL as env variable
+].filter(Boolean);
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3001', 'http://192.168.18.117:5173', 'http://192.168.18.117:3001'],
+  origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -204,6 +212,7 @@ const start = async () => {
   });
 
   // Server-Sent Events endpoint for real-time product updates
+  // Note: SSE won't work properly on Vercel serverless due to timeout limitations
   // Store active SSE connections per product
   const productListeners = new Map<string, Set<any>>();
 
@@ -440,9 +449,15 @@ const start = async () => {
     }
   });
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server listening on port ${PORT}`);
-  });
+  // Only start server if not in serverless environment
+  if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server listening on port ${PORT}`);
+    });
+  }
 };
 
 start();
+
+// Export app for Vercel serverless
+export default app;
