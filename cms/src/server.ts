@@ -25,9 +25,13 @@ app.use(cors({
 }));
 
 const start = async () => {
+  // Import config directly
+  const config = require('./payload.config').default;
+
   await payload.init({
     secret: process.env.PAYLOAD_SECRET!,
     express: app,
+    config,
     onInit: async () => {
       payload.logger.info(`Payload Admin URL: ${payload.getAdminURL()}`);
     },

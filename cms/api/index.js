@@ -10,7 +10,11 @@ module.exports = async (req, res) => {
     if (!isInitialized) {
       console.log('Initializing PayloadCMS...');
       console.log('Current directory:', __dirname);
-      console.log('Looking for server at:', path.join(__dirname, '../dist/server.js'));
+      console.log('Process cwd:', process.cwd());
+
+      // Set PAYLOAD_CONFIG_PATH environment variable for Payload to find config
+      process.env.PAYLOAD_CONFIG_PATH = path.join(__dirname, '../dist/payload.config.js');
+      console.log('PAYLOAD_CONFIG_PATH set to:', process.env.PAYLOAD_CONFIG_PATH);
 
       const serverModule = require(path.join(__dirname, '../dist/server.js'));
       console.log('Server module loaded:', Object.keys(serverModule));
