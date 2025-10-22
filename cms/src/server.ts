@@ -9,13 +9,13 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Configure CORS to allow requests from the frontend (including Vercel URLs)
-const allowedOrigins = [
+const allowedOrigins: string[] = [
   'http://localhost:5173',
   'http://localhost:3001',
   'http://192.168.18.117:5173',
   'http://192.168.18.117:3001',
-  process.env.FRONTEND_URL, // Add your Vercel frontend URL as env variable
-].filter(Boolean);
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+];
 
 app.use(cors({
   origin: allowedOrigins,
