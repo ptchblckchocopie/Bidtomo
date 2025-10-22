@@ -30,6 +30,7 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URI || process.env.DATABASE_URL || 'postgresql://localhost:5432/marketplace',
     },
+    migrationDir: './migrations',
     ...(process.env.NODE_ENV === 'production' && {
       ssl: process.env.DATABASE_CA_CERT ? {
         rejectUnauthorized: true,
@@ -38,6 +39,7 @@ export default buildConfig({
         rejectUnauthorized: false, // Accept self-signed certificates
       },
     }),
+    push: process.env.PAYLOAD_PUSH === 'true', // Auto-push schema changes
   }),
   collections: [
     {
