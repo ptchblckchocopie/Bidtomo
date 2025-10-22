@@ -1,8 +1,4 @@
-node_modules
-src
 .env
 .env.local
-*.md
 media
 .git
-.gitignore
