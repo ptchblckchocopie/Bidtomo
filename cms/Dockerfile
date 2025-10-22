@@ -27,9 +27,6 @@ COPY . .
 # Build TypeScript and Payload admin (SERVER_URL is now available)
 RUN npm run build
 
-# Generate migrations (if migrations directory doesn't exist, create initial migration)
-RUN npx cross-env PAYLOAD_CONFIG_PATH=dist/payload.config.js payload migrate:create || true
-
 # Create media directory
 RUN mkdir -p media
 
