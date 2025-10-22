@@ -4,16 +4,13 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Accept build arguments (Railway passes these automatically)
-ARG RAILWAY_PUBLIC_DOMAIN
-ARG DATABASE_URL
-ARG PAYLOAD_SECRET
-ARG SERVER_URL
+# Accept build arguments with defaults for local development
+ARG SERVER_URL=http://localhost:3001
+ARG DATABASE_URL=postgresql://localhost:5432/marketplace
+ARG PAYLOAD_SECRET=dev-secret-change-in-production
 
 # Set environment variables for build
-# Use SERVER_URL if provided, otherwise construct from RAILWAY_PUBLIC_DOMAIN, or use default
-ENV SERVER_URL=${SERVER_URL:-${RAILWAY_PUBLIC_DOMAIN:+https://$RAILWAY_PUBLIC_DOMAIN}}
-ENV SERVER_URL=${SERVER_URL:-http://localhost:3001}
+ENV SERVER_URL=${SERVER_URL}
 ENV DATABASE_URL=${DATABASE_URL}
 ENV PAYLOAD_SECRET=${PAYLOAD_SECRET}
 
