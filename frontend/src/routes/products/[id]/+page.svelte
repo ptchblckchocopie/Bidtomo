@@ -51,8 +51,7 @@
   let timeRemaining = '';
   let countdownInterval: ReturnType<typeof setInterval> | null = null;
 
-  // Real-time update with SSE
-  let eventSource: EventSource | null = null;
+  // Real-time update with polling
   let pollingInterval: ReturnType<typeof setInterval> | null = null;
   let lastKnownState = {
     updatedAt: data.product?.updatedAt || '',
@@ -62,7 +61,7 @@
     currentBid: data.product?.currentBid
   };
   let isUpdating = false;
-  let connectionStatus: 'connected' | 'connecting' | 'disconnected' = 'connecting';
+  let connectionStatus: 'connected' | 'disconnected' = 'connected';
 
   // Animation tracking
   let previousBids: any[] = [...data.bids];
@@ -70,6 +69,27 @@
   let priceChanged = false;
   let showConfetti = false;
   let animatingBidId: string | null = null;
+
+  // Prepare chart data - bids sorted by time (oldest first)
+  $: chartData = [...data.bids]
+    .sort((a, b) => new Date(a.bidTime).getTime() - new Date(b.bidTime).getTime())
+    .map((bid, index) => ({
+      time: new Date(bid.bidTime),
+      price: bid.amount,
+      index
+    }));
+
+  // Calculate chart dimensions and scales
+  $: if (chartData.length > 0) {
+    const minPrice = data.product?.startingPrice || Math.min(...chartData.map(d => d.price));
+    const maxPrice = Math.max(...chartData.map(d => d.price));
+    const priceRange = maxPrice - minPrice || 1;
+
+    chartData.forEach((d: any) => {
+      d.x = (d.index / Math.max(chartData.length - 1, 1)) * 100;
+      d.y = 100 - ((d.price - minPrice) / priceRange) * 100;
+    });
+  }
 
   async function updateCountdown() {
     if (!data.product?.auctionEndDate) return;
@@ -231,142 +251,6 @@
     await checkForUpdates();
   }
 
-  // Connect to SSE for real-time updates
-  function connectSSE() {
-    if (!data.product) return;
-
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-    const url = `${API_URL}/api/products/${data.product.id}/stream`;
-
-    connectionStatus = 'connecting';
-    eventSource = new EventSource(url);
-
-    eventSource.onopen = () => {
-      console.log('SSE connection established');
-      connectionStatus = 'connected';
-    };
-
-    eventSource.onmessage = async (event) => {
-      try {
-        const update = JSON.parse(event.data);
-
-        if (update.type === 'connected') {
-          console.log('SSE connected for product:', update.productId);
-          return;
-        }
-
-        if (update.type === 'update') {
-          await handleRealtimeUpdate(update);
-        }
-      } catch (error) {
-        console.error('Error parsing SSE message:', error);
-      }
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('SSE error:', error);
-      connectionStatus = 'disconnected';
-
-      // Close and attempt reconnection after 3 seconds
-      eventSource?.close();
-      setTimeout(() => {
-        if (!eventSource || eventSource.readyState === EventSource.CLOSED) {
-          console.log('Attempting to reconnect SSE...');
-          connectSSE();
-        }
-      }, 3000);
-    };
-  }
-
-  // Handle real-time update from SSE
-  async function handleRealtimeUpdate(status: any) {
-    if (isUpdating) return;
-
-    // Check if anything changed
-    const hasProductUpdate = status.updatedAt !== lastKnownState.updatedAt;
-    const hasBidUpdate = status.latestBidTime !== lastKnownState.latestBidTime;
-    const hasBidCountUpdate = status.bidCount !== lastKnownState.bidCount;
-    const hasStatusUpdate = status.status !== lastKnownState.status;
-    const hasPriceUpdate = status.currentBid !== lastKnownState.currentBid;
-
-    if (hasProductUpdate || hasBidUpdate || hasBidCountUpdate || hasStatusUpdate || hasPriceUpdate) {
-      console.log('Real-time update detected:', {
-        hasProductUpdate,
-        hasBidUpdate,
-        hasBidCountUpdate,
-        hasStatusUpdate,
-        hasPriceUpdate
-      });
-
-      isUpdating = true;
-
-      // Fetch updated product data
-      if (hasProductUpdate || hasStatusUpdate || hasPriceUpdate) {
-        const updatedProduct = await fetchProduct(data.product!.id);
-        if (updatedProduct) {
-          data.product = updatedProduct;
-        }
-      }
-
-      // Fetch updated bids and detect changes
-      if (hasBidUpdate || hasBidCountUpdate) {
-        const updatedBids = await fetchProductBids(data.product!.id);
-
-        // Identify new bids for animation
-        const previousBidIds = new Set(previousBids.map(b => b.id));
-        newBidIds = new Set(
-          updatedBids
-            .filter(b => !previousBidIds.has(b.id))
-            .map(b => b.id)
-        );
-
-        // Store previous bids
-        previousBids = [...updatedBids];
-
-        data.bids = updatedBids;
-
-        // Trigger animations for new bids
-        if (newBidIds.size > 0) {
-          setTimeout(() => {
-            newBidIds = new Set();
-          }, 3000);
-        }
-      }
-
-      // Detect price change and trigger confetti
-      if (hasPriceUpdate) {
-        priceChanged = true;
-        showConfetti = true;
-
-        setTimeout(() => {
-          priceChanged = false;
-        }, 1000);
-
-        setTimeout(() => {
-          showConfetti = false;
-        }, 3000);
-      }
-
-      // Update last known state
-      lastKnownState = {
-        updatedAt: status.updatedAt,
-        latestBidTime: status.latestBidTime || '',
-        bidCount: status.bidCount,
-        status: status.status,
-        currentBid: status.currentBid
-      };
-
-      // Save to localStorage
-      if (data.product) {
-        localStorage.setItem(`product_${data.product.id}_state`, JSON.stringify(lastKnownState));
-      }
-
-      // Trigger reactivity
-      data = { ...data };
-
-      isUpdating = false;
-    }
-  }
 
   onMount(() => {
     // Load last known state from localStorage if available
@@ -380,25 +264,18 @@
       }
     }
 
-    // Connect to SSE for real-time updates
-    connectSSE();
-
-    // Fallback polling every 30 seconds (in case SSE disconnects)
+    // Polling every 3 seconds for real-time updates
     pollingInterval = setInterval(() => {
-      if (connectionStatus === 'disconnected') {
-        console.log('Fallback polling triggered due to SSE disconnection');
-        checkForUpdates();
-      }
-    }, 30000);
+      checkForUpdates();
+    }, 3000);
+
+    // Initial check
+    checkForUpdates();
   });
 
   onDestroy(() => {
     if (countdownInterval) clearInterval(countdownInterval);
     if (pollingInterval) clearInterval(pollingInterval);
-    if (eventSource) {
-      eventSource.close();
-      eventSource = null;
-    }
   });
 
   function formatPrice(price: number, currency: string = 'PHP'): string {
@@ -571,6 +448,10 @@
   // Get highest bid
   $: highestBid = sortedBids.length > 0 ? sortedBids[0] : null;
 
+  // Check if current user is the highest bidder
+  $: isHighestBidder = $authStore.user?.id && highestBid &&
+                       (typeof highestBid.bidder === 'object' ? highestBid.bidder.id : highestBid.bidder) === $authStore.user.id;
+
   function openEditModal() {
     if (!data.product) return;
 
@@ -687,22 +568,21 @@
     editForm.auctionEndDate = date.toISOString().slice(0, 16);
   }
 
-  // Apply custom duration for edit (days + hours)
-  function applyEditCustomDuration() {
-    const totalHours = (editCustomDays * 24) + editCustomHours;
+  // Apply custom duration for edit automatically when values change
+  $: {
+    if (showEditModal && editDurationTab === 'custom') {
+      const totalHours = (editCustomDays * 24) + editCustomHours;
 
-    if (totalHours < 1) {
-      editError = 'Duration must be at least 1 hour';
-      return;
-    }
+      if (totalHours >= 1) {
+        const date = new Date();
+        date.setHours(date.getHours() + totalHours);
+        editForm.auctionEndDate = date.toISOString().slice(0, 16);
 
-    const date = new Date();
-    date.setHours(date.getHours() + totalHours);
-    editForm.auctionEndDate = date.toISOString().slice(0, 16);
-
-    // Clear error if it was about duration
-    if (editError.includes('Duration')) {
-      editError = '';
+        // Clear error if it was about duration
+        if (editError.includes('Duration')) {
+          editError = '';
+        }
+      }
     }
   }
 </script>
@@ -736,12 +616,10 @@
             class="live-indicator"
             class:updating={isUpdating}
             class:connected={connectionStatus === 'connected'}
-            class:connecting={connectionStatus === 'connecting'}
-            class:disconnected={connectionStatus === 'disconnected'}
-            title={connectionStatus === 'connected' ? 'Real-time updates active' : connectionStatus === 'connecting' ? 'Connecting...' : 'Reconnecting...'}
+            title="Real-time updates active (polling every 3 seconds)"
           >
             <span class="live-dot"></span>
-            <span class="live-text">{connectionStatus === 'connected' ? 'LIVE' : connectionStatus === 'connecting' ? 'CONNECTING' : 'RECONNECTING'}</span>
+            <span class="live-text">LIVE</span>
           </div>
         </div>
 
@@ -763,6 +641,69 @@
           <h3>Description</h3>
           <p>{data.product.description}</p>
         </div>
+
+        <!-- Price Analytics Graph -->
+        {#if sortedBids.length > 0 && chartData.length > 0}
+          <div class="price-analytics">
+            <h3>📊 Price Analytics Over Time</h3>
+            <div class="chart-container">
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="price-chart">
+                <!-- Gradient definition -->
+                <defs>
+                  <linearGradient id="price-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:#dc2626;stop-opacity:0.5" />
+                    <stop offset="100%" style="stop-color:#dc2626;stop-opacity:0" />
+                  </linearGradient>
+                </defs>
+
+                <!-- Grid lines -->
+                <line x1="0" y1="0" x2="100" y2="0" class="grid-line" />
+                <line x1="0" y1="25" x2="100" y2="25" class="grid-line" />
+                <line x1="0" y1="50" x2="100" y2="50" class="grid-line" />
+                <line x1="0" y1="75" x2="100" y2="75" class="grid-line" />
+                <line x1="0" y1="100" x2="100" y2="100" class="grid-line" />
+
+                <!-- Area under the line -->
+                <path
+                  d="M 0,100 {chartData.map(d => `L ${d.x},${d.y}`).join(' ')} L 100,100 Z"
+                  class="price-area"
+                />
+
+                <!-- Price line -->
+                <polyline
+                  points={chartData.map(d => `${d.x},${d.y}`).join(' ')}
+                  class="price-line"
+                />
+
+                <!-- Data points -->
+                {#each chartData as point, i}
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r="1.5"
+                    class="data-point"
+                    class:first-point={i === 0}
+                    class:last-point={i === chartData.length - 1}
+                  />
+                {/each}
+              </svg>
+
+              <div class="chart-labels">
+                <div class="label-left">
+                  <div class="label-title">Starting</div>
+                  <div class="label-value">{formatPrice(data.product?.startingPrice || chartData[0]?.price || 0, sellerCurrency)}</div>
+                </div>
+                <div class="label-center">
+                  <div class="label-title">{chartData.length} Bid{chartData.length !== 1 ? 's' : ''}</div>
+                </div>
+                <div class="label-right">
+                  <div class="label-title">Current</div>
+                  <div class="label-value">{formatPrice(chartData[chartData.length - 1]?.price || 0, sellerCurrency)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        {/if}
 
         <div class="seller-info">
           <h3>Seller Information</h3>
@@ -803,6 +744,13 @@
             </div>
           {/if}
         </div>
+
+        {#if isHighestBidder && data.product.status === 'active' && !isOwner}
+          <div class="highest-bidder-alert">
+            <span class="alert-icon">👑</span>
+            <span class="alert-text">You are currently the highest bidder!</span>
+          </div>
+        {/if}
 
         {#if data.product.status === 'active'}
           {#if isOwner}
@@ -1306,9 +1254,6 @@
                       />
                       <span class="duration-unit">Hours</span>
                     </div>
-                    <button type="button" class="apply-duration-btn" on:click={applyEditCustomDuration} disabled={saving}>
-                      Apply
-                    </button>
                   </div>
                   <p class="field-hint">Selected: {editForm.auctionEndDate ? new Date(editForm.auctionEndDate).toLocaleString() : 'None'}</p>
                 </div>
@@ -1567,6 +1512,52 @@
     opacity: 0.95;
   }
 
+  /* Highest Bidder Alert */
+  .highest-bidder-alert {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    border: 3px solid #d97706;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+    animation: alertPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes alertPulse {
+    0%, 100% {
+      box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+      transform: scale(1);
+    }
+    50% {
+      box-shadow: 0 6px 24px rgba(245, 158, 11, 0.6);
+      transform: scale(1.02);
+    }
+  }
+
+  .alert-icon {
+    font-size: 2rem;
+    animation: crownBounce 1.5s ease-in-out infinite;
+  }
+
+  @keyframes crownBounce {
+    0%, 100% {
+      transform: translateY(0) rotate(-10deg);
+    }
+    50% {
+      transform: translateY(-5px) rotate(10deg);
+    }
+  }
+
+  .alert-text {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #78350f;
+    letter-spacing: 0.5px;
+  }
+
   .bid-section {
     background-color: #e7f3ff;
     padding: 1.5rem;
@@ -1769,6 +1760,117 @@
   .description-section h3,
   .seller-info h3 {
     margin-bottom: 1rem;
+  }
+
+  /* Price Analytics */
+  .price-analytics {
+    margin-bottom: 2rem;
+  }
+
+  .price-analytics h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.3rem;
+    color: #333;
+  }
+
+  .chart-container {
+    padding: 1.5rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .price-chart {
+    width: 100%;
+    height: 200px;
+    margin-bottom: 1rem;
+  }
+
+  .grid-line {
+    stroke: #e5e7eb;
+    stroke-width: 0.2;
+  }
+
+  .price-area {
+    fill: url(#price-gradient);
+    opacity: 0.2;
+  }
+
+  .price-line {
+    fill: none;
+    stroke: #dc2626;
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .data-point {
+    fill: #dc2626;
+    stroke: white;
+    stroke-width: 0.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .data-point.first-point {
+    fill: #10b981;
+  }
+
+  .data-point.last-point {
+    fill: #f59e0b;
+    r: 2;
+  }
+
+  .chart-labels {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 8px;
+    border: 2px solid #f0f0f0;
+  }
+
+  .label-left,
+  .label-center,
+  .label-right {
+    text-align: center;
+  }
+
+  .label-left {
+    text-align: left;
+  }
+
+  .label-right {
+    text-align: right;
+  }
+
+  .label-title {
+    font-size: 0.75rem;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+  }
+
+  .label-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #dc2626;
+  }
+
+  .label-left .label-value {
+    color: #10b981;
+  }
+
+  .label-right .label-value {
+    color: #f59e0b;
+  }
+
+  .label-center .label-title {
+    color: #667eea;
+    font-size: 0.9rem;
   }
 
   .bid-history {
@@ -2630,7 +2732,7 @@
     transition: all 0.3s;
   }
 
-  /* Connected state - Green */
+  /* Connected state - Green (always active with polling) */
   .live-indicator.connected {
     background: rgba(16, 185, 129, 0.1);
     border: 1px solid rgba(16, 185, 129, 0.3);
@@ -2642,31 +2744,7 @@
     animation: pulse-dot 2s ease-in-out infinite;
   }
 
-  /* Connecting state - Yellow */
-  .live-indicator.connecting {
-    background: rgba(245, 158, 11, 0.1);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    color: #d97706;
-  }
-
-  .live-indicator.connecting .live-dot {
-    background: #f59e0b;
-    animation: pulse-dot 0.8s ease-in-out infinite;
-  }
-
-  /* Disconnected state - Red */
-  .live-indicator.disconnected {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    color: #dc2626;
-  }
-
-  .live-indicator.disconnected .live-dot {
-    background: #ef4444;
-    animation: pulse-dot 0.5s ease-in-out infinite;
-  }
-
-  /* Updating state - Blue */
+  /* Updating state - Blue (when actively fetching data) */
   .live-indicator.updating {
     background: rgba(59, 130, 246, 0.1);
     border-color: rgba(59, 130, 246, 0.3);

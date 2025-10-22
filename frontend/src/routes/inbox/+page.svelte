@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
-  import { fetchConversations, fetchProductMessages, fetchProduct, sendMessage, markMessageAsRead } from '$lib/api';
+  import { fetchConversations, fetchProductMessages, fetchProduct, sendMessage, markMessageAsRead, setTypingStatus, getTypingStatus } from '$lib/api';
   import type { Product, Message } from '$lib/api';
   import { goto } from '$app/navigation';
 
@@ -13,9 +13,36 @@
   let loading = true;
   let sendingMessage = false;
   let error = '';
+  let pollingInterval: ReturnType<typeof setInterval> | null = null;
+  let conversationListPollingInterval: ReturnType<typeof setInterval> | null = null;
+  let lastMessageTime: string | null = null;
+  let chatInputElement: HTMLInputElement;
+  let typingTimeout: ReturnType<typeof setTimeout> | null = null;
+  let typingPollingInterval: ReturnType<typeof setInterval> | null = null;
+  let otherUserTyping = false;
+  let iAmTyping = false;
+  let activeTab: 'products' | 'purchases' = 'products';
+  let chatMessagesElement: HTMLElement | null = null;
+  let shouldAutoScroll = true;
+  let loadingOlderMessages = false;
+  let hasMoreMessages = true;
+  const MESSAGE_PAGE_SIZE = 10;
+  let canChat = true;
+  let chatBlockedReason = '';
 
   // Get product ID from query params if navigated from purchases page
   $: productId = $page.url.searchParams.get('product');
+
+  // Filter and sort conversations
+  $: myProductsConversations = conversations
+    .filter(conv => conv.product.seller?.id === $authStore.user?.id)
+    .sort((a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime());
+
+  $: myPurchasesConversations = conversations
+    .filter(conv => conv.product.seller?.id !== $authStore.user?.id)
+    .sort((a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime());
+
+  $: displayedConversations = activeTab === 'products' ? myProductsConversations : myPurchasesConversations;
 
   // Currency symbols
   const currencySymbols: Record<string, string> = {
@@ -64,6 +91,136 @@
     return sender;
   }
 
+  // Check if user is at the bottom of chat
+  function isAtBottom() {
+    if (!chatMessagesElement) return true;
+    const threshold = 100; // pixels from bottom
+    const position = chatMessagesElement.scrollHeight - chatMessagesElement.scrollTop - chatMessagesElement.clientHeight;
+    return position <= threshold;
+  }
+
+  // Check if user is at the top of chat
+  function isAtTop() {
+    if (!chatMessagesElement) return false;
+    const threshold = 50; // pixels from top
+    return chatMessagesElement.scrollTop <= threshold;
+  }
+
+  // Handle scroll event
+  function handleScroll() {
+    shouldAutoScroll = isAtBottom();
+
+    // Load older messages when scrolling to the top
+    if (isAtTop() && !loadingOlderMessages && hasMoreMessages && selectedProduct) {
+      loadOlderMessages();
+    }
+  }
+
+  // Load older messages (previous 10)
+  async function loadOlderMessages() {
+    if (!selectedProduct || loadingOlderMessages || !hasMoreMessages) return;
+
+    loadingOlderMessages = true;
+    const oldScrollHeight = chatMessagesElement?.scrollHeight || 0;
+
+    try {
+      // Get the oldest message timestamp
+      const oldestMessage = messages[0];
+      if (!oldestMessage) {
+        hasMoreMessages = false;
+        return;
+      }
+
+      const olderMessages = await fetchProductMessages(
+        selectedProduct.id,
+        undefined,
+        { limit: MESSAGE_PAGE_SIZE, before: oldestMessage.createdAt }
+      );
+
+      if (olderMessages.length < MESSAGE_PAGE_SIZE) {
+        hasMoreMessages = false;
+      }
+
+      if (olderMessages.length > 0) {
+        // Prepend older messages
+        messages = [...olderMessages, ...messages];
+
+        // Maintain scroll position
+        await tick();
+        if (chatMessagesElement) {
+          const newScrollHeight = chatMessagesElement.scrollHeight;
+          chatMessagesElement.scrollTop = newScrollHeight - oldScrollHeight;
+        }
+      } else {
+        hasMoreMessages = false;
+      }
+    } catch (err) {
+      console.error('Error loading older messages:', err);
+    } finally {
+      loadingOlderMessages = false;
+    }
+  }
+
+  // Smart scroll to bottom
+  async function scrollToBottom(force = false) {
+    if (!chatMessagesElement || (!shouldAutoScroll && !force)) return;
+    await tick(); // Wait for DOM to update
+    chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
+  }
+
+  // Check if user can chat with this product
+  async function checkChatPermission(product: Product): Promise<{ allowed: boolean; reason?: string; isOngoing?: boolean }> {
+    if (!$authStore.user) {
+      return { allowed: false, reason: 'You must be logged in to chat.' };
+    }
+
+    const isSeller = product.seller?.id === $authStore.user.id;
+
+    // Sellers can always chat
+    if (isSeller) {
+      return { allowed: true };
+    }
+
+    // For buyers, check product status
+    if (product.status === 'active') {
+      return {
+        allowed: false,
+        reason: 'The bidding is still ongoing and you can only chat if you won the bid.',
+        isOngoing: true
+      };
+    }
+
+    if (product.status !== 'sold') {
+      return {
+        allowed: false,
+        reason: 'This auction has ended. You can only chat if the seller accepted your bid.'
+      };
+    }
+
+    // Product is sold - check if user is the highest bidder
+    const bids = await fetchProductBids(product.id);
+    if (bids.length === 0) {
+      return {
+        allowed: false,
+        reason: 'No bids were placed on this product.'
+      };
+    }
+
+    // Sort bids by amount (highest first)
+    const sortedBids = [...bids].sort((a, b) => b.amount - a.amount);
+    const highestBid = sortedBids[0];
+    const highestBidderId = typeof highestBid.bidder === 'object' ? highestBid.bidder.id : highestBid.bidder;
+
+    if (highestBidderId !== $authStore.user.id) {
+      return {
+        allowed: false,
+        reason: 'You did not win this bid.'
+      };
+    }
+
+    return { allowed: true };
+  }
+
   async function loadConversations() {
     loading = true;
     try {
@@ -73,6 +230,10 @@
       if (productId) {
         const conv = conversations.find(c => c.product.id === productId);
         if (conv) {
+          // Determine which tab this conversation belongs to
+          const isMyProduct = conv.product.seller?.id === $authStore.user?.id;
+          activeTab = isMyProduct ? 'products' : 'purchases';
+
           // Existing conversation found
           await selectConversation(conv.product);
         } else {
@@ -80,14 +241,57 @@
           try {
             const product = await fetchProduct(productId);
             if (product) {
+              // Determine which tab this product belongs to
+              const isMyProduct = product.seller?.id === $authStore.user?.id;
+              activeTab = isMyProduct ? 'products' : 'purchases';
+
               selectedProduct = product;
-              messages = await fetchProductMessages(product.id);
+
+              // Reset and check chat permission
+              canChat = true;
+              chatBlockedReason = '';
+              const permission = await checkChatPermission(product);
+              canChat = permission.allowed;
+              chatBlockedReason = permission.reason || '';
+
+              messages = await fetchProductMessages(product.id, undefined, {
+                limit: MESSAGE_PAGE_SIZE,
+                latest: true
+              });
+
+              // Reset pagination state
+              hasMoreMessages = messages.length === MESSAGE_PAGE_SIZE;
+
+              // Update last message time for polling
+              if (messages.length > 0) {
+                lastMessageTime = messages[messages.length - 1].createdAt;
+              } else {
+                lastMessageTime = new Date().toISOString();
+              }
+
+              // Start polling for new messages
+              startPolling();
+
+              // Start polling for typing status
+              startTypingPolling();
+
+              // Reset typing state
+              iAmTyping = false;
+              otherUserTyping = false;
+
+              // Scroll to bottom after loading messages
+              shouldAutoScroll = true;
+              await tick();
+              setTimeout(() => scrollToBottom(true), 100);
             }
           } catch (err) {
             console.error('Error loading product:', err);
           }
         }
       }
+
+      // Start polling conversation list for updates
+      startConversationListPolling();
     } catch (err) {
       error = 'Failed to load conversations';
       console.error('Error loading conversations:', err);
@@ -96,9 +300,85 @@
     }
   }
 
+  // Poll for conversation list updates without disrupting current selection
+  async function pollConversationList() {
+    try {
+      const updatedConversations = await fetchConversations();
+
+      // Update conversations while preserving DOM and selection
+      for (const updatedConv of updatedConversations) {
+        const existingIndex = conversations.findIndex(c => c.product.id === updatedConv.product.id);
+
+        if (existingIndex !== -1) {
+          // Update existing conversation
+          const existing = conversations[existingIndex];
+
+          // Only update if there's actually a change to avoid unnecessary re-renders
+          if (existing.lastMessage.id !== updatedConv.lastMessage.id ||
+              existing.unreadCount !== updatedConv.unreadCount) {
+            conversations[existingIndex] = updatedConv;
+          }
+        } else {
+          // New conversation, add it to the list
+          conversations = [updatedConv, ...conversations];
+        }
+      }
+
+      // Remove conversations that no longer exist
+      conversations = conversations.filter(conv =>
+        updatedConversations.some(updated => updated.product.id === conv.product.id)
+      );
+
+    } catch (err) {
+      console.error('Error polling conversation list:', err);
+    }
+  }
+
+  // Start polling conversation list
+  function startConversationListPolling() {
+    if (conversationListPollingInterval) {
+      clearInterval(conversationListPollingInterval);
+    }
+
+    // Poll every 5 seconds (less frequent than message polling)
+    conversationListPollingInterval = setInterval(pollConversationList, 5000);
+  }
+
+  // Stop polling conversation list
+  function stopConversationListPolling() {
+    if (conversationListPollingInterval) {
+      clearInterval(conversationListPollingInterval);
+      conversationListPollingInterval = null;
+    }
+  }
+
   async function selectConversation(product: Product) {
     selectedProduct = product;
-    messages = await fetchProductMessages(product.id);
+
+    // Reset chat permission state
+    canChat = true;
+    chatBlockedReason = '';
+
+    // Check chat permission
+    const permission = await checkChatPermission(product);
+    canChat = permission.allowed;
+    chatBlockedReason = permission.reason || '';
+
+    // Load only the latest 10 messages
+    messages = await fetchProductMessages(product.id, undefined, {
+      limit: MESSAGE_PAGE_SIZE,
+      latest: true
+    });
+
+    // Reset pagination state
+    hasMoreMessages = messages.length === MESSAGE_PAGE_SIZE;
+
+    // Update last message time for polling
+    if (messages.length > 0) {
+      lastMessageTime = messages[messages.length - 1].createdAt;
+    } else {
+      lastMessageTime = new Date().toISOString();
+    }
 
     // Mark messages as read
     for (const msg of messages) {
@@ -108,17 +388,155 @@
       }
     }
 
-    // Scroll to bottom
+    // Start polling for new messages
+    startPolling();
+
+    // Start polling for typing status
+    startTypingPolling();
+
+    // Reset typing state
+    iAmTyping = false;
+    otherUserTyping = false;
+
+    // Reset auto-scroll and scroll to bottom
+    shouldAutoScroll = true;
     setTimeout(() => {
-      const chatMessages = document.querySelector('.chat-messages');
-      if (chatMessages) {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+      scrollToBottom(true);
+      if (chatInputElement) {
+        chatInputElement.focus();
       }
     }, 100);
   }
 
+  // Poll for new messages
+  async function pollNewMessages() {
+    if (!selectedProduct || !lastMessageTime) return;
+
+    try {
+      const newMessages = await fetchProductMessages(selectedProduct.id, lastMessageTime);
+
+      if (newMessages.length > 0) {
+        // Add new messages to the list
+        messages = [...messages, ...newMessages];
+
+        // Update last message time
+        lastMessageTime = newMessages[newMessages.length - 1].createdAt;
+
+        // Mark new messages as read if they're for current user
+        for (const msg of newMessages) {
+          const receiverId = typeof msg.receiver === 'object' ? msg.receiver.id : msg.receiver;
+          if (receiverId === $authStore.user?.id && !msg.read) {
+            await markMessageAsRead(msg.id);
+          }
+        }
+
+        // Update the conversation list without reloading (to maintain selection and DOM)
+        updateConversationInPlace(selectedProduct.id, newMessages[newMessages.length - 1]);
+
+        // Smart scroll to bottom
+        setTimeout(scrollToBottom, 100);
+      }
+    } catch (err) {
+      console.error('Error polling for new messages:', err);
+    }
+  }
+
+  // Update a specific conversation without reloading the entire list
+  function updateConversationInPlace(productId: string, latestMessage: Message) {
+    const convIndex = conversations.findIndex(c => c.product.id === productId);
+    if (convIndex !== -1) {
+      // Update the conversation's last message
+      conversations[convIndex] = {
+        ...conversations[convIndex],
+        lastMessage: latestMessage,
+      };
+
+      // Re-sort conversations by moving the updated one to the top
+      const updatedConv = conversations[convIndex];
+      conversations = [
+        updatedConv,
+        ...conversations.slice(0, convIndex),
+        ...conversations.slice(convIndex + 1)
+      ];
+    }
+  }
+
+  // Start polling
+  function startPolling() {
+    // Clear existing interval
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+    }
+
+    // Poll every 2 seconds
+    pollingInterval = setInterval(pollNewMessages, 2000);
+  }
+
+  // Stop polling
+  function stopPolling() {
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+    }
+  }
+
+  // Handle typing indicator
+  function handleTyping() {
+    if (!selectedProduct) return;
+
+    // Mark that I am typing
+    iAmTyping = true;
+
+    // Clear existing timeout
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+
+    // Send typing status
+    setTypingStatus(selectedProduct.id, true);
+
+    // Stop typing after 2.5 seconds of no input
+    typingTimeout = setTimeout(() => {
+      if (selectedProduct) {
+        setTypingStatus(selectedProduct.id, false);
+      }
+      iAmTyping = false;
+    }, 2500);
+  }
+
+  // Poll for typing status
+  async function pollTypingStatus() {
+    if (!selectedProduct) return;
+
+    try {
+      const isTyping = await getTypingStatus(selectedProduct.id);
+      otherUserTyping = isTyping;
+    } catch (err) {
+      console.error('Error polling typing status:', err);
+    }
+  }
+
+  // Start typing polling
+  function startTypingPolling() {
+    if (typingPollingInterval) {
+      clearInterval(typingPollingInterval);
+    }
+
+    // Poll every 1 second
+    typingPollingInterval = setInterval(pollTypingStatus, 1000);
+  }
+
+  // Stop typing polling
+  function stopTypingPolling() {
+    if (typingPollingInterval) {
+      clearInterval(typingPollingInterval);
+      typingPollingInterval = null;
+    }
+    otherUserTyping = false;
+  }
+
   async function handleSendMessage() {
-    if (!newMessage.trim() || !selectedProduct || !$authStore.user) return;
+    if (!newMessage.trim() || !selectedProduct || !$authStore.user || !canChat) return;
 
     sendingMessage = true;
     error = '';
@@ -151,13 +569,29 @@
         messages = [...messages, message];
         newMessage = '';
 
-        // Scroll to bottom
+        // Update last message time
+        lastMessageTime = message.createdAt;
+
+        // Stop typing indicator
+        if (selectedProduct) {
+          setTypingStatus(selectedProduct.id, false);
+        }
+        if (typingTimeout) {
+          clearTimeout(typingTimeout);
+          typingTimeout = null;
+        }
+        iAmTyping = false;
+
+        // Always scroll to bottom when user sends message
+        shouldAutoScroll = true;
+        setTimeout(scrollToBottom, 100);
+
+        // Keep focus on input
         setTimeout(() => {
-          const chatMessages = document.querySelector('.chat-messages');
-          if (chatMessages) {
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+          if (chatInputElement) {
+            chatInputElement.focus();
           }
-        }, 100);
+        }, 50);
       } else {
         error = 'Failed to send message';
       }
@@ -176,6 +610,26 @@
     }
 
     await loadConversations();
+  });
+
+  // Auto-scroll when typing indicator appears (but not when I'm typing)
+  $: if (otherUserTyping && !iAmTyping && shouldAutoScroll) {
+    setTimeout(scrollToBottom, 50);
+  }
+
+  onDestroy(() => {
+    stopPolling();
+    stopTypingPolling();
+    stopConversationListPolling();
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+    // Clear typing status on exit
+    if (selectedProduct) {
+      setTypingStatus(selectedProduct.id, false);
+    }
+    iAmTyping = false;
+    otherUserTyping = false;
   });
 </script>
 
@@ -199,8 +653,38 @@
     <div class="inbox-container">
       <!-- Conversations List -->
       <aside class="conversations-list">
-        <h2>Conversations</h2>
-        {#each conversations as conv}
+        <div class="tabs">
+          <button
+            class="tab"
+            class:active={activeTab === 'products'}
+            on:click={() => activeTab = 'products'}
+          >
+            My Products
+            {#if myProductsConversations.length > 0}
+              <span class="tab-badge">{myProductsConversations.length}</span>
+            {/if}
+          </button>
+          <button
+            class="tab"
+            class:active={activeTab === 'purchases'}
+            on:click={() => activeTab = 'purchases'}
+          >
+            My Purchases
+            {#if myPurchasesConversations.length > 0}
+              <span class="tab-badge">{myPurchasesConversations.length}</span>
+            {/if}
+          </button>
+        </div>
+
+        {#if displayedConversations.length === 0}
+          <div class="no-conversations">
+            <p>No conversations yet</p>
+          </div>
+        {/if}
+
+        {#each displayedConversations as conv (conv.product.id)}
+          {@const isMyProduct = conv.product.seller?.id === $authStore.user?.id}
+          {@const otherUserInConv = getOtherUser(conv.lastMessage)}
           <button
             class="conversation-item"
             class:active={selectedProduct?.id === conv.product.id}
@@ -216,11 +700,23 @@
 
             <div class="conversation-info">
               <h3>{conv.product.title}</h3>
+              <p class="seller-name">
+                {#if isMyProduct}
+                  Buyer: {otherUserInConv?.name || 'Unknown'}
+                {:else}
+                  Seller: {conv.product.seller?.name || 'Unknown'}
+                {/if}
+              </p>
               <p class="last-message">
                 {#if conv.lastMessage}
-                  {@const otherUser = getOtherUser(conv.lastMessage)}
-                  {#if otherUser}
-                    <span class="sender-name">{otherUser.name}:</span>
+                  {@const senderId = typeof conv.lastMessage.sender === 'object' ? conv.lastMessage.sender.id : conv.lastMessage.sender}
+                  {@const isMine = $authStore.user?.id === senderId}
+                  {#if isMine}
+                    <span class="sender-name">Me:</span>
+                  {:else}
+                    {#if otherUserInConv}
+                      <span class="sender-name">{otherUserInConv.name}:</span>
+                    {/if}
                   {/if}
                   {conv.lastMessage.message.substring(0, 50)}{conv.lastMessage.message.length > 50 ? '...' : ''}
                 {:else}
@@ -252,7 +748,14 @@
             <a href="/products/{selectedProduct.id}" class="view-product-link">View Product →</a>
           </div>
 
-          <div class="chat-messages">
+          <div class="chat-messages" bind:this={chatMessagesElement} on:scroll={handleScroll}>
+            {#if loadingOlderMessages}
+              <div class="loading-older">
+                <div class="loading-spinner"></div>
+                <span>Loading older messages...</span>
+              </div>
+            {/if}
+
             {#each messages as message}
               {@const isMine = $authStore.user?.id === (typeof message.sender === 'object' ? message.sender.id : message.sender)}
               {@const sender = typeof message.sender === 'object' ? message.sender : null}
@@ -267,24 +770,47 @@
                 </div>
               </div>
             {/each}
+
+            {#if otherUserTyping && !iAmTyping}
+              <div class="typing-indicator">
+                <div class="typing-dots">
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                </div>
+                <span class="typing-text">typing...</span>
+              </div>
+            {/if}
           </div>
 
           {#if error}
             <div class="error-message">{error}</div>
           {/if}
 
-          <form class="chat-input-form" on:submit|preventDefault={handleSendMessage}>
-            <input
-              type="text"
-              bind:value={newMessage}
-              placeholder="Type your message..."
-              class="chat-input"
-              disabled={sendingMessage}
-            />
-            <button type="submit" class="send-btn" disabled={sendingMessage || !newMessage.trim()}>
-              {sendingMessage ? 'Sending...' : 'Send'}
-            </button>
-          </form>
+          {#if !canChat}
+            <div class="chat-blocked-message">
+              <div class="blocked-icon">🔒</div>
+              <p class="blocked-text">{chatBlockedReason}</p>
+              <a href="/products/{selectedProduct.id}" class="view-product-btn">
+                View Product Page
+              </a>
+            </div>
+          {:else}
+            <form class="chat-input-form" on:submit|preventDefault={handleSendMessage}>
+              <input
+                type="text"
+                bind:value={newMessage}
+                bind:this={chatInputElement}
+                on:input={handleTyping}
+                placeholder="Type your message..."
+                class="chat-input"
+                disabled={sendingMessage}
+              />
+              <button type="submit" class="send-btn" disabled={sendingMessage || !newMessage.trim()}>
+                {sendingMessage ? 'Sending...' : 'Send'}
+              </button>
+            </form>
+          {/if}
         {:else}
           <div class="no-conversation-selected">
             <p>Select a conversation to start messaging</p>
@@ -370,13 +896,65 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     overflow-y: auto;
     padding: 1rem;
+    display: flex;
+    flex-direction: column;
   }
 
-  .conversations-list h2 {
-    font-size: 1.25rem;
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-bottom: 2px solid #f0f0f0;
     margin-bottom: 1rem;
-    padding: 0 0.5rem;
-    color: #333;
+  }
+
+  .tab {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .tab:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+  }
+
+  .tab.active {
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    border-color: #dc2626;
+    color: white;
+  }
+
+  .tab-badge {
+    background: rgba(255, 255, 255, 0.3);
+    padding: 0.125rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .tab.active .tab-badge {
+    background: rgba(255, 255, 255, 0.9);
+    color: #dc2626;
+  }
+
+  .no-conversations {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #999;
+    font-size: 0.95rem;
   }
 
   .conversation-item {
@@ -436,6 +1014,16 @@
     font-size: 0.95rem;
     margin: 0 0 0.25rem 0;
     color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .seller-name {
+    font-size: 0.8rem;
+    color: #999;
+    margin: 0 0 0.35rem 0;
+    font-style: italic;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -650,5 +1238,125 @@
     height: 100%;
     color: #999;
     font-size: 1.1rem;
+  }
+
+  /* Typing Indicator */
+  .typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin: 0.5rem 0;
+  }
+
+  .typing-dots {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    background-color: #f0f0f0;
+    border-radius: 12px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    background-color: #999;
+    border-radius: 50%;
+    animation: typing 1.4s infinite;
+  }
+
+  .dot:nth-child(1) {
+    animation-delay: 0s;
+  }
+
+  .dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes typing {
+    0%, 60%, 100% {
+      transform: translateY(0);
+      opacity: 0.5;
+    }
+    30% {
+      transform: translateY(-10px);
+      opacity: 1;
+    }
+  }
+
+  .typing-text {
+    font-size: 0.85rem;
+    color: #999;
+    font-style: italic;
+  }
+
+  /* Loading Older Messages */
+  .loading-older {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    color: #666;
+    font-size: 0.9rem;
+  }
+
+  .loading-spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f0f0f0;
+    border-top-color: #dc2626;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Chat Blocked Message */
+  .chat-blocked-message {
+    padding: 2rem;
+    text-align: center;
+    background: linear-gradient(135deg, #fee 0%, #fdd 100%);
+    border-top: 2px solid #fcc;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .blocked-icon {
+    font-size: 3rem;
+  }
+
+  .blocked-text {
+    font-size: 1rem;
+    color: #c33;
+    margin: 0;
+    font-weight: 500;
+  }
+
+  .view-product-btn {
+    display: inline-block;
+    padding: 0.75rem 2rem;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin-top: 0.5rem;
+  }
+
+  .view-product-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
   }
 </style>

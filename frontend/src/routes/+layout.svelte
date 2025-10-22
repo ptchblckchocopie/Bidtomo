@@ -7,8 +7,6 @@
 
   // Accept props to avoid warnings
   export let data: LayoutData;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  export let params: any = {};
 
   async function handleLogout() {
     await apiLogout();

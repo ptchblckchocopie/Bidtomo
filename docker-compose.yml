@@ -33,7 +33,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/marketplace
       PAYLOAD_SECRET: ***REMOVED***
       PORT: 3001
-      SERVER_URL: http://localhost:3001
+      SERVER_URL: http://192.168.18.117:3001
       NODE_ENV: development
     volumes:
       - ./cms/src:/app/src
@@ -55,8 +55,8 @@ services:
     ports:
       - "5173:5173"
     environment:
-      PUBLIC_API_URL: http://localhost:3001
-      VITE_API_URL: http://localhost:3001
+      PUBLIC_API_URL: http://192.168.18.117:3001
+      VITE_API_URL: http://192.168.18.117:3001
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/static:/app/static

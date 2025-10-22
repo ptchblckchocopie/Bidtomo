@@ -6,8 +6,8 @@ import path from 'path';
 
 export default buildConfig({
   serverURL: process.env.SERVER_URL || 'http://localhost:3001',
-  cors: ['http://localhost:5173', 'http://localhost:3001'],
-  csrf: ['http://localhost:5173', 'http://localhost:3001'],
+  cors: ['http://localhost:5173', 'http://localhost:3001','http://192.168.18.117:5173', 'http://192.168.18.117:3001'],
+  csrf: ['http://localhost:5173', 'http://localhost:3001','http://192.168.18.117:5173', 'http://192.168.18.117:3001'],
   admin: {
     user: 'users',
     bundler: webpackBundler(),

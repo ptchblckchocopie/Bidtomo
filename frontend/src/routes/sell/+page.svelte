@@ -39,7 +39,12 @@
   $: userCurrency = $authStore.user?.currency || 'PHP';
 
   // Set default bid interval based on currency: 50 for PHP, 1 for others
-  $: bidInterval = userCurrency === 'PHP' ? 50 : 1;
+  let bidInterval = 0;
+
+  // Update default bid interval when currency changes
+  $: if (bidInterval === 0 || !bidInterval) {
+    bidInterval = userCurrency === 'PHP' ? 50 : 1;
+  }
 
   // Check authentication on mount
   onMount(() => {
@@ -67,22 +72,21 @@
     auctionEndDate = date.toISOString().slice(0, 16);
   }
 
-  // Apply custom duration (days + hours)
-  function applyCustomDuration() {
-    const totalHours = (customDays * 24) + customHours;
+  // Apply custom duration automatically when values change
+  $: {
+    if (durationTab === 'custom') {
+      const totalHours = (customDays * 24) + customHours;
 
-    if (totalHours < 1) {
-      error = 'Duration must be at least 1 hour';
-      return;
-    }
+      if (totalHours >= 1) {
+        const date = new Date();
+        date.setHours(date.getHours() + totalHours);
+        auctionEndDate = date.toISOString().slice(0, 16);
 
-    const date = new Date();
-    date.setHours(date.getHours() + totalHours);
-    auctionEndDate = date.toISOString().slice(0, 16);
-
-    // Clear error if it was about duration
-    if (error.includes('Duration')) {
-      error = '';
+        // Clear error if it was about duration
+        if (error.includes('Duration')) {
+          error = '';
+        }
+      }
     }
   }
 
@@ -116,6 +120,7 @@
     });
 
     if (result) {
+      console.log('Product created:', result);
       success = true;
       // Redirect to product page
       setTimeout(() => {
@@ -192,6 +197,21 @@
         disabled={submitting}
       />
       <p class="field-hint">Minimum starting price: 500 {userCurrency}</p>
+    </div>
+
+    <div class="form-group">
+      <label for="bidInterval">Bid Increment ({userCurrency}) *</label>
+      <input
+        id="bidInterval"
+        type="number"
+        bind:value={bidInterval}
+        min="1"
+        step="1"
+        placeholder={userCurrency === 'PHP' ? '50' : '1'}
+        required
+        disabled={submitting}
+      />
+      <p class="field-hint">Minimum amount each bid must increase by (default: {userCurrency === 'PHP' ? '50' : '1'} {userCurrency})</p>
     </div>
 
     <div class="form-group">
@@ -275,9 +295,6 @@
                 />
                 <span class="duration-unit">Hours</span>
               </div>
-              <button type="button" class="apply-duration-btn" on:click={applyCustomDuration} disabled={submitting}>
-                Apply
-              </button>
             </div>
             <p class="field-hint">Selected: {auctionEndDate ? new Date(auctionEndDate).toLocaleString() : 'None'}</p>
           </div>
@@ -298,7 +315,8 @@
     <ul>
       <li>You must be logged in to create a listing</li>
       <li>Make sure to provide accurate and detailed information</li>
-      <li>Set a competitive starting price</li>
+      <li>Set a competitive starting price (minimum 500 {userCurrency})</li>
+      <li>Set an appropriate bid increment for your product</li>
       <li>Choose an appropriate auction end date</li>
       <li>You can add images after creating the listing (coming soon)</li>
     </ul>
@@ -569,28 +587,5 @@
     font-size: 0.875rem;
     color: #666;
     font-weight: 500;
-  }
-
-  .apply-duration-btn {
-    padding: 0.625rem 1.5rem;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  .apply-duration-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
-  }
-
-  .apply-duration-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
   }
 </style>

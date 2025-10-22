@@ -87,9 +87,40 @@ export interface Transaction {
 }
 
 // Fetch all products
-export async function fetchProducts(): Promise<Product[]> {
+export async function fetchProducts(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+}): Promise<{ docs: Product[]; totalDocs: number; totalPages: number; page: number; limit: number }> {
   try {
-    const response = await fetch(`${API_URL}/api/products`, {
+    const queryParams = new URLSearchParams();
+
+    // Pagination
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+    // Status filter
+    if (params?.status) {
+      if (params.status === 'active') {
+        queryParams.append('where[status][equals]', 'active');
+      } else if (params.status === 'ended') {
+        queryParams.append('where[status][in]', 'ended,sold,cancelled');
+      }
+    }
+
+    // Search - using OR logic for title, description, and keywords
+    if (params?.search && params.search.trim()) {
+      const searchTerm = params.search.trim();
+      queryParams.append('where[or][0][title][contains]', searchTerm);
+      queryParams.append('where[or][1][description][contains]', searchTerm);
+      queryParams.append('where[or][2][keywords.keyword][contains]', searchTerm);
+    }
+
+    // Sort by creation date (newest first)
+    queryParams.append('sort', '-createdAt');
+
+    const response = await fetch(`${API_URL}/api/products?${queryParams.toString()}`, {
       credentials: 'include',
     });
 
@@ -98,10 +129,22 @@ export async function fetchProducts(): Promise<Product[]> {
     }
 
     const data = await response.json();
-    return data.docs || [];
+    return {
+      docs: data.docs || [],
+      totalDocs: data.totalDocs || 0,
+      totalPages: data.totalPages || 0,
+      page: data.page || 1,
+      limit: data.limit || 10
+    };
   } catch (error) {
     console.error('Error fetching products:', error);
-    return [];
+    return {
+      docs: [],
+      totalDocs: 0,
+      totalPages: 0,
+      page: 1,
+      limit: 10
+    };
   }
 }
 
@@ -186,10 +229,16 @@ export async function createProduct(productData: {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to create product:', response.status, errorText);
       throw new Error('Failed to create product');
     }
 
-    return await response.json();
+    const data = await response.json();
+    console.log('Create product response:', data);
+    // PayloadCMS returns { message: "...", doc: { ... } }
+    // Return only the doc (the actual product object)
+    return data.doc || data;
   } catch (error) {
     console.error('Error creating product:', error);
     return null;
@@ -234,7 +283,9 @@ export async function updateProduct(
 
     const result = await response.json();
     console.log('Update successful:', result);
-    return result;
+    // PayloadCMS returns { message: "...", doc: { ... } }
+    // Return only the doc (the actual product object)
+    return result.doc || result;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       console.error('Update timed out after 30 seconds');
@@ -273,6 +324,7 @@ export async function logout(): Promise<boolean> {
   try {
     const response = await fetch(`${API_URL}/api/users/logout`, {
       method: 'POST',
+      headers: getAuthHeaders(),
       credentials: 'include',
     });
 
@@ -287,6 +339,7 @@ export async function logout(): Promise<boolean> {
 export async function getCurrentUser(): Promise<User | null> {
   try {
     const response = await fetch(`${API_URL}/api/users/me`, {
+      headers: getAuthHeaders(),
       credentials: 'include',
     });
 
@@ -329,7 +382,9 @@ export async function placeBid(productId: string, amount: number, censorName: bo
 
     const data = await response.json();
     console.log('Bid placed successfully:', data);
-    return data;
+    // PayloadCMS returns { message: "...", doc: { ... } }
+    // Return only the doc (the actual bid object)
+    return data.doc || data;
   } catch (error) {
     console.error('Error placing bid:', error);
     return null;
@@ -412,7 +467,10 @@ export async function sendMessage(productId: string, receiverId: string, message
       throw new Error('Failed to send message');
     }
 
-    return await response.json();
+    const data = await response.json();
+    // PayloadCMS returns { message: "...", doc: { ... } }
+    // Return only the doc (the actual message object)
+    return data.doc || data;
   } catch (error) {
     console.error('Error sending message:', error);
     return null;
@@ -420,9 +478,32 @@ export async function sendMessage(productId: string, receiverId: string, message
 }
 
 // Fetch messages for a product (conversation between buyer and seller)
-export async function fetchProductMessages(productId: string): Promise<Message[]> {
+export async function fetchProductMessages(
+  productId: string,
+  after?: string,
+  options?: { limit?: number; before?: string; latest?: boolean }
+): Promise<Message[]> {
   try {
-    const response = await fetch(`${API_URL}/api/messages?where[product][equals]=${productId}&sort=createdAt`, {
+    // When loading latest messages, sort descending and reverse the result
+    const sortOrder = options?.latest ? '-createdAt' : 'createdAt';
+    let url = `${API_URL}/api/messages?where[product][equals]=${productId}&sort=${sortOrder}`;
+
+    // If 'after' timestamp is provided, only fetch messages created after that time
+    if (after) {
+      url += `&where[createdAt][greater_than]=${after}`;
+    }
+
+    // If 'before' timestamp is provided, only fetch messages created before that time (for loading older)
+    if (options?.before) {
+      url += `&where[createdAt][less_than]=${options.before}`;
+    }
+
+    // Add limit if provided
+    if (options?.limit) {
+      url += `&limit=${options.limit}`;
+    }
+
+    const response = await fetch(url, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -432,7 +513,10 @@ export async function fetchProductMessages(productId: string): Promise<Message[]
     }
 
     const data = await response.json();
-    return data.docs || [];
+    const messages = data.docs || [];
+
+    // Reverse messages if we loaded latest (to get chronological order)
+    return options?.latest ? messages.reverse() : messages;
   } catch (error) {
     console.error('Error fetching messages:', error);
     return [];
@@ -454,10 +538,23 @@ export async function fetchConversations(): Promise<{ product: Product; lastMess
     const data = await response.json();
     const messages: Message[] = data.docs || [];
 
+    // Get current user
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return [];
+    }
+
+    // Filter messages to only include those where current user is involved
+    const userMessages = messages.filter(message => {
+      const senderId = typeof message.sender === 'object' ? message.sender.id : message.sender;
+      const receiverId = typeof message.receiver === 'object' ? message.receiver.id : message.receiver;
+      return senderId === currentUser.id || receiverId === currentUser.id;
+    });
+
     // Group messages by product
     const conversationsMap = new Map<string, { product: Product; lastMessage: Message; unreadCount: number }>();
 
-    for (const message of messages) {
+    for (const message of userMessages) {
       const product = typeof message.product === 'object' ? message.product : null;
       if (!product) continue;
 
@@ -472,12 +569,9 @@ export async function fetchConversations(): Promise<{ product: Product; lastMess
       }
 
       // Count unread messages (received by current user)
-      const currentUser = await getCurrentUser();
-      if (currentUser) {
-        const receiverId = typeof message.receiver === 'object' ? message.receiver.id : message.receiver;
-        if (receiverId === currentUser.id && !message.read) {
-          conversationsMap.get(productId)!.unreadCount++;
-        }
+      const receiverId = typeof message.receiver === 'object' ? message.receiver.id : message.receiver;
+      if (receiverId === currentUser.id && !message.read) {
+        conversationsMap.get(productId)!.unreadCount++;
       }
     }
 
@@ -485,6 +579,43 @@ export async function fetchConversations(): Promise<{ product: Product; lastMess
   } catch (error) {
     console.error('Error fetching conversations:', error);
     return [];
+  }
+}
+
+// Set typing status
+export async function setTypingStatus(productId: string, isTyping: boolean): Promise<void> {
+  try {
+    await fetch(`${API_URL}/api/typing`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({
+        product: productId,
+        isTyping,
+      }),
+    });
+  } catch (error) {
+    console.error('Error setting typing status:', error);
+  }
+}
+
+// Get typing status for a product
+export async function getTypingStatus(productId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/api/typing/${productId}`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = await response.json();
+    return data.typing || false;
+  } catch (error) {
+    console.error('Error getting typing status:', error);
+    return false;
   }
 }
 

@@ -1,72 +1,76 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import { onMount, onDestroy } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
 
   export let data: PageData;
 
   let countdowns: { [key: string]: string } = {};
   let countdownInterval: ReturnType<typeof setInterval> | null = null;
 
-  // Search and pagination
-  let searchQuery = '';
-  let activeCurrentPage = 1;
-  let endedCurrentPage = 1;
-  const itemsPerPage = 12;
+  // Local state for form inputs
+  let searchInput = data.search || '';
+  let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Filter products based on search query
-  $: filteredProducts = data.products.filter(p => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
+  // Items per page options
+  const itemsPerPageOptions = [12, 24, 48, 96];
 
-    // Check keywords
-    const keywordMatch = p.keywords?.some(k =>
-      k.keyword.toLowerCase().includes(query)
-    ) || false;
-
-    return (
-      p.title.toLowerCase().includes(query) ||
-      p.description.toLowerCase().includes(query) ||
-      p.seller.name.toLowerCase().includes(query) ||
-      keywordMatch
-    );
-  });
-
-  // Separate products into active and ended
-  $: activeProducts = filteredProducts.filter(p => p.status === 'active');
-  $: endedProducts = filteredProducts.filter(p => p.status === 'ended' || p.status === 'sold' || p.status === 'cancelled');
-
-  // Pagination
-  $: activeTotalPages = Math.ceil(activeProducts.length / itemsPerPage);
-  $: endedTotalPages = Math.ceil(endedProducts.length / itemsPerPage);
-
-  $: paginatedActiveProducts = activeProducts.slice(
-    (activeCurrentPage - 1) * itemsPerPage,
-    activeCurrentPage * itemsPerPage
-  );
-
-  $: paginatedEndedProducts = endedProducts.slice(
-    (endedCurrentPage - 1) * itemsPerPage,
-    endedCurrentPage * itemsPerPage
-  );
-
-  // Reset pagination when search changes
-  $: if (searchQuery) {
-    activeCurrentPage = 1;
-    endedCurrentPage = 1;
+  function updateURL(params: Record<string, string | number>) {
+    const url = new URL($page.url);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) {
+        url.searchParams.set(key, value.toString());
+      } else {
+        url.searchParams.delete(key);
+      }
+    });
+    goto(url.toString(), { keepFocus: true, noScroll: false });
   }
 
-  function goToActivePage(page: number) {
-    activeCurrentPage = page;
+  function handleSearchInput() {
+    if (searchTimeout) clearTimeout(searchTimeout);
+
+    searchTimeout = setTimeout(() => {
+      updateURL({
+        search: searchInput,
+        page: '1', // Reset to page 1 on new search
+        status: data.status,
+        limit: data.limit.toString()
+      });
+    }, 500); // Debounce for 500ms
+  }
+
+  function changeTab(status: string) {
+    updateURL({
+      status,
+      page: '1', // Reset to page 1 on tab change
+      search: searchInput,
+      limit: data.limit.toString()
+    });
+  }
+
+  function goToPage(page: number) {
+    updateURL({
+      page: page.toString(),
+      status: data.status,
+      search: searchInput,
+      limit: data.limit.toString()
+    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function goToEndedPage(page: number) {
-    endedCurrentPage = page;
-    const endedSection = document.querySelector('.ended-section');
-    if (endedSection) {
-      endedSection.scrollIntoView({ behavior: 'smooth' });
-    }
+  function changeItemsPerPage(limit: number) {
+    updateURL({
+      limit: limit.toString(),
+      page: '1', // Reset to page 1 when changing items per page
+      status: data.status,
+      search: searchInput
+    });
   }
+
+  // Update local search input when data changes (e.g., browser back/forward)
+  $: searchInput = data.search || '';
 
   function formatPrice(price: number, currency: string = 'PHP'): string {
     return new Intl.NumberFormat('en-US', {
@@ -147,44 +151,79 @@
     <div class="search-container">
       <input
         type="text"
-        bind:value={searchQuery}
-        placeholder="Search by title, description, keywords, or seller..."
+        bind:value={searchInput}
+        on:input={handleSearchInput}
+        placeholder="Search by title, description, or keywords..."
         class="search-input"
       />
-      {#if searchQuery}
-        <button class="clear-search" on:click={() => searchQuery = ''}>✕</button>
+      {#if searchInput}
+        <button class="clear-search" on:click={() => { searchInput = ''; handleSearchInput(); }}>✕</button>
       {/if}
     </div>
 
-    {#if searchQuery && filteredProducts.length > 0}
-      <p class="search-results">Found {filteredProducts.length} result{filteredProducts.length !== 1 ? 's' : ''}</p>
+    {#if data.search && data.totalDocs > 0}
+      <p class="search-results">Found {data.totalDocs} result{data.totalDocs !== 1 ? 's' : ''}</p>
     {/if}
+
+    <!-- Items per page selector -->
+    <div class="controls-container">
+      <div class="items-per-page">
+        <label>Items per page:</label>
+        <select value={data.limit} on:change={(e) => changeItemsPerPage(parseInt(e.currentTarget.value))}>
+          {#each itemsPerPageOptions as option}
+            <option value={option}>{option}</option>
+          {/each}
+        </select>
+      </div>
+    </div>
   </div>
 
-  {#if data.products.length === 0}
+  {#if data.totalDocs === 0 && !data.search}
     <div class="empty-state">
       <p>No products listed yet.</p>
       <p><a href="/sell">Be the first to list a product!</a></p>
     </div>
-  {:else if filteredProducts.length === 0}
+  {:else if data.totalDocs === 0 && data.search}
     <div class="empty-state">
-      <p>No products found matching "{searchQuery}"</p>
-      <button class="btn-clear-search" on:click={() => searchQuery = ''}>Clear Search</button>
+      <p>No products found matching "{data.search}"</p>
+      <button class="btn-clear-search" on:click={() => { searchInput = ''; handleSearchInput(); }}>Clear Search</button>
     </div>
   {:else}
-    <!-- Active Auctions Section -->
-    {#if activeProducts.length > 0}
+    <!-- Tabs -->
+    <div class="tabs-container">
+      <button
+        class="tab"
+        class:active={data.status === 'active'}
+        on:click={() => changeTab('active')}
+      >
+        Active Auctions
+      </button>
+      <button
+        class="tab"
+        class:active={data.status === 'ended'}
+        on:click={() => changeTab('ended')}
+      >
+        Ended Auctions
+      </button>
+    </div>
+
+    <!-- Products Grid -->
+    {#if data.products.length > 0}
       <section class="auction-section">
-        <h2 class="section-title">Active Auctions ({activeProducts.length})</h2>
         <div class="products-grid">
-          {#each paginatedActiveProducts as product}
-            <a href="/products/{product.id}" class="product-card">
+          {#each data.products as product}
+            <a href="/products/{product.id}" class="product-card" class:ended-card={data.status === 'ended'}>
               <div class="product-image">
                 {#if product.images && product.images.length > 0 && product.images[0].image}
                   <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" />
                 {:else}
                   <div class="placeholder-image">
                     <span>No Image</span>
+                  </div>
+                {/if}
+                {#if data.status === 'ended'}
+                  <div class="ended-overlay">
+                    {product.status === 'sold' ? '✓ SOLD' : product.status.toUpperCase()}
                   </div>
                 {/if}
               </div>
@@ -201,7 +240,7 @@
 
                   {#if product.currentBid}
                     <div>
-                      <span class="label">Current Bid:</span>
+                      <span class="label">{data.status === 'ended' && product.status === 'sold' ? 'Sold For:' : data.status === 'ended' ? 'Final Bid:' : 'Current Bid:'}</span>
                       <span class="price current-bid">{formatPrice(product.currentBid, product.seller.currency)}</span>
                     </div>
                   {/if}
@@ -209,36 +248,46 @@
 
                 <div class="auction-info">
                   <span class="status status-{product.status}">{product.status}</span>
-                  <div class="countdown-badge countdown-{getUrgencyClass(product.auctionEndDate)}">
-                    <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <polyline points="12 6 12 12 16 14"></polyline>
-                    </svg>
-                    <span>{countdowns[product.id] || 'Loading...'}</span>
-                  </div>
+                  {#if data.status === 'active'}
+                    <div class="countdown-badge countdown-{getUrgencyClass(product.auctionEndDate)}">
+                      <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                      </svg>
+                      <span>{countdowns[product.id] || 'Loading...'}</span>
+                    </div>
+                  {:else}
+                    <div class="countdown-badge countdown-ended">
+                      <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                      </svg>
+                      <span>Ended</span>
+                    </div>
+                  {/if}
                 </div>
               </div>
             </a>
           {/each}
         </div>
 
-        <!-- Active Pagination -->
-        {#if activeTotalPages > 1}
+        <!-- Pagination -->
+        {#if data.totalPages > 1}
           <div class="pagination">
             <button
               class="pagination-btn"
-              disabled={activeCurrentPage === 1}
-              on:click={() => goToActivePage(activeCurrentPage - 1)}
+              disabled={data.currentPage === 1}
+              on:click={() => goToPage(data.currentPage - 1)}
             >
               ← Previous
             </button>
 
             <div class="pagination-numbers">
-              {#each Array(activeTotalPages) as _, i}
+              {#each Array(data.totalPages) as _, i}
                 <button
                   class="pagination-number"
-                  class:active={activeCurrentPage === i + 1}
-                  on:click={() => goToActivePage(i + 1)}
+                  class:active={data.currentPage === i + 1}
+                  on:click={() => goToPage(i + 1)}
                 >
                   {i + 1}
                 </button>
@@ -247,102 +296,18 @@
 
             <button
               class="pagination-btn"
-              disabled={activeCurrentPage === activeTotalPages}
-              on:click={() => goToActivePage(activeCurrentPage + 1)}
+              disabled={data.currentPage === data.totalPages}
+              on:click={() => goToPage(data.currentPage + 1)}
             >
               Next →
             </button>
           </div>
         {/if}
       </section>
-    {/if}
-
-    <!-- Ended Auctions Section -->
-    {#if endedProducts.length > 0}
-      <section class="auction-section ended-section">
-        <h2 class="section-title">Ended Auctions ({endedProducts.length})</h2>
-        <div class="products-grid">
-          {#each paginatedEndedProducts as product}
-            <a href="/products/{product.id}" class="product-card ended-card">
-              <div class="product-image">
-                {#if product.images && product.images.length > 0 && product.images[0].image}
-                  <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" />
-                {:else}
-                  <div class="placeholder-image">
-                    <span>No Image</span>
-                  </div>
-                {/if}
-                <div class="ended-overlay">
-                  {product.status === 'sold' ? '✓ SOLD' : product.status.toUpperCase()}
-                </div>
-              </div>
-
-              <div class="product-info">
-                <h3>{product.title}</h3>
-                <p class="description">{product.description.substring(0, 100)}{product.description.length > 100 ? '...' : ''}</p>
-
-                <div class="pricing">
-                  <div>
-                    <span class="label">Starting Price:</span>
-                    <span class="price">{formatPrice(product.startingPrice, product.seller.currency)}</span>
-                  </div>
-
-                  {#if product.currentBid}
-                    <div>
-                      <span class="label">{product.status === 'sold' ? 'Sold For:' : 'Final Bid:'}</span>
-                      <span class="price current-bid">{formatPrice(product.currentBid, product.seller.currency)}</span>
-                    </div>
-                  {/if}
-                </div>
-
-                <div class="auction-info">
-                  <span class="status status-{product.status}">{product.status}</span>
-                  <div class="countdown-badge countdown-ended">
-                    <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <polyline points="12 6 12 12 16 14"></polyline>
-                    </svg>
-                    <span>Ended</span>
-                  </div>
-                </div>
-              </div>
-            </a>
-          {/each}
-        </div>
-
-        <!-- Ended Pagination -->
-        {#if endedTotalPages > 1}
-          <div class="pagination">
-            <button
-              class="pagination-btn"
-              disabled={endedCurrentPage === 1}
-              on:click={() => goToEndedPage(endedCurrentPage - 1)}
-            >
-              ← Previous
-            </button>
-
-            <div class="pagination-numbers">
-              {#each Array(endedTotalPages) as _, i}
-                <button
-                  class="pagination-number"
-                  class:active={endedCurrentPage === i + 1}
-                  on:click={() => goToEndedPage(i + 1)}
-                >
-                  {i + 1}
-                </button>
-              {/each}
-            </div>
-
-            <button
-              class="pagination-btn"
-              disabled={endedCurrentPage === endedTotalPages}
-              on:click={() => goToEndedPage(endedCurrentPage + 1)}
-            >
-              Next →
-            </button>
-          </div>
-        {/if}
-      </section>
+    {:else}
+      <div class="empty-state">
+        <p>No {data.status === 'active' ? 'active' : 'ended'} auctions found.</p>
+      </div>
     {/if}
   {/if}
 </div>
@@ -423,20 +388,99 @@
     box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
   }
 
-  .auction-section {
-    margin-bottom: 3rem;
+  .controls-container {
+    margin-top: 1rem;
   }
 
-  .section-title {
-    font-size: 1.8rem;
-    margin-bottom: 1.5rem;
-    color: #333;
-    border-bottom: 3px solid #dc2626;
+  .items-per-page {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .items-per-page label {
+    font-size: 0.95rem;
+    color: #666;
+    font-weight: 500;
+  }
+
+  .items-per-page select {
+    padding: 0.5rem 2.5rem 0.5rem 0.75rem;
+    font-size: 0.95rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    background-color: white;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 1.25rem;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    appearance: none;
+  }
+
+  .items-per-page select:hover {
+    border-color: #d1d5db;
+  }
+
+  .items-per-page select:focus {
+    outline: none;
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+
+  /* Tabs */
+  .tabs-container {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid #f0f0f0;
     padding-bottom: 0.5rem;
   }
 
-  .ended-section .section-title {
-    border-bottom-color: #6b7280;
+  .tab {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .tab:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+  }
+
+  .tab.active {
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    border-color: #dc2626;
+    color: white;
+  }
+
+  .tab-badge {
+    background: rgba(255, 255, 255, 0.3);
+    padding: 0.125rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .tab.active .tab-badge {
+    background: rgba(255, 255, 255, 0.9);
+    color: #dc2626;
+  }
+
+  .auction-section {
+    margin-bottom: 3rem;
   }
 
   .ended-card {

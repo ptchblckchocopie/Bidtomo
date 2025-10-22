@@ -1,7 +1,4 @@
 <script lang="ts">
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  export let params: any = {};
-
   let title = 'BidMo.to';
   let description = 'Bid mo \'to! The best place to buy and bid on unique items';
 </script>

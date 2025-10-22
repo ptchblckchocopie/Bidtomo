@@ -6,11 +6,11 @@ import cors from 'cors';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Configure CORS to allow requests from the frontend
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3001'],
+  origin: ['http://localhost:5173', 'http://localhost:3001', 'http://192.168.18.117:5173', 'http://192.168.18.117:3001'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -374,7 +374,73 @@ const start = async () => {
     }
   });
 
-  app.listen(PORT, () => {
+  // In-memory typing status store
+  // Structure: { 'productId:userId': timestamp }
+  const typingStatus = new Map<string, number>();
+  const TYPING_TIMEOUT = 3000; // 3 seconds
+
+  // Set typing status
+  app.post('/api/typing', async (req, res) => {
+    try {
+      const { product, isTyping } = req.body;
+      const userId = (req as any).user?.id;
+
+      if (!userId || !product) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const key = `${product}:${userId}`;
+
+      if (isTyping) {
+        // Set typing with current timestamp
+        typingStatus.set(key, Date.now());
+      } else {
+        // Remove typing status
+        typingStatus.delete(key);
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error setting typing status:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get typing status for a product
+  app.get('/api/typing/:productId', async (req, res) => {
+    try {
+      const { productId } = req.params;
+      const currentUserId = (req as any).user?.id;
+
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const now = Date.now();
+      const typingUsers: string[] = [];
+
+      // Clean up expired typing statuses and find active ones
+      for (const [key, timestamp] of typingStatus.entries()) {
+        if (now - timestamp > TYPING_TIMEOUT) {
+          // Expired, remove it
+          typingStatus.delete(key);
+        } else if (key.startsWith(`${productId}:`)) {
+          const userId = key.split(':')[1];
+          // Don't include current user's typing status
+          if (userId !== currentUserId) {
+            typingUsers.push(userId);
+          }
+        }
+      }
+
+      res.json({ typing: typingUsers.length > 0, users: typingUsers });
+    } catch (error: any) {
+      console.error('Error getting typing status:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server listening on port ${PORT}`);
   });
 };

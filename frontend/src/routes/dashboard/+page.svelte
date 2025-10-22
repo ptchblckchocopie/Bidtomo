@@ -270,8 +270,8 @@
 
 <!-- Edit Product Modal -->
 {#if showEditModal && editingProduct}
-  <div class="modal-overlay" on:click={closeEditModal}>
-    <div class="modal-content" on:click|stopPropagation>
+  <div class="modal-overlay" on:click={closeEditModal} on:keydown={(e) => e.key === 'Escape' && closeEditModal()} role="button" tabindex="-1">
+    <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation role="dialog" tabindex="-1">
       <button class="modal-close" on:click={closeEditModal}>&times;</button>
 
       <div class="modal-header">
