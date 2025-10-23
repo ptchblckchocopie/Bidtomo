@@ -731,7 +731,7 @@ export default buildConfig({
       collections: {
         media: {
           adapter: adapter,
-          prefix: '', // Empty prefix to match existing files at bucket root
+          prefix: 'bidmoto', // Empty prefix to match existing files at bucket root
           disableLocalStorage: true
         }
       }
