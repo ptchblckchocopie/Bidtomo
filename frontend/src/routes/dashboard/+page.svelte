@@ -516,12 +516,12 @@
                 id="startingPrice"
                 type="number"
                 bind:value={editForm.startingPrice}
-                min="500"
+                min="100"
                 step="1"
                 required
                 disabled={saving}
               />
-              <p class="field-hint">Minimum starting price: 500. Can only be edited before any bids are placed.</p>
+              <p class="field-hint">Minimum starting price: 100. Can only be edited before any bids are placed.</p>
             </div>
           {/if}
 

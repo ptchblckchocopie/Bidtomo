@@ -180,8 +180,8 @@
       return;
     }
 
-    if (startingPrice < 500) {
-      error = 'Starting price must be at least 500';
+    if (startingPrice < 100) {
+      error = 'Starting price must be at least 100';
       submitting = false;
       return;
     }
@@ -348,13 +348,13 @@
         id="startingPrice"
         type="number"
         bind:value={startingPrice}
-        min="500"
+        min="100"
         step="0.01"
-        placeholder="500.00"
+        placeholder="100.00"
         required
         disabled={submitting}
       />
-      <p class="field-hint">Minimum starting price: 500 {userCurrency}</p>
+      <p class="field-hint">Minimum starting price: 100 {userCurrency}</p>
     </div>
 
     <div class="form-group">
@@ -473,7 +473,7 @@
     <ul>
       <li>You must be logged in to create a listing</li>
       <li>Make sure to provide accurate and detailed information</li>
-      <li>Set a competitive starting price (minimum 500 {userCurrency})</li>
+      <li>Set a competitive starting price (minimum 100 {userCurrency})</li>
       <li>Set an appropriate bid increment for your product</li>
       <li>Choose an appropriate auction end date</li>
       <li>You can add images after creating the listing (coming soon)</li>

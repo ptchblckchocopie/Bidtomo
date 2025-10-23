@@ -62,7 +62,7 @@
     keywords: [] as string[],
     bidInterval: 0,
     auctionEndDate: '',
-    status: 'active' as 'active' | 'ended' | 'sold' | 'cancelled'
+    active: true
   };
   let saving = false;
   let editError = '';
@@ -551,7 +551,7 @@
       keywords: data.product.keywords?.map(k => k.keyword) || [],
       bidInterval: data.product.bidInterval || 1,
       auctionEndDate: formattedDate,
-      status: data.product.status
+      active: data.product.active
     };
 
     // Load existing images
@@ -663,7 +663,7 @@
         keywords: editForm.keywords.map(k => ({ keyword: k })),
         bidInterval: editForm.bidInterval,
         auctionEndDate: new Date(editForm.auctionEndDate).toISOString(),
-        status: editForm.status,
+        active: editForm.active,
         images: allImageIds.map(id => ({ image: id }))
       });
 
@@ -1401,13 +1401,14 @@
           </div>
 
           <div class="form-group">
-            <label for="edit-status">Status</label>
-            <select id="edit-status" bind:value={editForm.status} disabled={saving}>
-              <option value="active">Active</option>
-              <option value="ended">Ended</option>
-              <option value="sold">Sold</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                bind:checked={editForm.active}
+                disabled={saving}
+              />
+              <span>Active (visible on Browse Products page)</span>
+            </label>
           </div>
 
           <div class="form-group">
@@ -2692,6 +2693,24 @@
   .form-group textarea {
     resize: vertical;
     min-height: 100px;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+    margin: 0;
+  }
+
+  .checkbox-label span {
+    flex: 1;
   }
 
   .field-hint {
