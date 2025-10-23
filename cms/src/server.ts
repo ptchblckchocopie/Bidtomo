@@ -487,6 +487,113 @@ const start = async () => {
     }
   });
 
+  // Get user limits (bidding and posting)
+  app.get('/api/users/limits', async (req, res) => {
+    try {
+      const currentUserId = (req as any).user?.id;
+
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Define maximum limits
+      const MAX_BIDS = 10;
+      const MAX_POSTS = 10;
+
+      // Count active products where user has placed bids
+      const userBids = await payload.find({
+        collection: 'bids',
+        where: {
+          bidder: {
+            equals: currentUserId,
+          },
+        },
+        limit: 1000,
+      });
+
+      // Get unique product IDs from user's bids
+      const bidProductIds = new Set<string>();
+      userBids.docs.forEach((bid: any) => {
+        const productId = typeof bid.product === 'object' ? bid.product.id : bid.product;
+        bidProductIds.add(String(productId));
+      });
+
+      // Count how many of those products are still active
+      let activeBidCount = 0;
+      if (bidProductIds.size > 0) {
+        const activeProducts = await payload.find({
+          collection: 'products',
+          where: {
+            and: [
+              {
+                id: {
+                  in: Array.from(bidProductIds),
+                },
+              },
+              {
+                or: [
+                  { status: { equals: 'active' } },
+                  { status: { equals: 'available' } },
+                ],
+              },
+              {
+                active: { equals: true },
+              },
+            ],
+          },
+          limit: 1000,
+        });
+        activeBidCount = activeProducts.totalDocs;
+      }
+
+      // Count active products posted by the user
+      const userProducts = await payload.find({
+        collection: 'products',
+        where: {
+          and: [
+            {
+              seller: {
+                equals: currentUserId,
+              },
+            },
+            {
+              or: [
+                { status: { equals: 'active' } },
+                { status: { equals: 'available' } },
+              ],
+            },
+            {
+              active: { equals: true },
+            },
+          ],
+        },
+        limit: 1000,
+      });
+
+      const activePostCount = userProducts.totalDocs;
+
+      // Calculate remaining limits
+      const bidsRemaining = Math.max(0, MAX_BIDS - activeBidCount);
+      const postsRemaining = Math.max(0, MAX_POSTS - activePostCount);
+
+      res.json({
+        bids: {
+          current: activeBidCount,
+          max: MAX_BIDS,
+          remaining: bidsRemaining,
+        },
+        posts: {
+          current: activePostCount,
+          max: MAX_POSTS,
+          remaining: postsRemaining,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error fetching user limits:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Only start server if not in serverless environment
   if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     app.listen(PORT, '0.0.0.0', () => {

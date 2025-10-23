@@ -87,6 +87,19 @@ export interface Transaction {
   updatedAt: string;
 }
 
+export interface UserLimits {
+  bids: {
+    current: number;
+    max: number;
+    remaining: number;
+  };
+  posts: {
+    current: number;
+    max: number;
+    remaining: number;
+  };
+}
+
 // Fetch all products (only active ones for browse page)
 export async function fetchProducts(params?: {
   page?: number;
@@ -866,6 +879,25 @@ export async function uploadMedia(file: File): Promise<string | null> {
     return data.doc?.id || data.id;
   } catch (error) {
     console.error('Error uploading media:', error);
+    return null;
+  }
+}
+
+// Get user limits (bidding and posting)
+export async function getUserLimits(): Promise<UserLimits | null> {
+  try {
+    const response = await fetch(`${API_URL}/api/users/limits`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch user limits');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching user limits:', error);
     return null;
   }
 }

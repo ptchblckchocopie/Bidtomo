@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct, uploadMedia, deleteMedia } from '$lib/api';
+  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import type { PageData } from './$types';
-  import KeywordInput from '$lib/components/KeywordInput.svelte';
+  import ProductForm from '$lib/components/ProductForm.svelte';
   import ImageSlider from '$lib/components/ImageSlider.svelte';
+  import type { Product } from '$lib/api';
 
   export let data: PageData;
 
@@ -56,26 +57,6 @@
   let accepting = false;
   let acceptError = '';
   let acceptSuccess = false;
-  let editForm = {
-    title: '',
-    description: '',
-    keywords: [] as string[],
-    bidInterval: 0,
-    auctionEndDate: '',
-    active: true
-  };
-  let saving = false;
-  let editError = '';
-  let editSuccess = false;
-  let minEditEndDate = '';
-  let editCustomDays = 0;
-  let editCustomHours = 0;
-  let editDurationTab: 'manual' | 'quick' | 'custom' = 'quick';
-
-  // Image upload state
-  let existingImages: Array<{ id: string; image: { id: string; url: string; alt?: string } }> = [];
-  let newImageFiles: File[] = [];
-  let imagesToDelete: string[] = []; // Track media IDs to delete
 
   // Sort bids by amount (highest to lowest)
   $: sortedBids = [...data.bids].sort((a, b) => b.amount - a.amount);
@@ -535,153 +516,18 @@
 
   function openEditModal() {
     if (!data.product) return;
-
-    // Format the date for datetime-local input
-    const auctionDate = new Date(data.product.auctionEndDate);
-    const formattedDate = auctionDate.toISOString().slice(0, 16);
-
-    // Set minimum date to 1 hour from now
-    const minDate = new Date();
-    minDate.setHours(minDate.getHours() + 1);
-    minEditEndDate = minDate.toISOString().slice(0, 16);
-
-    editForm = {
-      title: data.product.title,
-      description: data.product.description,
-      keywords: data.product.keywords?.map(k => k.keyword) || [],
-      bidInterval: data.product.bidInterval || 1,
-      auctionEndDate: formattedDate,
-      active: data.product.active
-    };
-
-    // Load existing images
-    existingImages = data.product.images?.map((img, index) => ({
-      id: `existing-${index}`,
-      image: typeof img.image === 'object' ? img.image : { id: img.image, url: '', alt: '' }
-    })) || [];
-
-    newImageFiles = [];
-    imagesToDelete = [];
-
     showEditModal = true;
-    editError = '';
-    editSuccess = false;
   }
 
   function closeEditModal() {
     showEditModal = false;
   }
 
-  // Handle new image selection in edit modal
-  function handleEditImageSelect(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files) return;
-
-    const newFiles = Array.from(input.files);
-    const totalImages = existingImages.length + newImageFiles.length + newFiles.length;
-
-    if (totalImages > 5) {
-      editError = `Maximum 5 images allowed. You can add ${5 - (existingImages.length + newImageFiles.length)} more.`;
-      return;
-    }
-
-    // Validate file types and sizes
-    for (const file of newFiles) {
-      if (!file.type.startsWith('image/')) {
-        editError = 'Only image files are allowed';
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        editError = 'Each image must be less than 10MB';
-        return;
-      }
-    }
-
-    newImageFiles = [...newImageFiles, ...newFiles];
-    editError = '';
-    input.value = '';
-  }
-
-  // Remove existing image (mark for deletion)
-  function removeExistingImage(imageId: string) {
-    const img = existingImages.find(i => i.image.id === imageId);
-    if (img) {
-      imagesToDelete = [...imagesToDelete, img.image.id];
-      existingImages = existingImages.filter(i => i.image.id !== imageId);
-    }
-  }
-
-  // Remove new image file
-  function removeNewImage(index: number) {
-    newImageFiles = newImageFiles.filter((_, i) => i !== index);
-  }
-
-  // Create preview URL for new image
-  function getEditImagePreview(file: File): string {
-    return URL.createObjectURL(file);
-  }
-
-  async function handleSaveProduct() {
-    if (!data.product) return;
-
-    // Validate at least one image
-    const totalImages = existingImages.length + newImageFiles.length;
-    if (totalImages === 0) {
-      editError = 'Please provide at least one product image';
-      return;
-    }
-
-    saving = true;
-    editError = '';
-    editSuccess = false;
-
-    try {
-      // First, delete marked images from PayloadCMS
-      for (const mediaId of imagesToDelete) {
-        await deleteMedia(mediaId);
-      }
-
-      // Upload new images
-      const uploadedImageIds: string[] = [];
-      for (const file of newImageFiles) {
-        const imageId = await uploadMedia(file);
-        if (imageId) {
-          uploadedImageIds.push(imageId);
-        }
-      }
-
-      // Combine existing and new image IDs
-      const allImageIds = [
-        ...existingImages.map(img => img.image.id),
-        ...uploadedImageIds
-      ];
-
-      // Update product with new image array
-      const result = await updateProduct(data.product.id, {
-        title: editForm.title,
-        description: editForm.description,
-        keywords: editForm.keywords.map(k => ({ keyword: k })),
-        bidInterval: editForm.bidInterval,
-        auctionEndDate: new Date(editForm.auctionEndDate).toISOString(),
-        active: editForm.active,
-        images: allImageIds.map(id => ({ image: id }))
-      });
-
-      if (result) {
-        editSuccess = true;
-        setTimeout(() => {
-          // Refresh the page to load changes
-          window.location.reload();
-        }, 1000);
-      } else {
-        editError = 'Failed to update product';
-      }
-    } catch (error) {
-      console.error('Error updating product:', error);
-      editError = 'An error occurred while updating the product';
-    } finally {
-      saving = false;
-    }
+  function handleEditSuccess(updatedProduct: Product) {
+    setTimeout(() => {
+      // Refresh the page to load changes
+      window.location.reload();
+    }, 1000);
   }
 
   function openAcceptBidModal() {
@@ -725,30 +571,6 @@
     }
   }
 
-  // Set edit duration in hours from now
-  function setEditDuration(hours: number) {
-    const date = new Date();
-    date.setHours(date.getHours() + hours);
-    editForm.auctionEndDate = date.toISOString().slice(0, 16);
-  }
-
-  // Apply custom duration for edit automatically when values change
-  $: {
-    if (showEditModal && editDurationTab === 'custom') {
-      const totalHours = (editCustomDays * 24) + editCustomHours;
-
-      if (totalHours >= 1) {
-        const date = new Date();
-        date.setHours(date.getHours() + totalHours);
-        editForm.auctionEndDate = date.toISOString().slice(0, 16);
-
-        // Clear error if it was about duration
-        if (editError.includes('Duration')) {
-          editError = '';
-        }
-      }
-    }
-  }
 </script>
 
 <svelte:head>
@@ -1295,227 +1117,12 @@
       </div>
 
       <div class="modal-body">
-        {#if editSuccess}
-          <div class="success-message">
-            Product updated successfully! Refreshing...
-          </div>
-        {/if}
-
-        {#if editError}
-          <div class="error-message">
-            {editError}
-          </div>
-        {/if}
-
-        <form on:submit|preventDefault={handleSaveProduct} class="edit-form">
-          <div class="form-group">
-            <label for="edit-title">Title</label>
-            <input
-              id="edit-title"
-              type="text"
-              bind:value={editForm.title}
-              required
-              disabled={saving}
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="edit-description">Description</label>
-            <textarea
-              id="edit-description"
-              bind:value={editForm.description}
-              rows="4"
-              required
-              disabled={saving}
-            ></textarea>
-          </div>
-
-          <div class="form-group">
-            <label for="edit-keywords">Keywords (for search & SEO)</label>
-            <KeywordInput bind:keywords={editForm.keywords} disabled={saving} />
-          </div>
-
-          <div class="form-group">
-            <label for="edit-images">Product Images * (1-5 images)</label>
-            <div class="image-upload-container">
-              {#if existingImages.length + newImageFiles.length < 5}
-                <label class="image-upload-btn" class:disabled={saving}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    on:change={handleEditImageSelect}
-                    disabled={saving}
-                    style="display: none;"
-                  />
-                  <span class="upload-icon">📷</span>
-                  <span>Add Images ({existingImages.length + newImageFiles.length}/5)</span>
-                </label>
-              {/if}
-
-              {#if existingImages.length > 0 || newImageFiles.length > 0}
-                <div class="image-preview-grid">
-                  <!-- Existing images -->
-                  {#each existingImages as img, index}
-                    <div class="image-preview-item">
-                      <img src={img.image.url} alt="Existing {index + 1}" />
-                      <button
-                        type="button"
-                        class="remove-image-btn"
-                        on:click={() => removeExistingImage(img.image.id)}
-                        disabled={saving}
-                        title="Remove image"
-                      >
-                        ✕
-                      </button>
-                      <span class="image-number">{index + 1}</span>
-                      <span class="image-type">Current</span>
-                    </div>
-                  {/each}
-
-                  <!-- New images -->
-                  {#each newImageFiles as file, index}
-                    <div class="image-preview-item">
-                      <img src={getEditImagePreview(file)} alt="New {index + 1}" />
-                      <button
-                        type="button"
-                        class="remove-image-btn"
-                        on:click={() => removeNewImage(index)}
-                        disabled={saving}
-                        title="Remove image"
-                      >
-                        ✕
-                      </button>
-                      <span class="image-number">{existingImages.length + index + 1}</span>
-                      <span class="image-type">New</span>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-            <p class="field-hint">Upload 1-5 high-quality images. Each image must be less than 10MB.</p>
-          </div>
-
-          <div class="form-group">
-            <label for="edit-bidInterval">Bid Interval ({sellerCurrency})</label>
-            <input
-              id="edit-bidInterval"
-              type="number"
-              bind:value={editForm.bidInterval}
-              min="1"
-              required
-              disabled={saving}
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input
-                type="checkbox"
-                bind:checked={editForm.active}
-                disabled={saving}
-              />
-              <span>Active (visible on Browse Products page)</span>
-            </label>
-          </div>
-
-          <div class="form-group">
-            <label for="edit-auctionEndDate">Auction End Date</label>
-
-            <div class="duration-tabs">
-              <button
-                type="button"
-                class="tab-btn"
-                class:active={editDurationTab === 'manual'}
-                on:click={() => editDurationTab = 'manual'}
-                disabled={saving}
-              >
-                Manual
-              </button>
-              <button
-                type="button"
-                class="tab-btn"
-                class:active={editDurationTab === 'quick'}
-                on:click={() => editDurationTab = 'quick'}
-                disabled={saving}
-              >
-                Quick Duration
-              </button>
-              <button
-                type="button"
-                class="tab-btn"
-                class:active={editDurationTab === 'custom'}
-                on:click={() => editDurationTab = 'custom'}
-                disabled={saving}
-              >
-                Custom Duration
-              </button>
-            </div>
-
-            <div class="tab-content">
-              {#if editDurationTab === 'manual'}
-                <div class="tab-pane">
-                  <input
-                    id="edit-auctionEndDate"
-                    type="datetime-local"
-                    bind:value={editForm.auctionEndDate}
-                    min={minEditEndDate}
-                    required
-                    disabled={saving}
-                  />
-                  <p class="field-hint">Minimum 1 hour from now.</p>
-                </div>
-              {:else if editDurationTab === 'quick'}
-                <div class="tab-pane">
-                  <div class="duration-buttons">
-                    <button type="button" class="duration-btn" on:click={() => setEditDuration(1)} disabled={saving}>1 Hour</button>
-                    <button type="button" class="duration-btn" on:click={() => setEditDuration(6)} disabled={saving}>6 Hours</button>
-                    <button type="button" class="duration-btn" on:click={() => setEditDuration(12)} disabled={saving}>12 Hours</button>
-                    <button type="button" class="duration-btn" on:click={() => setEditDuration(24)} disabled={saving}>24 Hours</button>
-                  </div>
-                  <p class="field-hint">Selected: {editForm.auctionEndDate ? new Date(editForm.auctionEndDate).toLocaleString() : 'None'}</p>
-                </div>
-              {:else if editDurationTab === 'custom'}
-                <div class="tab-pane">
-                  <div class="custom-duration-inputs">
-                    <div class="duration-input-group">
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        class="duration-input"
-                        bind:value={editCustomDays}
-                        disabled={saving}
-                      />
-                      <span class="duration-unit">Days</span>
-                    </div>
-                    <div class="duration-input-group">
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="0"
-                        class="duration-input"
-                        bind:value={editCustomHours}
-                        disabled={saving}
-                      />
-                      <span class="duration-unit">Hours</span>
-                    </div>
-                  </div>
-                  <p class="field-hint">Selected: {editForm.auctionEndDate ? new Date(editForm.auctionEndDate).toLocaleString() : 'None'}</p>
-                </div>
-              {/if}
-            </div>
-          </div>
-
-          <div class="modal-actions">
-            <button type="button" class="btn-cancel-edit" on:click={closeEditModal} disabled={saving}>
-              Cancel
-            </button>
-            <button type="submit" class="btn-save-edit" disabled={saving}>
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
+        <ProductForm
+          mode="edit"
+          product={data.product}
+          onSuccess={handleEditSuccess}
+          onCancel={closeEditModal}
+        />
       </div>
     </div>
   </div>

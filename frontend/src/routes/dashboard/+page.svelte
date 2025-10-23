@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { PageData } from './$types';
-  import { updateProduct, uploadMedia, deleteMedia, type Product } from '$lib/api';
+  import { type Product } from '$lib/api';
   import ImageSlider from '$lib/components/ImageSlider.svelte';
-  import KeywordInput from '$lib/components/KeywordInput.svelte';
+  import ProductForm from '$lib/components/ProductForm.svelte';
 
   export let data: PageData;
 
@@ -18,22 +18,6 @@
   let showViewModal = false;
   let editingProduct: Product | null = null;
   let viewingProduct: Product | null = null;
-  let editForm = {
-    title: '',
-    description: '',
-    keywords: [] as string[],
-    startingPrice: 0,
-    bidInterval: 1,
-    auctionEndDate: '',
-    active: true
-  };
-  let saving = false;
-  let saveError = '';
-  let saveSuccess = false;
-  let hasBids = false;
-  let existingImages: Array<{ id: string; image: { id: string; url: string; alt?: string } }> = [];
-  let newImageFiles: File[] = [];
-  let imagesToDelete: string[] = [];
 
   function formatPrice(price: number, currency: string = 'PHP'): string {
     return new Intl.NumberFormat('en-US', {
@@ -80,82 +64,27 @@
 
   function openEditModal(product: Product | null) {
     if (!product) return;
-
     editingProduct = product;
-    hasBids = !!(product.currentBid && product.currentBid > 0);
-    editForm = {
-      title: product.title,
-      description: product.description,
-      keywords: product.keywords?.map(k => k.keyword) || [],
-      startingPrice: product.startingPrice,
-      bidInterval: product.bidInterval,
-      auctionEndDate: formatDateForInput(product.auctionEndDate),
-      active: product.active
-    };
-
-    // Load existing images
-    existingImages = product.images?.map((img, index) => ({
-      id: `existing-${index}`,
-      image: typeof img.image === 'object' ? img.image : { id: img.image, url: '', alt: '' }
-    })) || [];
-
-    newImageFiles = [];
-    imagesToDelete = [];
-
     showEditModal = true;
-    saveError = '';
-    saveSuccess = false;
-  }
-
-  // Handle new image selection in edit modal
-  function handleEditImageSelect(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files) return;
-
-    const newFiles = Array.from(input.files);
-    const totalImages = existingImages.length + newImageFiles.length + newFiles.length;
-
-    if (totalImages > 5) {
-      saveError = `Maximum 5 images allowed. You can add ${5 - (existingImages.length + newImageFiles.length)} more.`;
-      return;
-    }
-
-    // Validate file types and sizes
-    for (const file of newFiles) {
-      if (!file.type.startsWith('image/')) {
-        saveError = 'Only image files are allowed';
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        saveError = 'Each image must be less than 10MB';
-        return;
-      }
-    }
-
-    newImageFiles = [...newImageFiles, ...newFiles];
-    saveError = '';
-    input.value = '';
-  }
-
-  // Remove existing image (mark for deletion)
-  function removeExistingImage(imageId: string) {
-    const img = existingImages.find(i => i.image.id === imageId);
-    if (img) {
-      imagesToDelete = [...imagesToDelete, img.image.id];
-      existingImages = existingImages.filter(i => i.image.id !== imageId);
-    }
-  }
-
-  // Remove new image file
-  function removeNewImageFile(index: number) {
-    newImageFiles = newImageFiles.filter((_, i) => i !== index);
   }
 
   function closeEditModal() {
     showEditModal = false;
     editingProduct = null;
-    saveError = '';
-    saveSuccess = false;
+  }
+
+  function handleEditSuccess(updatedProduct: Product) {
+    // Update the product in the local data
+    const index = data.products.findIndex(p => p.id === editingProduct!.id);
+    if (index !== -1) {
+      data.products[index] = {
+        ...updatedProduct,
+        seller: editingProduct!.seller // Preserve the original seller object
+      };
+    }
+    setTimeout(() => {
+      closeEditModal();
+    }, 1500);
   }
 
   function openViewModal(product: Product) {
@@ -166,82 +95,6 @@
   function closeViewModal() {
     showViewModal = false;
     viewingProduct = null;
-  }
-
-  async function handleSaveProduct() {
-    if (!editingProduct) return;
-
-    // Validate at least one image
-    const totalImages = existingImages.length + newImageFiles.length;
-    if (totalImages === 0) {
-      saveError = 'Please provide at least one product image';
-      return;
-    }
-
-    saving = true;
-    saveError = '';
-    saveSuccess = false;
-
-    try {
-      // First, delete marked images from PayloadCMS
-      for (const mediaId of imagesToDelete) {
-        await deleteMedia(mediaId);
-      }
-
-      // Upload new images
-      const uploadedImageIds: string[] = [];
-      for (const file of newImageFiles) {
-        const imageId = await uploadMedia(file);
-        if (imageId) {
-          uploadedImageIds.push(imageId);
-        }
-      }
-
-      // Combine existing and new image IDs
-      const allImageIds = [
-        ...existingImages.map(img => img.image.id),
-        ...uploadedImageIds
-      ];
-
-      const updateData: any = {
-        title: editForm.title,
-        description: editForm.description,
-        keywords: editForm.keywords.map(k => ({ keyword: k })),
-        bidInterval: editForm.bidInterval,
-        auctionEndDate: new Date(editForm.auctionEndDate).toISOString(),
-        active: editForm.active,
-        images: allImageIds.map(id => ({ image: id }))
-      };
-
-      // Only include startingPrice if there are no bids
-      if (!hasBids) {
-        updateData.startingPrice = editForm.startingPrice;
-      }
-
-      const result = await updateProduct(editingProduct.id, updateData);
-
-      if (result) {
-        saveSuccess = true;
-        // Update the product in the local data, preserving the seller object
-        const index = data.products.findIndex(p => p.id === editingProduct!.id);
-        if (index !== -1) {
-          data.products[index] = {
-            ...result,
-            seller: editingProduct.seller // Preserve the original seller object
-          };
-        }
-        setTimeout(() => {
-          closeEditModal();
-        }, 1500);
-      } else {
-        saveError = 'Failed to update product. Please try again.';
-      }
-    } catch (error) {
-      console.error('Error saving product:', error);
-      saveError = 'An error occurred while saving the product.';
-    } finally {
-      saving = false;
-    }
   }
 </script>
 
@@ -490,16 +343,6 @@
   {/if}
 </div>
 
-<!-- Loading Overlay -->
-{#if saving}
-  <div class="loading-overlay">
-    <div class="loading-spinner">
-      <div class="spinner"></div>
-      <p>Saving changes...</p>
-    </div>
-  </div>
-{/if}
-
 <!-- Edit Product Modal -->
 {#if showEditModal && editingProduct}
   <div class="modal-overlay" on:keydown={(e) => e.key === 'Escape' && closeEditModal()} role="button" tabindex="-1">
@@ -511,114 +354,12 @@
       </div>
 
       <div class="modal-body">
-        {#if saveSuccess}
-          <div class="success-message">
-            Product updated successfully!
-          </div>
-        {/if}
-
-        {#if saveError}
-          <div class="error-message">
-            {saveError}
-          </div>
-        {/if}
-
-        <form on:submit|preventDefault={handleSaveProduct}>
-          <div class="form-group">
-            <label for="title">Product Title</label>
-            <input
-              id="title"
-              type="text"
-              bind:value={editForm.title}
-              required
-              disabled={saving}
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="description">Description</label>
-            <textarea
-              id="description"
-              bind:value={editForm.description}
-              rows="4"
-              required
-              disabled={saving}
-            ></textarea>
-          </div>
-
-          <div class="form-group">
-            <label for="keywords">Keywords (for search & SEO)</label>
-            <KeywordInput bind:keywords={editForm.keywords} disabled={saving} />
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="bidInterval">Bid Increment ({editingProduct.seller.currency})</label>
-              <input
-                id="bidInterval"
-                type="number"
-                bind:value={editForm.bidInterval}
-                min="1"
-                step="1"
-                required
-                disabled={saving}
-              />
-            </div>
-
-            <div class="form-group">
-              <label class="checkbox-label">
-                <input
-                  type="checkbox"
-                  bind:checked={editForm.active}
-                  disabled={saving}
-                />
-                <span>Active (visible on Browse Products page)</span>
-              </label>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="auctionEndDate">Auction End Date</label>
-            <input
-              id="auctionEndDate"
-              type="datetime-local"
-              bind:value={editForm.auctionEndDate}
-              required
-              disabled={saving}
-            />
-          </div>
-
-          {#if hasBids}
-            <div class="form-info">
-              <p><strong>Starting Price:</strong> {formatPrice(editingProduct.startingPrice, editingProduct.seller.currency)}</p>
-              <p><strong>Current Bid:</strong> {formatPrice(editingProduct.currentBid, editingProduct.seller.currency)}</p>
-              <p class="note">Note: Starting price cannot be changed after bids have been placed.</p>
-            </div>
-          {:else}
-            <div class="form-group">
-              <label for="startingPrice">Starting Price ({editingProduct.seller.currency})</label>
-              <input
-                id="startingPrice"
-                type="number"
-                bind:value={editForm.startingPrice}
-                min="100"
-                step="1"
-                required
-                disabled={saving}
-              />
-              <p class="field-hint">Minimum starting price: 100. Can only be edited before any bids are placed.</p>
-            </div>
-          {/if}
-
-          <div class="modal-actions">
-            <button type="button" class="btn-cancel" on:click={closeEditModal} disabled={saving}>
-              Cancel
-            </button>
-            <button type="submit" class="btn-save" disabled={saving}>
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
+        <ProductForm
+          mode="edit"
+          product={editingProduct}
+          onSuccess={handleEditSuccess}
+          onCancel={closeEditModal}
+        />
       </div>
     </div>
   </div>
@@ -994,47 +735,6 @@
     display: flex;
     gap: 0.5rem;
     flex-shrink: 0;
-  }
-
-  /* Loading Overlay */
-  .loading-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-    animation: fadeIn 0.2s ease-out;
-  }
-
-  .loading-spinner {
-    text-align: center;
-  }
-
-  .spinner {
-    width: 60px;
-    height: 60px;
-    margin: 0 auto 1rem auto;
-    border: 4px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .loading-spinner p {
-    color: white;
-    font-size: 1.125rem;
-    font-weight: 600;
   }
 
   /* Modal Styles */
