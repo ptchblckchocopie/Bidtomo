@@ -10,6 +10,10 @@
   let isAutoplayActive = true;
   let hasUserInteracted = false;
 
+  // Lightbox state
+  let lightboxOpen = false;
+  let lightboxIndex = 0;
+
   // Touch/swipe state
   let touchStartX = 0;
   let touchEndX = 0;
@@ -62,14 +66,46 @@
     nextSlide();
   }
 
+  // Lightbox functions
+  function openLightbox(index: number) {
+    lightboxIndex = index;
+    lightboxOpen = true;
+    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+  }
+
+  function closeLightbox() {
+    lightboxOpen = false;
+    document.body.style.overflow = ''; // Restore scrolling
+  }
+
+  function lightboxPrev() {
+    lightboxIndex = (lightboxIndex - 1 + images.length) % images.length;
+  }
+
+  function lightboxNext() {
+    lightboxIndex = (lightboxIndex + 1) % images.length;
+  }
+
   // Keyboard navigation
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'ArrowLeft') {
-      handleUserInteraction();
-      prevSlide();
-    } else if (event.key === 'ArrowRight') {
-      handleUserInteraction();
-      nextSlide();
+    if (lightboxOpen) {
+      // Keyboard controls for lightbox
+      if (event.key === 'Escape') {
+        closeLightbox();
+      } else if (event.key === 'ArrowLeft') {
+        lightboxPrev();
+      } else if (event.key === 'ArrowRight') {
+        lightboxNext();
+      }
+    } else {
+      // Keyboard controls for slider
+      if (event.key === 'ArrowLeft') {
+        handleUserInteraction();
+        prevSlide();
+      } else if (event.key === 'ArrowRight') {
+        handleUserInteraction();
+        nextSlide();
+      }
     }
   }
 
@@ -116,6 +152,7 @@
   // Clean up on destroy
   onDestroy(() => {
     stopAutoplay();
+    document.body.style.overflow = ''; // Restore scrolling
   });
 
   // Restart autoplay when images change
@@ -142,6 +179,10 @@
               src={imageItem.image.url}
               alt={imageItem.image.alt || productTitle}
               loading={index === 0 ? 'eager' : 'lazy'}
+              on:click={() => openLightbox(index)}
+              class="clickable-image"
+              role="button"
+              tabindex="0"
             />
           </div>
         {/each}
@@ -197,6 +238,44 @@
   </div>
 {/if}
 
+<!-- Lightbox Modal -->
+{#if lightboxOpen}
+  <div class="lightbox-overlay" on:click={closeLightbox} role="button" tabindex="0">
+    <button class="lightbox-close" on:click={closeLightbox} aria-label="Close lightbox">
+      ✕
+    </button>
+
+    <div class="lightbox-content" on:click|stopPropagation role="dialog">
+      <img
+        src={images[lightboxIndex].image.url}
+        alt={images[lightboxIndex].image.alt || productTitle}
+        class="lightbox-image"
+      />
+
+      {#if images.length > 1}
+        <button
+          class="lightbox-arrow lightbox-prev"
+          on:click={lightboxPrev}
+          aria-label="Previous image"
+        >
+          ‹
+        </button>
+        <button
+          class="lightbox-arrow lightbox-next"
+          on:click={lightboxNext}
+          aria-label="Next image"
+        >
+          ›
+        </button>
+
+        <div class="lightbox-counter">
+          {lightboxIndex + 1} / {images.length}
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}
+
 <style>
   .image-slider {
     width: 100%;
@@ -243,6 +322,15 @@
     height: 100%;
     object-fit: contain;
     display: block;
+  }
+
+  .clickable-image {
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  .clickable-image:hover {
+    opacity: 0.95;
   }
 
   .nav-arrow {
@@ -395,6 +483,158 @@
 
     .thumbnail-nav {
       gap: 0.5rem;
+    }
+  }
+
+  /* Lightbox Styles */
+  .lightbox-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.95);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease-out;
+    cursor: zoom-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .lightbox-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    font-size: 2.5rem;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    z-index: 10001;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .lightbox-close:hover {
+    background: rgba(220, 38, 38, 0.9);
+    border-color: rgba(220, 38, 38, 1);
+    transform: rotate(90deg);
+  }
+
+  .lightbox-content {
+    position: relative;
+    max-width: 95vw;
+    max-height: 95vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+  }
+
+  .lightbox-image {
+    max-width: 100%;
+    max-height: 95vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+
+  .lightbox-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    font-size: 4rem;
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 10000;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .lightbox-arrow:hover {
+    background: rgba(220, 38, 38, 0.9);
+    border-color: rgba(220, 38, 38, 1);
+    transform: translateY(-50%) scale(1.1);
+  }
+
+  .lightbox-prev {
+    left: 40px;
+  }
+
+  .lightbox-next {
+    right: 40px;
+  }
+
+  .lightbox-counter {
+    position: absolute;
+    bottom: -60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 30px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+  }
+
+  /* Mobile lightbox styles */
+  @media (max-width: 768px) {
+    .lightbox-close {
+      top: 10px;
+      right: 10px;
+      width: 50px;
+      height: 50px;
+      font-size: 2rem;
+    }
+
+    .lightbox-arrow {
+      width: 50px;
+      height: 50px;
+      font-size: 2.5rem;
+    }
+
+    .lightbox-prev {
+      left: 10px;
+    }
+
+    .lightbox-next {
+      right: 10px;
+    }
+
+    .lightbox-counter {
+      bottom: -50px;
+      font-size: 0.9rem;
+      padding: 0.5rem 1rem;
     }
   }
 </style>
