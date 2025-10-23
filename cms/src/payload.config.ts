@@ -3,8 +3,22 @@ import { postgresAdapter } from '@payloadcms/db-postgres';
 import { lexicalEditor } from '@payloadcms/richtext-lexical';
 import { webpackBundler } from '@payloadcms/bundler-webpack';
 import path from 'path';
-import { S3Client } from '@aws-sdk/client-s3';
-import { afterChangeHook, afterDeleteHook } from './collections/Media/hooks';
+import { s3Adapter } from '@payloadcms/plugin-cloud-storage/s3';
+import { cloudStorage } from '@payloadcms/plugin-cloud-storage';
+
+// Configure S3 adapter for DigitalOcean Spaces
+const adapter = s3Adapter({
+  config: {
+    credentials: {
+      accessKeyId: (process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID)!,
+      secretAccessKey: (process.env.AWS_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY)!
+    },
+    region: process.env.S3_REGION || 'ap-southeast-1',
+    endpoint: process.env.S3_ENDPOINT || 'https://sgp1.digitaloceanspaces.com'
+  },
+  bucket: process.env.S3_BUCKET || 'veent',
+  acl: 'public-read'
+});
 
 export default buildConfig({
   serverURL: process.env.SERVER_URL || 'https://app.bidmo.to',
@@ -44,22 +58,6 @@ export default buildConfig({
     },
   },
   editor: lexicalEditor({}),
-
-  // Initialize S3 client for DigitalOcean Spaces
-  ...(process.env.S3_ACCESS_KEY_ID && {
-    onInit: async (payload) => {
-      const s3Client = new S3Client({
-        credentials: {
-          accessKeyId: process.env.S3_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
-        },
-        region: process.env.S3_REGION!,
-        endpoint: process.env.S3_ENDPOINT,
-        forcePathStyle: true,
-      });
-      (payload as any).s3Client = s3Client;
-    },
-  }),
 
   db: postgresAdapter({
     pool: {
@@ -345,22 +343,26 @@ export default buildConfig({
           },
         },
         {
+          name: 'active',
+          type: 'checkbox',
+          defaultValue: true,
+          admin: {
+            description: 'Product is active and visible on Browse Products page',
+            position: 'sidebar',
+          },
+        },
+        {
           name: 'status',
           type: 'select',
           options: [
-            { label: 'Active', value: 'active' },
-            { label: 'Ended', value: 'ended' },
+            { label: 'Available', value: 'available' },
             { label: 'Sold', value: 'sold' },
-            { label: 'Cancelled', value: 'cancelled' },
+            { label: 'Ended', value: 'ended' },
           ],
-          defaultValue: 'active',
-        },
-        {
-          name: 'hideFromBrowse',
-          type: 'checkbox',
-          defaultValue: false,
+          defaultValue: 'available',
           admin: {
-            description: 'Hide this product from public Browse Products page',
+            readOnly: true,
+            description: 'System-managed status',
             position: 'sidebar',
           },
         },
@@ -679,8 +681,6 @@ export default buildConfig({
     {
       slug: 'media',
       upload: {
-        staticURL: '/media',
-        staticDir: 'media',
         mimeTypes: ['image/*'],
         imageSizes: [
           {
@@ -701,10 +701,6 @@ export default buildConfig({
         update: ({ req }) => !!req.user,
         delete: ({ req }) => req.user?.role === 'admin',
       },
-      hooks: {
-        afterChange: [afterChangeHook],
-        afterDelete: [afterDeleteHook],
-      },
       fields: [
         {
           name: 'alt',
@@ -712,6 +708,17 @@ export default buildConfig({
         },
       ],
     },
+  ],
+  plugins: [
+    cloudStorage({
+      collections: {
+        media: {
+          adapter: adapter,
+          prefix: 'bidmoto',
+          disableLocalStorage: true
+        }
+      }
+    })
   ],
   typescript: {
     outputFile: path.resolve(__dirname, 'payload-types.ts'),

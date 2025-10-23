@@ -121,7 +121,7 @@ const start = async () => {
             await payload.create({
               collection: 'messages',
               data: {
-                product: product.id,
+                product: Number(product.id),
                 sender: sellerId,
                 receiver: bidderId,
                 message: `Congratulations! Your bid has been accepted for "${product.title}". Let's discuss the next steps for completing this transaction.`,
@@ -148,7 +148,7 @@ const start = async () => {
             await payload.create({
               collection: 'transactions',
               data: {
-                product: product.id,
+                product: Number(product.id),
                 seller: sellerId,
                 buyer: bidderId,
                 amount: highestBid.amount,

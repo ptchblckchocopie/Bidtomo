@@ -133,6 +133,40 @@
     return URL.createObjectURL(file);
   }
 
+  // Drag and drop for reordering images
+  let draggedIndex: number | null = null;
+
+  function handleDragStart(event: DragEvent, index: number) {
+    draggedIndex = index;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+    }
+  }
+
+  function handleDragOver(event: DragEvent) {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+  }
+
+  function handleDrop(event: DragEvent, dropIndex: number) {
+    event.preventDefault();
+
+    if (draggedIndex === null || draggedIndex === dropIndex) return;
+
+    const newImageFiles = [...imageFiles];
+    const [draggedFile] = newImageFiles.splice(draggedIndex, 1);
+    newImageFiles.splice(dropIndex, 0, draggedFile);
+
+    imageFiles = newImageFiles;
+    draggedIndex = null;
+  }
+
+  function handleDragEnd() {
+    draggedIndex = null;
+  }
+
   async function handleSubmit(e: Event) {
     e.preventDefault();
 
@@ -277,7 +311,17 @@
         {#if imageFiles.length > 0}
           <div class="image-preview-grid">
             {#each imageFiles as file, index}
-              <div class="image-preview-item">
+              <div
+                class="image-preview-item"
+                class:dragging={draggedIndex === index}
+                draggable="true"
+                on:dragstart={(e) => handleDragStart(e, index)}
+                on:dragover={handleDragOver}
+                on:drop={(e) => handleDrop(e, index)}
+                on:dragend={handleDragEnd}
+                role="button"
+                tabindex="0"
+              >
                 <img src={getImagePreview(file)} alt="Preview {index + 1}" />
                 <button
                   type="button"
@@ -289,9 +333,11 @@
                   ✕
                 </button>
                 <span class="image-number">{index + 1}</span>
+                <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
               </div>
             {/each}
           </div>
+          <p class="field-hint drag-hint">💡 Drag images to reorder them. The first image will be the main product photo.</p>
         {/if}
       </div>
       <p class="field-hint">Upload 1-5 high-quality images of your product. Each image must be less than 10MB.</p>
@@ -751,12 +797,54 @@
     overflow: hidden;
     border: 2px solid #e5e7eb;
     background: #f9fafb;
+    cursor: grab;
+    transition: all 0.3s ease;
+  }
+
+  .image-preview-item:hover {
+    border-color: #dc2626;
+    box-shadow: 0 4px 8px rgba(220, 38, 38, 0.2);
+  }
+
+  .image-preview-item.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+    transform: scale(0.95);
   }
 
   .image-preview-item img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    pointer-events: none;
+  }
+
+  .drag-handle {
+    position: absolute;
+    bottom: 0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 1.25rem;
+    font-weight: bold;
+    letter-spacing: -2px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .image-preview-item:hover .drag-handle {
+    opacity: 1;
+  }
+
+  .drag-hint {
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+    color: #059669;
+    font-weight: 500;
   }
 
   .remove-image-btn {

@@ -197,14 +197,6 @@
       const hasPriceUpdate = status.currentBid !== lastKnownState.currentBid;
 
       if (hasProductUpdate || hasBidUpdate || hasBidCountUpdate || hasStatusUpdate || hasPriceUpdate) {
-        console.log('Changes detected, updating...', {
-          hasProductUpdate,
-          hasBidUpdate,
-          hasBidCountUpdate,
-          hasStatusUpdate,
-          hasPriceUpdate
-        });
-
         isUpdating = true;
 
         // Fetch updated product data

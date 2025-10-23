@@ -1,8 +1,14 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
+
   export let images: Array<{ image: { url: string; alt?: string } }> = [];
   export let productTitle: string = '';
+  export let autoplayInterval: number = 3000; // ms between slides
 
   let currentIndex = 0;
+  let autoplayTimer: number | null = null;
+  let isAutoplayActive = true;
+  let hasUserInteracted = false;
 
   function nextSlide() {
     currentIndex = (currentIndex + 1) % images.length;
@@ -14,15 +20,66 @@
 
   function goToSlide(index: number) {
     currentIndex = index;
+    stopAutoplay();
+  }
+
+  function startAutoplay() {
+    if (images.length <= 1 || hasUserInteracted) return;
+
+    stopAutoplay();
+    autoplayTimer = window.setInterval(() => {
+      nextSlide();
+    }, autoplayInterval);
+    isAutoplayActive = true;
+  }
+
+  function stopAutoplay() {
+    if (autoplayTimer) {
+      clearInterval(autoplayTimer);
+      autoplayTimer = null;
+    }
+    isAutoplayActive = false;
+  }
+
+  function handleUserInteraction() {
+    hasUserInteracted = true;
+    stopAutoplay();
+  }
+
+  function handlePrevClick() {
+    handleUserInteraction();
+    prevSlide();
+  }
+
+  function handleNextClick() {
+    handleUserInteraction();
+    nextSlide();
   }
 
   // Keyboard navigation
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'ArrowLeft') {
+      handleUserInteraction();
       prevSlide();
     } else if (event.key === 'ArrowRight') {
+      handleUserInteraction();
       nextSlide();
     }
+  }
+
+  // Start autoplay on mount
+  onMount(() => {
+    startAutoplay();
+  });
+
+  // Clean up on destroy
+  onDestroy(() => {
+    stopAutoplay();
+  });
+
+  // Restart autoplay when images change
+  $: if (images.length > 1 && !hasUserInteracted) {
+    startAutoplay();
   }
 </script>
 
@@ -48,14 +105,14 @@
       {#if images.length > 1}
         <button
           class="nav-arrow nav-prev"
-          on:click={prevSlide}
+          on:click={handlePrevClick}
           aria-label="Previous image"
         >
           ‹
         </button>
         <button
           class="nav-arrow nav-next"
-          on:click={nextSlide}
+          on:click={handleNextClick}
           aria-label="Next image"
         >
           ›
