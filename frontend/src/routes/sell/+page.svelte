@@ -73,42 +73,20 @@
     auctionEndDate = date.toISOString().slice(0, 16);
   }
 
-  // Track if we're programmatically updating to avoid infinite loops
-  let isUpdatingFromCustom = false;
-  let isUpdatingFromManual = false;
-
   // Apply custom duration automatically when values change
-  $: {
-    if (durationTab === 'custom' && !isUpdatingFromManual) {
-      const totalHours = (customDays * 24) + customHours;
+  // Only updates date from days/hours, no reverse sync needed
+  $: if (durationTab === 'custom' && (customDays > 0 || customHours > 0)) {
+    const totalHours = (customDays * 24) + customHours;
 
-      if (totalHours >= 1) {
-        isUpdatingFromCustom = true;
-        const date = new Date();
-        date.setHours(date.getHours() + totalHours);
-        auctionEndDate = date.toISOString().slice(0, 16);
-        isUpdatingFromCustom = false;
+    if (totalHours >= 1) {
+      const date = new Date();
+      date.setHours(date.getHours() + totalHours);
+      auctionEndDate = date.toISOString().slice(0, 16);
 
-        // Clear error if it was about duration
-        if (error.includes('Duration')) {
-          error = '';
-        }
+      // Clear error if it was about duration
+      if (error.includes('Duration')) {
+        error = '';
       }
-    }
-  }
-
-  // Sync custom days/hours when manual date changes
-  $: {
-    if (durationTab === 'custom' && auctionEndDate && !isUpdatingFromCustom) {
-      const now = new Date();
-      const endDate = new Date(auctionEndDate);
-      const diffMs = endDate.getTime() - now.getTime();
-      const diffHours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
-
-      isUpdatingFromManual = true;
-      customDays = Math.floor(diffHours / 24);
-      customHours = diffHours % 24;
-      isUpdatingFromManual = false;
     }
   }
 
