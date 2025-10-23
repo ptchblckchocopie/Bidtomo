@@ -55,6 +55,46 @@ const start = async () => {
     },
   });
 
+  // JWT auth middleware - runs AFTER Payload initialization
+  // This extracts the JWT from Authorization header and validates it
+  app.use(async (req, res, next) => {
+    // Skip if user is already authenticated via cookie
+    if ((req as any).user) {
+      return next();
+    }
+
+    const authHeader = req.headers.authorization;
+
+    if (authHeader && authHeader.startsWith('JWT ')) {
+      const token = authHeader.substring(4);
+
+      try {
+        const jwt = require('jsonwebtoken');
+        const secret = process.env.PAYLOAD_SECRET!;
+
+        // Decode and verify the JWT
+        const decoded: any = jwt.verify(token, secret);
+
+        // Fetch the full user from database using the ID from token
+        if (decoded.id) {
+          const user = await payload.findByID({
+            collection: 'users',
+            id: decoded.id,
+          });
+
+          // Set req.user for Payload to recognize
+          (req as any).user = user;
+          console.log('JWT auth successful for user:', user.email);
+        }
+      } catch (error: any) {
+        console.error('JWT verification failed:', error.message);
+        // Don't block the request - let Payload's own auth handle it
+      }
+    }
+
+    next();
+  });
+
   // Root route - API info
   app.get('/', (req, res) => {
     res.json({
