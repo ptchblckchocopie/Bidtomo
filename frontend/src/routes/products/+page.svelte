@@ -3,11 +3,15 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { authStore } from '$lib/stores/auth';
+  import { API_URL } from '$lib/api';
 
   export let data: PageData;
 
   let countdowns: { [key: string]: string } = {};
   let countdownInterval: ReturnType<typeof setInterval> | null = null;
+  let userBids: { [productId: string]: number } = {}; // Maps product ID to user's bid amount
+  let userBidsByProduct: { [productId: string]: any[] } = {}; // All user bids per product
 
   // Local state for form inputs
   let searchInput = data.search || '';
@@ -140,9 +144,67 @@
     return 'normal';
   }
 
+  // Fetch user's bids
+  async function fetchUserBids() {
+    if (!$authStore.isAuthenticated || !$authStore.user) {
+      userBids = {};
+      userBidsByProduct = {};
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/bids?where[bidder][equals]=${$authStore.user.id}&limit=1000`,
+        {
+          credentials: 'include',
+        }
+      );
+
+      if (response.ok) {
+        const bidsData = await response.json();
+        const bids = bidsData.docs || [];
+
+        // Group bids by product and find highest bid per product
+        const bidsByProduct: { [key: string]: any[] } = {};
+        const highestBids: { [key: string]: number } = {};
+
+        bids.forEach((bid: any) => {
+          const productId = typeof bid.product === 'object' ? bid.product.id : bid.product;
+
+          if (!bidsByProduct[productId]) {
+            bidsByProduct[productId] = [];
+          }
+          bidsByProduct[productId].push(bid);
+
+          if (!highestBids[productId] || bid.amount > highestBids[productId]) {
+            highestBids[productId] = bid.amount;
+          }
+        });
+
+        userBids = highestBids;
+        userBidsByProduct = bidsByProduct;
+      }
+    } catch (error) {
+      console.error('Error fetching user bids:', error);
+    }
+  }
+
+  // Sort products to show ones with user bids first
+  $: sortedProducts = [...data.products].sort((a, b) => {
+    const aHasBid = userBids[a.id] ? 1 : 0;
+    const bHasBid = userBids[b.id] ? 1 : 0;
+    return bHasBid - aHasBid; // Products with bids first
+  });
+
+  // Refetch bids when auth state changes
+  $: if ($authStore.isAuthenticated !== undefined) {
+    fetchUserBids();
+  }
+
   onMount(() => {
     updateCountdowns();
     countdownInterval = setInterval(updateCountdowns, 1000);
+    fetchUserBids();
 
     // Handle visibility change - stop countdown when tab is not visible
     const handleVisibilityChange = () => {
@@ -211,47 +273,43 @@
     </div>
   </div>
 
-  {#if data.totalDocs === 0 && !data.search}
-    <div class="empty-state">
-      <p>No products listed yet.</p>
-      <p><a href="/sell">Be the first to list a product!</a></p>
-    </div>
-  {:else if data.totalDocs === 0 && data.search}
+  {#if data.search && data.totalDocs === 0}
     <div class="empty-state">
       <p>No products found matching "{data.search}"</p>
       <button class="btn-clear-search" on:click={() => { searchInput = ''; handleSearchInput(); }}>Clear Search</button>
     </div>
-  {:else}
-    <!-- Tabs -->
-    <div class="tabs-container">
-      <button
-        class="tab"
-        class:active={data.status === 'active'}
-        on:click={() => changeTab('active')}
-      >
-        Active Auctions
-      </button>
-      <button
-        class="tab"
-        class:active={data.status === 'ended'}
-        on:click={() => changeTab('ended')}
-      >
-        Ended Auctions
-      </button>
-      <button
-        class="tab"
-        class:active={data.status === 'my-bids'}
-        on:click={() => changeTab('my-bids')}
-      >
-        My Bids
-      </button>
-    </div>
+  {/if}
 
-    <!-- Products Grid -->
-    {#if data.products.length > 0}
+  <!-- Tabs - Always visible -->
+  <div class="tabs-container">
+    <button
+      class="tab"
+      class:active={data.status === 'active'}
+      on:click={() => changeTab('active')}
+    >
+      Active Auctions
+    </button>
+    <button
+      class="tab"
+      class:active={data.status === 'ended'}
+      on:click={() => changeTab('ended')}
+    >
+      Ended Auctions
+    </button>
+    <button
+      class="tab"
+      class:active={data.status === 'my-bids'}
+      on:click={() => changeTab('my-bids')}
+    >
+      My Bids
+    </button>
+  </div>
+
+  <!-- Products Grid -->
+  {#if sortedProducts.length > 0}
       <section class="auction-section">
         <div class="products-grid">
-          {#each data.products as product}
+          {#each sortedProducts as product}
             <a href="/products/{product.id}?from=browse" class="product-card" class:ended-card={data.status === 'ended'}>
               <div class="product-image">
                 {#if product.images && product.images.length > 0 && product.images[0].image}
@@ -273,21 +331,49 @@
                 <p class="description">{product.description.substring(0, 100)}{product.description.length > 100 ? '...' : ''}</p>
 
                 <div class="pricing">
-                  <div>
-                    <span class="label">Starting Price:</span>
-                    <span class="price">{formatPrice(product.startingPrice, product.seller.currency)}</span>
-                  </div>
-
                   {#if product.currentBid}
+                    <div class="current-bid-section">
+                      <div class="current-bid-row">
+                        <div>
+                          <span class="label-small">{data.status === 'ended' && product.status === 'sold' ? 'Sold For:' : data.status === 'ended' ? 'Final Bid:' : 'Current Bid:'}</span>
+                          <span class="price-large current-bid">{formatPrice(product.currentBid, product.seller.currency)}</span>
+                        </div>
+                        {#if product.currentBid > product.startingPrice}
+                          <div class="percent-increase">
+                            <svg class="arrow-up-mini" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                              <polyline points="18 15 12 9 6 15"></polyline>
+                            </svg>
+                            <span>{Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%</span>
+                          </div>
+                        {/if}
+                      </div>
+                      <div class="starting-price-row">
+                        <span class="label-tiny">Starting:</span>
+                        <span class="price-tiny">{formatPrice(product.startingPrice, product.seller.currency)}</span>
+                      </div>
+                    </div>
+                  {:else}
                     <div>
-                      <span class="label">{data.status === 'ended' && product.status === 'sold' ? 'Sold For:' : data.status === 'ended' ? 'Final Bid:' : 'Current Bid:'}</span>
-                      <span class="price current-bid">{formatPrice(product.currentBid, product.seller.currency)}</span>
+                      <span class="label-small">Starting Price:</span>
+                      <span class="price-large">{formatPrice(product.startingPrice, product.seller.currency)}</span>
+                    </div>
+                  {/if}
+
+                  {#if userBids[product.id]}
+                    <div class="user-bid-section">
+                      <span class="label-small">Your Bid:</span>
+                      <span class="price-large your-bid">{formatPrice(userBids[product.id], product.seller.currency)}</span>
                     </div>
                   {/if}
                 </div>
 
                 <div class="auction-info">
-                  <span class="status status-{product.status}">{product.status}</span>
+                  <div class="status-row">
+                    <span class="status status-{product.status}">{product.status}</span>
+                    {#if $authStore.user && product.seller.id === $authStore.user.id}
+                      <span class="owner-badge">Your Listing</span>
+                    {/if}
+                  </div>
                   {#if data.status === 'active' || data.status === 'my-bids'}
                     <div class="countdown-badge countdown-{getUrgencyClass(product.auctionEndDate)}">
                       <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -344,16 +430,19 @@
           </div>
         {/if}
       </section>
-    {:else}
-      <div class="empty-state">
-        {#if data.status === 'my-bids'}
-          <p>You haven't placed any bids on active auctions yet.</p>
-          <p><a href="/products?status=active">Browse Active Auctions</a></p>
-        {:else}
-          <p>No {data.status === 'active' ? 'active' : 'ended'} auctions found.</p>
-        {/if}
-      </div>
-    {/if}
+  {:else}
+    <div class="empty-state">
+      {#if data.status === 'my-bids'}
+        <p>You do not have any bids yet.</p>
+        <p><a href="/products?status=active">Browse Active Auctions</a></p>
+      {:else if data.status === 'ended'}
+        <p>No Ended Auctions Available</p>
+        <p><a href="/products?status=active">Browse Active Auctions</a></p>
+      {:else}
+        <p>No active auctions available.</p>
+        <p><a href="/sell">Be the first to list a product!</a></p>
+      {/if}
+    </div>
   {/if}
 </div>
 
@@ -645,9 +734,58 @@
     margin-bottom: 0.5rem;
   }
 
+  .current-bid-section {
+    margin-bottom: 0.75rem;
+  }
+
+  .current-bid-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .current-bid-row > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .starting-price-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    opacity: 0.7;
+  }
+
+  .user-bid-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 6px;
+    margin-top: 0.5rem;
+  }
+
   .label {
     color: #666;
     font-size: 0.9rem;
+  }
+
+  .label-small {
+    color: #666;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+
+  .label-tiny {
+    color: #888;
+    font-size: 0.7rem;
+    font-weight: 500;
   }
 
   .price {
@@ -655,8 +793,42 @@
     font-size: 1.1rem;
   }
 
+  .price-large {
+    font-weight: 900;
+    font-size: 1.4rem;
+    display: block;
+  }
+
+  .price-tiny {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #555;
+  }
+
   .current-bid {
     color: #0066cc;
+  }
+
+  .your-bid {
+    color: #10b981;
+  }
+
+  .percent-increase {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+  }
+
+  .arrow-up-mini {
+    color: white;
+    flex-shrink: 0;
   }
 
   .auction-info {
@@ -667,12 +839,31 @@
     border-top: 1px solid #eee;
   }
 
+  .status-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
   .status {
     padding: 0.25rem 0.75rem;
     border-radius: 4px;
     font-size: 0.85rem;
     font-weight: bold;
     text-transform: uppercase;
+  }
+
+  .owner-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+    box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+    letter-spacing: 0.5px;
   }
 
   .status-active {

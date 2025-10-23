@@ -2,7 +2,7 @@
 
 import { getAuthToken } from './stores/auth';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 // Helper function to get auth headers
 function getAuthHeaders(): HeadersInit {
