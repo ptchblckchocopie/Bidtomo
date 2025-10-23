@@ -868,6 +868,13 @@
       </div>
 
       <div class="product-details">
+        {#if !data.product.active}
+          <div class="inactive-warning">
+            <span class="warning-icon">⚠️</span>
+            <span>This product is currently inactive and hidden from Browse Products</span>
+          </div>
+        {/if}
+
         {#if !isOwner}
           <div class="price-info" class:sold-info={data.product.status === 'sold'}>
             {#if showConfetti}
@@ -923,17 +930,23 @@
               </div>
             {:else}
               <div class="highest-bid-container">
-                <div class="highest-bid-header">
-                  <div class="highest-bid-label">STARTING BID</div>
-                  {#if data.product.status === 'active' || data.product.status === 'available'}
-                    <div class="countdown-timer-badge">
-                      <span class="countdown-label">Ends in:</span>
-                      <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
-                    </div>
-                  {/if}
-                </div>
-                <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
-                <div class="starting-price-small">No bids yet - be the first!</div>
+                {#if data.product.status === 'ended'}
+                  <div class="sold-badge" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">NO SALE</div>
+                  <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+                  <div class="starting-price-small">Auction ended with no bids</div>
+                {:else}
+                  <div class="highest-bid-header">
+                    <div class="highest-bid-label">STARTING BID</div>
+                    {#if data.product.status === 'active' || data.product.status === 'available'}
+                      <div class="countdown-timer-badge">
+                        <span class="countdown-label">Ends in:</span>
+                        <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
+                      </div>
+                    {/if}
+                  </div>
+                  <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+                  <div class="starting-price-small">No bids yet - be the first!</div>
+                {/if}
               </div>
             {/if}
           </div>
@@ -1845,6 +1858,44 @@
     font-size: 0.95rem;
     opacity: 0.9;
     font-weight: 500;
+  }
+
+  /* Inactive Warning Banner */
+  .inactive-warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    animation: warningPulse 2s ease-in-out infinite;
+  }
+
+  .warning-icon {
+    font-size: 1.5rem;
+    animation: warningBounce 1s ease-in-out infinite;
+  }
+
+  @keyframes warningPulse {
+    0%, 100% {
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+    50% {
+      box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
+    }
+  }
+
+  @keyframes warningBounce {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
   }
 
   /* Sold Info Styles */

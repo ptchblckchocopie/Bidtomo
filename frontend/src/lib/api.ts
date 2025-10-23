@@ -103,13 +103,14 @@ export async function fetchProducts(params?: {
 
     // Filter by status
     if (params?.status === 'active') {
-      // Active auctions - status is 'active' or 'available'
-      queryParams.append('where[or][0][status][equals]', 'active');
-      queryParams.append('where[or][1][status][equals]', 'available');
+      // Active auctions - status is 'active' or 'available' AND active=true
+      queryParams.append('where[and][0][or][0][status][equals]', 'active');
+      queryParams.append('where[and][0][or][1][status][equals]', 'available');
+      queryParams.append('where[and][1][active][equals]', 'true');
     } else if (params?.status === 'ended') {
       // Ended auctions - status is 'ended' or 'sold'
-      queryParams.append('where[or][0][status][equals]', 'ended');
-      queryParams.append('where[or][1][status][equals]', 'sold');
+      queryParams.append('where[and][0][or][0][status][equals]', 'ended');
+      queryParams.append('where[and][0][or][1][status][equals]', 'sold');
     }
     // No status filter for 'my-bids' - will be filtered on client side
 
@@ -117,10 +118,16 @@ export async function fetchProducts(params?: {
     if (params?.search && params.search.trim()) {
       const searchTerm = params.search.trim();
       // Use different OR indices to avoid conflicts with status filter
-      if (params?.status === 'active' || params?.status === 'ended') {
-        queryParams.append('where[and][0][or][0][title][contains]', searchTerm);
-        queryParams.append('where[and][0][or][1][description][contains]', searchTerm);
-        queryParams.append('where[and][0][or][2][keywords.keyword][contains]', searchTerm);
+      if (params?.status === 'active') {
+        // For active, we're using and[0] for status, and[1] for active, so use and[2] for search
+        queryParams.append('where[and][2][or][0][title][contains]', searchTerm);
+        queryParams.append('where[and][2][or][1][description][contains]', searchTerm);
+        queryParams.append('where[and][2][or][2][keywords.keyword][contains]', searchTerm);
+      } else if (params?.status === 'ended') {
+        // For ended, we're using and[0] for status, so use and[1] for search
+        queryParams.append('where[and][1][or][0][title][contains]', searchTerm);
+        queryParams.append('where[and][1][or][1][description][contains]', searchTerm);
+        queryParams.append('where[and][1][or][2][keywords.keyword][contains]', searchTerm);
       } else {
         queryParams.append('where[or][0][title][contains]', searchTerm);
         queryParams.append('where[or][1][description][contains]', searchTerm);
@@ -220,16 +227,17 @@ export async function fetchMyBidsProducts(params?: {
       productQueryParams.append(`where[id][in][${index}]`, id);
     });
 
-    // Filter by active status only
-    productQueryParams.append('where[or][0][status][equals]', 'active');
-    productQueryParams.append('where[or][1][status][equals]', 'available');
+    // Filter by active status only AND active=true
+    productQueryParams.append('where[and][0][or][0][status][equals]', 'active');
+    productQueryParams.append('where[and][0][or][1][status][equals]', 'available');
+    productQueryParams.append('where[and][1][active][equals]', 'true');
 
     // Search
     if (params?.search && params.search.trim()) {
       const searchTerm = params.search.trim();
-      productQueryParams.append('where[and][0][or][0][title][contains]', searchTerm);
-      productQueryParams.append('where[and][0][or][1][description][contains]', searchTerm);
-      productQueryParams.append('where[and][0][or][2][keywords.keyword][contains]', searchTerm);
+      productQueryParams.append('where[and][2][or][0][title][contains]', searchTerm);
+      productQueryParams.append('where[and][2][or][1][description][contains]', searchTerm);
+      productQueryParams.append('where[and][2][or][2][keywords.keyword][contains]', searchTerm);
     }
 
     // Pagination
