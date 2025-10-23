@@ -80,6 +80,11 @@
   // Sort bids by amount (highest to lowest)
   $: sortedBids = [...data.bids].sort((a, b) => b.amount - a.amount);
 
+  // Calculate percentage increase from starting price
+  $: percentageIncrease = data.product?.currentBid && data.product?.startingPrice
+    ? ((data.product.currentBid - data.product.startingPrice) / data.product.startingPrice * 100).toFixed(1)
+    : '0.0';
+
   // Countdown timer
   let timeRemaining = '';
   let countdownInterval: ReturnType<typeof setInterval> | null = null;
@@ -876,7 +881,17 @@
             {#if data.product.status === 'sold'}
               <div class="highest-bid-container">
                 <div class="sold-badge">✓ SOLD</div>
-                <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid || data.product.startingPrice, sellerCurrency)}</div>
+                <div class="bid-with-percentage">
+                  <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid || data.product.startingPrice, sellerCurrency)}</div>
+                  {#if data.product.currentBid && data.product.currentBid > data.product.startingPrice}
+                    <div class="percentage-increase">
+                      <svg class="arrow-up-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                      </svg>
+                      <span class="percentage-text">{percentageIncrease}%</span>
+                    </div>
+                  {/if}
+                </div>
                 {#if highestBid}
                   <div class="sold-to-info">Sold to: {getBidderName(highestBid)}</div>
                 {/if}
@@ -893,7 +908,17 @@
                     </div>
                   {/if}
                 </div>
-                <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid, sellerCurrency)}</div>
+                <div class="bid-with-percentage">
+                  <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid, sellerCurrency)}</div>
+                  {#if data.product.currentBid && data.product.currentBid > data.product.startingPrice}
+                    <div class="percentage-increase">
+                      <svg class="arrow-up-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                      </svg>
+                      <span class="percentage-text">{percentageIncrease}%</span>
+                    </div>
+                  {/if}
+                </div>
                 <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
               </div>
             {:else}
@@ -1742,12 +1767,77 @@
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
+  .bid-with-percentage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+  }
+
   .highest-bid-amount {
     font-size: 3.5rem;
     font-weight: 900;
     line-height: 1;
-    margin-bottom: 0.75rem;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    margin-bottom: 0;
+  }
+
+  .percentage-increase {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.625rem 1rem;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border: 2px solid #047857;
+    border-radius: 50px;
+    animation: percentageBounce 2s ease-in-out infinite, percentageGlow 2s ease-in-out infinite;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  }
+
+  .arrow-up-icon {
+    color: white;
+    animation: arrowBounce 1s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  .percentage-text {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: white;
+    letter-spacing: 0.5px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  @keyframes percentageBounce {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+  }
+
+  @keyframes percentageGlow {
+    0%, 100% {
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+      border-color: #047857;
+    }
+    50% {
+      box-shadow: 0 6px 24px rgba(16, 185, 129, 0.7);
+      border-color: #10b981;
+    }
+  }
+
+  @keyframes arrowBounce {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
   }
 
   .starting-price-small {
@@ -2956,9 +3046,16 @@
   }
 
   .success-alert-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
     margin: 0 auto 1.5rem;
     color: #10b981;
     animation: checkmark 0.6s ease-out;
+  }
+
+  .success-alert-icon svg {
+    display: block;
   }
 
   @keyframes checkmark {

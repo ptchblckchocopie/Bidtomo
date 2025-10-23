@@ -92,6 +92,7 @@ export async function fetchProducts(params?: {
   page?: number;
   limit?: number;
   search?: string;
+  status?: string;
 }): Promise<{ docs: Product[]; totalDocs: number; totalPages: number; page: number; limit: number }> {
   try {
     const queryParams = new URLSearchParams();
@@ -100,15 +101,31 @@ export async function fetchProducts(params?: {
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-    // Filter by active status - only show active products in browse
-    queryParams.append('where[active][equals]', 'true');
+    // Filter by status
+    if (params?.status === 'active') {
+      // Active auctions - status is 'active' or 'available'
+      queryParams.append('where[or][0][status][equals]', 'active');
+      queryParams.append('where[or][1][status][equals]', 'available');
+    } else if (params?.status === 'ended') {
+      // Ended auctions - status is 'ended' or 'sold'
+      queryParams.append('where[or][0][status][equals]', 'ended');
+      queryParams.append('where[or][1][status][equals]', 'sold');
+    }
+    // No status filter for 'my-bids' - will be filtered on client side
 
     // Search - using OR logic for title, description, and keywords
     if (params?.search && params.search.trim()) {
       const searchTerm = params.search.trim();
-      queryParams.append('where[or][0][title][contains]', searchTerm);
-      queryParams.append('where[or][1][description][contains]', searchTerm);
-      queryParams.append('where[or][2][keywords.keyword][contains]', searchTerm);
+      // Use different OR indices to avoid conflicts with status filter
+      if (params?.status === 'active' || params?.status === 'ended') {
+        queryParams.append('where[and][0][or][0][title][contains]', searchTerm);
+        queryParams.append('where[and][0][or][1][description][contains]', searchTerm);
+        queryParams.append('where[and][0][or][2][keywords.keyword][contains]', searchTerm);
+      } else {
+        queryParams.append('where[or][0][title][contains]', searchTerm);
+        queryParams.append('where[or][1][description][contains]', searchTerm);
+        queryParams.append('where[or][2][keywords.keyword][contains]', searchTerm);
+      }
     }
 
     // Sort by creation date (newest first)
@@ -138,6 +155,115 @@ export async function fetchProducts(params?: {
       totalPages: 0,
       page: 1,
       limit: 10
+    };
+  }
+}
+
+// Fetch active products where the user has placed bids
+export async function fetchMyBidsProducts(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+}): Promise<{ docs: Product[]; totalDocs: number; totalPages: number; page: number; limit: number }> {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return {
+        docs: [],
+        totalDocs: 0,
+        totalPages: 0,
+        page: 1,
+        limit: params?.limit || 12
+      };
+    }
+
+    // First, fetch all bids by the current user
+    const queryParams = new URLSearchParams();
+    queryParams.append('where[bidder][equals]', currentUser.id);
+    queryParams.append('limit', '1000'); // Get all user's bids
+
+    const bidsResponse = await fetch(`${API_URL}/api/bids?${queryParams.toString()}`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!bidsResponse.ok) {
+      throw new Error('Failed to fetch user bids');
+    }
+
+    const bidsData = await bidsResponse.json();
+    const bids: Bid[] = bidsData.docs || [];
+
+    // Extract unique product IDs from bids
+    const productIds = new Set<string>();
+    bids.forEach(bid => {
+      const productId = typeof bid.product === 'object' ? bid.product.id : bid.product;
+      productIds.add(productId);
+    });
+
+    if (productIds.size === 0) {
+      return {
+        docs: [],
+        totalDocs: 0,
+        totalPages: 0,
+        page: params?.page || 1,
+        limit: params?.limit || 12
+      };
+    }
+
+    // Fetch products where user has bids and status is active or available
+    const productQueryParams = new URLSearchParams();
+
+    // Filter by product IDs
+    const productIdArray = Array.from(productIds);
+    productIdArray.forEach((id, index) => {
+      productQueryParams.append(`where[id][in][${index}]`, id);
+    });
+
+    // Filter by active status only
+    productQueryParams.append('where[or][0][status][equals]', 'active');
+    productQueryParams.append('where[or][1][status][equals]', 'available');
+
+    // Search
+    if (params?.search && params.search.trim()) {
+      const searchTerm = params.search.trim();
+      productQueryParams.append('where[and][0][or][0][title][contains]', searchTerm);
+      productQueryParams.append('where[and][0][or][1][description][contains]', searchTerm);
+      productQueryParams.append('where[and][0][or][2][keywords.keyword][contains]', searchTerm);
+    }
+
+    // Pagination
+    if (params?.page) productQueryParams.append('page', params.page.toString());
+    if (params?.limit) productQueryParams.append('limit', params.limit.toString());
+
+    // Sort by creation date (newest first)
+    productQueryParams.append('sort', '-createdAt');
+
+    const productsResponse = await fetch(`${API_URL}/api/products?${productQueryParams.toString()}`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!productsResponse.ok) {
+      throw new Error('Failed to fetch products');
+    }
+
+    const productsData = await productsResponse.json();
+    return {
+      docs: productsData.docs || [],
+      totalDocs: productsData.totalDocs || 0,
+      totalPages: productsData.totalPages || 0,
+      page: productsData.page || 1,
+      limit: productsData.limit || 12
+    };
+  } catch (error) {
+    console.error('Error fetching my bids products:', error);
+    return {
+      docs: [],
+      totalDocs: 0,
+      totalPages: 0,
+      page: 1,
+      limit: params?.limit || 12
     };
   }
 }

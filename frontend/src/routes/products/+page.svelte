@@ -12,6 +12,7 @@
   // Local state for form inputs
   let searchInput = data.search || '';
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+  let lastDataSearch = data.search || ''; // Track last known data.search value
 
   // Items per page options
   const itemsPerPageOptions = [12, 24, 48, 96];
@@ -70,7 +71,17 @@
   }
 
   // Update local search input when data changes (e.g., browser back/forward)
-  $: searchInput = data.search || '';
+  // Only update if data.search has actually changed and is different from current input
+  $: {
+    const currentDataSearch = data.search || '';
+    if (currentDataSearch !== lastDataSearch) {
+      // data.search changed - only update input if it's different from what user typed
+      if (currentDataSearch !== searchInput) {
+        searchInput = currentDataSearch;
+      }
+      lastDataSearch = currentDataSearch;
+    }
+  }
 
   function formatPrice(price: number, currency: string = 'PHP'): string {
     return new Intl.NumberFormat('en-US', {
@@ -227,6 +238,13 @@
       >
         Ended Auctions
       </button>
+      <button
+        class="tab"
+        class:active={data.status === 'my-bids'}
+        on:click={() => changeTab('my-bids')}
+      >
+        My Bids
+      </button>
     </div>
 
     <!-- Products Grid -->
@@ -270,7 +288,7 @@
 
                 <div class="auction-info">
                   <span class="status status-{product.status}">{product.status}</span>
-                  {#if data.status === 'active'}
+                  {#if data.status === 'active' || data.status === 'my-bids'}
                     <div class="countdown-badge countdown-{getUrgencyClass(product.auctionEndDate)}">
                       <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -328,7 +346,12 @@
       </section>
     {:else}
       <div class="empty-state">
-        <p>No {data.status === 'active' ? 'active' : 'ended'} auctions found.</p>
+        {#if data.status === 'my-bids'}
+          <p>You haven't placed any bids on active auctions yet.</p>
+          <p><a href="/products?status=active">Browse Active Auctions</a></p>
+        {:else}
+          <p>No {data.status === 'active' ? 'active' : 'ended'} auctions found.</p>
+        {/if}
       </div>
     {/if}
   {/if}
