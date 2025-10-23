@@ -10,6 +10,12 @@
   let isAutoplayActive = true;
   let hasUserInteracted = false;
 
+  // Touch/swipe state
+  let touchStartX = 0;
+  let touchEndX = 0;
+  let isSwiping = false;
+  const minSwipeDistance = 50; // Minimum distance in pixels to trigger a swipe
+
   function nextSlide() {
     currentIndex = (currentIndex + 1) % images.length;
   }
@@ -67,6 +73,41 @@
     }
   }
 
+  // Touch/swipe handlers
+  function handleTouchStart(event: TouchEvent) {
+    touchStartX = event.touches[0].clientX;
+    isSwiping = true;
+  }
+
+  function handleTouchMove(event: TouchEvent) {
+    if (!isSwiping) return;
+    touchEndX = event.touches[0].clientX;
+  }
+
+  function handleTouchEnd() {
+    if (!isSwiping) return;
+    isSwiping = false;
+
+    const swipeDistance = touchStartX - touchEndX;
+    const absDistance = Math.abs(swipeDistance);
+
+    if (absDistance > minSwipeDistance) {
+      handleUserInteraction();
+
+      if (swipeDistance > 0) {
+        // Swiped left - go to next slide
+        nextSlide();
+      } else {
+        // Swiped right - go to previous slide
+        prevSlide();
+      }
+    }
+
+    // Reset values
+    touchStartX = 0;
+    touchEndX = 0;
+  }
+
   // Start autoplay on mount
   onMount(() => {
     startAutoplay();
@@ -88,7 +129,12 @@
 {#if images && images.length > 0}
   <div class="image-slider">
     <!-- Main image display -->
-    <div class="slider-main">
+    <div
+      class="slider-main"
+      on:touchstart={handleTouchStart}
+      on:touchmove={handleTouchMove}
+      on:touchend={handleTouchEnd}
+    >
       <div class="slider-images">
         {#each images as imageItem, index}
           <div class="slide" class:active={index === currentIndex}>
@@ -165,6 +211,9 @@
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    touch-action: pan-y pinch-zoom;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   .slider-images {

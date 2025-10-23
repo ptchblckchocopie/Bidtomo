@@ -885,6 +885,13 @@
               </div>
             {/if}
 
+            {#if (data.product.status === 'active' || data.product.status === 'available') && data.product.status !== 'sold'}
+              <div class="countdown-timer-badge">
+                <span class="countdown-label">Ends in:</span>
+                <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
+              </div>
+            {/if}
+
             {#if data.product.status === 'sold'}
               <div class="highest-bid-container">
                 <div class="sold-badge">✓ SOLD</div>
@@ -908,12 +915,6 @@
               <div class="highest-bid-container">
                 <div class="highest-bid-header">
                   <div class="highest-bid-label" class:label-pulse={priceChanged}>CURRENT HIGHEST BID</div>
-                  {#if data.product.status === 'active' || data.product.status === 'available'}
-                    <div class="countdown-timer-badge">
-                      <span class="countdown-label">Ends in:</span>
-                      <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
-                    </div>
-                  {/if}
                 </div>
                 <div class="bid-with-percentage">
                   <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid, sellerCurrency)}</div>
@@ -937,12 +938,6 @@
                 {:else}
                   <div class="highest-bid-header">
                     <div class="highest-bid-label">STARTING BID</div>
-                    {#if data.product.status === 'active' || data.product.status === 'available'}
-                      <div class="countdown-timer-badge">
-                        <span class="countdown-label">Ends in:</span>
-                        <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
-                      </div>
-                    {/if}
                   </div>
                   <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
                   <div class="starting-price-small">No bids yet - be the first!</div>
@@ -1621,6 +1616,125 @@
       top: 0.5rem;
       right: 0.5rem;
     }
+
+    /* Stack bid input and button vertically on mobile */
+    .bid-row {
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .bid-control {
+      width: 100%;
+    }
+
+    .place-bid-btn {
+      width: 100%;
+      padding: 1rem 2rem;
+      font-size: 1.05rem;
+    }
+
+    /* Optimize bid section for mobile */
+    .bid-section {
+      padding: 1rem;
+    }
+
+    .bid-section-header h3 {
+      font-size: 1.25rem;
+    }
+
+    /* Countdown timer adjustments */
+    .countdown-timer-badge {
+      position: absolute;
+      top: 0;
+      right: 0;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+      z-index: 10;
+    }
+
+    .countdown-timer-badge .countdown-time {
+      font-size: 1rem;
+    }
+
+    .countdown-timer-inline {
+      padding: 0.5rem 1rem;
+    }
+
+    .countdown-timer-inline .countdown-time {
+      font-size: 1.125rem;
+    }
+
+    /* Bid input adjustments */
+    .bid-amount-input {
+      font-size: 1.5rem !important;
+      min-height: 56px;
+    }
+
+    .bid-control {
+      min-height: 56px;
+    }
+
+    .place-bid-btn {
+      min-height: 56px;
+    }
+
+    /* Make arrow buttons larger for touch */
+    .bid-arrow-btn {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+    }
+
+    /* Optimize highest bid section for mobile */
+    .highest-bid-container {
+      padding: 1rem;
+      width: 100%;
+    }
+
+    .highest-bid-label {
+      font-size: 0.8rem;
+    }
+
+    .highest-bid-amount {
+      font-size: 2rem;
+    }
+
+    .percentage-increase {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+    }
+
+    .percentage-increase .arrow-up-icon {
+      width: 14px;
+      height: 14px;
+    }
+
+    .bid-with-percentage {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    /* Mobile typography adjustments */
+    .product-gallery h1 {
+      font-size: 1.75rem;
+    }
+
+    .product-description h2 {
+      font-size: 1.25rem;
+    }
+
+    /* Optimize button spacing on mobile */
+    .back-link {
+      font-size: 0.9rem;
+      padding: 0.625rem 1rem;
+    }
+
+    /* Ensure price-info container is responsive */
+    .price-info {
+      padding: 1.25rem;
+      min-height: 180px;
+    }
   }
 
   .product-gallery h1 {
@@ -1730,6 +1844,8 @@
 
   .highest-bid-container {
     color: white;
+    position: relative;
+    width: 100%;
   }
 
   .highest-bid-header {
@@ -1765,6 +1881,7 @@
     border: none;
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
     margin: 0;
+    z-index: 10;
   }
 
   .countdown-timer-badge .countdown-label {

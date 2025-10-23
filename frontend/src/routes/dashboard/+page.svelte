@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { PageData } from './$types';
-  import { updateProduct, type Product } from '$lib/api';
+  import { updateProduct, uploadMedia, deleteMedia, type Product } from '$lib/api';
   import ImageSlider from '$lib/components/ImageSlider.svelte';
   import KeywordInput from '$lib/components/KeywordInput.svelte';
 
@@ -31,6 +31,9 @@
   let saveError = '';
   let saveSuccess = false;
   let hasBids = false;
+  let existingImages: Array<{ id: string; image: { id: string; url: string; alt?: string } }> = [];
+  let newImageFiles: File[] = [];
+  let imagesToDelete: string[] = [];
 
   function formatPrice(price: number, currency: string = 'PHP'): string {
     return new Intl.NumberFormat('en-US', {
@@ -89,9 +92,63 @@
       auctionEndDate: formatDateForInput(product.auctionEndDate),
       active: product.active
     };
+
+    // Load existing images
+    existingImages = product.images?.map((img, index) => ({
+      id: `existing-${index}`,
+      image: typeof img.image === 'object' ? img.image : { id: img.image, url: '', alt: '' }
+    })) || [];
+
+    newImageFiles = [];
+    imagesToDelete = [];
+
     showEditModal = true;
     saveError = '';
     saveSuccess = false;
+  }
+
+  // Handle new image selection in edit modal
+  function handleEditImageSelect(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files) return;
+
+    const newFiles = Array.from(input.files);
+    const totalImages = existingImages.length + newImageFiles.length + newFiles.length;
+
+    if (totalImages > 5) {
+      saveError = `Maximum 5 images allowed. You can add ${5 - (existingImages.length + newImageFiles.length)} more.`;
+      return;
+    }
+
+    // Validate file types and sizes
+    for (const file of newFiles) {
+      if (!file.type.startsWith('image/')) {
+        saveError = 'Only image files are allowed';
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        saveError = 'Each image must be less than 10MB';
+        return;
+      }
+    }
+
+    newImageFiles = [...newImageFiles, ...newFiles];
+    saveError = '';
+    input.value = '';
+  }
+
+  // Remove existing image (mark for deletion)
+  function removeExistingImage(imageId: string) {
+    const img = existingImages.find(i => i.image.id === imageId);
+    if (img) {
+      imagesToDelete = [...imagesToDelete, img.image.id];
+      existingImages = existingImages.filter(i => i.image.id !== imageId);
+    }
+  }
+
+  // Remove new image file
+  function removeNewImageFile(index: number) {
+    newImageFiles = newImageFiles.filter((_, i) => i !== index);
   }
 
   function closeEditModal() {
@@ -114,18 +171,46 @@
   async function handleSaveProduct() {
     if (!editingProduct) return;
 
+    // Validate at least one image
+    const totalImages = existingImages.length + newImageFiles.length;
+    if (totalImages === 0) {
+      saveError = 'Please provide at least one product image';
+      return;
+    }
+
     saving = true;
     saveError = '';
     saveSuccess = false;
 
     try {
+      // First, delete marked images from PayloadCMS
+      for (const mediaId of imagesToDelete) {
+        await deleteMedia(mediaId);
+      }
+
+      // Upload new images
+      const uploadedImageIds: string[] = [];
+      for (const file of newImageFiles) {
+        const imageId = await uploadMedia(file);
+        if (imageId) {
+          uploadedImageIds.push(imageId);
+        }
+      }
+
+      // Combine existing and new image IDs
+      const allImageIds = [
+        ...existingImages.map(img => img.image.id),
+        ...uploadedImageIds
+      ];
+
       const updateData: any = {
         title: editForm.title,
         description: editForm.description,
         keywords: editForm.keywords.map(k => ({ keyword: k })),
         bidInterval: editForm.bidInterval,
         auctionEndDate: new Date(editForm.auctionEndDate).toISOString(),
-        active: editForm.active
+        active: editForm.active,
+        images: allImageIds.map(id => ({ image: id }))
       };
 
       // Only include startingPrice if there are no bids
