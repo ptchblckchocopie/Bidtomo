@@ -5,6 +5,7 @@ import { webpackBundler } from '@payloadcms/bundler-webpack';
 import path from 'path';
 import { s3Adapter } from '@payloadcms/plugin-cloud-storage/s3';
 import { cloudStorage } from '@payloadcms/plugin-cloud-storage';
+import { authenticateJWT } from './auth-helpers';
 
 // Configure S3 adapter for DigitalOcean Spaces
 const adapter = s3Adapter({
@@ -47,12 +48,14 @@ export default buildConfig({
     bundler: webpackBundler(),
     disable: process.env.VERCEL === '1', // Disable admin UI on Vercel serverless
     webpack: (config) => {
-      // Externalize Node.js built-in modules for the admin bundle
+      // Externalize Node.js built-in modules and auth helpers for the admin bundle
       const existingExternals = config.externals && typeof config.externals === 'object' ? config.externals : {};
       config.externals = {
         ...existingExternals,
         fs: 'commonjs fs',
         path: 'commonjs path',
+        './auth-helpers': 'commonjs ./auth-helpers',
+        'jsonwebtoken': 'commonjs jsonwebtoken',
       };
       return config;
     },
@@ -392,11 +395,19 @@ export default buildConfig({
       },
       access: {
         read: () => true,
-        create: ({ req }) => {
+        create: async ({ req }) => {
           console.log('Bid create access check - req.user:', req.user?.id, req.user?.email);
-          const hasAccess = !!req.user;
-          console.log('Bid create access result:', hasAccess);
-          return hasAccess;
+
+          // Try to authenticate via JWT if not already authenticated
+          const user = await authenticateJWT(req);
+
+          if (user) {
+            console.log('Bid create access result: true');
+            return true;
+          }
+
+          console.log('Bid create access result: false (no valid auth)');
+          return false;
         },
         update: ({ req }) => req.user?.role === 'admin',
         delete: ({ req }) => req.user?.role === 'admin',
