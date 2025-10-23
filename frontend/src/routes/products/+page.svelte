@@ -237,10 +237,75 @@
 <svelte:head>
   <title>Browse Products - BidMo.to</title>
 </svelte:head>
+<!-- Beta Notice Banner -->
+<div class="-mx-4 sm:-mx-6 lg:-mx-8 mb-0 overflow-hidden relative z-10">
+  <div class="bg-gradient-to-br from-yellow-400 to-yellow-500 border-b-4 border-yellow-600 px-3 py-4">
+    <div class="max-w-7xl mx-auto text-center">
+      <div class="inline-block bg-black/20 text-white px-2 sm:px-3 py-1 rounded-full text-xs font-bold tracking-wide sm:tracking-wider mb-2">
+        🚧 EXPERIMENTAL
+      </div>
+      <p class="text-white text-xs sm:text-sm md:text-base leading-snug sm:leading-relaxed mx-auto max-w-5xl px-2 break-words">
+        We're testing what works and gathering public interest.
+        <strong class="font-bold underline whitespace-nowrap">No integrated payments yet</strong> —
+        transactions are coordinated directly between buyers and sellers.
+        Once we have enough traction, we'll integrate secure payments and become a full-blown bidding platform!
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Welcome Hero Section -->
+<div class="-mx-4 sm:-mx-6 lg:-mx-8 mb-8">
+  <section class="bg-gradient-to-br from-primary to-primary-dark text-white px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 text-center">
+    <div class="max-w-4xl mx-auto">
+      <div class="mb-6">
+        <img src="/bidmo.to.png" alt="BidMo.to" class="h-20 sm:h-28 lg:h-36 w-auto mx-auto drop-shadow-2xl" />
+      </div>
+
+      <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold mb-3">
+        Welcome to <span class="bg-gradient-to-r from-yellow-400 to-yellow-500 bg-clip-text text-transparent">BidMo.to</span>
+      </h1>
+
+      <p class="text-base sm:text-lg lg:text-xl mb-3 opacity-95">
+        Bid mo 'to! The Filipino way to bid, buy, and sell unique items
+      </p>
+
+      <p class="text-sm sm:text-base mb-6 opacity-90 max-w-2xl mx-auto">
+        Join us in building the Philippines' most exciting auction platform.
+        Your participation helps us understand what features matter most!
+      </p>
+
+      <div class="flex flex-wrap gap-4 sm:gap-8 justify-center text-sm sm:text-base">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🔍</span>
+          <span>Browse Auctions</span>
+        </div>
+        {#if $authStore.isAuthenticated}
+          <div class="flex items-center gap-2">
+            <span class="text-xl">🔨</span>
+            <a href="/sell" class="hover:text-yellow-400 transition">List an Item</a>
+          </div>
+        {/if}
+        <div class="flex items-center gap-2">
+          <span class="text-xl font-bold">FREE</span>
+          <span>To Join</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xl font-bold">SAFE</span>
+          <span>No Payment Integration</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xl font-bold">BETA</span>
+          <span>Help Us Grow</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
 
 <div class="products-page">
   <div class="page-header">
-    <h1>Browse Products</h1>
+    <h2>Browse Products</h2>
 
     <!-- Search Bar -->
     <div class="search-container">

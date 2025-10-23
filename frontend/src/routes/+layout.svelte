@@ -43,6 +43,12 @@
           >
             Browse
           </a>
+          <a
+            href="/about-us"
+            class="px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-colors {currentPath === '/about-us' ? 'bg-white/20' : ''}"
+          >
+            About Us
+          </a>
           {#if $authStore.isAuthenticated}
             <a
               href="/dashboard"
@@ -122,6 +128,13 @@
             class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 {currentPath.startsWith('/products') ? 'bg-white/20' : ''}"
           >
             Browse
+          </a>
+          <a
+            href="/about-us"
+            on:click={closeMobileMenu}
+            class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 {currentPath === '/about-us' ? 'bg-white/20' : ''}"
+          >
+            About Us
           </a>
           {#if $authStore.isAuthenticated}
             <a
