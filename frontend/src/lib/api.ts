@@ -29,7 +29,8 @@ export interface Product {
   bidInterval: number;
   currentBid?: number;
   auctionEndDate: string;
-  status: 'active' | 'ended' | 'sold' | 'cancelled';
+  active: boolean;
+  status: 'available' | 'sold' | 'ended';
   seller: {
     id: string;
     name: string;
@@ -86,12 +87,11 @@ export interface Transaction {
   updatedAt: string;
 }
 
-// Fetch all products
+// Fetch all products (only active ones for browse page)
 export async function fetchProducts(params?: {
   page?: number;
   limit?: number;
   search?: string;
-  status?: string;
 }): Promise<{ docs: Product[]; totalDocs: number; totalPages: number; page: number; limit: number }> {
   try {
     const queryParams = new URLSearchParams();
@@ -100,17 +100,8 @@ export async function fetchProducts(params?: {
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-    // Status filter
-    if (params?.status) {
-      if (params.status === 'active') {
-        queryParams.append('where[status][equals]', 'active');
-      } else if (params.status === 'ended') {
-        queryParams.append('where[status][in]', 'ended,sold,cancelled');
-      }
-    }
-
-    // Filter out products hidden from browse page
-    queryParams.append('where[hideFromBrowse][not_equals]', 'true');
+    // Filter by active status - only show active products in browse
+    queryParams.append('where[active][equals]', 'true');
 
     // Search - using OR logic for title, description, and keywords
     if (params?.search && params.search.trim()) {
@@ -258,7 +249,8 @@ export async function updateProduct(
     keywords?: Array<{ keyword: string }>;
     bidInterval?: number;
     auctionEndDate?: string;
-    status?: 'active' | 'ended' | 'sold' | 'cancelled';
+    active?: boolean;
+    status?: 'available' | 'sold' | 'ended';
     images?: Array<{ image: string }>;
   }
 ): Promise<Product | null> {
@@ -714,9 +706,12 @@ export async function uploadMedia(file: File): Promise<string | null> {
     formData.append('file', file);
 
     const token = getAuthToken();
+    console.log('Upload token present:', !!token);
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `JWT ${token}`;
+    } else {
+      console.error('No auth token found - user may not be logged in');
     }
 
     const response = await fetch(`${API_URL}/api/media`, {
@@ -728,6 +723,8 @@ export async function uploadMedia(file: File): Promise<string | null> {
 
     if (!response.ok) {
       console.error('Failed to upload media:', response.status);
+      const errorText = await response.text();
+      console.error('Error details:', errorText);
       return null;
     }
 

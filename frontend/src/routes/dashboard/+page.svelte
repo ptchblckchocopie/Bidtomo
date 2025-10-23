@@ -5,8 +5,8 @@
   export let data: PageData;
 
   // Separate active and sold products
-  $: activeProducts = data.products.filter(p => p.status === 'active');
-  $: soldProducts = data.products.filter(p => p.status === 'sold' || p.status === 'ended');
+  $: activeProducts = data.products.filter(p => p.active && p.status !== 'sold');
+  $: soldProducts = data.products.filter(p => p.status === 'sold');
 
   let showEditModal = false;
   let editingProduct: Product | null = null;
@@ -15,7 +15,7 @@
     description: '',
     bidInterval: 1,
     auctionEndDate: '',
-    status: 'active' as 'active' | 'ended' | 'sold' | 'cancelled'
+    active: true
   };
   let saving = false;
   let saveError = '';
@@ -51,14 +51,12 @@
 
   function getStatusColor(status: string): string {
     switch (status) {
-      case 'active':
+      case 'available':
         return '#10b981';
       case 'ended':
         return '#ef4444';
       case 'sold':
         return '#3b82f6';
-      case 'cancelled':
-        return '#6b7280';
       default:
         return '#6b7280';
     }
@@ -71,7 +69,7 @@
       description: product.description,
       bidInterval: product.bidInterval,
       auctionEndDate: formatDateForInput(product.auctionEndDate),
-      status: product.status
+      active: product.active
     };
     showEditModal = true;
     saveError = '';
@@ -98,7 +96,7 @@
         description: editForm.description,
         bidInterval: editForm.bidInterval,
         auctionEndDate: new Date(editForm.auctionEndDate).toISOString(),
-        status: editForm.status
+        active: editForm.active
       });
 
       if (result) {
@@ -329,13 +327,14 @@
             </div>
 
             <div class="form-group">
-              <label for="status">Status</label>
-              <select id="status" bind:value={editForm.status} disabled={saving}>
-                <option value="active">Active</option>
-                <option value="ended">Ended</option>
-                <option value="sold">Sold</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+              <label class="checkbox-label">
+                <input
+                  type="checkbox"
+                  bind:checked={editForm.active}
+                  disabled={saving}
+                />
+                <span>Active (visible on Browse Products page)</span>
+              </label>
             </div>
           </div>
 

@@ -4,9 +4,6 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { logout as apiLogout } from '$lib/api';
-  import type { LayoutData } from './$types';
-
-  export let data: LayoutData;
 
   $: currentPath = $page.url.pathname;
 
