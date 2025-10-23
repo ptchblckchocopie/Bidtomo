@@ -294,9 +294,9 @@ export default buildConfig({
           name: 'startingPrice',
           type: 'number',
           required: true,
-          min: 500,
+          min: 100,
           admin: {
-            description: 'Minimum starting price: 500',
+            description: 'Minimum starting price: 100',
           },
         },
         {

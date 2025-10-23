@@ -253,12 +253,6 @@
     </div>
   {/if}
 
-  {#if error}
-    <div class="error-message">
-      {error}
-    </div>
-  {/if}
-
   <form on:submit={handleSubmit}>
     <div class="form-group">
       <label for="title">Product Title *</label>
@@ -459,6 +453,12 @@
         {/if}
       </div>
     </div>
+
+    {#if error}
+      <div class="error-message">
+        {error}
+      </div>
+    {/if}
 
     <div class="form-actions">
       <button type="submit" class="btn-primary" disabled={submitting}>
