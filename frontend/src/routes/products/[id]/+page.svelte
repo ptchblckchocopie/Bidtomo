@@ -136,7 +136,7 @@
       if (countdownInterval) clearInterval(countdownInterval);
 
       // Auto-close auction if it's still active and time has ended
-      if (data.product.status === 'active' && isOwner && highestBid) {
+      if ((data.product.status === 'active' || data.product.status === 'available') && isOwner && highestBid) {
         // Automatically mark as sold if there's a winning bid
         try {
           await updateProduct(data.product.id, { status: 'sold' });
@@ -144,7 +144,7 @@
         } catch (error) {
           console.error('Error auto-closing auction:', error);
         }
-      } else if (data.product.status === 'active' && isOwner && !highestBid) {
+      } else if ((data.product.status === 'active' || data.product.status === 'available') && isOwner && !highestBid) {
         // Mark as ended if no bids
         try {
           await updateProduct(data.product.id, { status: 'ended' });
@@ -368,6 +368,28 @@
     }
   }
 
+  function validateBidAmount() {
+    if (!bidAmount || bidAmount < minBid) {
+      bidAmount = minBid;
+      bidError = `Bid amount adjusted to minimum: ${formatPrice(minBid, sellerCurrency)}`;
+      setTimeout(() => bidError = '', 3000);
+      return;
+    }
+
+    // Check if bid is divisible by interval
+    const currentHighest = data.product?.currentBid || data.product?.startingPrice || 0;
+    const difference = bidAmount - currentHighest;
+
+    if (difference % bidInterval !== 0) {
+      // Round up to the nearest valid increment
+      const remainder = difference % bidInterval;
+      const adjustment = bidInterval - remainder;
+      bidAmount = bidAmount + adjustment;
+      bidError = `Bid amount must be in increments of ${formatPrice(bidInterval, sellerCurrency)}. Adjusted to ${formatPrice(bidAmount, sellerCurrency)}`;
+      setTimeout(() => bidError = '', 3000);
+    }
+  }
+
   function handlePlaceBid() {
     if (!data.product) return;
 
@@ -400,9 +422,7 @@
     bidSuccess = false;
 
     try {
-      console.log('Calling placeBid with:', data.product.id, bidAmount, censorMyName);
       const result = await placeBid(data.product.id, bidAmount, censorMyName);
-      console.log('placeBid result:', result);
 
       if (result) {
         bidSuccess = true;
@@ -444,9 +464,6 @@
         setTimeout(() => {
           newBidIds = new Set();
         }, 3000);
-
-        // Collapse bid section after successful bid
-        bidSectionOpen = false;
 
         // Force immediate update check to get latest data
         setTimeout(() => {
@@ -680,18 +697,13 @@
     acceptSuccess = false;
 
     try {
-      console.log('Accepting bid for product:', data.product.id);
-
       // Update product status to 'sold'
       const result = await updateProduct(data.product.id, {
         status: 'sold'
       });
 
-      console.log('Update result:', result);
-
       if (result) {
         acceptSuccess = true;
-        console.log('Bid accepted successfully, reloading page in 1.5s');
         setTimeout(() => {
           // Refresh the page to show updated status
           window.location.reload();
@@ -872,13 +884,29 @@
               </div>
             {:else if data.product.currentBid}
               <div class="highest-bid-container">
-                <div class="highest-bid-label" class:label-pulse={priceChanged}>CURRENT HIGHEST BID</div>
+                <div class="highest-bid-header">
+                  <div class="highest-bid-label" class:label-pulse={priceChanged}>CURRENT HIGHEST BID</div>
+                  {#if data.product.status === 'active' || data.product.status === 'available'}
+                    <div class="countdown-timer-badge">
+                      <span class="countdown-label">Ends in:</span>
+                      <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
+                    </div>
+                  {/if}
+                </div>
                 <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid, sellerCurrency)}</div>
                 <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
               </div>
             {:else}
               <div class="highest-bid-container">
-                <div class="highest-bid-label">STARTING BID</div>
+                <div class="highest-bid-header">
+                  <div class="highest-bid-label">STARTING BID</div>
+                  {#if data.product.status === 'active' || data.product.status === 'available'}
+                    <div class="countdown-timer-badge">
+                      <span class="countdown-label">Ends in:</span>
+                      <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
+                    </div>
+                  {/if}
+                </div>
                 <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
                 <div class="starting-price-small">No bids yet - be the first!</div>
               </div>
@@ -886,14 +914,7 @@
           </div>
         {/if}
 
-        {#if isHighestBidder && data.product.status === 'active' && !isOwner}
-          <div class="highest-bidder-alert">
-            <span class="alert-icon">👑</span>
-            <span class="alert-text">You are currently the highest bidder!</span>
-          </div>
-        {/if}
-
-        {#if data.product.status === 'active'}
+        {#if data.product.status === 'active' || data.product.status === 'available'}
           {#if isOwner}
             <!-- Owner view - Accept Bid section -->
             <div class="bid-section owner-section">
@@ -924,88 +945,77 @@
           {:else}
             <!-- Bidder view - Place Bid section -->
             <div class="bid-section">
-              <div class="bid-section-header-wrapper">
-                <button
-                  class="bid-section-header-btn"
-                  on:click={() => bidSectionOpen = !bidSectionOpen}
-                  type="button"
-                >
-                  <h3>Place Your Bid</h3>
-                  <svg
-                    class="accordion-arrow"
-                    class:open={bidSectionOpen}
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </button>
-                <div class="countdown-timer-inline">
-                  <span class="countdown-label">Ends in:</span>
-                  <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
-                </div>
+              <div class="bid-section-header">
+                <h3>Place Your Bid</h3>
               </div>
 
-              {#if bidSectionOpen}
-                {#if !$authStore.isAuthenticated}
-                  <div class="info-message">
-                    <p>🔒 You must be logged in to place a bid</p>
-                  </div>
-                {/if}
-
-                {#if bidError}
-                  <div class="error-message">
-                    {bidError}
-                  </div>
-                {/if}
-
-                <div class="bid-form">
-                  <div class="bid-input-group">
-                    <label>Your Bid Amount</label>
-                    <div class="bid-row">
-                      <div class="bid-control">
-                        <button
-                          class="bid-arrow-btn"
-                          on:click={decrementBid}
-                          disabled={bidding || bidAmount <= minBid}
-                          type="button"
-                          aria-label="Decrease bid"
-                        >
-                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                          </svg>
-                        </button>
-                        <div class="bid-amount-display">
-                          {formatPrice(bidAmount, sellerCurrency)}
-                        </div>
-                        <button
-                          class="bid-arrow-btn"
-                          on:click={incrementBid}
-                          disabled={bidding}
-                          type="button"
-                          aria-label="Increase bid"
-                        >
-                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="18 15 12 9 6 15"></polyline>
-                          </svg>
-                        </button>
-                      </div>
-                      <button class="place-bid-btn" on:click={handlePlaceBid} disabled={bidding}>
-                        {bidding ? 'Placing Bid...' : 'Place Bid'}
-                      </button>
-                    </div>
-                    <p class="bid-hint">
-                      Minimum bid: {formatPrice(minBid, sellerCurrency)} • Increment: {formatPrice(bidInterval, sellerCurrency)}
-                    </p>
-                  </div>
+              {#if !$authStore.isAuthenticated}
+                <div class="info-message">
+                  <p>🔒 You must be logged in to place a bid</p>
                 </div>
               {/if}
+
+              {#if bidError}
+                <div class="error-message">
+                  {bidError}
+                </div>
+              {/if}
+
+              <div class="bid-form">
+                <div class="bid-input-group">
+                  <label>Your Bid Amount</label>
+                  <div class="bid-row">
+                    <div class="bid-control">
+                      <button
+                        class="bid-arrow-btn"
+                        on:click={decrementBid}
+                        disabled={bidding || bidAmount <= minBid}
+                        type="button"
+                        aria-label="Decrease bid"
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </button>
+                      <input
+                        type="number"
+                        class="bid-amount-input"
+                        bind:value={bidAmount}
+                        on:blur={validateBidAmount}
+                        min={minBid}
+                        step={bidInterval}
+                        disabled={bidding}
+                      />
+                      <button
+                        class="bid-arrow-btn"
+                        on:click={incrementBid}
+                        disabled={bidding}
+                        type="button"
+                        aria-label="Increase bid"
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="18 15 12 9 6 15"></polyline>
+                        </svg>
+                      </button>
+                    </div>
+                    <button class="place-bid-btn" on:click={handlePlaceBid} disabled={bidding}>
+                      {bidding ? 'Placing Bid...' : 'Place Bid'}
+                    </button>
+                  </div>
+                  <p class="bid-hint">
+                    Minimum bid: {formatPrice(minBid, sellerCurrency)} • Increment: {formatPrice(bidInterval, sellerCurrency)}
+                  </p>
+                </div>
+              </div>
             </div>
           {/if}
+        {/if}
+
+        {#if isHighestBidder && (data.product.status === 'active' || data.product.status === 'available') && !isOwner}
+          <div class="highest-bidder-alert">
+            <span class="alert-icon">👑</span>
+            <span class="alert-text">You are currently the highest bidder!</span>
+          </div>
         {/if}
 
         <!-- Contact Section -->
@@ -1676,18 +1686,60 @@
     align-items: center;
     justify-content: center;
     min-height: 220px;
+    position: relative;
   }
 
   .highest-bid-container {
     color: white;
   }
 
+  .highest-bid-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+    gap: 0;
+  }
+
   .highest-bid-label {
     font-size: 0.9rem;
     font-weight: 700;
     letter-spacing: 2px;
-    margin-bottom: 0.75rem;
     opacity: 0.95;
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+
+  .countdown-timer-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    padding: 0.75rem 1.25rem;
+    border-radius: 0 12px 0 12px;
+    font-size: 0.875rem;
+    font-weight: 700;
+    border: none;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    margin: 0;
+  }
+
+  .countdown-timer-badge .countdown-label {
+    color: rgba(255, 255, 255, 0.95);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .countdown-timer-badge .countdown-time {
+    color: #ffffff;
+    font-weight: 900;
+    letter-spacing: 1px;
+    font-family: 'Courier New', monospace;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .highest-bid-amount {
@@ -1898,6 +1950,35 @@
     font-weight: 700;
     color: #667eea;
     padding: 0.5rem;
+  }
+
+  .bid-amount-input {
+    flex: 1;
+    text-align: center;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #667eea;
+    padding: 0.5rem;
+    border: none;
+    background: transparent;
+    outline: none;
+    width: 100%;
+  }
+
+  .bid-amount-input:focus {
+    color: #4c63d2;
+    background: rgba(102, 126, 234, 0.05);
+    border-radius: 4px;
+  }
+
+  .bid-amount-input::-webkit-inner-spin-button,
+  .bid-amount-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .bid-amount-input[type=number] {
+    -moz-appearance: textfield;
   }
 
   .bid-hint {

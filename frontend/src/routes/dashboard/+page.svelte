@@ -1,15 +1,22 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import { updateProduct, type Product } from '$lib/api';
+  import ImageSlider from '$lib/components/ImageSlider.svelte';
 
   export let data: PageData;
 
-  // Separate active and sold products
-  $: activeProducts = data.products.filter(p => p.active && p.status !== 'sold');
-  $: soldProducts = data.products.filter(p => p.status === 'sold');
+  // Separate products by status and visibility
+  $: activeProducts = data.products.filter(p => p.status === 'available' && p.active);
+  $: hiddenProducts = data.products.filter(p => !p.active);
+  $: soldEndedProducts = data.products.filter(p => p.status === 'sold' || p.status === 'ended');
+
+  // Tab state
+  let activeTab: 'active' | 'hidden' | 'sold' = 'active';
 
   let showEditModal = false;
+  let showViewModal = false;
   let editingProduct: Product | null = null;
+  let viewingProduct: Product | null = null;
   let editForm = {
     title: '',
     description: '',
@@ -42,7 +49,9 @@
 
   function formatDateForInput(dateString: string): string {
     // Convert ISO string to datetime-local format (YYYY-MM-DDTHH:mm)
+    if (!dateString) return '';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -64,7 +73,9 @@
     }
   }
 
-  function openEditModal(product: Product) {
+  function openEditModal(product: Product | null) {
+    if (!product) return;
+
     editingProduct = product;
     hasBids = !!(product.currentBid && product.currentBid > 0);
     editForm = {
@@ -85,6 +96,16 @@
     editingProduct = null;
     saveError = '';
     saveSuccess = false;
+  }
+
+  function openViewModal(product: Product) {
+    viewingProduct = product;
+    showViewModal = true;
+  }
+
+  function closeViewModal() {
+    showViewModal = false;
+    viewingProduct = null;
   }
 
   async function handleSaveProduct() {
@@ -153,83 +174,38 @@
       <a href="/sell" class="btn-primary">Create Your First Product</a>
     </div>
   {:else}
-    <!-- Active Products Section -->
-    {#if activeProducts.length > 0}
-      <div class="products-section">
-        <h2>Active Listings ({activeProducts.length})</h2>
+    <!-- Tabs -->
+    <div class="tabs">
+      <button
+        class="tab"
+        class:active={activeTab === 'active'}
+        on:click={() => activeTab = 'active'}
+      >
+        Active Listings ({activeProducts.length})
+      </button>
+      <button
+        class="tab"
+        class:active={activeTab === 'hidden'}
+        on:click={() => activeTab = 'hidden'}
+      >
+        Hidden ({hiddenProducts.length})
+      </button>
+      <button
+        class="tab"
+        class:active={activeTab === 'sold'}
+        on:click={() => activeTab = 'sold'}
+      >
+        Sold & Ended ({soldEndedProducts.length})
+      </button>
+    </div>
 
-        <div class="products-grid">
+    <!-- Active Products Tab -->
+    {#if activeTab === 'active'}
+      {#if activeProducts.length > 0}
+        <div class="products-list">
           {#each activeProducts as product}
-          <div class="product-card">
-            <div class="product-image">
-              {#if product.images && product.images.length > 0}
-                <img src="{product.images[0].image.url}" alt="{product.title}" />
-              {:else}
-                <div class="placeholder-image">
-                  <span>No Image</span>
-                </div>
-              {/if}
-            </div>
-
-            <div class="product-info">
-              <h3>{product.title}</h3>
-
-              <div class="product-status">
-                <span class="status-badge" style="background-color: {getStatusColor(product.status)}">
-                  {product.status}
-                </span>
-              </div>
-
-              <div class="product-pricing">
-                <div class="price-row">
-                  <span class="label">Starting Price:</span>
-                  <span class="value">{formatPrice(product.startingPrice, product.seller.currency)}</span>
-                </div>
-                <div class="price-row">
-                  <span class="label">Current Bid:</span>
-                  <span class="value current-bid">
-                    {product.currentBid ? formatPrice(product.currentBid, product.seller.currency) : 'No bids yet'}
-                  </span>
-                </div>
-                <div class="price-row">
-                  <span class="label">Bid Increment:</span>
-                  <span class="value">{formatPrice(product.bidInterval, product.seller.currency)}</span>
-                </div>
-              </div>
-
-              <div class="product-dates">
-                <div class="date-row">
-                  <span class="label">Ends:</span>
-                  <span class="value">{formatDate(product.auctionEndDate)}</span>
-                </div>
-                <div class="date-row">
-                  <span class="label">Created:</span>
-                  <span class="value">{formatDate(product.createdAt)}</span>
-                </div>
-              </div>
-
-              <div class="product-actions">
-                <a href="/products/{product.id}" class="btn-view" target="_blank" rel="noopener noreferrer">View</a>
-                <button on:click={() => openEditModal(product)} class="btn-edit">
-                  Edit Product
-                </button>
-              </div>
-            </div>
-          </div>
-          {/each}
-        </div>
-      </div>
-    {/if}
-
-    <!-- Sold Products Section -->
-    {#if soldProducts.length > 0}
-      <div class="products-section sold-section">
-        <h2>Sold & Ended Listings ({soldProducts.length})</h2>
-
-        <div class="sold-products-list">
-          {#each soldProducts as product}
-            <div class="sold-product-item">
-              <div class="sold-product-image">
+            <div class="product-item">
+              <div class="product-item-image">
                 {#if product.images && product.images.length > 0}
                   <img src="{product.images[0].image.url}" alt="{product.title}" />
                 {:else}
@@ -237,30 +213,174 @@
                 {/if}
               </div>
 
-              <div class="sold-product-info">
+              <div class="product-item-info">
                 <h3>{product.title}</h3>
-                <div class="sold-meta">
+                <div class="product-meta">
                   <span class="status-badge-small" style="background-color: {getStatusColor(product.status)}">
                     {product.status}
                   </span>
-                  <span class="sold-date">Ended: {formatDate(product.auctionEndDate)}</span>
+                  {#if product.currentBid && product.currentBid > product.startingPrice}
+                    <span class="growth-badge">
+                      ↑ {Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%
+                    </span>
+                  {/if}
+                  <span class="product-date">Ends: {formatDate(product.auctionEndDate)}</span>
                 </div>
               </div>
 
-              <div class="sold-product-price">
+              <div class="product-item-price">
+                <div class="price-label">Current Bid</div>
+                <div class="price-value">
+                  {product.currentBid ? formatPrice(product.currentBid, product.seller.currency) : formatPrice(product.startingPrice, product.seller.currency)}
+                </div>
+                {#if product.currentBid}
+                  <div class="price-sublabel">
+                    from {formatPrice(product.startingPrice, product.seller.currency)}
+                    <span class="price-growth">
+                      (+{Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%)
+                    </span>
+                  </div>
+                {:else}
+                  <div class="price-sublabel">Starting price</div>
+                {/if}
+              </div>
+
+              <div class="product-item-actions">
+                <button on:click={() => openViewModal(product)} class="btn-view-small">
+                  View
+                </button>
+                <button on:click={() => openEditModal(product)} class="btn-edit-small">
+                  Edit
+                </button>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <div class="empty-state">
+          <p>No active listings yet. Create your first product to get started!</p>
+        </div>
+      {/if}
+    {/if}
+
+    <!-- Hidden Products Tab -->
+    {#if activeTab === 'hidden'}
+      {#if hiddenProducts.length > 0}
+        <div class="products-list">
+          {#each hiddenProducts as product}
+            <div class="product-item">
+              <div class="product-item-image">
+                {#if product.images && product.images.length > 0}
+                  <img src="{product.images[0].image.url}" alt="{product.title}" />
+                {:else}
+                  <div class="placeholder-image-small">📦</div>
+                {/if}
+              </div>
+
+              <div class="product-item-info">
+                <h3>{product.title}</h3>
+                <div class="product-meta">
+                  <span class="status-badge-small" style="background-color: {getStatusColor(product.status)}">
+                    {product.status}
+                  </span>
+                  <span class="inactive-badge">Hidden</span>
+                  {#if product.currentBid && product.currentBid > product.startingPrice}
+                    <span class="growth-badge">
+                      ↑ {Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%
+                    </span>
+                  {/if}
+                  <span class="product-date">
+                    {product.status === 'available' ? 'Ends' : 'Ended'}: {formatDate(product.auctionEndDate)}
+                  </span>
+                </div>
+              </div>
+
+              <div class="product-item-price">
+                <div class="price-label">{product.status === 'available' ? 'Current Bid' : 'Final Price'}</div>
+                <div class="price-value">
+                  {product.currentBid ? formatPrice(product.currentBid, product.seller.currency) : formatPrice(product.startingPrice, product.seller.currency)}
+                </div>
+                {#if product.currentBid}
+                  <div class="price-sublabel">
+                    from {formatPrice(product.startingPrice, product.seller.currency)}
+                    <span class="price-growth">
+                      (+{Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%)
+                    </span>
+                  </div>
+                {:else if product.status === 'available'}
+                  <div class="price-sublabel">Starting price</div>
+                {/if}
+              </div>
+
+              <div class="product-item-actions">
+                <button on:click={() => openViewModal(product)} class="btn-view-small">
+                  View
+                </button>
+                <button on:click={() => openEditModal(product)} class="btn-edit-small">
+                  Edit
+                </button>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <div class="empty-state">
+          <p>No hidden products. Products marked as inactive will appear here.</p>
+        </div>
+      {/if}
+    {/if}
+
+    <!-- Sold & Ended Products Tab -->
+    {#if activeTab === 'sold'}
+      {#if soldEndedProducts.length > 0}
+        <div class="products-list">
+          {#each soldEndedProducts as product}
+            <div class="product-item">
+              <div class="product-item-image">
+                {#if product.images && product.images.length > 0}
+                  <img src="{product.images[0].image.url}" alt="{product.title}" />
+                {:else}
+                  <div class="placeholder-image-small">📦</div>
+                {/if}
+              </div>
+
+              <div class="product-item-info">
+                <h3>{product.title}</h3>
+                <div class="product-meta">
+                  <span class="status-badge-small" style="background-color: {getStatusColor(product.status)}">
+                    {product.status}
+                  </span>
+                  {#if product.currentBid && product.currentBid > product.startingPrice}
+                    <span class="growth-badge">
+                      ↑ {Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%
+                    </span>
+                  {/if}
+                  <span class="product-date">Ended: {formatDate(product.auctionEndDate)}</span>
+                </div>
+              </div>
+
+              <div class="product-item-price">
                 <div class="price-label">Final Price</div>
                 <div class="price-value">
                   {product.currentBid ? formatPrice(product.currentBid, product.seller.currency) : formatPrice(product.startingPrice, product.seller.currency)}
                 </div>
+                {#if product.currentBid}
+                  <div class="price-sublabel">
+                    from {formatPrice(product.startingPrice, product.seller.currency)}
+                    <span class="price-growth">
+                      (+{Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%)
+                    </span>
+                  </div>
+                {/if}
               </div>
 
-              <div class="sold-product-actions">
-                <a href="/products/{product.id}" class="btn-view-small" target="_blank" rel="noopener noreferrer">
+              <div class="product-item-actions">
+                <button on:click={() => openViewModal(product)} class="btn-view-small">
                   View
-                </a>
+                </button>
                 {#if product.currentBid}
                   <a href="/inbox?product={product.id}" class="btn-message">
-                    💬 Message Buyer
+                    💬 Message
                   </a>
                 {/if}
                 {#if product.status !== 'sold'}
@@ -272,10 +392,24 @@
             </div>
           {/each}
         </div>
-      </div>
+      {:else}
+        <div class="empty-state">
+          <p>No sold or ended listings yet.</p>
+        </div>
+      {/if}
     {/if}
   {/if}
 </div>
+
+<!-- Loading Overlay -->
+{#if saving}
+  <div class="loading-overlay">
+    <div class="loading-spinner">
+      <div class="spinner"></div>
+      <p>Saving changes...</p>
+    </div>
+  </div>
+{/if}
 
 <!-- Edit Product Modal -->
 {#if showEditModal && editingProduct}
@@ -396,6 +530,114 @@
   </div>
 {/if}
 
+<!-- Product View Modal -->
+{#if showViewModal && viewingProduct}
+  <div class="modal-overlay" on:click={closeViewModal} on:keydown={(e) => e.key === 'Escape' && closeViewModal()} role="button" tabindex="-1">
+    <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation role="dialog" tabindex="-1">
+      <button class="modal-close" on:click={closeViewModal}>&times;</button>
+
+      <div class="modal-body">
+        <!-- Image Slider -->
+        {#if viewingProduct.images && viewingProduct.images.length > 0}
+          {@const validImages = viewingProduct.images.filter(img => img && img.image && img.image.url)}
+          {#if validImages.length > 0}
+            <div class="modal-image-section">
+              <ImageSlider images={validImages} productTitle={viewingProduct.title} />
+            </div>
+          {:else}
+            <div class="modal-placeholder-image">
+              <span class="placeholder-icon">📦</span>
+            </div>
+          {/if}
+        {:else}
+          <div class="modal-placeholder-image">
+            <span class="placeholder-icon">📦</span>
+          </div>
+        {/if}
+
+        <!-- Product Info -->
+        <div class="modal-info-section">
+          <div class="modal-header-view">
+            <h2>{viewingProduct.title}</h2>
+            <span class="status-badge-view" style="background-color: {getStatusColor(viewingProduct.status)}">
+              {viewingProduct.status}
+            </span>
+          </div>
+
+          <div class="product-detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">Status</span>
+              <span class="detail-value">
+                {viewingProduct.active ? 'Visible' : 'Hidden'}
+              </span>
+            </div>
+
+            <div class="detail-item">
+              <span class="detail-label">Starting Bid</span>
+              <span class="detail-value">{formatPrice(viewingProduct.startingPrice, viewingProduct.seller.currency)}</span>
+            </div>
+
+            <div class="detail-item">
+              <span class="detail-label">{viewingProduct.status === 'available' ? 'Current Bid' : 'Final Price'}</span>
+              <span class="detail-value price-highlight">
+                {formatPrice(viewingProduct.currentBid || viewingProduct.startingPrice, viewingProduct.seller.currency)}
+              </span>
+            </div>
+
+            <div class="detail-item">
+              <span class="detail-label">Auction {viewingProduct.status === 'available' ? 'Ends' : 'Ended'}</span>
+              <span class="detail-value">{formatDate(viewingProduct.auctionEndDate)}</span>
+            </div>
+
+            <div class="detail-item">
+              <span class="detail-label">Bid Increment</span>
+              <span class="detail-value">{formatPrice(viewingProduct.bidInterval, viewingProduct.seller.currency)}</span>
+            </div>
+          </div>
+
+          {#if viewingProduct.description}
+            <div class="description-section">
+              <h3>Description</h3>
+              <p>{viewingProduct.description}</p>
+            </div>
+          {/if}
+
+          {#if viewingProduct.keywords && viewingProduct.keywords.length > 0}
+            <div class="keywords-section">
+              <h3>Tags</h3>
+              <div class="keywords-list">
+                {#each viewingProduct.keywords as keyword}
+                  <span class="keyword-tag">
+                    {typeof keyword === 'string'
+                      ? keyword
+                      : (keyword?.keyword || keyword?.value || keyword?.label || keyword?.name || JSON.stringify(keyword))}
+                  </span>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          <div class="modal-actions">
+            <a href="/products/{viewingProduct.id}" class="btn-open-page" target="_blank" rel="noopener noreferrer">
+              🔗 Open Product Page
+            </a>
+            <button on:click={() => {
+              const product = viewingProduct;
+              closeViewModal();
+              openEditModal(product);
+            }} class="btn-edit-modal">
+              ✏️ Edit Product
+            </button>
+            <button on:click={closeViewModal} class="btn-close-modal">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   .dashboard {
     max-width: 1400px;
@@ -476,164 +718,229 @@
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
   }
 
-  .products-section {
-    margin-bottom: 3rem;
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid #e5e7eb;
   }
 
-  .products-section h2 {
-    font-size: 1.75rem;
-    margin-bottom: 1.5rem;
+  .tab {
+    padding: 0.875rem 1.5rem;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #6b7280;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: -2px;
+  }
+
+  .tab:hover {
     color: #333;
-    border-bottom: 3px solid #dc2626;
-    padding-bottom: 0.5rem;
+    background-color: #f9fafb;
   }
 
-  .sold-section h2 {
-    border-bottom-color: #6b7280;
+  .tab.active {
+    color: #dc2626;
+    border-bottom-color: #dc2626;
   }
 
-  .products-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 2rem;
+  /* Products List */
+  .products-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
   }
 
-  @media (max-width: 768px) {
-    .products-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .product-card {
+  .product-item {
     background-color: white;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s, box-shadow 0.2s;
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    gap: 1.25rem;
+    align-items: center;
+    transition: box-shadow 0.2s;
   }
 
-  .product-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  .product-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
-  .product-image {
-    width: 100%;
-    height: 200px;
+  .product-item-image {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    border-radius: 6px;
     overflow: hidden;
     background-color: #f3f4f6;
   }
 
-  .product-image img {
+  .product-item-image img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
 
-  .placeholder-image {
+  .placeholder-image-small {
     width: 100%;
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 2rem;
     background-color: #e5e7eb;
     color: #9ca3af;
-    font-size: 1rem;
   }
 
-  .product-info {
-    padding: 1.5rem;
+  .product-item-info {
+    flex: 1;
+    min-width: 0;
   }
 
-  .product-info h3 {
-    font-size: 1.5rem;
-    margin: 0 0 1rem 0;
+  .product-item-info h3 {
+    font-size: 1.125rem;
+    margin: 0 0 0.5rem 0;
     color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .product-status {
-    margin-bottom: 1rem;
+  .product-meta {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
   }
 
-  .status-badge {
+  .status-badge-small {
     display: inline-block;
-    padding: 0.375rem 0.75rem;
-    border-radius: 6px;
+    padding: 0.25rem 0.625rem;
+    border-radius: 4px;
     color: white;
     font-weight: 600;
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     text-transform: uppercase;
   }
 
-  .product-pricing,
-  .product-dates {
-    margin-bottom: 1.25rem;
+  .inactive-badge {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    border-radius: 4px;
+    background-color: #6b7280;
+    color: white;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
   }
 
-  .price-row,
-  .date-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #f3f4f6;
+  .growth-badge {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    font-weight: 700;
+    font-size: 0.75rem;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+    animation: pulse 2s ease-in-out infinite;
   }
 
-  .price-row:last-child,
-  .date-row:last-child {
-    border-bottom: none;
+  @keyframes pulse {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
   }
 
-  .label {
-    font-weight: 500;
+  .product-date {
+    font-size: 0.875rem;
     color: #666;
   }
 
-  .value {
-    font-weight: 600;
-    color: #333;
+  .product-item-price {
+    text-align: right;
+    padding: 0 1rem;
   }
 
-  .current-bid {
-    color: #667eea;
+  .price-label {
+    font-size: 0.75rem;
+    color: #666;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
-  .product-actions {
+  .price-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #10b981;
+  }
+
+  .price-sublabel {
+    font-size: 0.75rem;
+    color: #999;
+    margin-top: 0.25rem;
+  }
+
+  .price-growth {
+    color: #10b981;
+    font-weight: 700;
+    margin-left: 0.25rem;
+  }
+
+  .product-item-actions {
     display: flex;
-    gap: 0.75rem;
-    margin-top: 1.5rem;
+    gap: 0.5rem;
+    flex-shrink: 0;
   }
 
-  .btn-view,
-  .btn-edit {
-    flex: 1;
-    padding: 0.75rem 1rem;
+  /* Loading Overlay */
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .loading-spinner {
     text-align: center;
-    text-decoration: none;
-    border-radius: 6px;
+  }
+
+  .spinner {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1rem auto;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .loading-spinner p {
+    color: white;
+    font-size: 1.125rem;
     font-weight: 600;
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  .btn-view {
-    background-color: #3b82f6;
-    color: white;
-  }
-
-  .btn-view:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-  }
-
-  .btn-edit {
-    background-color: #f59e0b;
-    color: white;
-    border: none;
-    cursor: pointer;
-  }
-
-  .btn-edit:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
   }
 
   /* Modal Styles */
@@ -849,112 +1156,6 @@
     transform: none;
   }
 
-  /* Sold Products List */
-  .sold-products-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .sold-product-item {
-    background-color: white;
-    border-radius: 8px;
-    padding: 1.25rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    display: flex;
-    gap: 1.25rem;
-    align-items: center;
-    transition: box-shadow 0.2s;
-  }
-
-  .sold-product-item:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-
-  .sold-product-image {
-    width: 80px;
-    height: 80px;
-    flex-shrink: 0;
-    border-radius: 6px;
-    overflow: hidden;
-    background-color: #f3f4f6;
-  }
-
-  .sold-product-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .placeholder-image-small {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2rem;
-  }
-
-  .sold-product-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .sold-product-info h3 {
-    font-size: 1.125rem;
-    margin: 0 0 0.5rem 0;
-    color: #333;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sold-meta {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-  }
-
-  .status-badge-small {
-    display: inline-block;
-    padding: 0.25rem 0.625rem;
-    border-radius: 4px;
-    color: white;
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-  }
-
-  .sold-date {
-    font-size: 0.875rem;
-    color: #666;
-  }
-
-  .sold-product-price {
-    text-align: right;
-    padding: 0 1rem;
-  }
-
-  .price-label {
-    font-size: 0.75rem;
-    color: #666;
-    margin-bottom: 0.25rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .price-value {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #10b981;
-  }
-
-  .sold-product-actions {
-    display: flex;
-    gap: 0.5rem;
-    flex-shrink: 0;
-  }
-
   .btn-view-small,
   .btn-message,
   .btn-edit-small {
@@ -971,6 +1172,8 @@
   .btn-view-small {
     background-color: #3b82f6;
     color: white;
+    border: none;
+    cursor: pointer;
   }
 
   .btn-view-small:hover {
@@ -1000,25 +1203,221 @@
     box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
   }
 
+  .field-hint {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: #666;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+  }
+
+  .checkbox-label span {
+    font-weight: normal;
+  }
+
+  /* View Modal Styles */
+  .modal-image-section {
+    width: 100%;
+    background-color: #f9fafb;
+  }
+
+  .modal-placeholder-image {
+    width: 100%;
+    height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f3f4f6;
+  }
+
+  .placeholder-icon {
+    font-size: 4rem;
+  }
+
+  .modal-info-section {
+    padding: 2rem;
+  }
+
+  .modal-header-view {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+  }
+
+  .modal-header-view h2 {
+    font-size: 1.75rem;
+    color: #333;
+    margin: 0;
+    flex: 1;
+  }
+
+  .status-badge-view {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    color: white;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .product-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .detail-label {
+    font-size: 0.875rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+
+  .detail-value {
+    font-size: 1.125rem;
+    color: #333;
+    font-weight: 500;
+  }
+
+  .price-highlight {
+    color: #10b981;
+    font-weight: 700;
+    font-size: 1.5rem;
+  }
+
+  .description-section {
+    margin-bottom: 2rem;
+  }
+
+  .description-section h3 {
+    font-size: 1.25rem;
+    color: #333;
+    margin-bottom: 0.75rem;
+  }
+
+  .description-section p {
+    color: #666;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+
+  .keywords-section {
+    margin-bottom: 2rem;
+  }
+
+  .keywords-section h3 {
+    font-size: 1.25rem;
+    color: #333;
+    margin-bottom: 0.75rem;
+  }
+
+  .keywords-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .keyword-tag {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background-color: #f3f4f6;
+    color: #666;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .btn-open-page {
+    flex: 1;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .btn-open-page:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  }
+
+  .btn-edit-modal {
+    flex: 1;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .btn-edit-modal:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+  }
+
   @media (max-width: 1024px) {
-    .sold-product-item {
+    .product-item {
       flex-wrap: wrap;
     }
 
-    .sold-product-price {
+    .product-item-price {
       order: 3;
       padding: 0;
       text-align: left;
     }
 
-    .sold-product-actions {
+    .product-item-actions {
       order: 4;
       width: 100%;
     }
   }
 
   @media (max-width: 640px) {
-    .sold-product-actions {
+    .dashboard {
+      padding: 1rem;
+    }
+
+    .dashboard-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .tabs {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .product-item-actions {
       flex-direction: column;
     }
 
@@ -1026,6 +1425,37 @@
     .btn-message,
     .btn-edit-small {
       width: 100%;
+    }
+
+    .form-row {
+      grid-template-columns: 1fr;
+    }
+
+    .modal-content {
+      margin: 0;
+      max-height: 100vh;
+      border-radius: 0;
+    }
+
+    .modal-info-section {
+      padding: 1.5rem;
+    }
+
+    .modal-header-view {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .product-detail-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .modal-actions {
+      flex-direction: column;
+    }
+
+    .modal-placeholder-image {
+      height: 250px;
     }
   }
 </style>
