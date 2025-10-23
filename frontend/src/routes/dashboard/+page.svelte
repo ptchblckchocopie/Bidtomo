@@ -13,6 +13,7 @@
   let editForm = {
     title: '',
     description: '',
+    startingPrice: 0,
     bidInterval: 1,
     auctionEndDate: '',
     active: true
@@ -20,6 +21,7 @@
   let saving = false;
   let saveError = '';
   let saveSuccess = false;
+  let hasBids = false;
 
   function formatPrice(price: number, currency: string = 'PHP'): string {
     return new Intl.NumberFormat('en-US', {
@@ -64,9 +66,11 @@
 
   function openEditModal(product: Product) {
     editingProduct = product;
+    hasBids = !!(product.currentBid && product.currentBid > 0);
     editForm = {
       title: product.title,
       description: product.description,
+      startingPrice: product.startingPrice,
       bidInterval: product.bidInterval,
       auctionEndDate: formatDateForInput(product.auctionEndDate),
       active: product.active
@@ -91,13 +95,20 @@
     saveSuccess = false;
 
     try {
-      const result = await updateProduct(editingProduct.id, {
+      const updateData: any = {
         title: editForm.title,
         description: editForm.description,
         bidInterval: editForm.bidInterval,
         auctionEndDate: new Date(editForm.auctionEndDate).toISOString(),
         active: editForm.active
-      });
+      };
+
+      // Only include startingPrice if there are no bids
+      if (!hasBids) {
+        updateData.startingPrice = editForm.startingPrice;
+      }
+
+      const result = await updateProduct(editingProduct.id, updateData);
 
       if (result) {
         saveSuccess = true;
@@ -349,13 +360,27 @@
             />
           </div>
 
-          <div class="form-info">
-            <p><strong>Starting Price:</strong> {formatPrice(editingProduct.startingPrice, editingProduct.seller.currency)}</p>
-            {#if editingProduct.currentBid}
+          {#if hasBids}
+            <div class="form-info">
+              <p><strong>Starting Price:</strong> {formatPrice(editingProduct.startingPrice, editingProduct.seller.currency)}</p>
               <p><strong>Current Bid:</strong> {formatPrice(editingProduct.currentBid, editingProduct.seller.currency)}</p>
-            {/if}
-            <p class="note">Note: Starting price cannot be changed after product creation.</p>
-          </div>
+              <p class="note">Note: Starting price cannot be changed after bids have been placed.</p>
+            </div>
+          {:else}
+            <div class="form-group">
+              <label for="startingPrice">Starting Price ({editingProduct.seller.currency})</label>
+              <input
+                id="startingPrice"
+                type="number"
+                bind:value={editForm.startingPrice}
+                min="500"
+                step="1"
+                required
+                disabled={saving}
+              />
+              <p class="field-hint">Minimum starting price: 500. Can only be edited before any bids are placed.</p>
+            </div>
+          {/if}
 
           <div class="modal-actions">
             <button type="button" class="btn-cancel" on:click={closeEditModal} disabled={saving}>

@@ -156,6 +156,23 @@ export default buildConfig({
               if (originalDoc?.status === 'sold') {
                 throw new Error('Cannot edit products that have been sold');
               }
+
+              // Prevent editing startingPrice if there are already bids
+              if (data && data.startingPrice !== undefined && data.startingPrice !== originalDoc?.startingPrice) {
+                const existingBids = await req.payload.find({
+                  collection: 'bids',
+                  where: {
+                    product: {
+                      equals: originalDoc.id,
+                    },
+                  },
+                  limit: 1,
+                });
+
+                if (existingBids.docs.length > 0) {
+                  throw new Error('Cannot change starting price after bids have been placed');
+                }
+              }
             }
             return data;
           },
@@ -714,7 +731,7 @@ export default buildConfig({
       collections: {
         media: {
           adapter: adapter,
-          prefix: 'bidmoto',
+          prefix: '', // Empty prefix to match existing files at bucket root
           disableLocalStorage: true
         }
       }
