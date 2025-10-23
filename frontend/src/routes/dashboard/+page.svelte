@@ -2,6 +2,7 @@
   import type { PageData } from './$types';
   import { updateProduct, type Product } from '$lib/api';
   import ImageSlider from '$lib/components/ImageSlider.svelte';
+  import KeywordInput from '$lib/components/KeywordInput.svelte';
 
   export let data: PageData;
 
@@ -20,6 +21,7 @@
   let editForm = {
     title: '',
     description: '',
+    keywords: [] as string[],
     startingPrice: 0,
     bidInterval: 1,
     auctionEndDate: '',
@@ -81,6 +83,7 @@
     editForm = {
       title: product.title,
       description: product.description,
+      keywords: product.keywords?.map(k => k.keyword) || [],
       startingPrice: product.startingPrice,
       bidInterval: product.bidInterval,
       auctionEndDate: formatDateForInput(product.auctionEndDate),
@@ -119,6 +122,7 @@
       const updateData: any = {
         title: editForm.title,
         description: editForm.description,
+        keywords: editForm.keywords.map(k => ({ keyword: k })),
         bidInterval: editForm.bidInterval,
         auctionEndDate: new Date(editForm.auctionEndDate).toISOString(),
         active: editForm.active
@@ -455,6 +459,11 @@
               required
               disabled={saving}
             ></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="keywords">Keywords (for search & SEO)</label>
+            <KeywordInput bind:keywords={editForm.keywords} disabled={saving} />
           </div>
 
           <div class="form-row">
