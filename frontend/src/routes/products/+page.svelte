@@ -53,6 +53,14 @@
       search: searchInput,
       limit: data.limit.toString()
     });
+
+    // Scroll to products section after a small delay to allow URL update
+    setTimeout(() => {
+      const productsSection = document.getElementById('products-section');
+      if (productsSection) {
+        productsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   }
 
   function goToPage(page: number) {
@@ -206,6 +214,17 @@
     countdownInterval = setInterval(updateCountdowns, 1000);
     fetchUserBids();
 
+    // Scroll to products section if there's a status query parameter
+    // (useful when navigating from another page or using back/forward buttons)
+    if (data.status && window.location.search.includes('status=')) {
+      setTimeout(() => {
+        const productsSection = document.getElementById('products-section');
+        if (productsSection) {
+          productsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 300);
+    }
+
     // Handle visibility change - stop countdown when tab is not visible
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -346,7 +365,7 @@
   {/if}
 
   <!-- Tabs - Always visible -->
-  <div class="tabs-container">
+  <div class="tabs-container" id="products-section">
     <button
       class="tab"
       class:active={data.status === 'active'}
