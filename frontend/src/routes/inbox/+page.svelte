@@ -1,4 +1,5 @@
 <script lang="ts">
+  export let params: any = undefined; // SvelteKit passes this automatically
   import { onMount, onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';

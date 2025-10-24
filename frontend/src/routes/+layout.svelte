@@ -6,6 +6,9 @@
   import { logout as apiLogout, getUnreadMessageCount } from '$lib/api';
   import { onMount, onDestroy } from 'svelte';
 
+  // SvelteKit passes params to all routes, but we don't need it here
+  export let params: any = undefined;
+
   $: currentPath = $page.url.pathname;
 
   let mobileMenuOpen = false;

@@ -11,6 +11,7 @@
   import ProductForm from '$lib/components/ProductForm.svelte';
 
   export let data: PageData;
+  export let params: any = undefined; // SvelteKit passes this automatically
 
   // Tab management
   type TabType = 'products' | 'purchases';

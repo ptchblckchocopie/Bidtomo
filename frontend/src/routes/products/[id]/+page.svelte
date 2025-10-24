@@ -9,6 +9,7 @@
   import type { Product } from '$lib/api';
 
   export let data: PageData;
+  export let params: any = undefined; // SvelteKit passes this automatically
 
   // Dynamic back link based on 'from' parameter
   $: backLink = (() => {

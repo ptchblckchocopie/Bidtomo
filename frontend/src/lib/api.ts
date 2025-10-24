@@ -106,6 +106,7 @@ export async function fetchProducts(params?: {
   limit?: number;
   search?: string;
   status?: string;
+  customFetch?: typeof fetch;
 }): Promise<{ docs: Product[]; totalDocs: number; totalPages: number; page: number; limit: number }> {
   try {
     const queryParams = new URLSearchParams();
@@ -151,7 +152,8 @@ export async function fetchProducts(params?: {
     // Sort by creation date (newest first)
     queryParams.append('sort', '-createdAt');
 
-    const response = await fetch(`${API_URL}/api/products?${queryParams.toString()}`, {
+    const fetchFn = params?.customFetch || fetch;
+    const response = await fetchFn(`${API_URL}/api/products?${queryParams.toString()}`, {
       credentials: 'include',
     });
 
@@ -184,6 +186,7 @@ export async function fetchMyBidsProducts(params?: {
   page?: number;
   limit?: number;
   search?: string;
+  customFetch?: typeof fetch;
 }): Promise<{ docs: Product[]; totalDocs: number; totalPages: number; page: number; limit: number }> {
   try {
     const currentUser = await getCurrentUser();
@@ -202,7 +205,8 @@ export async function fetchMyBidsProducts(params?: {
     queryParams.append('where[bidder][equals]', currentUser.id);
     queryParams.append('limit', '1000'); // Get all user's bids
 
-    const bidsResponse = await fetch(`${API_URL}/api/bids?${queryParams.toString()}`, {
+    const fetchFn = params?.customFetch || fetch;
+    const bidsResponse = await fetchFn(`${API_URL}/api/bids?${queryParams.toString()}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -260,7 +264,7 @@ export async function fetchMyBidsProducts(params?: {
     // Sort by creation date (newest first)
     productQueryParams.append('sort', '-createdAt');
 
-    const productsResponse = await fetch(`${API_URL}/api/products?${productQueryParams.toString()}`, {
+    const productsResponse = await fetchFn(`${API_URL}/api/products?${productQueryParams.toString()}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -381,9 +385,10 @@ export async function fetchEndedProductsBySeller(sellerId: string): Promise<Prod
 }
 
 // Fetch a single product by ID
-export async function fetchProduct(id: string): Promise<Product | null> {
+export async function fetchProduct(id: string, customFetch?: typeof fetch): Promise<Product | null> {
   try {
-    const response = await fetch(`${API_URL}/api/products/${id}`, {
+    const fetchFn = customFetch || fetch;
+    const response = await fetchFn(`${API_URL}/api/products/${id}`, {
       credentials: 'include',
     });
 
@@ -607,9 +612,10 @@ export async function placeBid(productId: string, amount: number, censorName: bo
 }
 
 // Fetch bids for a product
-export async function fetchProductBids(productId: string): Promise<Bid[]> {
+export async function fetchProductBids(productId: string, customFetch?: typeof fetch): Promise<Bid[]> {
   try {
-    const response = await fetch(`${API_URL}/api/bids?where[product][equals]=${productId}&sort=-bidTime`, {
+    const fetchFn = customFetch || fetch;
+    const response = await fetchFn(`${API_URL}/api/bids?where[product][equals]=${productId}&sort=-bidTime`, {
       credentials: 'include',
     });
 
