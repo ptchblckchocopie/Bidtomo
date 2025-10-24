@@ -189,7 +189,7 @@ export async function fetchMyBidsProducts(params?: {
   customFetch?: typeof fetch;
 }): Promise<{ docs: Product[]; totalDocs: number; totalPages: number; page: number; limit: number }> {
   try {
-    const currentUser = await getCurrentUser();
+    const currentUser = await getCurrentUser(params?.customFetch);
     if (!currentUser) {
       return {
         docs: [],
@@ -314,10 +314,11 @@ export async function fetchProductsBySeller(sellerId: string): Promise<Product[]
 }
 
 // Fetch active products for seller (not ended by time)
-export async function fetchActiveProductsBySeller(sellerId: string): Promise<Product[]> {
+export async function fetchActiveProductsBySeller(sellerId: string, customFetch?: typeof fetch): Promise<Product[]> {
   try {
+    const fetchFn = customFetch || fetch;
     const now = new Date().toISOString();
-    const response = await fetch(
+    const response = await fetchFn(
       `${API_URL}/api/products?where[and][0][seller][equals]=${sellerId}&where[and][1][status][equals]=available&where[and][2][active][equals]=true&where[and][3][auctionEndDate][greater_than]=${now}`,
       {
         headers: getAuthHeaders(),
@@ -338,9 +339,10 @@ export async function fetchActiveProductsBySeller(sellerId: string): Promise<Pro
 }
 
 // Fetch hidden products for seller
-export async function fetchHiddenProductsBySeller(sellerId: string): Promise<Product[]> {
+export async function fetchHiddenProductsBySeller(sellerId: string, customFetch?: typeof fetch): Promise<Product[]> {
   try {
-    const response = await fetch(
+    const fetchFn = customFetch || fetch;
+    const response = await fetchFn(
       `${API_URL}/api/products?where[and][0][seller][equals]=${sellerId}&where[and][1][active][equals]=false`,
       {
         headers: getAuthHeaders(),
@@ -361,10 +363,11 @@ export async function fetchHiddenProductsBySeller(sellerId: string): Promise<Pro
 }
 
 // Fetch ended products for seller (sold, ended, or past auction date)
-export async function fetchEndedProductsBySeller(sellerId: string): Promise<Product[]> {
+export async function fetchEndedProductsBySeller(sellerId: string, customFetch?: typeof fetch): Promise<Product[]> {
   try {
+    const fetchFn = customFetch || fetch;
     const now = new Date().toISOString();
-    const response = await fetch(
+    const response = await fetchFn(
       `${API_URL}/api/products?where[and][0][seller][equals]=${sellerId}&where[and][1][or][0][status][equals]=sold&where[and][1][or][1][status][equals]=ended&where[and][1][or][2][and][0][status][equals]=available&where[and][1][or][2][and][1][auctionEndDate][less_than_equal]=${now}`,
       {
         headers: getAuthHeaders(),
@@ -556,9 +559,10 @@ export async function logout(): Promise<boolean> {
 }
 
 // Get current user
-export async function getCurrentUser(): Promise<User | null> {
+export async function getCurrentUser(customFetch?: typeof fetch): Promise<User | null> {
   try {
-    const response = await fetch(`${API_URL}/api/users/me`, {
+    const fetchFn = customFetch || fetch;
+    const response = await fetchFn(`${API_URL}/api/users/me`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });

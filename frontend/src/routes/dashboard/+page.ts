@@ -7,9 +7,9 @@ import {
 import type { PageLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 
-export const load: PageLoad = async () => {
+export const load: PageLoad = async ({ fetch }) => {
   // Check if user is logged in
-  const currentUser = await getCurrentUser();
+  const currentUser = await getCurrentUser(fetch);
 
   if (!currentUser) {
     // Redirect to login if not authenticated
@@ -18,9 +18,9 @@ export const load: PageLoad = async () => {
 
   // Fetch products separately by category
   const [activeProducts, hiddenProducts, endedProducts] = await Promise.all([
-    fetchActiveProductsBySeller(currentUser.id),
-    fetchHiddenProductsBySeller(currentUser.id),
-    fetchEndedProductsBySeller(currentUser.id),
+    fetchActiveProductsBySeller(currentUser.id, fetch),
+    fetchHiddenProductsBySeller(currentUser.id, fetch),
+    fetchEndedProductsBySeller(currentUser.id, fetch),
   ]);
 
   return {
