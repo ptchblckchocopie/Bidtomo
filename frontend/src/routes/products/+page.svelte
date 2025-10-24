@@ -7,6 +7,7 @@
   import { API_URL } from '$lib/api';
 
   export let data: PageData;
+  export let params: any = undefined; // SvelteKit passes this automatically
 
   let countdowns: { [key: string]: string } = {};
   let countdownInterval: ReturnType<typeof setInterval> | null = null;
