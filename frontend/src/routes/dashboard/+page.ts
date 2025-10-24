@@ -1,4 +1,9 @@
-import { fetchProductsBySeller, getCurrentUser } from '$lib/api';
+import {
+  fetchActiveProductsBySeller,
+  fetchHiddenProductsBySeller,
+  fetchEndedProductsBySeller,
+  getCurrentUser
+} from '$lib/api';
 import type { PageLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 
@@ -11,11 +16,17 @@ export const load: PageLoad = async () => {
     throw redirect(302, '/login?redirect=/dashboard');
   }
 
-  // Fetch products for this seller
-  const products = await fetchProductsBySeller(currentUser.id);
+  // Fetch products separately by category
+  const [activeProducts, hiddenProducts, endedProducts] = await Promise.all([
+    fetchActiveProductsBySeller(currentUser.id),
+    fetchHiddenProductsBySeller(currentUser.id),
+    fetchEndedProductsBySeller(currentUser.id),
+  ]);
 
   return {
     user: currentUser,
-    products,
+    activeProducts,
+    hiddenProducts,
+    endedProducts,
   };
 };

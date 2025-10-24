@@ -70,6 +70,11 @@
   let timeRemaining = '';
   let countdownInterval: ReturnType<typeof setInterval> | null = null;
 
+  // Check if auction has ended by time (not just status)
+  $: hasAuctionEnded = data.product?.auctionEndDate
+    ? new Date().getTime() > new Date(data.product.auctionEndDate).getTime()
+    : false;
+
   // Real-time update with polling
   let pollingInterval: ReturnType<typeof setInterval> | null = null;
   let lastKnownState = {
@@ -524,10 +529,24 @@
   }
 
   function handleEditSuccess(updatedProduct: Product) {
+    // Update the product data directly without page reload
+    if (data.product) {
+      data.product = {
+        ...updatedProduct,
+        // Preserve seller info
+        seller: data.product.seller
+      };
+
+      // Update min bid if needed
+      minBid = (data.product.currentBid || data.product.startingPrice || 0) + bidInterval;
+      if (bidAmount < minBid) {
+        bidAmount = minBid;
+      }
+    }
+
     setTimeout(() => {
-      // Refresh the page to load changes
-      window.location.reload();
-    }, 1000);
+      closeEditModal();
+    }, 1500);
   }
 
   function openAcceptBidModal() {
@@ -697,7 +716,7 @@
           </div>
         {/if}
 
-        {#if !isOwner}
+        {#if !isOwner && (!hasAuctionEnded || data.product.status === 'sold')}
           <div class="price-info" class:sold-info={data.product.status === 'sold'}>
             {#if showConfetti}
               <div class="confetti-container">
@@ -707,7 +726,7 @@
               </div>
             {/if}
 
-            {#if (data.product.status === 'active' || data.product.status === 'available') && data.product.status !== 'sold'}
+            {#if (data.product.status === 'active' || data.product.status === 'available') && data.product.status !== 'sold' && !hasAuctionEnded}
               <div class="countdown-timer-badge">
                 <span class="countdown-label">Ends in:</span>
                 <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
@@ -733,7 +752,7 @@
                 {/if}
                 <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
               </div>
-            {:else if data.product.currentBid}
+            {:else if data.product.currentBid && !hasAuctionEnded && data.product.status !== 'ended'}
               <div class="highest-bid-container">
                 <div class="highest-bid-header">
                   <div class="highest-bid-label" class:label-pulse={priceChanged}>CURRENT HIGHEST BID</div>
@@ -751,25 +770,19 @@
                 </div>
                 <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
               </div>
-            {:else}
+            {:else if !hasAuctionEnded && data.product.status !== 'ended'}
               <div class="highest-bid-container">
-                {#if data.product.status === 'ended'}
-                  <div class="sold-badge" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">NO SALE</div>
-                  <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
-                  <div class="starting-price-small">Auction ended with no bids</div>
-                {:else}
-                  <div class="highest-bid-header">
-                    <div class="highest-bid-label">STARTING BID</div>
-                  </div>
-                  <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
-                  <div class="starting-price-small">No bids yet - be the first!</div>
-                {/if}
+                <div class="highest-bid-header">
+                  <div class="highest-bid-label">STARTING BID</div>
+                </div>
+                <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+                <div class="starting-price-small">No bids yet - be the first!</div>
               </div>
             {/if}
           </div>
         {/if}
 
-        {#if data.product.status === 'active' || data.product.status === 'available'}
+        {#if (data.product.status === 'active' || data.product.status === 'available') && !hasAuctionEnded}
           {#if isOwner}
             <!-- Owner view - Accept Bid section -->
             <div class="bid-section owner-section">
@@ -864,26 +877,64 @@
               </div>
             </div>
           {/if}
-        {/if}
-
-        {#if isHighestBidder && (data.product.status === 'active' || data.product.status === 'available') && !isOwner}
-          <div class="highest-bidder-alert">
-            <span class="alert-icon">👑</span>
-            <span class="alert-text">You are currently the highest bidder!</span>
+        {:else if hasAuctionEnded || data.product.status === 'ended' || data.product.status === 'sold'}
+          <!-- Auction has ended - show results -->
+          <div class="auction-ended-section">
+            <div class="ended-header">
+              <h3>🏁 Auction Ended</h3>
+            </div>
+            {#if highestBid}
+              <div class="winner-info">
+                <div class="winner-label">Winning Bid:</div>
+                <div class="winner-amount-with-increase">
+                  <div class="winner-amount">{formatPrice(highestBid.amount, sellerCurrency)}</div>
+                  {#if highestBid.amount > data.product.startingPrice}
+                    <div class="winner-percentage-increase">
+                      <svg class="arrow-up-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                      </svg>
+                      <span class="percentage-text">{percentageIncrease}%</span>
+                    </div>
+                  {/if}
+                </div>
+                <div class="winner-bidder">Winner: {getBidderName(highestBid)}</div>
+                <div class="starting-price-note">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+              </div>
+            {:else}
+              <div class="no-winner-info">
+                <div class="no-winner-icon">📭</div>
+                <div class="no-winner-text">No Winning Bid</div>
+                <div class="no-winner-desc">This auction ended without any bids.</div>
+                <div class="starting-price-note">Starting price was: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+              </div>
+            {/if}
           </div>
         {/if}
 
-        <!-- Contact Section -->
-        {#if $authStore.isAuthenticated && !isOwner && (data.product.status === 'ended' || data.product.status === 'sold') && highestBid}
-          <!-- Buyers can contact seller only if auction is closed and they are the winning bidder -->
-          {#if (typeof highestBid.bidder === 'object' ? highestBid.bidder.id : highestBid.bidder) === $authStore.user?.id}
-            <div class="contact-section">
-              <a href="/inbox?product={data.product.id}" class="contact-btn">
-                💬 Contact Seller
+        {#if isHighestBidder && !isOwner}
+          {#if (data.product.status === 'active' || data.product.status === 'available') && !hasAuctionEnded}
+            <!-- Active auction - currently highest bidder -->
+            <div class="highest-bidder-alert">
+              <span class="alert-icon">👑</span>
+              <span class="alert-text">You are currently the highest bidder!</span>
+            </div>
+          {:else if hasAuctionEnded || data.product.status === 'ended' || data.product.status === 'sold'}
+            <!-- Auction ended - winner alert -->
+            <div class="winner-alert">
+              <div class="winner-alert-header">
+                <span class="alert-icon">🎉</span>
+                <span class="alert-text">Congratulations! You won this auction!</span>
+              </div>
+              <p class="winner-alert-message">Please contact the seller to arrange payment and delivery.</p>
+              <a href="/inbox?product={data.product.id}" class="winner-message-btn">
+                💬 Message Seller
               </a>
             </div>
           {/if}
-        {:else if $authStore.isAuthenticated && isOwner && highestBid && data.product.status === 'sold'}
+        {/if}
+
+        <!-- Contact Section for Seller -->
+        {#if $authStore.isAuthenticated && isOwner && highestBid && data.product.status === 'sold'}
           <!-- Sellers can contact buyer only after accepting the bid -->
           <div class="contact-section">
             <a href="/inbox?product={data.product.id}" class="contact-btn">
@@ -1694,6 +1745,88 @@
     letter-spacing: 0.5px;
   }
 
+  /* Winner Alert */
+  .winner-alert {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border: 3px solid #047857;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+    animation: winnerPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes winnerPulse {
+    0%, 100% {
+      box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+      transform: scale(1);
+    }
+    50% {
+      box-shadow: 0 6px 28px rgba(16, 185, 129, 0.6);
+      transform: scale(1.01);
+    }
+  }
+
+  .winner-alert-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .winner-alert-header .alert-icon {
+    font-size: 2.5rem;
+    animation: celebrationBounce 1s ease-in-out infinite;
+  }
+
+  @keyframes celebrationBounce {
+    0%, 100% {
+      transform: scale(1) rotate(0deg);
+    }
+    25% {
+      transform: scale(1.1) rotate(-10deg);
+    }
+    75% {
+      transform: scale(1.1) rotate(10deg);
+    }
+  }
+
+  .winner-alert-header .alert-text {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: white;
+    letter-spacing: 0.5px;
+  }
+
+  .winner-alert-message {
+    color: #f0fdf4;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+  }
+
+  .winner-message-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.5rem;
+    background: white;
+    color: #059669;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 1.125rem;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .winner-message-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    background: #f0fdf4;
+  }
+
   .bid-section {
     background-color: #e7f3ff;
     padding: 1.5rem;
@@ -1702,6 +1835,102 @@
     display: flex;
     flex-direction: column;
     transition: all 0.3s ease;
+  }
+
+  .auction-ended-section {
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    padding: 2rem;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+    text-align: center;
+    border: 2px solid #d1d5db;
+  }
+
+  .ended-header h3 {
+    font-size: 1.5rem;
+    color: #374151;
+    margin-bottom: 1.5rem;
+  }
+
+  .winner-info {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .winner-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+
+  .winner-amount-with-increase {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .winner-amount {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #10b981;
+  }
+
+  .winner-percentage-increase {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .winner-percentage-increase .arrow-up-icon {
+    width: 16px;
+    height: 16px;
+    stroke-width: 3;
+  }
+
+  .winner-bidder {
+    font-size: 1.125rem;
+    color: #374151;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+  }
+
+  .starting-price-note {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 0.5rem;
+  }
+
+  .no-winner-info {
+    padding: 1.5rem;
+  }
+
+  .no-winner-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+  }
+
+  .no-winner-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #ef4444;
+    margin-bottom: 0.5rem;
+  }
+
+  .no-winner-desc {
+    font-size: 1rem;
+    color: #6b7280;
   }
 
   .contact-section {

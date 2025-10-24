@@ -3,11 +3,15 @@
   import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { logout as apiLogout } from '$lib/api';
+  import { logout as apiLogout, getUnreadMessageCount } from '$lib/api';
+  import { onMount, onDestroy } from 'svelte';
 
   $: currentPath = $page.url.pathname;
 
   let mobileMenuOpen = false;
+  let userMenuOpen = false;
+  let unreadCount = 0;
+  let pollInterval: ReturnType<typeof setInterval> | null = null;
 
   function toggleMobileMenu() {
     mobileMenuOpen = !mobileMenuOpen;
@@ -17,13 +21,61 @@
     mobileMenuOpen = false;
   }
 
+  function toggleUserMenu() {
+    userMenuOpen = !userMenuOpen;
+  }
+
+  function closeUserMenu() {
+    userMenuOpen = false;
+  }
+
   async function handleLogout() {
     await apiLogout();
     authStore.logout();
     closeMobileMenu();
+    closeUserMenu();
     goto('/');
   }
+
+  // Close user menu when clicking outside
+  function handleClickOutside(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (userMenuOpen && !target.closest('.user-menu-container')) {
+      closeUserMenu();
+    }
+  }
+
+  // Fetch unread message count
+  async function fetchUnreadCount() {
+    if ($authStore.isAuthenticated) {
+      unreadCount = await getUnreadMessageCount();
+    }
+  }
+
+  onMount(() => {
+    // Fetch unread count on mount
+    fetchUnreadCount();
+
+    // Poll for new messages every 30 seconds
+    pollInterval = setInterval(fetchUnreadCount, 30000);
+  });
+
+  onDestroy(() => {
+    // Clean up interval on destroy
+    if (pollInterval) {
+      clearInterval(pollInterval);
+    }
+  });
+
+  // Refetch when auth state changes
+  $: if ($authStore.isAuthenticated) {
+    fetchUnreadCount();
+  } else {
+    unreadCount = 0;
+  }
 </script>
+
+<svelte:window on:click={handleClickOutside} />
 
 <div class="min-h-screen flex flex-col">
   <!-- Header -->
@@ -36,7 +88,7 @@
         </a>
 
         <!-- Desktop Navigation -->
-        <div class="hidden md:flex md:items-center md:space-x-6">
+        <div class="hidden md:flex md:space-x-6">
           <a
             href="/products"
             class="px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-colors {currentPath.startsWith('/products') ? 'bg-white/20' : ''}"
@@ -49,44 +101,65 @@
           >
             About Us
           </a>
-          {#if $authStore.isAuthenticated}
-            <a
-              href="/dashboard"
-              class="px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-colors {currentPath === '/dashboard' ? 'bg-white/20' : ''}"
-            >
-              My Products
-            </a>
-            <a
-              href="/purchases"
-              class="px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-colors {currentPath === '/purchases' ? 'bg-white/20' : ''}"
-            >
-              My Purchases
-            </a>
-            <a
-              href="/inbox"
-              class="px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-colors {currentPath === '/inbox' ? 'bg-white/20' : ''}"
-            >
-              Inbox
-            </a>
-          {/if}
         </div>
 
         <!-- Desktop Actions -->
         <div class="hidden md:flex md:items-center md:space-x-4">
           {#if $authStore.isAuthenticated}
+            <!-- Inbox Button -->
+            <a
+              href="/inbox"
+              class="relative px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-all {currentPath === '/inbox' ? 'bg-white/20' : ''}"
+              title="Inbox"
+            >
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              {#if unreadCount > 0}
+                <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              {/if}
+            </a>
+
             <a
               href="/sell"
               class="px-4 py-2 bg-green-500 hover:bg-green-600 rounded-md text-sm font-semibold transition-all hover:-translate-y-0.5 shadow-md {currentPath === '/sell' ? 'ring-2 ring-white/50' : ''}"
             >
               + Sell
             </a>
-            <span class="text-sm font-medium">Hi, {$authStore.user?.name || 'User'}!</span>
-            <button
-              on:click={handleLogout}
-              class="px-4 py-2 border border-white/30 bg-white/10 hover:bg-white/20 rounded-md text-sm font-medium transition-colors"
-            >
-              Logout
-            </button>
+
+            <!-- User Menu Dropdown -->
+            <div class="user-menu-container relative">
+              <button
+                on:click|stopPropagation={toggleUserMenu}
+                class="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-colors {userMenuOpen ? 'bg-white/10' : ''}"
+              >
+                <span>Hi, {$authStore.user?.name || 'User'}!</span>
+                <svg class="w-4 h-4 transition-transform {userMenuOpen ? 'rotate-180' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {#if userMenuOpen}
+                <div class="user-menu-dropdown absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 fade-down">
+                  <a
+                    href="/dashboard"
+                    on:click={closeUserMenu}
+                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors {currentPath.startsWith('/dashboard') ? 'bg-gray-50 font-semibold' : ''}"
+                  >
+                    📦 Dashboard
+                  </a>
+                  <div class="border-t border-gray-200 my-1"></div>
+                  <button
+                    on:click={handleLogout}
+                    class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium"
+                  >
+                    🚪 Logout
+                  </button>
+                </div>
+              {/if}
+            </div>
           {:else}
             <a
               href="/login"
@@ -137,27 +210,25 @@
             About Us
           </a>
           {#if $authStore.isAuthenticated}
-            <a
-              href="/dashboard"
-              on:click={closeMobileMenu}
-              class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 {currentPath === '/dashboard' ? 'bg-white/20' : ''}"
-            >
-              My Products
-            </a>
-            <a
-              href="/purchases"
-              on:click={closeMobileMenu}
-              class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 {currentPath === '/purchases' ? 'bg-white/20' : ''}"
-            >
-              My Purchases
-            </a>
+            <!-- Inbox Button -->
             <a
               href="/inbox"
               on:click={closeMobileMenu}
-              class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 {currentPath === '/inbox' ? 'bg-white/20' : ''}"
+              class="flex items-center gap-2 px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 mt-2 {currentPath === '/inbox' ? 'bg-white/20' : ''}"
             >
-              Inbox
+              <div class="relative">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                {#if unreadCount > 0}
+                  <span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                {/if}
+              </div>
+              <span>Inbox</span>
             </a>
+
             <a
               href="/sell"
               on:click={closeMobileMenu}
@@ -165,13 +236,27 @@
             >
               + Sell
             </a>
-            <div class="px-3 py-2 text-sm">Hi, {$authStore.user?.name || 'User'}!</div>
-            <button
-              on:click={handleLogout}
-              class="w-full text-left px-3 py-2 border border-white/30 bg-white/10 hover:bg-white/20 rounded-md text-base font-medium"
+
+            <a
+              href="/dashboard"
+              on:click={closeMobileMenu}
+              class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 mt-2 {currentPath.startsWith('/dashboard') ? 'bg-white/20' : ''}"
             >
-              Logout
-            </button>
+              📦 Dashboard
+            </a>
+
+            <!-- Mobile User Info -->
+            <div class="pt-2 border-t border-white/20 mt-2">
+              <div class="px-3 py-2 text-sm text-white/80">
+                Hi, {$authStore.user?.name || 'User'}!
+              </div>
+              <button
+                on:click={handleLogout}
+                class="w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-300 hover:bg-red-500/20 transition-colors"
+              >
+                🚪 Logout
+              </button>
+            </div>
           {:else}
             <a
               href="/login"
@@ -194,7 +279,7 @@
   </header>
 
   <!-- Main Content -->
-  <main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+  <main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <slot />
   </main>
 

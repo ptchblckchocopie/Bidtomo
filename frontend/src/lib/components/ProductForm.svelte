@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { createProduct, updateProduct, uploadMedia, deleteMedia } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import KeywordInput from './KeywordInput.svelte';
@@ -29,6 +30,10 @@
   let error = '';
   let success = false;
   let hasBids = false;
+  let loadingMessage = '';
+  let showToast = false;
+  let toastMessage = '';
+  let toastType: 'success' | 'error' = 'success';
 
   // Duration controls
   let customDays = 0;
@@ -39,48 +44,73 @@
   // User currency
   $: userCurrency = $authStore.user?.currency || 'PHP';
 
-  // Set default bid interval based on currency
-  $: if (bidInterval === 0 || !bidInterval) {
-    bidInterval = product?.bidInterval || (userCurrency === 'PHP' ? 50 : 1);
+  // Initialize form on mount
+  onMount(() => {
+    // Set default bid interval based on currency if not already set
+    if (bidInterval === 0 || !bidInterval) {
+      bidInterval = product?.bidInterval || (userCurrency === 'PHP' ? 50 : 1);
+    }
+
+    if (mode === 'edit' && product) {
+      title = product.title;
+      description = product.description;
+      keywords = product.keywords?.map(k => k.keyword) || [];
+      startingPrice = product.startingPrice;
+      bidInterval = product.bidInterval;
+
+      // Format and set the auction end date
+      const formattedDate = formatDateForInput(product.auctionEndDate);
+      auctionEndDate = formattedDate;
+      prevAuctionEndDate = formattedDate; // Initialize to prevent reactive updates on mount
+
+      active = product.active;
+      hasBids = !!(product.currentBid && product.currentBid > 0);
+
+      // Load existing images
+      existingImages = product.images?.map((img, index) => ({
+        id: `existing-${index}`,
+        image: typeof img.image === 'object' ? img.image : { id: img.image, url: '', alt: '' }
+      })) || [];
+
+      imageFiles = [];
+      imagesToDelete = [];
+
+      // Calculate initial duration from the date
+      const endDate = new Date(product.auctionEndDate);
+      const now = new Date();
+      if (!isNaN(endDate.getTime())) {
+        const diffMs = endDate.getTime() - now.getTime();
+        const diffHours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+        customDays = Math.floor(diffHours / 24);
+        customHours = diffHours % 24;
+        prevCustomDays = customDays;
+        prevCustomHours = customHours;
+      }
+    } else if (mode === 'create' && !auctionEndDate) {
+      auctionEndDate = getDefaultEndDate();
+      prevAuctionEndDate = auctionEndDate;
+      // Calculate initial duration for the default date (24 hours = 1 day)
+      customDays = 1;
+      customHours = 0;
+      prevCustomDays = 1;
+      prevCustomHours = 0;
+    }
+  });
+
+  // Date formatting helpers that handle local timezone properly
+  function formatDateToLocalInput(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   }
 
-  // Initialize form for edit mode
-  $: if (mode === 'edit' && product) {
-    title = product.title;
-    description = product.description;
-    keywords = product.keywords?.map(k => k.keyword) || [];
-    startingPrice = product.startingPrice;
-    bidInterval = product.bidInterval;
-    auctionEndDate = formatDateForInput(product.auctionEndDate);
-    active = product.active;
-    hasBids = !!(product.currentBid && product.currentBid > 0);
-
-    // Load existing images
-    existingImages = product.images?.map((img, index) => ({
-      id: `existing-${index}`,
-      image: typeof img.image === 'object' ? img.image : { id: img.image, url: '', alt: '' }
-    })) || [];
-
-    imageFiles = [];
-    imagesToDelete = [];
-
-    // Calculate initial duration from the date
-    updateDurationFromDate();
-  } else if (mode === 'create' && !auctionEndDate) {
-    auctionEndDate = getDefaultEndDate();
-    prevAuctionEndDate = auctionEndDate;
-    // Calculate initial duration for the default date (24 hours = 1 day)
-    customDays = 1;
-    customHours = 0;
-    prevCustomDays = 1;
-    prevCustomHours = 0;
-  }
-
-  // Date formatting
   function getDefaultEndDate(): string {
     const date = new Date();
     date.setHours(date.getHours() + 24);
-    return date.toISOString().slice(0, 16);
+    return formatDateToLocalInput(date);
   }
 
   function getMinimumEndDate(): string {
@@ -95,26 +125,21 @@
       if (hoursSinceCreation > 1) {
         const minDate = new Date(now);
         minDate.setMinutes(minDate.getMinutes() + 1);
-        return minDate.toISOString().slice(0, 16);
+        return formatDateToLocalInput(minDate);
       }
     }
 
     // Default: minimum is 1 hour from now
     const minDate = new Date(now);
     minDate.setHours(minDate.getHours() + 1);
-    return minDate.toISOString().slice(0, 16);
+    return formatDateToLocalInput(minDate);
   }
 
   function formatDateForInput(dateString: string): string {
     if (!dateString) return '';
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return '';
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+    return formatDateToLocalInput(date);
   }
 
   // Make minEndDate reactive to mode and product changes
@@ -134,7 +159,7 @@
       isUpdatingFromDuration = true;
       const date = new Date();
       date.setHours(date.getHours() + totalHours);
-      const newDate = date.toISOString().slice(0, 16);
+      const newDate = formatDateToLocalInput(date);
 
       if (newDate !== auctionEndDate) {
         auctionEndDate = newDate;
@@ -294,6 +319,15 @@
     draggingExisting = false;
   }
 
+  function showToastNotification(message: string, type: 'success' | 'error' = 'success') {
+    toastMessage = message;
+    toastType = type;
+    showToast = true;
+    setTimeout(() => {
+      showToast = false;
+    }, 4000);
+  }
+
   async function handleSubmit(e: Event) {
     e.preventDefault();
 
@@ -303,36 +337,61 @@
 
     // Validation
     if (!title || !description || startingPrice <= 0 || !auctionEndDate) {
-      error = 'Please fill in all fields';
+      showToastNotification('Please fill in all required fields', 'error');
       submitting = false;
       return;
     }
 
     if (startingPrice < 100) {
-      error = 'Starting price must be at least 100';
+      showToastNotification('Starting price must be at least 100', 'error');
       submitting = false;
       return;
     }
 
     const totalImages = mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length;
     if (totalImages === 0) {
-      error = 'Please upload at least one product image';
+      showToastNotification('Please upload at least one product image', 'error');
       submitting = false;
       return;
+    }
+
+    // Validate auction end date is in the future
+    const endDate = new Date(auctionEndDate);
+    const now = new Date();
+    const minFutureDate = new Date(now.getTime() + 60000); // At least 1 minute in the future
+
+    if (endDate <= minFutureDate) {
+      if (mode === 'create') {
+        showToastNotification('Auction end date must be at least 1 minute in the future', 'error');
+        submitting = false;
+        // Update the date to minimum valid date
+        auctionEndDate = getMinimumEndDate();
+        return;
+      }
+      // For edit mode, allow dates in the past (for products that haven't ended yet)
+      // The backend will validate this properly
     }
 
     try {
       if (mode === 'edit' && product) {
         // Edit mode: delete old images, upload new ones, update product
-        for (const mediaId of imagesToDelete) {
-          await deleteMedia(mediaId);
+        loadingMessage = 'Preparing your changes...';
+
+        if (imagesToDelete.length > 0) {
+          loadingMessage = `Removing ${imagesToDelete.length} image${imagesToDelete.length > 1 ? 's' : ''}...`;
+          for (const mediaId of imagesToDelete) {
+            await deleteMedia(mediaId);
+          }
         }
 
         const uploadedImageIds: string[] = [];
-        for (const file of imageFiles) {
-          const imageId = await uploadMedia(file);
-          if (imageId) {
-            uploadedImageIds.push(imageId);
+        if (imageFiles.length > 0) {
+          for (let i = 0; i < imageFiles.length; i++) {
+            loadingMessage = `Uploading image ${i + 1} of ${imageFiles.length}...`;
+            const imageId = await uploadMedia(imageFiles[i]);
+            if (imageId) {
+              uploadedImageIds.push(imageId);
+            }
           }
         }
 
@@ -340,6 +399,8 @@
           ...existingImages.map(img => img.image.id),
           ...uploadedImageIds
         ];
+
+        loadingMessage = 'Updating product details...';
 
         const updateData: any = {
           title,
@@ -358,29 +419,34 @@
         const result = await updateProduct(product.id, updateData);
 
         if (result) {
+          loadingMessage = 'Success! Refreshing...';
           success = true;
+          showToastNotification('Product updated successfully!', 'success');
           if (onSuccess) {
             onSuccess(result);
           }
         } else {
-          error = 'Failed to update product. Please try again.';
+          showToastNotification('Failed to update product. Please try again.', 'error');
         }
       } else {
         // Create mode: upload images and create product
         const uploadedImageIds: string[] = [];
 
-        for (const file of imageFiles) {
-          const imageId = await uploadMedia(file);
+        for (let i = 0; i < imageFiles.length; i++) {
+          loadingMessage = `Uploading image ${i + 1} of ${imageFiles.length}...`;
+          const imageId = await uploadMedia(imageFiles[i]);
           if (imageId) {
             uploadedImageIds.push(imageId);
           }
         }
 
         if (uploadedImageIds.length === 0) {
-          error = 'Failed to upload images. Please try again.';
+          showToastNotification('Failed to upload images. Please try again.', 'error');
           submitting = false;
           return;
         }
+
+        loadingMessage = 'Creating your product listing...';
 
         const result = await createProduct({
           title,
@@ -393,36 +459,61 @@
         });
 
         if (result) {
+          loadingMessage = 'Success! Redirecting...';
           success = true;
+          showToastNotification('Product created successfully!', 'success');
           if (onSuccess) {
             onSuccess(result);
           }
         } else {
-          error = 'Failed to create product listing. Please make sure you are logged in.';
+          showToastNotification('Failed to create product. Please make sure you are logged in.', 'error');
         }
       }
     } catch (err) {
-      error = `An error occurred while ${mode === 'edit' ? 'updating' : 'creating'} the product. Please try again.`;
+      // Parse error message if it's a validation error
+      let errorMessage = `An error occurred while ${mode === 'edit' ? 'updating' : 'creating'} the product. Please try again.`;
+
+      if (err instanceof Error) {
+        const errorText = err.message;
+
+        // Check if it's an auction date validation error
+        if (errorText.includes('auctionEndDate') && errorText.includes('must be in the future')) {
+          errorMessage = 'Auction end date must be in the future. Please select a date at least 1 minute from now.';
+          // Reset the date to a valid future date
+          auctionEndDate = getMinimumEndDate();
+          // Recalculate the duration
+          const endDate = new Date(auctionEndDate);
+          const now = new Date();
+          const diffMs = endDate.getTime() - now.getTime();
+          const diffHours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+          customDays = Math.floor(diffHours / 24);
+          customHours = diffHours % 24;
+          prevCustomDays = customDays;
+          prevCustomHours = customHours;
+          prevAuctionEndDate = auctionEndDate;
+        } else if (errorText.includes('ValidationError')) {
+          // Try to extract more specific error message
+          try {
+            const match = errorText.match(/"message":"([^"]+)"/);
+            if (match && match[1]) {
+              errorMessage = match[1];
+            }
+          } catch (e) {
+            // Use default error message
+          }
+        }
+      }
+
+      showToastNotification(errorMessage, 'error');
       console.error('Error:', err);
     }
 
     submitting = false;
+    loadingMessage = '';
   }
 </script>
 
 <form on:submit={handleSubmit} class="product-form">
-  {#if success}
-    <div class="success-message">
-      Product {mode === 'edit' ? 'updated' : 'listed'} successfully!
-    </div>
-  {/if}
-
-  {#if error}
-    <div class="error-message">
-      {error}
-    </div>
-  {/if}
-
   <div class="form-group">
     <label for="title">Product Title *</label>
     <input
@@ -650,6 +741,31 @@
     {/if}
   </div>
 </form>
+
+<!-- Fullscreen Loading Overlay -->
+{#if submitting}
+  <div class="fullscreen-loader">
+    <div class="loader-content">
+      <div class="spinner"></div>
+      <p class="loader-message">{loadingMessage}</p>
+      <p class="loader-hint">Please wait, do not close this window...</p>
+    </div>
+  </div>
+{/if}
+
+<!-- Toast Notification -->
+{#if showToast}
+  <div class="toast {toastType}" class:show={showToast}>
+    <div class="toast-icon">
+      {#if toastType === 'success'}
+        ✓
+      {:else}
+        ✕
+      {/if}
+    </div>
+    <div class="toast-message">{toastMessage}</div>
+  </div>
+{/if}
 
 <style>
   .product-form {
@@ -1017,6 +1133,143 @@
     .btn-primary,
     .btn-secondary {
       width: 100%;
+    }
+  }
+
+  /* Fullscreen Loader */
+  .fullscreen-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.3s ease-in;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .loader-content {
+    text-align: center;
+    color: white;
+    max-width: 400px;
+    padding: 2rem;
+  }
+
+  .spinner {
+    width: 64px;
+    height: 64px;
+    border: 6px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #dc2626;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1.5rem;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .loader-message {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: white;
+  }
+
+  .loader-hint {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+  }
+
+  /* Toast Notification */
+  .toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 24px;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    min-width: 300px;
+    max-width: 500px;
+    animation: slideInRight 0.3s ease-out, fadeOut 0.3s ease-in 3.7s;
+    font-size: 1rem;
+  }
+
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes fadeOut {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  .toast.success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+  }
+
+  .toast.error {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+  }
+
+  .toast-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+
+  .toast-message {
+    flex: 1;
+    font-weight: 500;
+  }
+
+  @media (max-width: 768px) {
+    .toast {
+      top: 10px;
+      right: 10px;
+      left: 10px;
+      min-width: auto;
+      max-width: none;
     }
   }
 </style>

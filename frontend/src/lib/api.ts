@@ -309,6 +309,77 @@ export async function fetchProductsBySeller(sellerId: string): Promise<Product[]
   }
 }
 
+// Fetch active products for seller (not ended by time)
+export async function fetchActiveProductsBySeller(sellerId: string): Promise<Product[]> {
+  try {
+    const now = new Date().toISOString();
+    const response = await fetch(
+      `${API_URL}/api/products?where[and][0][seller][equals]=${sellerId}&where[and][1][status][equals]=available&where[and][2][active][equals]=true&where[and][3][auctionEndDate][greater_than]=${now}`,
+      {
+        headers: getAuthHeaders(),
+        credentials: 'include',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch active products');
+    }
+
+    const data = await response.json();
+    return data.docs || [];
+  } catch (error) {
+    console.error('Error fetching active products:', error);
+    return [];
+  }
+}
+
+// Fetch hidden products for seller
+export async function fetchHiddenProductsBySeller(sellerId: string): Promise<Product[]> {
+  try {
+    const response = await fetch(
+      `${API_URL}/api/products?where[and][0][seller][equals]=${sellerId}&where[and][1][active][equals]=false`,
+      {
+        headers: getAuthHeaders(),
+        credentials: 'include',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch hidden products');
+    }
+
+    const data = await response.json();
+    return data.docs || [];
+  } catch (error) {
+    console.error('Error fetching hidden products:', error);
+    return [];
+  }
+}
+
+// Fetch ended products for seller (sold, ended, or past auction date)
+export async function fetchEndedProductsBySeller(sellerId: string): Promise<Product[]> {
+  try {
+    const now = new Date().toISOString();
+    const response = await fetch(
+      `${API_URL}/api/products?where[and][0][seller][equals]=${sellerId}&where[and][1][or][0][status][equals]=sold&where[and][1][or][1][status][equals]=ended&where[and][1][or][2][and][0][status][equals]=available&where[and][1][or][2][and][1][auctionEndDate][less_than_equal]=${now}`,
+      {
+        headers: getAuthHeaders(),
+        credentials: 'include',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch ended products');
+    }
+
+    const data = await response.json();
+    return data.docs || [];
+  } catch (error) {
+    console.error('Error fetching ended products:', error);
+    return [];
+  }
+}
+
 // Fetch a single product by ID
 export async function fetchProduct(id: string): Promise<Product | null> {
   try {
@@ -723,6 +794,17 @@ export async function fetchConversations(): Promise<{ product: Product; lastMess
   } catch (error) {
     console.error('Error fetching conversations:', error);
     return [];
+  }
+}
+
+// Get total unread message count
+export async function getUnreadMessageCount(): Promise<number> {
+  try {
+    const conversations = await fetchConversations();
+    return conversations.reduce((total, conv) => total + conv.unreadCount, 0);
+  } catch (error) {
+    console.error('Error fetching unread message count:', error);
+    return 0;
   }
 }
 

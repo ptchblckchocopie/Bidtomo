@@ -1,64 +1,82 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import { type Product } from '$lib/api';
+  import { fetchMyPurchases } from '$lib/api';
+  import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
+
   import ImageSlider from '$lib/components/ImageSlider.svelte';
   import ProductForm from '$lib/components/ProductForm.svelte';
 
   export let data: PageData;
 
+  // Tab management
+  type TabType = 'products' | 'purchases';
+  let activeTab: TabType = 'products';
+
   // Separate products by status and visibility
-  $: activeProducts = data.products.filter(p => p.status === 'available' && p.active);
-  $: hiddenProducts = data.products.filter(p => !p.active);
-  $: soldEndedProducts = data.products.filter(p => p.status === 'sold' || p.status === 'ended');
+  $: activeProducts = data.activeProducts;
+  $: hiddenProducts = data.hiddenProducts;
+  $: endedProducts = data.endedProducts;
 
-  // Tab state
-  let activeTab: 'active' | 'hidden' | 'sold' = 'active';
+  // Purchases state
+  let purchases: Product[] = [];
+  let purchasesLoading = false;
+  let purchasesError = '';
 
+  // Modal states
   let showEditModal = false;
   let showViewModal = false;
   let editingProduct: Product | null = null;
   let viewingProduct: Product | null = null;
+  let showProductModal = false;
+  let selectedProduct: Product | null = null;
+
+  // Product view state
+  let productTab: 'active' | 'hidden' | 'ended' = 'active';
+
+  // Currency symbols
+  const currencySymbols: Record<string, string> = {
+    PHP: '₱',
+    USD: '$',
+    EUR: '€',
+    GBP: '£',
+    JPY: '¥',
+  };
 
   function formatPrice(price: number, currency: string = 'PHP'): string {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency,
-    }).format(price);
+    const symbol = currencySymbols[currency] || currency;
+    return `${symbol}${price.toLocaleString()}`;
   }
 
   function formatDate(dateString: string): string {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     });
   }
 
-  function formatDateForInput(dateString: string): string {
-    // Convert ISO string to datetime-local format (YYYY-MM-DDTHH:mm)
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '';
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  function getStatusText(status: string): string {
+    switch (status) {
+      case 'available': return 'Active';
+      case 'sold': return 'Sold';
+      case 'ended': return 'Ended';
+      case 'cancelled': return 'Cancelled';
+      default: return status;
+    }
   }
 
-  function getStatusColor(status: string): string {
+  function getStatusBadgeClass(status: string): string {
     switch (status) {
-      case 'available':
-        return '#10b981';
-      case 'ended':
-        return '#ef4444';
-      case 'sold':
-        return '#3b82f6';
-      default:
-        return '#6b7280';
+      case 'available': return 'status-active';
+      case 'sold': return 'status-sold';
+      case 'ended': return 'status-ended';
+      case 'cancelled': return 'status-cancelled';
+      default: return 'status-other';
     }
   }
 
@@ -74,14 +92,53 @@
   }
 
   function handleEditSuccess(updatedProduct: Product) {
-    // Update the product in the local data
-    const index = data.products.findIndex(p => p.id === editingProduct!.id);
-    if (index !== -1) {
-      data.products[index] = {
-        ...updatedProduct,
-        seller: editingProduct!.seller // Preserve the original seller object
-      };
+    // Update the product in the correct array and trigger reactivity
+    const updateInArray = (arr: Product[]) => {
+      const index = arr.findIndex(p => p.id === editingProduct!.id);
+      if (index !== -1) {
+        arr[index] = {
+          ...updatedProduct,
+          seller: editingProduct!.seller
+        };
+        return true;
+      }
+      return false;
+    };
+
+    // Try to find and update in each array
+    let found = false;
+    if (updateInArray(data.activeProducts)) {
+      data.activeProducts = [...data.activeProducts]; // Trigger reactivity
+      found = true;
+    } else if (updateInArray(data.hiddenProducts)) {
+      data.hiddenProducts = [...data.hiddenProducts]; // Trigger reactivity
+      found = true;
+    } else if (updateInArray(data.endedProducts)) {
+      data.endedProducts = [...data.endedProducts]; // Trigger reactivity
+      found = true;
     }
+
+    // Check if product moved between categories (e.g., active changed)
+    if (found && editingProduct) {
+      const productId = editingProduct.id;
+      const wasActive = editingProduct.active;
+      const isActive = updatedProduct.active;
+
+      // If active status changed, move product between arrays
+      if (wasActive !== isActive) {
+        // Remove from current array
+        data.activeProducts = data.activeProducts.filter(p => p.id !== productId);
+        data.hiddenProducts = data.hiddenProducts.filter(p => p.id !== productId);
+
+        // Add to correct array
+        if (isActive) {
+          data.activeProducts = [...data.activeProducts, { ...updatedProduct, seller: editingProduct.seller }];
+        } else {
+          data.hiddenProducts = [...data.hiddenProducts, { ...updatedProduct, seller: editingProduct.seller }];
+        }
+      }
+    }
+
     setTimeout(() => {
       closeEditModal();
     }, 1500);
@@ -96,251 +153,374 @@
     showViewModal = false;
     viewingProduct = null;
   }
+
+  function openProductModal(product: Product) {
+    selectedProduct = product;
+    showProductModal = true;
+  }
+
+  function closeProductModal() {
+    showProductModal = false;
+    selectedProduct = null;
+  }
+
+  // Load purchases when switching to purchases tab
+  async function loadPurchases() {
+    if (purchases.length > 0) return; // Already loaded
+
+    purchasesLoading = true;
+    purchasesError = '';
+    try {
+      purchases = await fetchMyPurchases();
+    } catch (err) {
+      purchasesError = 'Failed to load your purchases. Please try again.';
+      console.error('Error loading purchases:', err);
+    } finally {
+      purchasesLoading = false;
+    }
+  }
+
+  // Tab switching with URL and localStorage persistence
+  function switchTab(tab: TabType) {
+    activeTab = tab;
+
+    // Save to localStorage
+    if (browser) {
+      localStorage.setItem('dashboardTab', tab);
+    }
+
+    // Update URL without navigation
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tab);
+    window.history.replaceState({}, '', url.toString());
+
+    // Load purchases data if switching to purchases tab
+    if (tab === 'purchases') {
+      loadPurchases();
+    }
+  }
+
+  // Initialize tab from URL or localStorage
+  onMount(() => {
+    if (!browser) return;
+
+    // Check URL parameter first
+    const urlTab = $page.url.searchParams.get('tab');
+    if (urlTab === 'products' || urlTab === 'purchases') {
+      activeTab = urlTab;
+    } else {
+      // Check localStorage
+      const savedTab = localStorage.getItem('dashboardTab');
+      if (savedTab === 'products' || savedTab === 'purchases') {
+        activeTab = savedTab;
+      }
+    }
+
+    // Update URL to match
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', activeTab);
+    window.history.replaceState({}, '', url.toString());
+
+    // Load purchases if on purchases tab
+    if (activeTab === 'purchases') {
+      loadPurchases();
+    }
+  });
 </script>
 
 <svelte:head>
-  <title>Seller Dashboard - BidMo.to</title>
+  <title>Dashboard - BidMo.to</title>
 </svelte:head>
 
-<div class="dashboard">
-  <div class="dashboard-header">
-    <h1>Seller Dashboard</h1>
-    <p>Welcome back, {data.user.name}!</p>
-    <a href="/sell" class="btn-create">+ Create New Product</a>
+<div class="dashboard-page">
+  <div class="page-header">
+    <h1>Dashboard</h1>
+    <p class="subtitle">Manage your products and purchases</p>
   </div>
 
-  {#if data.products.length === 0}
-    <div class="empty-state">
-      <h2>No Products Yet</h2>
-      <p>You haven't created any products yet. Start selling by creating your first product!</p>
-      <a href="/sell" class="btn-primary">Create Your First Product</a>
-    </div>
-  {:else}
-    <!-- Tabs -->
-    <div class="tabs">
-      <button
-        class="tab"
-        class:active={activeTab === 'active'}
-        on:click={() => activeTab = 'active'}
-      >
-        Active Listings ({activeProducts.length})
-      </button>
-      <button
-        class="tab"
-        class:active={activeTab === 'hidden'}
-        on:click={() => activeTab = 'hidden'}
-      >
-        Hidden ({hiddenProducts.length})
-      </button>
-      <button
-        class="tab"
-        class:active={activeTab === 'sold'}
-        on:click={() => activeTab = 'sold'}
-      >
-        Sold & Ended ({soldEndedProducts.length})
-      </button>
-    </div>
+  <!-- Main Tabs -->
+  <div class="main-tabs">
+    <button
+      class="main-tab"
+      class:active={activeTab === 'products'}
+      on:click={() => switchTab('products')}
+    >
+      <span class="tab-icon">📦</span>
+      <span class="tab-label">My Products</span>
+    </button>
+    <button
+      class="main-tab"
+      class:active={activeTab === 'purchases'}
+      on:click={() => switchTab('purchases')}
+    >
+      <span class="tab-icon">🛍️</span>
+      <span class="tab-label">My Purchases</span>
+    </button>
+  </div>
 
-    <!-- Active Products Tab -->
-    {#if activeTab === 'active'}
-      {#if activeProducts.length > 0}
-        <div class="products-list">
-          {#each activeProducts as product}
-            <div class="product-item">
-              <div class="product-item-image">
-                {#if product.images && product.images.length > 0}
-                  <img src="{product.images[0].image.url}" alt="{product.title}" />
-                {:else}
-                  <div class="placeholder-image-small">📦</div>
-                {/if}
-              </div>
+  <!-- Tab Content -->
+  <div class="tab-content">
+    {#if activeTab === 'products'}
+      <!-- My Products Tab Content -->
+      <div class="products-section">
+        <!-- Sub-tabs for product status -->
+        <div class="sub-tabs">
+          <button
+            class="sub-tab"
+            class:active={productTab === 'active'}
+            on:click={() => productTab = 'active'}
+          >
+            Active ({activeProducts.length})
+          </button>
+          <button
+            class="sub-tab"
+            class:active={productTab === 'hidden'}
+            on:click={() => productTab = 'hidden'}
+          >
+            Hidden ({hiddenProducts.length})
+          </button>
+          <button
+            class="sub-tab"
+            class:active={productTab === 'ended'}
+            on:click={() => productTab = 'ended'}
+          >
+            Ended ({endedProducts.length})
+          </button>
+        </div>
 
-              <div class="product-item-info">
-                <h3>{product.title}</h3>
-                <div class="product-meta">
-                  <span class="status-badge-small" style="background-color: {getStatusColor(product.status)}">
-                    {product.status}
-                  </span>
-                  {#if product.currentBid && product.currentBid > product.startingPrice}
-                    <span class="growth-badge">
-                      ↑ {Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%
-                    </span>
-                  {/if}
-                  <span class="product-date">Ends: {formatDate(product.auctionEndDate)}</span>
-                </div>
-              </div>
-
-              <div class="product-item-price">
-                <div class="price-label">Current Bid</div>
-                <div class="price-value">
-                  {product.currentBid ? formatPrice(product.currentBid, product.seller.currency) : formatPrice(product.startingPrice, product.seller.currency)}
-                </div>
-                {#if product.currentBid}
-                  <div class="price-sublabel">
-                    from {formatPrice(product.startingPrice, product.seller.currency)}
-                    <span class="price-growth">
-                      (+{Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%)
-                    </span>
-                  </div>
-                {:else}
-                  <div class="price-sublabel">Starting price</div>
-                {/if}
-              </div>
-
-              <div class="product-item-actions">
-                <button on:click={() => openViewModal(product)} class="btn-view-small">
-                  View
-                </button>
-                <button on:click={() => openEditModal(product)} class="btn-edit-small">
-                  Edit
-                </button>
-              </div>
+        <!-- Product Lists -->
+        {#if productTab === 'active'}
+          {#if activeProducts.length === 0}
+            <div class="empty-state">
+              <div class="empty-icon">📦</div>
+              <h2>No Active Products</h2>
+              <p>You don't have any active products. Start selling now!</p>
+              <a href="/sell" class="btn-primary">+ List a Product</a>
             </div>
-          {/each}
-        </div>
-      {:else}
-        <div class="empty-state">
-          <p>No active listings yet. Create your first product to get started!</p>
-        </div>
-      {/if}
-    {/if}
-
-    <!-- Hidden Products Tab -->
-    {#if activeTab === 'hidden'}
-      {#if hiddenProducts.length > 0}
-        <div class="products-list">
-          {#each hiddenProducts as product}
-            <div class="product-item">
-              <div class="product-item-image">
-                {#if product.images && product.images.length > 0}
-                  <img src="{product.images[0].image.url}" alt="{product.title}" />
-                {:else}
-                  <div class="placeholder-image-small">📦</div>
-                {/if}
-              </div>
-
-              <div class="product-item-info">
-                <h3>{product.title}</h3>
-                <div class="product-meta">
-                  <span class="status-badge-small" style="background-color: {getStatusColor(product.status)}">
-                    {product.status}
-                  </span>
-                  <span class="inactive-badge">Hidden</span>
-                  {#if product.currentBid && product.currentBid > product.startingPrice}
-                    <span class="growth-badge">
-                      ↑ {Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%
-                    </span>
-                  {/if}
-                  <span class="product-date">
-                    {product.status === 'available' ? 'Ends' : 'Ended'}: {formatDate(product.auctionEndDate)}
-                  </span>
-                </div>
-              </div>
-
-              <div class="product-item-price">
-                <div class="price-label">{product.status === 'available' ? 'Current Bid' : 'Final Price'}</div>
-                <div class="price-value">
-                  {product.currentBid ? formatPrice(product.currentBid, product.seller.currency) : formatPrice(product.startingPrice, product.seller.currency)}
-                </div>
-                {#if product.currentBid}
-                  <div class="price-sublabel">
-                    from {formatPrice(product.startingPrice, product.seller.currency)}
-                    <span class="price-growth">
-                      (+{Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%)
-                    </span>
+          {:else}
+            <div class="products-grid">
+              {#each activeProducts as product}
+                <div class="product-card">
+                  <div class="product-image" on:click={() => openViewModal(product)} role="button" tabindex="0">
+                    {#if product.images && product.images.length > 0}
+                      {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
+                      {#if validImages.length > 0}
+                        {@const firstImage = validImages[0]}
+                        <img src={firstImage.image.url} alt={product.title} />
+                      {:else}
+                        <div class="placeholder-image">
+                          <span class="placeholder-icon">📦</span>
+                        </div>
+                      {/if}
+                    {:else}
+                      <div class="placeholder-image">
+                        <span class="placeholder-icon">📦</span>
+                      </div>
+                    {/if}
                   </div>
-                {:else if product.status === 'available'}
-                  <div class="price-sublabel">Starting price</div>
-                {/if}
-              </div>
 
-              <div class="product-item-actions">
-                <button on:click={() => openViewModal(product)} class="btn-view-small">
-                  View
-                </button>
-                <button on:click={() => openEditModal(product)} class="btn-edit-small">
-                  Edit
-                </button>
-              </div>
-            </div>
-          {/each}
-        </div>
-      {:else}
-        <div class="empty-state">
-          <p>No hidden products. Products marked as inactive will appear here.</p>
-        </div>
-      {/if}
-    {/if}
-
-    <!-- Sold & Ended Products Tab -->
-    {#if activeTab === 'sold'}
-      {#if soldEndedProducts.length > 0}
-        <div class="products-list">
-          {#each soldEndedProducts as product}
-            <div class="product-item">
-              <div class="product-item-image">
-                {#if product.images && product.images.length > 0}
-                  <img src="{product.images[0].image.url}" alt="{product.title}" />
-                {:else}
-                  <div class="placeholder-image-small">📦</div>
-                {/if}
-              </div>
-
-              <div class="product-item-info">
-                <h3>{product.title}</h3>
-                <div class="product-meta">
-                  <span class="status-badge-small" style="background-color: {getStatusColor(product.status)}">
-                    {product.status}
-                  </span>
-                  {#if product.currentBid && product.currentBid > product.startingPrice}
-                    <span class="growth-badge">
-                      ↑ {Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%
-                    </span>
-                  {/if}
-                  <span class="product-date">Ended: {formatDate(product.auctionEndDate)}</span>
-                </div>
-              </div>
-
-              <div class="product-item-price">
-                <div class="price-label">Final Price</div>
-                <div class="price-value">
-                  {product.currentBid ? formatPrice(product.currentBid, product.seller.currency) : formatPrice(product.startingPrice, product.seller.currency)}
-                </div>
-                {#if product.currentBid}
-                  <div class="price-sublabel">
-                    from {formatPrice(product.startingPrice, product.seller.currency)}
-                    <span class="price-growth">
-                      (+{Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%)
-                    </span>
+                  <div class="product-details">
+                    <h3>{product.title}</h3>
+                    <div class="product-price">
+                      <div class="price-row">
+                        <span class="price-label">Starting:</span>
+                        <span class="price-value">{formatPrice(product.startingPrice, product.seller.currency)}</span>
+                      </div>
+                      {#if product.currentBid}
+                        <div class="price-row current-bid">
+                          <span class="price-label">Current Bid:</span>
+                          <span class="price-value">{formatPrice(product.currentBid, product.seller.currency)}</span>
+                        </div>
+                      {/if}
+                    </div>
+                    <div class="product-meta">
+                      <span class="meta-item">📅 Ends: {formatDate(product.auctionEndDate)}</span>
+                      <span class="status-badge {getStatusBadgeClass(product.status)}">
+                        {getStatusText(product.status)}
+                      </span>
+                    </div>
                   </div>
-                {/if}
-              </div>
 
-              <div class="product-item-actions">
-                <button on:click={() => openViewModal(product)} class="btn-view-small">
-                  View
-                </button>
-                {#if product.currentBid}
-                  <a href="/inbox?product={product.id}" class="btn-message">
-                    💬 Message
-                  </a>
-                {/if}
-                {#if product.status !== 'sold'}
-                  <button on:click={() => openEditModal(product)} class="btn-edit-small">
-                    Edit
-                  </button>
-                {/if}
-              </div>
+                  <div class="product-actions">
+                    <button class="btn-edit" on:click={() => openEditModal(product)}>
+                      ✏️ Edit
+                    </button>
+                    <button class="btn-view" on:click={() => openViewModal(product)}>
+                      👁️ View
+                    </button>
+                  </div>
+                </div>
+              {/each}
             </div>
-          {/each}
-        </div>
-      {:else}
-        <div class="empty-state">
-          <p>No sold or ended listings yet.</p>
-        </div>
-      {/if}
+          {/if}
+        {:else if productTab === 'hidden'}
+          {#if hiddenProducts.length === 0}
+            <div class="empty-state">
+              <div class="empty-icon">🙈</div>
+              <h2>No Hidden Products</h2>
+              <p>You don't have any hidden products.</p>
+            </div>
+          {:else}
+            <div class="products-grid">
+              {#each hiddenProducts as product}
+                <div class="product-card">
+                  <div class="product-image" on:click={() => openViewModal(product)} role="button" tabindex="0">
+                    {#if product.images && product.images.length > 0}
+                      {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
+                      {#if validImages.length > 0}
+                        {@const firstImage = validImages[0]}
+                        <img src={firstImage.image.url} alt={product.title} />
+                      {:else}
+                        <div class="placeholder-image">
+                          <span class="placeholder-icon">📦</span>
+                        </div>
+                      {/if}
+                    {:else}
+                      <div class="placeholder-image">
+                        <span class="placeholder-icon">📦</span>
+                      </div>
+                    {/if}
+                  </div>
+
+                  <div class="product-details">
+                    <h3>{product.title}</h3>
+                    <div class="product-price">
+                      <div class="price-row">
+                        <span class="price-label">Starting:</span>
+                        <span class="price-value">{formatPrice(product.startingPrice, product.seller.currency)}</span>
+                      </div>
+                      {#if product.currentBid}
+                        <div class="price-row current-bid">
+                          <span class="price-label">Current Bid:</span>
+                          <span class="price-value">{formatPrice(product.currentBid, product.seller.currency)}</span>
+                        </div>
+                      {/if}
+                    </div>
+                    <div class="product-meta">
+                      <span class="meta-item">📅 Ends: {formatDate(product.auctionEndDate)}</span>
+                      <span class="status-badge status-hidden">Hidden</span>
+                    </div>
+                  </div>
+
+                  <div class="product-actions">
+                    <button class="btn-edit" on:click={() => openEditModal(product)}>
+                      ✏️ Edit
+                    </button>
+                    <button class="btn-view" on:click={() => openViewModal(product)}>
+                      👁️ View
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        {:else if productTab === 'ended'}
+          {#if endedProducts.length === 0}
+            <div class="empty-state">
+              <div class="empty-icon">🏁</div>
+              <h2>No Ended Auctions</h2>
+              <p>When your auctions end, they'll appear here.</p>
+            </div>
+          {:else}
+            <div class="products-grid">
+              {#each endedProducts as product}
+                <div class="product-card">
+                  <div class="product-image" on:click={() => openViewModal(product)} role="button" tabindex="0">
+                    {#if product.images && product.images.length > 0}
+                      {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
+                      {#if validImages.length > 0}
+                        {@const firstImage = validImages[0]}
+                        <img src={firstImage.image.url} alt={product.title} />
+                      {:else}
+                        <div class="placeholder-image">
+                          <span class="placeholder-icon">📦</span>
+                        </div>
+                      {/if}
+                    {:else}
+                      <div class="placeholder-image">
+                        <span class="placeholder-icon">📦</span>
+                      </div>
+                    {/if}
+                  </div>
+
+                  <div class="product-details">
+                    <h3>{product.title}</h3>
+                    <div class="product-price">
+                      <div class="price-row">
+                        <span class="price-label">{product.status === 'sold' ? 'Sold for:' : 'Final bid:'}</span>
+                        <span class="price-value sold">{formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}</span>
+                      </div>
+                    </div>
+                    <div class="product-meta">
+                      <span class="meta-item">📅 Ended: {formatDate(product.auctionEndDate)}</span>
+                      <span class="status-badge {getStatusBadgeClass(product.status)}">{getStatusText(product.status)}</span>
+                    </div>
+                  </div>
+
+                  <div class="product-actions">
+                    <button class="btn-view" on:click={() => openViewModal(product)}>
+                      👁️ View
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        {/if}
+      </div>
+    {:else}
+      <!-- My Purchases Tab Content -->
+      <div class="purchases-section">
+        {#if purchasesLoading}
+          <div class="loading">Loading your purchases...</div>
+        {:else if purchasesError}
+          <div class="error-message">{purchasesError}</div>
+        {:else if purchases.length === 0}
+          <div class="empty-state">
+            <div class="empty-icon">🛍️</div>
+            <h2>No Purchases Yet</h2>
+            <p>You haven't won any auctions yet. Start bidding to see your purchases here!</p>
+            <a href="/products" class="btn-primary">Browse Products</a>
+          </div>
+        {:else}
+          <div class="purchases-list">
+            {#each purchases as product}
+              <div class="purchase-item" on:click={() => openProductModal(product)} role="button" tabindex="0">
+                <div class="purchase-image">
+                  {#if product.images && product.images.length > 0}
+                    {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
+                    {#if validImages.length > 0}
+                      {@const firstImage = validImages[0]}
+                      <img src={firstImage.image.url} alt={product.title} />
+                    {:else}
+                      <div class="placeholder-image">
+                        <span class="placeholder-icon">📦</span>
+                      </div>
+                    {/if}
+                  {:else}
+                    <div class="placeholder-image">
+                      <span class="placeholder-icon">📦</span>
+                    </div>
+                  {/if}
+                </div>
+
+                <div class="purchase-details">
+                  <h3>{product.title}</h3>
+                  <div class="purchase-meta">
+                    <span class="purchase-price">Won for: {formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}</span>
+                    <span class="purchase-date">📅 {formatDate(product.updatedAt)}</span>
+                  </div>
+                  <span class="status-badge {getStatusBadgeClass(product.status)}">
+                    {getStatusText(product.status)}
+                  </span>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
     {/if}
-  {/if}
+  </div>
 </div>
 
 <!-- Edit Product Modal -->
@@ -372,7 +552,6 @@
       <button class="modal-close" on:click={closeViewModal}>&times;</button>
 
       <div class="modal-body">
-        <!-- Image Slider -->
         {#if viewingProduct.images && viewingProduct.images.length > 0}
           {@const validImages = viewingProduct.images.filter(img => img && img.image && img.image.url)}
           {#if validImages.length > 0}
@@ -390,83 +569,86 @@
           </div>
         {/if}
 
-        <!-- Product Info -->
-        <div class="modal-info-section">
-          <div class="modal-header-view">
-            <h2>{viewingProduct.title}</h2>
-            <span class="status-badge-view" style="background-color: {getStatusColor(viewingProduct.status)}">
-              {viewingProduct.status}
-            </span>
-          </div>
+        <div class="modal-info">
+          <h2>{viewingProduct.title}</h2>
+          <p class="product-description">{viewingProduct.description}</p>
 
-          <div class="product-detail-grid">
-            <div class="detail-item">
-              <span class="detail-label">Status</span>
-              <span class="detail-value">
-                {viewingProduct.active ? 'Visible' : 'Hidden'}
-              </span>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Starting Price:</span>
+              <span class="info-value">{formatPrice(viewingProduct.startingPrice, viewingProduct.seller.currency)}</span>
             </div>
-
-            <div class="detail-item">
-              <span class="detail-label">Starting Bid</span>
-              <span class="detail-value">{formatPrice(viewingProduct.startingPrice, viewingProduct.seller.currency)}</span>
-            </div>
-
-            <div class="detail-item">
-              <span class="detail-label">{viewingProduct.status === 'available' ? 'Current Bid' : 'Final Price'}</span>
-              <span class="detail-value price-highlight">
-                {formatPrice(viewingProduct.currentBid || viewingProduct.startingPrice, viewingProduct.seller.currency)}
-              </span>
-            </div>
-
-            <div class="detail-item">
-              <span class="detail-label">Auction {viewingProduct.status === 'available' ? 'Ends' : 'Ended'}</span>
-              <span class="detail-value">{formatDate(viewingProduct.auctionEndDate)}</span>
-            </div>
-
-            <div class="detail-item">
-              <span class="detail-label">Bid Increment</span>
-              <span class="detail-value">{formatPrice(viewingProduct.bidInterval, viewingProduct.seller.currency)}</span>
-            </div>
-          </div>
-
-          {#if viewingProduct.description}
-            <div class="description-section">
-              <h3>Description</h3>
-              <p>{viewingProduct.description}</p>
-            </div>
-          {/if}
-
-          {#if viewingProduct.keywords && viewingProduct.keywords.length > 0}
-            <div class="keywords-section">
-              <h3>Tags</h3>
-              <div class="keywords-list">
-                {#each viewingProduct.keywords as keyword}
-                  <span class="keyword-tag">
-                    {typeof keyword === 'string'
-                      ? keyword
-                      : (keyword?.keyword || keyword?.value || keyword?.label || keyword?.name || JSON.stringify(keyword))}
-                  </span>
-                {/each}
+            {#if viewingProduct.currentBid}
+              <div class="info-item">
+                <span class="info-label">Current Bid:</span>
+                <span class="info-value">{formatPrice(viewingProduct.currentBid, viewingProduct.seller.currency)}</span>
               </div>
+            {/if}
+            <div class="info-item">
+              <span class="info-label">Auction Ends:</span>
+              <span class="info-value">{formatDate(viewingProduct.auctionEndDate)}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Status:</span>
+              <span class="status-badge {getStatusBadgeClass(viewingProduct.status)}">
+                {getStatusText(viewingProduct.status)}
+              </span>
+            </div>
+          </div>
+
+          <a href="/products/{viewingProduct.id}" class="btn-view-full">View Full Details</a>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Purchase Product Modal -->
+{#if showProductModal && selectedProduct}
+  <div class="modal-overlay" on:click={closeProductModal} on:keydown={(e) => e.key === 'Escape' && closeProductModal()} role="button" tabindex="-1">
+    <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation role="dialog" tabindex="-1">
+      <button class="modal-close" on:click={closeProductModal}>&times;</button>
+
+      <div class="modal-body">
+        {#if selectedProduct.images && selectedProduct.images.length > 0}
+          {@const validImages = selectedProduct.images.filter(img => img && img.image && img.image.url)}
+          {#if validImages.length > 0}
+            <div class="modal-image-section">
+              <ImageSlider images={validImages} productTitle={selectedProduct.title} />
+            </div>
+          {:else}
+            <div class="modal-placeholder-image">
+              <span class="placeholder-icon">📦</span>
             </div>
           {/if}
-
-          <div class="modal-actions">
-            <a href="/products/{viewingProduct.id}" class="btn-open-page" target="_blank" rel="noopener noreferrer">
-              🔗 Open Product Page
-            </a>
-            <button on:click={() => {
-              const product = viewingProduct;
-              closeViewModal();
-              openEditModal(product);
-            }} class="btn-edit-modal">
-              ✏️ Edit Product
-            </button>
-            <button on:click={closeViewModal} class="btn-close-modal">
-              Close
-            </button>
+        {:else}
+          <div class="modal-placeholder-image">
+            <span class="placeholder-icon">📦</span>
           </div>
+        {/if}
+
+        <div class="modal-info">
+          <h2>{selectedProduct.title}</h2>
+          <p class="product-description">{selectedProduct.description}</p>
+
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Won For:</span>
+              <span class="info-value won">{formatPrice(selectedProduct.currentBid || selectedProduct.startingPrice, selectedProduct.seller.currency)}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Purchase Date:</span>
+              <span class="info-value">{formatDate(selectedProduct.updatedAt)}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Status:</span>
+              <span class="status-badge {getStatusBadgeClass(selectedProduct.status)}">
+                {getStatusText(selectedProduct.status)}
+              </span>
+            </div>
+          </div>
+
+          <a href="/products/{selectedProduct.id}" class="btn-view-full">View Full Details</a>
         </div>
       </div>
     </div>
@@ -474,267 +656,412 @@
 {/if}
 
 <style>
-  .dashboard {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 2rem;
+  .dashboard-page {
+    min-height: calc(100vh - 200px);
   }
 
-  .dashboard-header {
-    margin-bottom: 3rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
-  }
-
-  .dashboard-header h1 {
-    font-size: 2.5rem;
-    margin: 0;
-    color: #333;
-  }
-
-  .dashboard-header p {
-    margin: 0.5rem 0 0 0;
-    color: #666;
-    font-size: 1.1rem;
-  }
-
-  .btn-create {
-    padding: 0.875rem 1.5rem;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
-    text-decoration: none;
-    border-radius: 8px;
-    font-weight: 600;
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  .btn-create:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: 4rem 2rem;
-    background-color: #f9fafb;
-    border-radius: 12px;
-    border: 2px dashed #d1d5db;
-  }
-
-  .empty-state h2 {
-    font-size: 1.75rem;
-    color: #333;
-    margin-bottom: 1rem;
-  }
-
-  .empty-state p {
-    font-size: 1.1rem;
-    color: #666;
+  .page-header {
     margin-bottom: 2rem;
   }
 
-  .btn-primary {
-    display: inline-block;
-    padding: 1rem 2rem;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    text-decoration: none;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 1.1rem;
-    transition: transform 0.2s, box-shadow 0.2s;
+  .page-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
   }
 
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  .subtitle {
+    color: #6b7280;
+    font-size: 1.125rem;
   }
 
-  /* Tabs */
-  .tabs {
+  /* Main Tabs */
+  .main-tabs {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 2rem;
     border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 2rem;
   }
 
-  .tab {
-    padding: 0.875rem 1.5rem;
-    background: none;
+  .main-tab {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 2rem;
+    background: transparent;
     border: none;
     border-bottom: 3px solid transparent;
     color: #6b7280;
+    font-size: 1.125rem;
     font-weight: 600;
-    font-size: 1rem;
     cursor: pointer;
     transition: all 0.2s;
     margin-bottom: -2px;
   }
 
-  .tab:hover {
-    color: #333;
-    background-color: #f9fafb;
+  .main-tab:hover {
+    color: #dc2626;
+    background: rgba(220, 38, 38, 0.05);
   }
 
-  .tab.active {
+  .main-tab.active {
+    color: #dc2626;
+    border-bottom-color: #dc2626;
+    background: rgba(220, 38, 38, 0.05);
+  }
+
+  .tab-icon {
+    font-size: 1.5rem;
+  }
+
+  /* Sub Tabs */
+  .sub-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .sub-tab {
+    padding: 0.75rem 1.5rem;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #6b7280;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: -1px;
+  }
+
+  .sub-tab:hover {
+    color: #dc2626;
+  }
+
+  .sub-tab.active {
     color: #dc2626;
     border-bottom-color: #dc2626;
   }
 
-  /* Products List */
-  .products-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+  /* Tab Content */
+  .tab-content {
+    animation: fadeIn 0.3s ease-in;
   }
 
-  .product-item {
-    background-color: white;
-    border-radius: 8px;
-    padding: 1.25rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    display: flex;
-    gap: 1.25rem;
-    align-items: center;
-    transition: box-shadow 0.2s;
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
-  .product-item:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  /* Products Grid */
+  .products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
   }
 
-  .product-item-image {
-    width: 80px;
-    height: 80px;
-    flex-shrink: 0;
-    border-radius: 6px;
+  .product-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     overflow: hidden;
-    background-color: #f3f4f6;
+    transition: all 0.3s ease;
   }
 
-  .product-item-image img {
+  .product-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(-4px);
+  }
+
+  .product-image {
+    width: 100%;
+    height: 200px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #f3f4f6;
+  }
+
+  .product-image img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
 
-  .placeholder-image-small {
+  .placeholder-image {
     width: 100%;
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2rem;
-    background-color: #e5e7eb;
-    color: #9ca3af;
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
   }
 
-  .product-item-info {
-    flex: 1;
-    min-width: 0;
+  .placeholder-icon {
+    font-size: 4rem;
+    opacity: 0.3;
   }
 
-  .product-item-info h3 {
+  .product-details {
+    padding: 1.25rem;
+  }
+
+  .product-details h3 {
     font-size: 1.125rem;
-    margin: 0 0 0.5rem 0;
-    color: #333;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #1f2937;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .product-price {
+    margin-bottom: 0.75rem;
+  }
+
+  .price-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .price-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+
+  .price-value {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #1f2937;
+  }
+
+  .price-value.sold,
+  .price-value.won {
+    color: #059669;
+  }
+
+  .current-bid .price-value {
+    color: #dc2626;
   }
 
   .product-meta {
     display: flex;
-    gap: 1rem;
+    justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e5e7eb;
   }
 
-  .status-badge-small {
-    display: inline-block;
-    padding: 0.25rem 0.625rem;
-    border-radius: 4px;
-    color: white;
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-  }
-
-  .inactive-badge {
-    display: inline-block;
-    padding: 0.25rem 0.625rem;
-    border-radius: 4px;
-    background-color: #6b7280;
-    color: white;
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-  }
-
-  .growth-badge {
-    display: inline-block;
-    padding: 0.25rem 0.625rem;
-    border-radius: 4px;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    font-weight: 700;
-    font-size: 0.75rem;
-    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
-    animation: pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% {
-      transform: scale(1);
-    }
-    50% {
-      transform: scale(1.05);
-    }
-  }
-
-  .product-date {
+  .meta-item {
     font-size: 0.875rem;
-    color: #666;
+    color: #6b7280;
   }
 
-  .product-item-price {
-    text-align: right;
-    padding: 0 1rem;
-  }
-
-  .price-label {
+  .status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
     font-size: 0.75rem;
-    color: #666;
-    margin-bottom: 0.25rem;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
   }
 
-  .price-value {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #10b981;
+  .status-active {
+    background: #dcfce7;
+    color: #166534;
   }
 
-  .price-sublabel {
-    font-size: 0.75rem;
-    color: #999;
-    margin-top: 0.25rem;
+  .status-sold {
+    background: #dbeafe;
+    color: #1e40af;
   }
 
-  .price-growth {
-    color: #10b981;
-    font-weight: 700;
-    margin-left: 0.25rem;
+  .status-ended {
+    background: #fee2e2;
+    color: #991b1b;
   }
 
-  .product-item-actions {
+  .status-hidden {
+    background: #f3f4f6;
+    color: #6b7280;
+  }
+
+  .status-cancelled {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .product-actions {
     display: flex;
     gap: 0.5rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .btn-edit,
+  .btn-view {
+    flex: 1;
+    padding: 0.625rem 1rem;
+    border-radius: 6px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-edit {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .btn-edit:hover {
+    background: #fde68a;
+  }
+
+  .btn-view {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .btn-view:hover {
+    background: #bfdbfe;
+  }
+
+  /* Purchases List */
+  .purchases-list {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .purchase-item {
+    display: flex;
+    gap: 1.5rem;
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .purchase-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transform: translateX(4px);
+  }
+
+  .purchase-image {
+    width: 150px;
+    height: 150px;
     flex-shrink: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f3f4f6;
+  }
+
+  .purchase-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .purchase-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .purchase-details h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.75rem;
+  }
+
+  .purchase-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .purchase-price {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #059669;
+  }
+
+  .purchase-date {
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+  }
+
+  .empty-icon {
+    font-size: 5rem;
+    margin-bottom: 1.5rem;
+    opacity: 0.5;
+  }
+
+  .empty-state h2 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+  }
+
+  .empty-state p {
+    color: #6b7280;
+    font-size: 1.125rem;
+    margin-bottom: 2rem;
+  }
+
+  .btn-primary {
+    display: inline-block;
+    padding: 0.75rem 2rem;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    color: white;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+  }
+
+  /* Loading & Error */
+  .loading {
+    text-align: center;
+    padding: 3rem;
+    font-size: 1.125rem;
+    color: #6b7280;
+  }
+
+  .error-message {
+    text-align: center;
+    padding: 2rem;
+    background: #fee2e2;
+    color: #991b1b;
+    border-radius: 8px;
+    font-weight: 500;
   }
 
   /* Modal Styles */
@@ -752,277 +1079,57 @@
     animation: fadeIn 0.2s ease-out;
   }
 
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
   .modal-content {
-    background-color: white;
+    background: white;
     border-radius: 12px;
-    max-width: 600px;
-    width: 90%;
+    max-width: 90%;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     position: relative;
-    animation: slideUp 0.3s ease-out;
-  }
-
-  @keyframes slideUp {
-    from {
-      transform: translateY(50px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   }
 
   .modal-close {
     position: absolute;
     top: 1rem;
     right: 1rem;
-    background: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
     border: none;
-    font-size: 2rem;
-    color: #999;
+    font-size: 1.5rem;
     cursor: pointer;
-    line-height: 1;
-    padding: 0;
-    width: 32px;
-    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
+    z-index: 10;
     transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 
   .modal-close:hover {
-    background-color: #f0f0f0;
-    color: #333;
+    background: white;
+    transform: scale(1.1);
   }
 
   .modal-header {
-    padding: 2rem 2rem 1rem 2rem;
+    padding: 2rem 2rem 1rem;
     border-bottom: 1px solid #e5e7eb;
   }
 
   .modal-header h2 {
-    margin: 0;
     font-size: 1.75rem;
-    color: #333;
+    font-weight: 600;
+    color: #1f2937;
   }
 
   .modal-body {
     padding: 2rem;
   }
 
-  .form-group {
-    margin-bottom: 1.5rem;
-  }
-
-  .form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    color: #333;
-  }
-
-  .form-group input,
-  .form-group textarea,
-  .form-group select {
-    width: 100%;
-    padding: 0.75rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 6px;
-    font-size: 1rem;
-    transition: border-color 0.2s;
-    box-sizing: border-box;
-  }
-
-  .form-group input:focus,
-  .form-group textarea:focus,
-  .form-group select:focus {
-    outline: none;
-    border-color: #667eea;
-  }
-
-  .form-group input:disabled,
-  .form-group textarea:disabled,
-  .form-group select:disabled {
-    background-color: #f3f4f6;
-    cursor: not-allowed;
-  }
-
-  .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-  }
-
-  .form-info {
-    background-color: #f9fafb;
-    padding: 1rem;
-    border-radius: 6px;
-    margin-bottom: 1.5rem;
-  }
-
-  .form-info p {
-    margin: 0.5rem 0;
-    color: #333;
-  }
-
-  .form-info .note {
-    color: #666;
-    font-size: 0.875rem;
-    margin-top: 0.75rem;
-    font-style: italic;
-  }
-
-  .success-message {
-    background-color: #10b981;
-    color: white;
-    padding: 1rem;
-    border-radius: 6px;
-    margin-bottom: 1.5rem;
-    text-align: center;
-    font-weight: 500;
-  }
-
-  .error-message {
-    background-color: #ef4444;
-    color: white;
-    padding: 1rem;
-    border-radius: 6px;
-    margin-bottom: 1.5rem;
-    text-align: center;
-    font-weight: 500;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 1rem;
-    margin-top: 2rem;
-  }
-
-  .btn-cancel,
-  .btn-save {
-    flex: 1;
-    padding: 0.875rem 1.5rem;
-    border-radius: 6px;
-    font-weight: 600;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: none;
-  }
-
-  .btn-cancel {
-    background-color: #e5e7eb;
-    color: #333;
-  }
-
-  .btn-cancel:hover:not(:disabled) {
-    background-color: #d1d5db;
-  }
-
-  .btn-save {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-  }
-
-  .btn-save:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-  }
-
-  .btn-cancel:disabled,
-  .btn-save:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .btn-view-small,
-  .btn-message,
-  .btn-edit-small {
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    font-weight: 600;
-    font-size: 0.875rem;
-    text-decoration: none;
-    text-align: center;
-    transition: transform 0.2s, box-shadow 0.2s;
-    white-space: nowrap;
-  }
-
-  .btn-view-small {
-    background-color: #3b82f6;
-    color: white;
-    border: none;
-    cursor: pointer;
-  }
-
-  .btn-view-small:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
-  }
-
-  .btn-message {
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
-  }
-
-  .btn-message:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
-  }
-
-  .btn-edit-small {
-    background-color: #f59e0b;
-    color: white;
-    border: none;
-    cursor: pointer;
-  }
-
-  .btn-edit-small:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
-  }
-
-  .field-hint {
-    margin-top: 0.5rem;
-    font-size: 0.875rem;
-    color: #666;
-  }
-
-  .checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-  }
-
-  .checkbox-label input[type="checkbox"] {
-    width: auto;
-    cursor: pointer;
-  }
-
-  .checkbox-label span {
-    font-weight: normal;
-  }
-
-  /* View Modal Styles */
   .modal-image-section {
-    width: 100%;
-    background-color: #f9fafb;
+    margin-bottom: 2rem;
   }
 
   .modal-placeholder-image {
@@ -1031,225 +1138,108 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #f3f4f6;
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    border-radius: 12px;
+    margin-bottom: 2rem;
   }
 
-  .placeholder-icon {
-    font-size: 4rem;
+  .modal-placeholder-image .placeholder-icon {
+    font-size: 6rem;
   }
 
-  .modal-info-section {
-    padding: 2rem;
-  }
-
-  .modal-header-view {
-    display: flex;
-    justify-content: space-between;
-    align-items: start;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid #e5e7eb;
-  }
-
-  .modal-header-view h2 {
+  .modal-info h2 {
     font-size: 1.75rem;
-    color: #333;
-    margin: 0;
-    flex: 1;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 1rem;
   }
 
-  .status-badge-view {
-    display: inline-block;
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    color: white;
-    font-weight: 600;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-    white-space: nowrap;
+  .product-description {
+    color: #4b5563;
+    line-height: 1.6;
+    margin-bottom: 2rem;
   }
 
-  .product-detail-grid {
+  .info-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1.5rem;
     margin-bottom: 2rem;
   }
 
-  .detail-item {
+  .info-item {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.25rem;
   }
 
-  .detail-label {
+  .info-label {
     font-size: 0.875rem;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-weight: 600;
-  }
-
-  .detail-value {
-    font-size: 1.125rem;
-    color: #333;
+    color: #6b7280;
     font-weight: 500;
   }
 
-  .price-highlight {
-    color: #10b981;
-    font-weight: 700;
+  .info-value {
+    font-size: 1.125rem;
+    color: #1f2937;
+    font-weight: 600;
+  }
+
+  .info-value.won {
+    color: #059669;
     font-size: 1.5rem;
   }
 
-  .description-section {
-    margin-bottom: 2rem;
-  }
-
-  .description-section h3 {
-    font-size: 1.25rem;
-    color: #333;
-    margin-bottom: 0.75rem;
-  }
-
-  .description-section p {
-    color: #666;
-    line-height: 1.6;
-    white-space: pre-wrap;
-  }
-
-  .keywords-section {
-    margin-bottom: 2rem;
-  }
-
-  .keywords-section h3 {
-    font-size: 1.25rem;
-    color: #333;
-    margin-bottom: 0.75rem;
-  }
-
-  .keywords-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .keyword-tag {
+  .btn-view-full {
     display: inline-block;
-    padding: 0.5rem 1rem;
-    background-color: #f3f4f6;
-    color: #666;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    font-weight: 500;
-  }
-
-  .btn-open-page {
-    flex: 1;
-    padding: 1rem 1.5rem;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    padding: 0.75rem 2rem;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
     color: white;
+    border-radius: 8px;
+    font-weight: 600;
     text-decoration: none;
-    border-radius: 8px;
-    font-weight: 600;
-    text-align: center;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: all 0.2s;
   }
 
-  .btn-open-page:hover {
+  .btn-view-full:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
   }
 
-  .btn-edit-modal {
-    flex: 1;
-    padding: 1rem 1.5rem;
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  .btn-edit-modal:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
-  }
-
-  @media (max-width: 1024px) {
-    .product-item {
-      flex-wrap: wrap;
-    }
-
-    .product-item-price {
-      order: 3;
-      padding: 0;
-      text-align: left;
-    }
-
-    .product-item-actions {
-      order: 4;
-      width: 100%;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .dashboard {
-      padding: 1rem;
-    }
-
-    .dashboard-header {
+  /* Responsive */
+  @media (max-width: 768px) {
+    .main-tabs {
       flex-direction: column;
-      align-items: flex-start;
+      gap: 0;
     }
 
-    .tabs {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
+    .main-tab {
+      border-bottom: 1px solid #e5e7eb;
+      border-left: 3px solid transparent;
+      margin-bottom: 0;
+      margin-left: -2px;
     }
 
-    .product-item-actions {
-      flex-direction: column;
+    .main-tab.active {
+      border-left-color: #dc2626;
+      border-bottom-color: #e5e7eb;
     }
 
-    .btn-view-small,
-    .btn-message,
-    .btn-edit-small {
-      width: 100%;
-    }
-
-    .form-row {
+    .products-grid {
       grid-template-columns: 1fr;
     }
 
-    .modal-content {
-      margin: 0;
-      max-height: 100vh;
-      border-radius: 0;
-    }
-
-    .modal-info-section {
-      padding: 1.5rem;
-    }
-
-    .modal-header-view {
+    .purchase-item {
       flex-direction: column;
-      align-items: flex-start;
     }
 
-    .product-detail-grid {
+    .purchase-image {
+      width: 100%;
+      height: 200px;
+    }
+
+    .info-grid {
       grid-template-columns: 1fr;
-    }
-
-    .modal-actions {
-      flex-direction: column;
-    }
-
-    .modal-placeholder-image {
-      height: 250px;
     }
   }
 </style>
