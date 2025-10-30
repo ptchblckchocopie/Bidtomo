@@ -14,8 +14,8 @@ const allowedOrigins: string[] = [
   'http://localhost:3001',
   'http://192.168.18.117:5173',
   'http://192.168.18.117:3001',
-  'https://www.bidmo.to',
   'https://bidmo.to',
+  'https://www.bidmo.to',
   'https://app.bidmo.to',
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
 ];
