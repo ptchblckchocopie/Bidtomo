@@ -31,6 +31,9 @@ export interface Product {
   auctionEndDate: string;
   active: boolean;
   status: 'available' | 'sold' | 'ended';
+  region?: string;
+  city?: string;
+  delivery_options?: 'delivery' | 'meetup' | 'both';
   seller: {
     id: string;
     name: string;
@@ -106,6 +109,8 @@ export async function fetchProducts(params?: {
   limit?: number;
   search?: string;
   status?: string;
+  region?: string;
+  city?: string;
   customFetch?: typeof fetch;
 }): Promise<{ docs: Product[]; totalDocs: number; totalPages: number; page: number; limit: number }> {
   try {
@@ -115,38 +120,43 @@ export async function fetchProducts(params?: {
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
 
+    // Track the current and index for building complex queries
+    let andIndex = 0;
+
     // Filter by status
     if (params?.status === 'active') {
       // Active auctions - status is 'active' or 'available' AND active=true
-      queryParams.append('where[and][0][or][0][status][equals]', 'active');
-      queryParams.append('where[and][0][or][1][status][equals]', 'available');
-      queryParams.append('where[and][1][active][equals]', 'true');
+      queryParams.append(`where[and][${andIndex}][or][0][status][equals]`, 'active');
+      queryParams.append(`where[and][${andIndex}][or][1][status][equals]`, 'available');
+      andIndex++;
+      queryParams.append(`where[and][${andIndex}][active][equals]`, 'true');
+      andIndex++;
     } else if (params?.status === 'ended') {
       // Ended auctions - status is 'ended' or 'sold'
-      queryParams.append('where[and][0][or][0][status][equals]', 'ended');
-      queryParams.append('where[and][0][or][1][status][equals]', 'sold');
+      queryParams.append(`where[and][${andIndex}][or][0][status][equals]`, 'ended');
+      queryParams.append(`where[and][${andIndex}][or][1][status][equals]`, 'sold');
+      andIndex++;
     }
-    // No status filter for 'my-bids' - will be filtered on client side
 
-    // Search - using OR logic for title, description, and keywords
+    // Filter by location
+    if (params?.region && params.region.trim()) {
+      queryParams.append(`where[and][${andIndex}][region][contains]`, params.region.trim());
+      andIndex++;
+    }
+    if (params?.city && params.city.trim()) {
+      queryParams.append(`where[and][${andIndex}][city][contains]`, params.city.trim());
+      andIndex++;
+    }
+
+    // Search - using OR logic for title, description, keywords, region, and city
     if (params?.search && params.search.trim()) {
       const searchTerm = params.search.trim();
-      // Use different OR indices to avoid conflicts with status filter
-      if (params?.status === 'active') {
-        // For active, we're using and[0] for status, and[1] for active, so use and[2] for search
-        queryParams.append('where[and][2][or][0][title][contains]', searchTerm);
-        queryParams.append('where[and][2][or][1][description][contains]', searchTerm);
-        queryParams.append('where[and][2][or][2][keywords.keyword][contains]', searchTerm);
-      } else if (params?.status === 'ended') {
-        // For ended, we're using and[0] for status, so use and[1] for search
-        queryParams.append('where[and][1][or][0][title][contains]', searchTerm);
-        queryParams.append('where[and][1][or][1][description][contains]', searchTerm);
-        queryParams.append('where[and][1][or][2][keywords.keyword][contains]', searchTerm);
-      } else {
-        queryParams.append('where[or][0][title][contains]', searchTerm);
-        queryParams.append('where[or][1][description][contains]', searchTerm);
-        queryParams.append('where[or][2][keywords.keyword][contains]', searchTerm);
-      }
+      queryParams.append(`where[and][${andIndex}][or][0][title][contains]`, searchTerm);
+      queryParams.append(`where[and][${andIndex}][or][1][description][contains]`, searchTerm);
+      queryParams.append(`where[and][${andIndex}][or][2][keywords.keyword][contains]`, searchTerm);
+      queryParams.append(`where[and][${andIndex}][or][3][region][contains]`, searchTerm);
+      queryParams.append(`where[and][${andIndex}][or][4][city][contains]`, searchTerm);
+      andIndex++;
     }
 
     // Sort by creation date (newest first)
@@ -440,6 +450,9 @@ export async function createProduct(productData: {
   bidInterval?: number;
   auctionEndDate: string;
   images?: Array<{ image: string }>;
+  region?: string;
+  city?: string;
+  delivery_options?: 'delivery' | 'meetup' | 'both';
 }): Promise<Product | null> {
   try {
     const response = await fetch(`${API_URL}/api/products`, {
@@ -478,6 +491,9 @@ export async function updateProduct(
     active?: boolean;
     status?: 'available' | 'sold' | 'ended';
     images?: Array<{ image: string }>;
+    region?: string;
+    city?: string;
+    delivery_options?: 'delivery' | 'meetup' | 'both';
   }
 ): Promise<Product | null> {
   try {

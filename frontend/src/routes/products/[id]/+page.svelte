@@ -595,6 +595,24 @@
 
 <svelte:head>
   <title>{data.product?.title || 'Product'} - BidMo.to</title>
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content={`https://bidmo.to/products/${data.product?.id || ''}`} />
+  <meta property="og:title" content={data.product?.title || 'Product'} />
+  <meta property="og:description" content={data.product?.description || 'Check out this product on BidMo.to'} />
+  {#if data.product?.images && data.product.images.length > 0 && data.product.images[0].image}
+    <meta property="og:image" content={data.product.images[0].image.url} />
+  {/if}
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image" />
+  <meta property="twitter:url" content={`https://bidmo.to/products/${data.product?.id || ''}`} />
+  <meta property="twitter:title" content={data.product?.title || 'Product'} />
+  <meta property="twitter:description" content={data.product?.description || 'Check out this product on BidMo.to'} />
+  {#if data.product?.images && data.product.images.length > 0 && data.product.images[0].image}
+    <meta property="twitter:image" content={data.product.images[0].image.url} />
+  {/if}
 </svelte:head>
 
 {#if !data.product}

@@ -6,6 +6,8 @@ export const load: PageLoad = async ({ url, fetch }) => {
   const limit = parseInt(url.searchParams.get('limit') || '12');
   const search = url.searchParams.get('search') || '';
   const status = url.searchParams.get('status') || 'active';
+  const region = url.searchParams.get('region') || '';
+  const city = url.searchParams.get('city') || '';
 
   let data;
 
@@ -24,6 +26,8 @@ export const load: PageLoad = async ({ url, fetch }) => {
       limit,
       search: search || undefined,
       status,
+      region: region || undefined,
+      city: city || undefined,
       customFetch: fetch
     });
   }
@@ -35,6 +39,8 @@ export const load: PageLoad = async ({ url, fetch }) => {
     currentPage: data.page,
     limit: data.limit,
     search,
-    status
+    status,
+    region,
+    city
   };
 };
