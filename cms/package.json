@@ -5,13 +5,13 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts nodemon",
-    "build": "tsc && payload build",
+    "build": "tsc --skipLibCheck && payload build",
     "start": "cross-env PAYLOAD_CONFIG_PATH=dist/payload.config.js NODE_ENV=production node dist/server.js",
     "serve": "cross-env PAYLOAD_CONFIG_PATH=dist/payload.config.js NODE_ENV=production node dist/server.js",
     "migrate": "payload migrate",
     "migrate:up": "payload migrate:up",
     "generate:types": "payload generate:types",
-    "vercel-build": "tsc"
+    "vercel-build": "tsc --skipLibCheck"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.914.0",
