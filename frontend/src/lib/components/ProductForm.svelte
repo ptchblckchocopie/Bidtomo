@@ -4,6 +4,7 @@
   import { authStore } from '$lib/stores/auth';
   import KeywordInput from './KeywordInput.svelte';
   import type { Product } from '$lib/api';
+  import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
 
   // Props
   export let mode: 'create' | 'edit' = 'create';
@@ -19,6 +20,9 @@
   let bidInterval = 0;
   let auctionEndDate = '';
   let active = product?.active ?? true;
+  let region = product?.region || '';
+  let city = product?.city || '';
+  let deliveryOptions: 'delivery' | 'meetup' | 'both' | '' = product?.delivery_options || '';
 
   // Image handling
   let existingImages: Array<{ id: string; image: { id: string; url: string; alt?: string } }> = [];
@@ -44,6 +48,14 @@
   // User currency
   $: userCurrency = $authStore.user?.currency || 'PHP';
 
+  // Get cities for selected region
+  $: availableCities = region ? getCitiesByRegion(region) : [];
+
+  // Reset city when region changes
+  $: if (region && !availableCities.includes(city)) {
+    city = '';
+  }
+
   // Initialize form on mount
   onMount(() => {
     // Set default bid interval based on currency if not already set
@@ -57,6 +69,9 @@
       keywords = product.keywords?.map(k => k.keyword) || [];
       startingPrice = product.startingPrice;
       bidInterval = product.bidInterval;
+      region = product.region || '';
+      city = product.city || '';
+      deliveryOptions = product.delivery_options || '';
 
       // Format and set the auction end date
       const formattedDate = formatDateForInput(product.auctionEndDate);
@@ -409,7 +424,10 @@
           bidInterval,
           auctionEndDate: new Date(auctionEndDate).toISOString(),
           active,
-          images: allImageIds.map(id => ({ image: id }))
+          images: allImageIds.map(id => ({ image: id })),
+          region,
+          city,
+          delivery_options: deliveryOptions || undefined
         };
 
         if (!hasBids) {
@@ -456,6 +474,9 @@
           bidInterval,
           auctionEndDate: new Date(auctionEndDate).toISOString(),
           images: uploadedImageIds.map(imageId => ({ image: imageId })),
+          region,
+          city,
+          delivery_options: deliveryOptions || undefined
         });
 
         if (result) {
@@ -541,6 +562,57 @@
   <div class="form-group">
     <label for="keywords">Keywords (for search & SEO)</label>
     <KeywordInput bind:keywords disabled={submitting} />
+  </div>
+
+  <div class="form-group">
+    <label for="region">Region</label>
+    <select
+      id="region"
+      bind:value={region}
+      disabled={submitting}
+    >
+      <option value="">Select a region...</option>
+      {#each regions as regionOption}
+        <option value={regionOption}>{regionOption}</option>
+      {/each}
+    </select>
+    <p class="field-hint">Where is your product located?</p>
+  </div>
+
+  <div class="form-group">
+    <label for="city">City/Municipality</label>
+    <select
+      id="city"
+      bind:value={city}
+      disabled={submitting || !region}
+    >
+      <option value="">Select a city...</option>
+      {#each availableCities as cityOption}
+        <option value={cityOption}>{cityOption}</option>
+      {/each}
+    </select>
+    <p class="field-hint">
+      {#if !region}
+        Please select a region first
+      {:else}
+        Select the city or municipality
+      {/if}
+    </p>
+  </div>
+
+  <div class="form-group">
+    <label for="deliveryOptions">Delivery Options</label>
+    <select
+      id="deliveryOptions"
+      bind:value={deliveryOptions}
+      disabled={submitting}
+    >
+      <option value="">Select an option...</option>
+      <option value="delivery">Delivery</option>
+      <option value="meetup">Meetup</option>
+      <option value="both">Both Delivery and Meetup</option>
+    </select>
+    <p class="field-hint">How will the buyer receive the product?</p>
   </div>
 
   <div class="form-group">
@@ -831,7 +903,8 @@
   }
 
   input,
-  textarea {
+  textarea,
+  select {
     width: 100%;
     padding: 0.75rem;
     font-size: 1rem;
@@ -841,14 +914,16 @@
   }
 
   input:focus,
-  textarea:focus {
+  textarea:focus,
+  select:focus {
     outline: none;
     border-color: #dc2626;
     box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
   }
 
   input:disabled,
-  textarea:disabled {
+  textarea:disabled,
+  select:disabled {
     background-color: #f5f5f5;
     cursor: not-allowed;
   }

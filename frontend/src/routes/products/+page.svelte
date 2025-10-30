@@ -5,6 +5,7 @@
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
   import { API_URL } from '$lib/api';
+  import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
 
   export let data: PageData;
   export let params: any = undefined; // SvelteKit passes this automatically
@@ -16,11 +17,27 @@
 
   // Local state for form inputs
   let searchInput = data.search || '';
+  let regionInput = data.region || '';
+  let cityInput = data.city || '';
   let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   let lastDataSearch = data.search || ''; // Track last known data.search value
+  let lastDataRegion = data.region || '';
+  let lastDataCity = data.city || '';
 
   // Items per page options
   const itemsPerPageOptions = [12, 24, 48, 96];
+
+  // Get cities for selected region
+  $: availableCities = regionInput ? getCitiesByRegion(regionInput) : [];
+
+  // Reset city when region changes
+  $: if (regionInput && !availableCities.includes(cityInput)) {
+    // Don't auto-clear if we're loading from URL params
+    const urlCity = $page.url.searchParams.get('city') || '';
+    if (cityInput && cityInput !== urlCity) {
+      cityInput = '';
+    }
+  }
 
   function updateURL(params: Record<string, string | number>) {
     const url = new URL($page.url);
@@ -40,6 +57,8 @@
     searchTimeout = setTimeout(() => {
       updateURL({
         search: searchInput,
+        region: regionInput,
+        city: cityInput,
         page: '1', // Reset to page 1 on new search
         status: data.status,
         limit: data.limit.toString()
@@ -47,11 +66,42 @@
     }, 500); // Debounce for 500ms
   }
 
+  function handleLocationInput() {
+    if (searchTimeout) clearTimeout(searchTimeout);
+
+    searchTimeout = setTimeout(() => {
+      updateURL({
+        search: searchInput,
+        region: regionInput,
+        city: cityInput,
+        page: '1', // Reset to page 1 on location change
+        status: data.status,
+        limit: data.limit.toString()
+      });
+    }, 500); // Debounce for 500ms
+  }
+
+  function clearFilters() {
+    searchInput = '';
+    regionInput = '';
+    cityInput = '';
+    updateURL({
+      search: '',
+      region: '',
+      city: '',
+      page: '1',
+      status: data.status,
+      limit: data.limit.toString()
+    });
+  }
+
   function changeTab(status: string) {
     updateURL({
       status,
       page: '1', // Reset to page 1 on tab change
       search: searchInput,
+      region: regionInput,
+      city: cityInput,
       limit: data.limit.toString()
     });
 
@@ -69,6 +119,8 @@
       page: page.toString(),
       status: data.status,
       search: searchInput,
+      region: regionInput,
+      city: cityInput,
       limit: data.limit.toString()
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -79,7 +131,9 @@
       limit: limit.toString(),
       page: '1', // Reset to page 1 when changing items per page
       status: data.status,
-      search: searchInput
+      search: searchInput,
+      region: regionInput,
+      city: cityInput
     });
   }
 
@@ -93,6 +147,27 @@
         searchInput = currentDataSearch;
       }
       lastDataSearch = currentDataSearch;
+    }
+  }
+
+  // Update local location inputs when data changes
+  $: {
+    const currentDataRegion = data.region || '';
+    if (currentDataRegion !== lastDataRegion) {
+      if (currentDataRegion !== regionInput) {
+        regionInput = currentDataRegion;
+      }
+      lastDataRegion = currentDataRegion;
+    }
+  }
+
+  $: {
+    const currentDataCity = data.city || '';
+    if (currentDataCity !== lastDataCity) {
+      if (currentDataCity !== cityInput) {
+        cityInput = currentDataCity;
+      }
+      lastDataCity = currentDataCity;
     }
   }
 
@@ -327,21 +402,50 @@
   <div class="page-header">
     <h2>Browse Products</h2>
 
-    <!-- Search Bar -->
-    <div class="search-container">
-      <input
-        type="text"
-        bind:value={searchInput}
-        on:input={handleSearchInput}
-        placeholder="Search by title, description, or keywords..."
-        class="search-input"
-      />
-      {#if searchInput}
-        <button class="clear-search" on:click={() => { searchInput = ''; handleSearchInput(); }}>✕</button>
-      {/if}
+    <!-- Search and Filters -->
+    <div class="search-filter-container">
+      <div class="search-container">
+        <input
+          type="text"
+          bind:value={searchInput}
+          on:input={handleSearchInput}
+          placeholder="Search by title, description, or keywords..."
+          class="search-input"
+        />
+        {#if searchInput}
+          <button class="clear-search" on:click={() => { searchInput = ''; handleSearchInput(); }}>✕</button>
+        {/if}
+      </div>
+
+      <div class="location-filters">
+        <select
+          bind:value={regionInput}
+          on:change={handleLocationInput}
+          class="location-select"
+        >
+          <option value="">All Regions</option>
+          {#each regions as region}
+            <option value={region}>{region}</option>
+          {/each}
+        </select>
+        <select
+          bind:value={cityInput}
+          on:change={handleLocationInput}
+          class="location-select"
+          disabled={!regionInput}
+        >
+          <option value="">All Cities</option>
+          {#each availableCities as city}
+            <option value={city}>{city}</option>
+          {/each}
+        </select>
+        {#if searchInput || regionInput || cityInput}
+          <button class="btn-clear-filters" on:click={clearFilters}>Clear All</button>
+        {/if}
+      </div>
     </div>
 
-    {#if data.search && data.totalDocs > 0}
+    {#if (data.search || data.region || data.city) && data.totalDocs > 0}
       <p class="search-results">Found {data.totalDocs} result{data.totalDocs !== 1 ? 's' : ''}</p>
     {/if}
 
@@ -358,10 +462,13 @@
     </div>
   </div>
 
-  {#if data.search && data.totalDocs === 0}
+  {#if (data.search || data.region || data.city) && data.totalDocs === 0}
     <div class="empty-state">
-      <p>No products found matching "{data.search}"</p>
-      <button class="btn-clear-search" on:click={() => { searchInput = ''; handleSearchInput(); }}>Clear Search</button>
+      <p>No products found matching your filters</p>
+      {#if data.search}<p class="filter-detail">Search: "{data.search}"</p>{/if}
+      {#if data.region}<p class="filter-detail">Region: "{data.region}"</p>{/if}
+      {#if data.city}<p class="filter-detail">City: "{data.city}"</p>{/if}
+      <button class="btn-clear-search" on:click={clearFilters}>Clear Filters</button>
     </div>
   {/if}
 
@@ -545,6 +652,10 @@
     font-size: 2.5rem;
   }
 
+  .search-filter-container {
+    margin-bottom: 1rem;
+  }
+
   .search-container {
     position: relative;
     max-width: 600px;
@@ -564,6 +675,55 @@
     outline: none;
     border-color: #dc2626;
     box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+
+  .location-filters {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+    max-width: 600px;
+  }
+
+  .location-select {
+    flex: 1;
+    min-width: 200px;
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    transition: border-color 0.2s;
+    background-color: white;
+    cursor: pointer;
+  }
+
+  .location-select:focus {
+    outline: none;
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+
+  .location-select:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .btn-clear-filters {
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    white-space: nowrap;
+  }
+
+  .btn-clear-filters:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.4);
   }
 
   .clear-search {
@@ -736,6 +896,12 @@
   .empty-state p {
     font-size: 1.2rem;
     margin-bottom: 1rem;
+  }
+
+  .empty-state .filter-detail {
+    font-size: 1rem;
+    color: #666;
+    margin-bottom: 0.5rem;
   }
 
   .empty-state a {

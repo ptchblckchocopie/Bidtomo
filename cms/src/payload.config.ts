@@ -132,7 +132,13 @@ export default buildConfig({
       access: {
         read: () => true,
         create: ({ req }) => !!req.user,
-        update: ({ req }) => req.user?.role === 'admin' || req.user?.role === 'seller',
+        update: ({ req, id }) => {
+          // Admins can update any product
+          if (req.user?.role === 'admin') return true;
+
+          // All authenticated users can update (seller check is in beforeChange hook)
+          return !!req.user;
+        },
         delete: ({ req }) => req.user?.role === 'admin',
       },
       hooks: {
@@ -143,19 +149,22 @@ export default buildConfig({
               data.seller = req.user.id;
             }
 
-            // Prevent editing sold products (except by admin)
-            if (operation === 'update' && req.user?.role !== 'admin') {
-              // We need to check the current product status
-              // This will be handled in beforeValidate hook instead
-            }
-
             return data;
           },
         ],
         beforeValidate: [
           async ({ req, data, operation, originalDoc }) => {
-            // Prevent editing sold products (except by admin)
+            // Check if user owns the product (except for admins)
             if (operation === 'update' && req.user?.role !== 'admin') {
+              const sellerId = typeof originalDoc?.seller === 'object'
+                ? originalDoc.seller.id
+                : originalDoc?.seller;
+
+              if (sellerId !== req.user?.id) {
+                throw new Error('You can only edit your own products');
+              }
+
+              // Prevent editing sold products
               if (originalDoc?.status === 'sold') {
                 throw new Error('Cannot edit products that have been sold');
               }
@@ -360,6 +369,32 @@ export default buildConfig({
               displayFormat: 'PPpp', // Shows date and time in user's locale
             },
             description: 'Auction end date and time (24 hours from now by default)',
+          },
+        },
+        {
+          name: 'region',
+          type: 'text',
+          admin: {
+            description: 'Region/Province where the product is located',
+          },
+        },
+        {
+          name: 'city',
+          type: 'text',
+          admin: {
+            description: 'City/Municipality where the product is located',
+          },
+        },
+        {
+          name: 'delivery_options',
+          type: 'select',
+          options: [
+            { label: 'Delivery', value: 'delivery' },
+            { label: 'Meetup', value: 'meetup' },
+            { label: 'Both', value: 'both' },
+          ],
+          admin: {
+            description: 'How the buyer can receive the product',
           },
         },
         {
