@@ -3,10 +3,10 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
-  import { fetchConversations, fetchProductMessages, fetchProduct, fetchProductBids, sendMessage, markMessageAsRead, setTypingStatus, getTypingStatus } from '$lib/api';
+  import { fetchConversations, fetchProductMessages, fetchMessageById, fetchProduct, fetchProductBids, sendMessage, markMessageAsRead, setTypingStatus } from '$lib/api';
   import type { Product, Message } from '$lib/api';
   import { goto } from '$app/navigation';
-  import { getUserSSE, disconnectUserSSE, type SSEEvent, type MessageEvent as SSEMessageEvent } from '$lib/sse';
+  import { getUserSSE, disconnectUserSSE, getProductSSE, disconnectProductSSE, type SSEEvent, type MessageEvent as SSEMessageEvent, type TypingEvent } from '$lib/sse';
 
   function handleBackToList() {
     selectedProduct = null;
@@ -27,7 +27,8 @@
   let lastMessageTime: string | null = null;
   let chatInputElement: HTMLInputElement;
   let typingTimeout: ReturnType<typeof setTimeout> | null = null;
-  let typingPollingInterval: ReturnType<typeof setInterval> | null = null;
+  let productSseUnsubscribe: (() => void) | null = null;
+  let currentProductSseId: string | null = null;
   let otherUserTyping = false;
   let iAmTyping = false;
   let activeTab: 'products' | 'purchases' = 'products';
@@ -38,6 +39,8 @@
   const MESSAGE_PAGE_SIZE = 10;
   let canChat = true;
   let chatBlockedReason = '';
+  let newMessageIds: Set<string> = new Set();
+  let conversationUpdateDebounce: ReturnType<typeof setTimeout> | null = null;
 
   // Get product ID from query params if navigated from purchases page
   $: productId = $page.url.searchParams.get('product');
@@ -281,8 +284,8 @@
               // Start polling for new messages
               startPolling();
 
-              // Start polling for typing status
-              startTypingPolling();
+              // Subscribe to SSE for typing status
+              subscribeToProductSSE(productId);
 
               // Reset typing state
               iAmTyping = false;
@@ -403,8 +406,10 @@
       // Start polling for new messages
       startPolling();
 
-      // Start polling for typing status
-      startTypingPolling();
+      // Subscribe to SSE for typing status
+      if (selectedProduct) {
+        subscribeToProductSSE(String(selectedProduct.id));
+      }
 
       // Reset typing state
       iAmTyping = false;
@@ -423,7 +428,7 @@
     }
   }
 
-  // Poll for new messages
+  // Poll for new messages (fallback for SSE - reduced frequency)
   async function pollNewMessages() {
     if (!selectedProduct || !lastMessageTime) return;
 
@@ -431,18 +436,36 @@
       const newMessages = await fetchProductMessages(selectedProduct.id, lastMessageTime);
 
       if (newMessages.length > 0) {
-        // Add new messages to the list
-        messages = [...messages, ...newMessages];
+        // Filter out messages that already exist to avoid duplicates
+        const existingIds = new Set(messages.map(m => m.id));
+        const uniqueNewMessages = newMessages.filter(m => !existingIds.has(m.id));
 
-        // Update last message time
-        lastMessageTime = newMessages[newMessages.length - 1].createdAt;
-
-        // Mark new messages as read if they're for current user
-        for (const msg of newMessages) {
-          const receiverId = typeof msg.receiver === 'object' ? msg.receiver.id : msg.receiver;
-          if (receiverId === $authStore.user?.id && !msg.read) {
-            await markMessageAsRead(msg.id);
+        if (uniqueNewMessages.length > 0) {
+          // Add animation for new messages
+          for (const msg of uniqueNewMessages) {
+            newMessageIds = new Set([...newMessageIds, msg.id]);
           }
+
+          // Add new messages to the list
+          messages = [...messages, ...uniqueNewMessages];
+
+          // Update last message time
+          lastMessageTime = uniqueNewMessages[uniqueNewMessages.length - 1].createdAt;
+
+          // Mark new messages as read if they're for current user
+          for (const msg of uniqueNewMessages) {
+            const receiverId = typeof msg.receiver === 'object' ? msg.receiver.id : msg.receiver;
+            if (receiverId === $authStore.user?.id && !msg.read) {
+              await markMessageAsRead(msg.id);
+            }
+          }
+
+          // Clear animation after delay
+          setTimeout(() => {
+            for (const msg of uniqueNewMessages) {
+              newMessageIds = new Set([...newMessageIds].filter(id => id !== msg.id));
+            }
+          }, 500);
         }
 
         // Update the conversation list without reloading (to maintain selection and DOM)
@@ -476,15 +499,15 @@
     }
   }
 
-  // Start polling
+  // Start polling (fallback - SSE handles real-time, this is backup)
   function startPolling() {
     // Clear existing interval
     if (pollingInterval) {
       clearInterval(pollingInterval);
     }
 
-    // Poll every 2 seconds
-    pollingInterval = setInterval(pollNewMessages, 2000);
+    // Poll every 10 seconds as fallback (SSE handles real-time updates)
+    pollingInterval = setInterval(pollNewMessages, 10000);
   }
 
   // Stop polling
@@ -519,33 +542,66 @@
     }, 2500);
   }
 
-  // Poll for typing status
-  async function pollTypingStatus() {
-    if (!selectedProduct) return;
-
-    try {
-      const isTyping = await getTypingStatus(selectedProduct.id);
-      otherUserTyping = isTyping;
-    } catch (err) {
-      console.error('Error polling typing status:', err);
-    }
-  }
-
-  // Start typing polling
-  function startTypingPolling() {
-    if (typingPollingInterval) {
-      clearInterval(typingPollingInterval);
+  // Subscribe to product SSE for typing events
+  function subscribeToProductSSE(productIdStr: string) {
+    // Disconnect from previous product SSE if different
+    if (currentProductSseId && currentProductSseId !== productIdStr) {
+      if (productSseUnsubscribe) {
+        productSseUnsubscribe();
+        productSseUnsubscribe = null;
+      }
+      disconnectProductSSE(currentProductSseId);
     }
 
-    // Poll every 1 second
-    typingPollingInterval = setInterval(pollTypingStatus, 1000);
+    if (currentProductSseId === productIdStr) return; // Already subscribed
+
+    currentProductSseId = productIdStr;
+    const productSseClient = getProductSSE(productIdStr);
+    productSseClient.connect();
+
+    // Subscribe to typing events
+    let typingClearTimeout: ReturnType<typeof setTimeout> | null = null;
+    productSseUnsubscribe = productSseClient.subscribe((event: SSEEvent) => {
+      if (event.type === 'typing') {
+        const typingEvent = event as TypingEvent;
+        // Only update if it's from another user
+        if (typingEvent.userId !== $authStore.user?.id) {
+          // Clear any existing timeout
+          if (typingClearTimeout) {
+            clearTimeout(typingClearTimeout);
+            typingClearTimeout = null;
+          }
+
+          if (typingEvent.isTyping) {
+            // Show typing indicator immediately
+            otherUserTyping = true;
+
+            // Auto-clear typing after 4 seconds if no new update
+            typingClearTimeout = setTimeout(() => {
+              otherUserTyping = false;
+            }, 4000);
+          } else {
+            // Delay hiding typing indicator by 1.5 seconds for smooth transition
+            typingClearTimeout = setTimeout(() => {
+              otherUserTyping = false;
+            }, 1500);
+          }
+        }
+      }
+    });
+
+    console.log('[SSE] Subscribed to product typing events:', productIdStr);
   }
 
-  // Stop typing polling
-  function stopTypingPolling() {
-    if (typingPollingInterval) {
-      clearInterval(typingPollingInterval);
-      typingPollingInterval = null;
+  // Unsubscribe from product SSE
+  function unsubscribeFromProductSSE() {
+    if (productSseUnsubscribe) {
+      productSseUnsubscribe();
+      productSseUnsubscribe = null;
+    }
+    if (currentProductSseId) {
+      disconnectProductSSE(currentProductSseId);
+      currentProductSseId = null;
     }
     otherUserTyping = false;
   }
@@ -581,11 +637,19 @@
       const message = await sendMessage(selectedProduct.id, receiverId, newMessage.trim());
 
       if (message) {
+        // Add to new message IDs for animation
+        newMessageIds = new Set([...newMessageIds, message.id]);
+
         messages = [...messages, message];
         newMessage = '';
 
         // Update last message time
         lastMessageTime = message.createdAt;
+
+        // Clear animation after delay
+        setTimeout(() => {
+          newMessageIds = new Set([...newMessageIds].filter(id => id !== message.id));
+        }, 500);
 
         // Stop typing indicator
         if (selectedProduct) {
@@ -628,32 +692,68 @@
 
     // Connect to SSE for real-time message notifications
     if ($authStore.user?.id) {
+      console.log('[Inbox] Connecting to user SSE for user:', $authStore.user.id);
       const sseClient = getUserSSE(String($authStore.user.id));
       sseClient.connect();
 
       // Subscribe to message events
       const unsubscribe = sseClient.subscribe(async (event: SSEEvent) => {
+        console.log('[Inbox SSE] Received event:', event.type, event);
         if (event.type === 'new_message') {
-          console.log('[SSE] Received new message notification:', event);
+          console.log('[Inbox SSE] New message! Product:', (event as SSEMessageEvent).productId, 'Selected:', selectedProduct?.id);
           const msgEvent = event as SSEMessageEvent;
 
-          // Reload conversations to get the new message
-          await loadConversations();
+          // If this message is for the currently selected product, add it dynamically
+          if (selectedProduct && String(msgEvent.productId) === String(selectedProduct.id)) {
+            // Use message data from SSE event directly (no extra HTTP request needed)
+            let newMessage: Message | null = null;
 
-          // If this message is for the currently selected product, reload messages
-          if (selectedProduct && msgEvent.productId === selectedProduct.id) {
-            const newMessages = await fetchProductMessages(selectedProduct.id, undefined, {
-              limit: MESSAGE_PAGE_SIZE,
-              latest: true
-            });
-            messages = newMessages;
-            lastMessageTime = newMessages.length > 0 ? newMessages[newMessages.length - 1].createdAt : null;
+            if (msgEvent.message) {
+              // Use the full message data from the SSE event
+              newMessage = msgEvent.message as unknown as Message;
+            } else {
+              // Fallback: fetch the message if not included in event
+              newMessage = await fetchMessageById(msgEvent.messageId);
+            }
 
-            // Scroll to bottom for new messages
-            shouldAutoScroll = true;
-            await tick();
-            scrollToBottom(true);
+            if (newMessage) {
+              // Check if message already exists to avoid duplicates
+              const messageExists = messages.some(m => m.id === newMessage!.id);
+
+              if (!messageExists) {
+                // Add to new message IDs for animation
+                newMessageIds = new Set([...newMessageIds, newMessage.id]);
+
+                // Add the new message to the list
+                messages = [...messages, newMessage];
+                lastMessageTime = newMessage.createdAt;
+
+                // Mark as read if it's for current user
+                const receiverId = typeof newMessage.receiver === 'object' ? newMessage.receiver.id : newMessage.receiver;
+                if (receiverId === $authStore.user?.id && !newMessage.read) {
+                  markMessageAsRead(newMessage.id); // Don't await - fire and forget
+                }
+
+                // Scroll to bottom for new messages
+                shouldAutoScroll = true;
+                await tick();
+                scrollToBottom(true);
+
+                // Clear animation after delay
+                setTimeout(() => {
+                  newMessageIds = new Set([...newMessageIds].filter(id => id !== newMessage!.id));
+                }, 500);
+              }
+            }
           }
+
+          // Update conversations list in background (without re-selecting) - debounced
+          if (conversationUpdateDebounce) {
+            clearTimeout(conversationUpdateDebounce);
+          }
+          conversationUpdateDebounce = setTimeout(() => {
+            pollConversationList();
+          }, 500); // Wait 500ms before updating to batch rapid messages
         }
       });
 
@@ -666,13 +766,14 @@
       if (document.hidden) {
         // Tab is hidden, stop all polling to save resources
         stopPolling();
-        stopTypingPolling();
         stopConversationListPolling();
+        // Note: SSE stays connected for typing, no need to disconnect
       } else {
         // Tab is visible again, restart polling if we have a selected product
         if (selectedProduct) {
           startPolling();
-          startTypingPolling();
+          // Re-subscribe to product SSE for typing
+          subscribeToProductSSE(String(selectedProduct.id));
         }
         // Always restart conversation list polling
         startConversationListPolling();
@@ -694,10 +795,13 @@
 
   onDestroy(() => {
     stopPolling();
-    stopTypingPolling();
     stopConversationListPolling();
+    unsubscribeFromProductSSE();
     if (typingTimeout) {
       clearTimeout(typingTimeout);
+    }
+    if (conversationUpdateDebounce) {
+      clearTimeout(conversationUpdateDebounce);
     }
     // Clear typing status on exit
     if (selectedProduct) {
@@ -706,7 +810,7 @@
     iAmTyping = false;
     otherUserTyping = false;
 
-    // Disconnect from SSE
+    // Disconnect from user SSE
     if ($authStore.user?.id) {
       disconnectUserSSE(String($authStore.user.id));
     }
@@ -850,11 +954,12 @@
                 </div>
               {/if}
 
-              {#each messages as message}
+              {#each messages as message (message.id)}
               {@const isMine = $authStore.user?.id === (typeof message.sender === 'object' ? message.sender.id : message.sender)}
               {@const sender = typeof message.sender === 'object' ? message.sender : null}
+              {@const isNew = newMessageIds.has(message.id)}
 
-              <div class="message" class:mine={isMine}>
+              <div class="message" class:mine={isMine} class:new-message={isNew}>
                 <div class="message-content">
                   {#if !isMine && sender}
                     <span class="message-sender">{sender.name}</span>
@@ -1281,6 +1386,22 @@
     font-size: 0.7rem;
     margin-top: 0.25rem;
     opacity: 0.7;
+  }
+
+  /* New message float-up animation */
+  .message.new-message {
+    animation: floatUp 0.4s ease-out;
+  }
+
+  @keyframes floatUp {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .error-message {
