@@ -2,14 +2,14 @@
   export let params: any = undefined; // SvelteKit passes this automatically
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { browser } from '$app/environment';
   import { authStore } from '$lib/stores/auth';
+  import { API_URL } from '$lib/api';
 
   let email = '';
   let password = '';
   let submitting = false;
   let error = '';
-
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   // Get redirect URL from query params
   const redirectUrl = $page.url.searchParams.get('redirect') || '/';

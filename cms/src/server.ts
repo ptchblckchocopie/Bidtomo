@@ -3,7 +3,7 @@ import payload from 'payload';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
-import { queueBid, publishProductUpdate, publishMessageNotification, isRedisConnected } from './redis';
+import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, isRedisConnected } from './redis';
 
 dotenv.config();
 
@@ -16,6 +16,8 @@ const allowedOrigins: string[] = [
   'http://localhost:3001',
   'http://192.168.18.117:5173',
   'http://192.168.18.117:3001',
+  'http://192.168.1.34:5173',
+  'http://192.168.1.34:3001',
   'https://bidmo.to',
   'https://www.bidmo.to',
   'https://app.bidmo.to',
@@ -26,6 +28,11 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
+
+    // Allow any local network IP (192.168.x.x) for development
+    if (origin.match(/^http:\/\/192\.168\.\d+\.\d+:\d+$/)) {
+      return callback(null, true);
+    }
 
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -567,6 +574,118 @@ const start = async () => {
     }
   });
 
+  // Accept bid endpoint - queues accept action to Redis to prevent race conditions
+  app.post('/api/bid/accept', async (req, res) => {
+    try {
+      // Authenticate via JWT token
+      let userId: number | null = null;
+
+      if ((req as any).user?.id) {
+        userId = (req as any).user.id;
+      } else {
+        const authHeader = req.headers.authorization;
+        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
+          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+          try {
+            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            if (decoded.id) {
+              userId = decoded.id;
+            }
+          } catch (jwtError) {
+            console.error('JWT verification failed:', jwtError);
+          }
+        }
+      }
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { productId } = req.body;
+
+      if (!productId) {
+        return res.status(400).json({ error: 'Missing productId' });
+      }
+
+      // Get product to verify ownership and get highest bid
+      const product: any = await payload.findByID({
+        collection: 'products',
+        id: productId,
+      });
+
+      if (!product) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+
+      // Verify seller owns the product
+      const sellerId = typeof product.seller === 'object' ? product.seller.id : product.seller;
+      if (sellerId !== userId) {
+        return res.status(403).json({ error: 'Only the seller can accept bids' });
+      }
+
+      if (product.status !== 'available') {
+        return res.status(400).json({ error: `Product is already ${product.status}` });
+      }
+
+      // Get highest bid
+      const bids = await payload.find({
+        collection: 'bids',
+        where: { product: { equals: productId } },
+        sort: '-amount',
+        limit: 1,
+      });
+
+      if (bids.docs.length === 0) {
+        return res.status(400).json({ error: 'No bids to accept' });
+      }
+
+      const highestBid: any = bids.docs[0];
+      const highestBidderId = typeof highestBid.bidder === 'object' ? highestBid.bidder.id : highestBid.bidder;
+
+      // Queue the accept bid action
+      const result = await queueAcceptBid(
+        parseInt(productId, 10),
+        userId,
+        highestBidderId,
+        highestBid.amount
+      );
+
+      if (!result.success) {
+        // Fallback to direct update if Redis is down
+        console.warn('[CMS] Redis queue failed, falling back to direct accept');
+
+        await payload.update({
+          collection: 'products',
+          id: productId,
+          data: { status: 'sold' },
+        });
+
+        publishProductUpdate(parseInt(productId, 10), {
+          type: 'accepted',
+          status: 'sold',
+          winnerId: highestBidderId,
+          amount: highestBid.amount,
+        });
+
+        return res.json({
+          success: true,
+          fallback: true,
+          message: 'Bid accepted successfully (direct)',
+        });
+      }
+
+      res.json({
+        success: true,
+        jobId: result.jobId,
+        queued: true,
+        message: 'Accept bid queued for processing',
+      });
+    } catch (error: any) {
+      console.error('Error accepting bid:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Health check endpoint for Redis status
   app.get('/api/health', (req, res) => {
     res.json({
@@ -592,6 +711,7 @@ const start = async () => {
       }
 
       const key = `${product}:${userId}`;
+      const productId = typeof product === 'string' ? parseInt(product, 10) : product;
 
       if (isTyping) {
         // Set typing with current timestamp
@@ -600,6 +720,9 @@ const start = async () => {
         // Remove typing status
         typingStatus.delete(key);
       }
+
+      // Publish typing status via SSE for real-time updates
+      await publishTypingStatus(productId, userId, isTyping);
 
       res.json({ success: true });
     } catch (error: any) {

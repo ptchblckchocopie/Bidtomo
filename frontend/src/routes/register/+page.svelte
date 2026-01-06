@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
+  import { API_URL } from '$lib/api';
 
   let name = '';
   let email = '';
@@ -11,8 +12,6 @@
   let submitting = false;
   let error = '';
   let success = false;
-
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   // Get redirect URL from query params
   const redirectUrl = $page.url.searchParams.get('redirect') || '/';

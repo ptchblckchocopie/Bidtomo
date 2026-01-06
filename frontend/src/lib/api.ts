@@ -1,8 +1,26 @@
 // API utility functions for interacting with PayloadCMS backend
 
+import { browser } from '$app/environment';
 import { getAuthToken } from './stores/auth';
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Dynamically determine API URL based on current hostname
+function getApiUrl(): string {
+  // Use environment variable if set
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  // In browser, use current hostname with API port
+  if (browser && typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    return `http://${hostname}:3001`;
+  }
+
+  // Fallback for SSR
+  return 'http://localhost:3001';
+}
+
+export const API_URL = getApiUrl();
 
 // Helper function to get auth headers
 function getAuthHeaders(): HeadersInit {
@@ -759,6 +777,25 @@ export async function fetchProductMessages(
   } catch (error) {
     console.error('Error fetching messages:', error);
     return [];
+  }
+}
+
+// Fetch a single message by ID
+export async function fetchMessageById(messageId: string | number): Promise<Message | null> {
+  try {
+    const response = await fetch(`${API_URL}/api/messages/${messageId}?depth=1`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching message:', error);
+    return null;
   }
 }
 

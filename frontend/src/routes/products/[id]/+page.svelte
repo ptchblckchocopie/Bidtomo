@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct } from '$lib/api';
+  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct, API_URL } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
@@ -404,6 +404,25 @@
               data = { ...data };
             }
           }
+        } else if (event.type === 'accepted') {
+          console.log('[SSE] Received accepted event:', event);
+
+          // Smoothly update UI when bid is accepted
+          if (data.product && event.success) {
+            data.product.status = 'sold';
+
+            // Close accept bid modal if open
+            showAcceptBidModal = false;
+            acceptSuccess = true;
+
+            // Trigger reactivity
+            data = { ...data };
+
+            // Show success feedback without refresh
+            setTimeout(() => {
+              acceptSuccess = false;
+            }, 3000);
+          }
         }
       });
 
@@ -714,20 +733,35 @@
     acceptSuccess = false;
 
     try {
-      // Update product status to 'sold'
-      const result = await updateProduct(data.product.id, {
-        status: 'sold'
+      // Queue accept bid through Redis to prevent race conditions
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        acceptError = 'You must be logged in to accept a bid.';
+        accepting = false;
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/bid/accept`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          productId: data.product.id
+        })
       });
 
-      if (result) {
-        acceptSuccess = true;
-        setTimeout(() => {
-          // Refresh the page to show updated status
-          window.location.reload();
-        }, 1500);
+      const result = await response.json();
+
+      if (result.success) {
+        // SSE will handle the UI update smoothly when the accept is processed
+        // Close the modal - SSE event will update the status
+        showAcceptBidModal = false;
+        // acceptSuccess will be set by SSE event when processed
       } else {
-        console.error('Failed to accept bid - no result returned');
-        acceptError = 'Failed to accept bid. Please try again.';
+        console.error('Failed to accept bid:', result.error);
+        acceptError = result.error || 'Failed to accept bid. Please try again.';
       }
     } catch (error) {
       console.error('Error accepting bid:', error);
