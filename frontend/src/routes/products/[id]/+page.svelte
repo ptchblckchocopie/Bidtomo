@@ -156,6 +156,10 @@
       setTimeout(() => {
         outbidAnimating = false;
       }, 500);
+      // Auto-close the outbid alert after 5 seconds
+      setTimeout(() => {
+        wasOutbid = false;
+      }, 5000);
     } else if (isCurrentlyHighest && !wasHighestBidder) {
       // User just became highest bidder
       wasOutbid = false;
@@ -1084,9 +1088,6 @@
               <div class="outbid-alert" class:shake={outbidAnimating}>
                 <span class="alert-icon">😰</span>
                 <span class="alert-text">{currentBidderMessage}</span>
-                <button class="bid-again-btn" on:click={() => { bidSectionOpen = true; }}>
-                  Bid Again!
-                </button>
               </div>
             {/if}
           {:else if hasAuctionEnded || data.product.status === 'ended' || data.product.status === 'sold'}
@@ -1981,25 +1982,6 @@
   @keyframes panicShake {
     0%, 100% { transform: rotate(-15deg); }
     50% { transform: rotate(15deg); }
-  }
-
-  .bid-again-btn {
-    background: #fef2f2;
-    color: #dc2626;
-    border: 2px solid #fecaca;
-    border-radius: 8px;
-    padding: 0.5rem 1rem;
-    font-weight: 700;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-  }
-
-  .bid-again-btn:hover {
-    background: #ffffff;
-    transform: scale(1.05);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 
   /* Winner Alert */
