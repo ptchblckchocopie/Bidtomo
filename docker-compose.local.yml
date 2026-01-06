@@ -1,0 +1,57 @@
+# Local Development Dependencies
+# This docker-compose file is isolated to this project only
+# Usage: docker compose -f docker-compose.local.yml up -d
+
+services:
+  # PostgreSQL Database (isolated)
+  marketplace-postgres:
+    image: postgres:15-alpine
+    container_name: marketplace-local-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: marketplace
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - marketplace_local_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - marketplace-local-network
+
+  # Redis for bid queue and pub/sub (isolated)
+  # Using port 6380 to avoid conflict with other Redis instances
+  marketplace-redis:
+    image: redis:7-alpine
+    container_name: marketplace-local-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - marketplace_local_redis_data:/data
+    command: redis-server --appendonly yes --appendfsync everysec
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - marketplace-local-network
+
+# Isolated network for this project only
+networks:
+  marketplace-local-network:
+    name: marketplace-local-network
+    driver: bridge
+
+# Isolated volumes with project-specific names
+volumes:
+  marketplace_local_postgres_data:
+    name: marketplace_local_postgres_data
+  marketplace_local_redis_data:
+    name: marketplace_local_redis_data
