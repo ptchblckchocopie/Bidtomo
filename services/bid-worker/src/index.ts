@@ -232,15 +232,29 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
       return { success: false, error: `Bid must be at least ${minimumBid}` };
     }
 
-    // Create the bid
+    // Create the bid (PayloadCMS schema - relationships are in separate table)
     const bidResult = await client.query(
-      `INSERT INTO bids (product, bidder, amount, bid_time, censor_name, created_at, updated_at)
-       VALUES ($1, $2, $3, NOW(), $4, NOW(), NOW())
+      `INSERT INTO bids (amount, bid_time, censor_name, created_at, updated_at)
+       VALUES ($1, NOW(), $2, NOW(), NOW())
        RETURNING id`,
-      [job.productId, job.bidderId, job.amount, job.censorName || false]
+      [job.amount, job.censorName || false]
     );
 
     const bidId = bidResult.rows[0].id;
+
+    // Create relationship to product in bids_rels table
+    await client.query(
+      `INSERT INTO bids_rels (parent_id, path, products_id)
+       VALUES ($1, $2, $3)`,
+      [bidId, 'product', job.productId]
+    );
+
+    // Create relationship to bidder in bids_rels table
+    await client.query(
+      `INSERT INTO bids_rels (parent_id, path, users_id)
+       VALUES ($1, $2, $3)`,
+      [bidId, 'bidder', job.bidderId]
+    );
 
     // Update product's current bid
     await client.query(
