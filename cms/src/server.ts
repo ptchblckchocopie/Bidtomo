@@ -2,6 +2,7 @@ import express from 'express';
 import payload from 'payload';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import { queueBid, publishProductUpdate, publishMessageNotification, isRedisConnected } from './redis';
 
 dotenv.config();
 
@@ -41,6 +42,9 @@ app.use(cors({
 
 // Explicitly handle OPTIONS requests for preflight
 app.options('*', cors());
+
+// Parse JSON body
+app.use(express.json());
 
 const start = async () => {
   // Import config directly
@@ -371,6 +375,9 @@ const start = async () => {
   // Expose broadcast function globally so hooks can call it
   (global as any).broadcastProductUpdate = broadcastProductUpdate;
 
+  // Expose Redis message notification globally for hooks (avoid webpack bundling issues)
+  (global as any).publishMessageNotification = publishMessageNotification;
+
   // Sync endpoint to update product currentBid with highest bid
   app.post('/api/sync-bids', async (req, res) => {
     try {
@@ -419,6 +426,133 @@ const start = async () => {
       console.error('Error syncing bids:', error);
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // Queue bid endpoint - queues bid to Redis for processing by bid worker
+  // This prevents race conditions by processing bids sequentially
+  app.post('/api/bid/queue', async (req, res) => {
+    try {
+      // Check authentication
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { productId, amount, censorName } = req.body;
+
+      if (!productId || !amount) {
+        return res.status(400).json({ error: 'Missing productId or amount' });
+      }
+
+      // Basic validation - get product to check status
+      const product: any = await payload.findByID({
+        collection: 'products',
+        id: productId,
+      });
+
+      if (!product) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+
+      if (product.status !== 'available') {
+        return res.status(400).json({ error: `Product is ${product.status}` });
+      }
+
+      if (!product.active) {
+        return res.status(400).json({ error: 'Product is not active' });
+      }
+
+      // Check auction end date
+      if (new Date(product.auctionEndDate) <= new Date()) {
+        return res.status(400).json({ error: 'Auction has ended' });
+      }
+
+      // Validate bid amount
+      const currentBid = product.currentBid || 0;
+      const minimumBid = currentBid > 0
+        ? currentBid + (product.bidInterval || 1)
+        : product.startingPrice;
+
+      if (amount < minimumBid) {
+        return res.status(400).json({
+          error: `Bid must be at least ${minimumBid}`,
+          minimumBid,
+          currentBid,
+        });
+      }
+
+      // Check seller is not bidding on their own product
+      const sellerId = typeof product.seller === 'object' ? product.seller.id : product.seller;
+      if (sellerId === userId) {
+        return res.status(400).json({ error: 'You cannot bid on your own product' });
+      }
+
+      // Queue the bid
+      const result = await queueBid(
+        parseInt(productId, 10),
+        userId,
+        amount,
+        censorName || false
+      );
+
+      if (!result.success) {
+        // If Redis is down, fall back to direct bid creation
+        console.warn('[CMS] Redis queue failed, falling back to direct bid creation');
+
+        const bid = await payload.create({
+          collection: 'bids',
+          data: {
+            product: parseInt(productId, 10),
+            bidder: userId,
+            amount,
+            censorName: censorName || false,
+            bidTime: new Date().toISOString(),
+          },
+        });
+
+        // Update product current bid
+        await payload.update({
+          collection: 'products',
+          id: productId,
+          data: { currentBid: amount },
+        });
+
+        // Publish update via Redis if possible
+        publishProductUpdate(parseInt(productId, 10), {
+          type: 'bid',
+          success: true,
+          bidId: bid.id,
+          amount,
+          bidderId: userId,
+        });
+
+        return res.json({
+          success: true,
+          bidId: bid.id,
+          fallback: true,
+          message: 'Bid placed successfully (direct)',
+        });
+      }
+
+      res.json({
+        success: true,
+        jobId: result.jobId,
+        queued: true,
+        message: 'Bid queued for processing',
+      });
+    } catch (error: any) {
+      console.error('Error queuing bid:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Health check endpoint for Redis status
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'ok',
+      redis: isRedisConnected() ? 'connected' : 'disconnected',
+      timestamp: Date.now(),
+    });
   });
 
   // In-memory typing status store
