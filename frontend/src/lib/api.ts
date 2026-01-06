@@ -125,9 +125,8 @@ export async function fetchProducts(params?: {
 
     // Filter by status
     if (params?.status === 'active') {
-      // Active auctions - status is 'active' or 'available' AND active=true
-      queryParams.append(`where[and][${andIndex}][or][0][status][equals]`, 'active');
-      queryParams.append(`where[and][${andIndex}][or][1][status][equals]`, 'available');
+      // Active auctions - status is 'available' AND active=true
+      queryParams.append(`where[and][${andIndex}][status][equals]`, 'available');
       andIndex++;
       queryParams.append(`where[and][${andIndex}][active][equals]`, 'true');
       andIndex++;
@@ -254,9 +253,8 @@ export async function fetchMyBidsProducts(params?: {
       productQueryParams.append(`where[id][in][${index}]`, id);
     });
 
-    // Filter by active status only AND active=true
-    productQueryParams.append('where[and][0][or][0][status][equals]', 'active');
-    productQueryParams.append('where[and][0][or][1][status][equals]', 'available');
+    // Filter by available status AND active=true
+    productQueryParams.append('where[and][0][status][equals]', 'available');
     productQueryParams.append('where[and][1][active][equals]', 'true');
 
     // Search
