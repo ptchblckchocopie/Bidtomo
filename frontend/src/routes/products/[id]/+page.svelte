@@ -7,6 +7,7 @@
   import ProductForm from '$lib/components/ProductForm.svelte';
   import ImageSlider from '$lib/components/ImageSlider.svelte';
   import type { Product } from '$lib/api';
+  import { getProductSSE, disconnectProductSSE, queueBid as queueBidToRedis, type SSEEvent, type BidEvent } from '$lib/sse';
 
   export let data: PageData;
   export let params: any = undefined; // SvelteKit passes this automatically
@@ -281,10 +282,63 @@
       }
     }
 
-    // Polling every 3 seconds for real-time updates
+    // Connect to SSE for real-time updates
+    if (data.product?.id) {
+      const sseClient = getProductSSE(String(data.product.id));
+      sseClient.connect();
+
+      // Subscribe to bid events
+      const unsubscribe = sseClient.subscribe(async (event: SSEEvent) => {
+        if (event.type === 'bid' && (event as BidEvent).success) {
+          console.log('[SSE] Received bid update:', event);
+
+          // Update product current bid
+          if (data.product && (event as BidEvent).amount) {
+            const newAmount = (event as BidEvent).amount!;
+            const previousBid = data.product.currentBid || data.product.startingPrice;
+
+            if (newAmount > previousBid) {
+              // Trigger price animation
+              priceChanged = true;
+              data.product.currentBid = newAmount;
+
+              // Reload bids to get the new bid details
+              const updatedBids = await fetchProductBids(data.product.id);
+              const previousBidIds = new Set(data.bids.map(b => b.id));
+              newBidIds = new Set(
+                updatedBids
+                  .filter(b => !previousBidIds.has(b.id))
+                  .map(b => b.id)
+              );
+              data.bids = updatedBids;
+
+              // Update min bid
+              minBid = (data.product.currentBid || data.product.startingPrice || 0) + bidInterval;
+              if (bidAmount < minBid) {
+                bidAmount = minBid;
+              }
+
+              // Clear animations after delay
+              setTimeout(() => {
+                priceChanged = false;
+                newBidIds = new Set();
+              }, 3000);
+
+              // Trigger reactivity
+              data = { ...data };
+            }
+          }
+        }
+      });
+
+      // Store unsubscribe for cleanup
+      (window as any).__sseUnsubscribe = unsubscribe;
+    }
+
+    // Fallback polling every 10 seconds (reduced frequency since we have SSE)
     pollingInterval = setInterval(() => {
       checkForUpdates();
-    }, 3000);
+    }, 10000);
 
     // Initial check
     checkForUpdates();
@@ -327,6 +381,14 @@
   onDestroy(() => {
     if (countdownInterval) clearInterval(countdownInterval);
     if (pollingInterval) clearInterval(pollingInterval);
+
+    // Disconnect from SSE
+    if (data.product?.id) {
+      disconnectProductSSE(String(data.product.id));
+    }
+    if ((window as any).__sseUnsubscribe) {
+      (window as any).__sseUnsubscribe();
+    }
   });
 
   function formatPrice(price: number, currency: string = 'PHP'): string {
@@ -414,33 +476,41 @@
     bidSuccess = false;
 
     try {
-      const result = await placeBid(data.product.id, bidAmount, censorMyName);
+      // Try queue-based bidding first (Redis + SSE)
+      const queueResult = await queueBidToRedis(data.product.id, bidAmount, censorMyName);
 
-      if (result) {
+      if (queueResult.success) {
         bidSuccess = true;
         bidError = '';
 
-        // Trigger price animation immediately
-        priceChanged = true;
-        showConfetti = true;
+        // If bid was processed directly (fallback), update immediately
+        if (queueResult.fallback || queueResult.bidId) {
+          // Trigger price animation immediately
+          priceChanged = true;
+          showConfetti = true;
 
-        // Reload bids
-        const updatedBids = await fetchProductBids(data.product.id);
+          // Reload bids
+          const updatedBids = await fetchProductBids(data.product.id);
 
-        // Mark the new bid for animation
-        const previousBidIds = new Set(data.bids.map(b => b.id));
-        newBidIds = new Set(
-          updatedBids
-            .filter(b => !previousBidIds.has(b.id))
-            .map(b => b.id)
-        );
+          // Mark the new bid for animation
+          const previousBidIds = new Set(data.bids.map(b => b.id));
+          newBidIds = new Set(
+            updatedBids
+              .filter(b => !previousBidIds.has(b.id))
+              .map(b => b.id)
+          );
 
-        data.bids = updatedBids;
+          data.bids = updatedBids;
 
-        // Update product current bid
-        if (data.product) {
-          data.product.currentBid = bidAmount;
+          // Update product current bid
+          if (data.product) {
+            data.product.currentBid = bidAmount;
+          }
+        } else {
+          // Bid was queued - show pending state
+          console.log('[SSE] Bid queued, waiting for SSE update:', queueResult.jobId);
         }
+
         // Reset bid amount to new minimum
         bidAmount = bidAmount + bidInterval;
 
@@ -467,7 +537,7 @@
           bidSuccess = false;
         }, 5000);
       } else {
-        bidError = 'Failed to place bid. Please try again.';
+        bidError = queueResult.error || 'Failed to place bid. Please try again.';
       }
     } catch (error) {
       console.error('Error in confirmPlaceBid:', error);

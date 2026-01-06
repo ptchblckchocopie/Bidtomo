@@ -6,6 +6,7 @@
   import { fetchConversations, fetchProductMessages, fetchProduct, fetchProductBids, sendMessage, markMessageAsRead, setTypingStatus, getTypingStatus } from '$lib/api';
   import type { Product, Message } from '$lib/api';
   import { goto } from '$app/navigation';
+  import { getUserSSE, disconnectUserSSE, type SSEEvent, type MessageEvent as SSEMessageEvent } from '$lib/sse';
 
   function handleBackToList() {
     selectedProduct = null;
@@ -625,6 +626,41 @@
 
     await loadConversations();
 
+    // Connect to SSE for real-time message notifications
+    if ($authStore.user?.id) {
+      const sseClient = getUserSSE(String($authStore.user.id));
+      sseClient.connect();
+
+      // Subscribe to message events
+      const unsubscribe = sseClient.subscribe(async (event: SSEEvent) => {
+        if (event.type === 'new_message') {
+          console.log('[SSE] Received new message notification:', event);
+          const msgEvent = event as SSEMessageEvent;
+
+          // Reload conversations to get the new message
+          await loadConversations();
+
+          // If this message is for the currently selected product, reload messages
+          if (selectedProduct && msgEvent.productId === selectedProduct.id) {
+            const newMessages = await fetchProductMessages(selectedProduct.id, undefined, {
+              limit: MESSAGE_PAGE_SIZE,
+              latest: true
+            });
+            messages = newMessages;
+            lastMessageTime = newMessages.length > 0 ? newMessages[newMessages.length - 1].createdAt : null;
+
+            // Scroll to bottom for new messages
+            shouldAutoScroll = true;
+            await tick();
+            scrollToBottom(true);
+          }
+        }
+      });
+
+      // Store unsubscribe for cleanup
+      (window as any).__sseUnsubscribe = unsubscribe;
+    }
+
     // Handle visibility change - stop polling when tab is not visible
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -669,6 +705,14 @@
     }
     iAmTyping = false;
     otherUserTyping = false;
+
+    // Disconnect from SSE
+    if ($authStore.user?.id) {
+      disconnectUserSSE(String($authStore.user.id));
+    }
+    if ((window as any).__sseUnsubscribe) {
+      (window as any).__sseUnsubscribe();
+    }
   });
 </script>
 
