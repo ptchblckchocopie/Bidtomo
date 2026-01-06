@@ -352,7 +352,7 @@ export async function queueBid(
   censorName: boolean = false
 ): Promise<{ success: boolean; jobId?: string; bidId?: number; error?: string; fallback?: boolean }> {
   const apiUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:3001';
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
 
   try {
     const response = await fetch(`${apiUrl}/api/bid/queue`, {
