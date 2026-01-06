@@ -2,6 +2,7 @@ import express from 'express';
 import payload from 'payload';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import jwt from 'jsonwebtoken';
 import { queueBid, publishProductUpdate, publishMessageNotification, isRedisConnected } from './redis';
 
 dotenv.config();
@@ -432,8 +433,28 @@ const start = async () => {
   // This prevents race conditions by processing bids sequentially
   app.post('/api/bid/queue', async (req, res) => {
     try {
-      // Check authentication
-      const userId = (req as any).user?.id;
+      // Authenticate via JWT token
+      let userId: number | null = null;
+
+      // Check if already authenticated via Payload middleware
+      if ((req as any).user?.id) {
+        userId = (req as any).user.id;
+      } else {
+        // Check for JWT in Authorization header
+        const authHeader = req.headers.authorization;
+        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
+          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+          try {
+            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            if (decoded.id) {
+              userId = decoded.id;
+            }
+          } catch (jwtError) {
+            console.error('JWT verification failed:', jwtError);
+          }
+        }
+      }
+
       if (!userId) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
