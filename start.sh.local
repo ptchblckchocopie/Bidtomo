@@ -300,16 +300,20 @@ cleanup() {
     pkill -9 -f "$PROJECT_ROOT/frontend.*npm" 2>/dev/null || true
     pkill -9 -f "$PROJECT_ROOT/services.*npm" 2>/dev/null || true
 
-    # Stop Docker services if we started them
-    if [ "$DOCKER_DEPS_STARTED" = true ]; then
-        echo "  Stopping Docker containers..."
-        cd "$PROJECT_ROOT"
-        docker compose -f docker-compose.local.yml stop &> /dev/null
-        echo "  Stopped PostgreSQL and Redis containers"
-    fi
-
     # Kill any remaining background jobs
     jobs -p | xargs -r kill -9 2>/dev/null || true
+
+    # Kill any remaining processes on our ports
+    echo "  Freeing ports..."
+    lsof -ti:3001,3002,5433,6380 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+
+    # Always stop and remove Docker containers
+    echo "  Stopping Docker containers..."
+    cd "$PROJECT_ROOT"
+    docker compose -f docker-compose.local.yml down 2>/dev/null || true
+    docker stop marketplace-local-redis marketplace-local-postgres 2>/dev/null || true
+    docker rm marketplace-local-redis marketplace-local-postgres 2>/dev/null || true
+    echo "  Docker containers stopped and removed"
 
     echo -e "${GREEN}All services stopped.${NC}"
     exit 0
@@ -341,12 +345,19 @@ kill_all_services() {
 
     echo -e "${GREEN}  All Node processes killed${NC}"
 
-    # Stop Docker containers
-    if [ "$DOCKER_DEPS_STARTED" = true ]; then
-        echo -e "${YELLOW}  Stopping Docker containers...${NC}"
-        docker compose -f docker-compose.local.yml stop &> /dev/null
-        echo -e "${GREEN}  Docker containers stopped${NC}"
-    fi
+    # Kill any remaining processes on our ports
+    echo -e "${YELLOW}  Freeing ports...${NC}"
+    lsof -ti:3001,3002,5433,6380 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+    echo -e "${GREEN}  Ports freed${NC}"
+
+    # Always stop and remove Docker containers (not just if we started them)
+    echo -e "${YELLOW}  Stopping Docker containers...${NC}"
+    cd "$PROJECT_ROOT"
+    docker compose -f docker-compose.local.yml down 2>/dev/null || true
+    # Also try to stop containers by name in case compose file changed
+    docker stop marketplace-local-redis marketplace-local-postgres 2>/dev/null || true
+    docker rm marketplace-local-redis marketplace-local-postgres 2>/dev/null || true
+    echo -e "${GREEN}  Docker containers stopped and removed${NC}"
 
     echo -e "${GREEN}All services stopped.${NC}"
     exit 0
