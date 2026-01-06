@@ -51,9 +51,25 @@ function initRedis(): Redis {
   return client;
 }
 
-// CORS configuration
+// CORS configuration - allow local network IPs for development
 app.use(cors({
-  origin: [CORS_ORIGIN, 'http://localhost:3001', 'http://localhost:5173'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+
+    // Allow localhost
+    if (origin.includes('localhost')) return callback(null, true);
+
+    // Allow any local network IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+    if (origin.match(/^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/)) {
+      return callback(null, true);
+    }
+
+    // Allow configured CORS_ORIGIN
+    if (origin === CORS_ORIGIN) return callback(null, true);
+
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 
@@ -96,12 +112,23 @@ function broadcastRedisStatus(connected: boolean) {
 // SSE endpoint for product updates (bids)
 app.get('/events/products/:productId', (req: Request, res: Response) => {
   const { productId } = req.params;
+  const origin = req.headers.origin;
+
+  // Set CORS headers for SSE
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
 
   // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Content-Encoding', 'none'); // Disable compression for SSE
+
+  // Flush headers immediately
+  res.flushHeaders();
 
   // Send initial connection event with Redis status
   res.write(`data: ${JSON.stringify({
@@ -145,12 +172,23 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
 // SSE endpoint for user updates (messages)
 app.get('/events/users/:userId', (req: Request, res: Response) => {
   const { userId } = req.params;
+  const origin = req.headers.origin;
+
+  // Set CORS headers for SSE
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
 
   // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Content-Encoding', 'none'); // Disable compression for SSE
+
+  // Flush headers immediately
+  res.flushHeaders();
 
   // Send initial connection event
   res.write(`data: ${JSON.stringify({
@@ -201,6 +239,10 @@ function broadcastToProduct(productId: string, data: object) {
   connections.forEach((res) => {
     try {
       res.write(message);
+      // Flush immediately to prevent buffering
+      if (typeof (res as any).flush === 'function') {
+        (res as any).flush();
+      }
       sent++;
     } catch (error) {
       console.error(`[SSE] Error broadcasting to product ${productId}:`, error);
@@ -222,6 +264,10 @@ function broadcastToUser(userId: string, data: object) {
   connections.forEach((res) => {
     try {
       res.write(message);
+      // Flush immediately to prevent buffering
+      if (typeof (res as any).flush === 'function') {
+        (res as any).flush();
+      }
       sent++;
     } catch (error) {
       console.error(`[SSE] Error broadcasting to user ${userId}:`, error);
@@ -239,14 +285,17 @@ async function setupRedisSubscriber() {
     await redis.psubscribe('sse:product:*', 'sse:user:*');
 
     redis.on('pmessage', (pattern, channel, message) => {
+      console.log(`[SSE] Redis pmessage received on channel: ${channel}`);
       try {
         const data = JSON.parse(message);
 
         if (channel.startsWith('sse:product:')) {
           const productId = channel.replace('sse:product:', '');
+          console.log(`[SSE] Broadcasting to product ${productId}, data type: ${data.type}`);
           broadcastToProduct(productId, data);
         } else if (channel.startsWith('sse:user:')) {
           const userId = channel.replace('sse:user:', '');
+          console.log(`[SSE] Broadcasting to user ${userId}, data type: ${data.type}, connected users: ${userConnections.has(userId) ? userConnections.get(userId)?.size : 0}`);
           broadcastToUser(userId, data);
         }
       } catch (error) {
