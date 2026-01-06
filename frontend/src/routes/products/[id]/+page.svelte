@@ -96,6 +96,78 @@
   let showConfetti = false;
   let animatingBidId: string | null = null;
 
+  // Outbid tracking
+  let wasOutbid = false;
+  let wasHighestBidder = false;
+  let outbidAnimating = false;
+  let currentBidderMessage = '';
+
+  // Random messages for highest bidder
+  const highestBidderMessages = [
+    "You're currently the highest bidder! 🎯",
+    "Leading the pack! Keep your eyes on the prize! 👀",
+    "You're in the lead! Stay sharp! ⚡",
+    "Top bidder alert! You're winning! 🏆",
+    "You're ahead of the competition! 🚀",
+    "Currently in first place! Nice move! 💪",
+    "You've taken the lead! Hold on tight! 🎢",
+    "Winning bid is yours... for now! 😎",
+    "You're the one to beat! 🥇",
+    "Sitting at the top! Great bid! ⭐",
+    "You're dominating this auction! 🔥",
+    "Front runner status achieved! 🏃‍♂️"
+  ];
+
+  // Random messages for when user gets outbid
+  const outbidMessages = [
+    "Oh no! Someone just outbid you! 😱",
+    "Uh oh! You've been outbid! Time to strike back! ⚔️",
+    "Plot twist! Another bidder took the lead! 😮",
+    "You've been dethroned! Will you reclaim your spot? 👑",
+    "Someone swooped in! Don't let them win! 🦅",
+    "Outbid alert! The competition is heating up! 🔥",
+    "They snatched the lead! Fight back! 💥",
+    "You lost the top spot! Bid again to reclaim it! 🎯",
+    "A challenger appeared and took the lead! ⚡",
+    "Oops! Someone wants this more than you... or do they? 🤔",
+    "The tables have turned! Your move! ♟️",
+    "Knocked off the throne! Time for revenge? 😤"
+  ];
+
+  // Get random message
+  function getRandomMessage(messages: string[]): string {
+    return messages[Math.floor(Math.random() * messages.length)];
+  }
+
+  // Update bidder message when status changes
+  $: {
+    const currentUserId = $authStore.user?.id;
+    const currentHighestBidderId = highestBid ?
+      (typeof highestBid.bidder === 'object' ? highestBid.bidder.id : highestBid.bidder) : null;
+
+    const isCurrentlyHighest = currentUserId && currentHighestBidderId === currentUserId;
+
+    // Check if user was outbid
+    if (wasHighestBidder && !isCurrentlyHighest && currentUserId) {
+      wasOutbid = true;
+      outbidAnimating = true;
+      currentBidderMessage = getRandomMessage(outbidMessages);
+      // Reset animation after it plays
+      setTimeout(() => {
+        outbidAnimating = false;
+      }, 500);
+    } else if (isCurrentlyHighest && !wasHighestBidder) {
+      // User just became highest bidder
+      wasOutbid = false;
+      currentBidderMessage = getRandomMessage(highestBidderMessages);
+    } else if (isCurrentlyHighest && !currentBidderMessage) {
+      // Initial load as highest bidder
+      currentBidderMessage = getRandomMessage(highestBidderMessages);
+    }
+
+    wasHighestBidder = isCurrentlyHighest;
+  }
+
   // Prepare chart data - bids sorted by time (oldest first)
   $: chartData = [...data.bids]
     .sort((a, b) => new Date(a.bidTime).getTime() - new Date(b.bidTime).getTime())
@@ -1000,13 +1072,23 @@
           </div>
         {/if}
 
-        {#if isHighestBidder && !isOwner}
+        {#if (isHighestBidder || wasOutbid) && !isOwner}
           {#if (data.product.status === 'active' || data.product.status === 'available') && !hasAuctionEnded}
-            <!-- Active auction - currently highest bidder -->
-            <div class="highest-bidder-alert">
-              <span class="alert-icon">👑</span>
-              <span class="alert-text">You are currently the highest bidder!</span>
-            </div>
+            <!-- Active auction - bidder status alert -->
+            {#if isHighestBidder}
+              <div class="highest-bidder-alert" class:animate-in={!wasOutbid}>
+                <span class="alert-icon">👑</span>
+                <span class="alert-text">{currentBidderMessage || "You're currently the highest bidder!"}</span>
+              </div>
+            {:else if wasOutbid}
+              <div class="outbid-alert" class:shake={outbidAnimating}>
+                <span class="alert-icon">😰</span>
+                <span class="alert-text">{currentBidderMessage}</span>
+                <button class="bid-again-btn" on:click={() => { bidSectionOpen = true; }}>
+                  Bid Again!
+                </button>
+              </div>
+            {/if}
           {:else if hasAuctionEnded || data.product.status === 'ended' || data.product.status === 'sold'}
             <!-- Auction ended - winner alert -->
             <div class="winner-alert">
@@ -1832,6 +1914,92 @@
     font-weight: 700;
     color: #78350f;
     letter-spacing: 0.5px;
+  }
+
+  /* Animate in effect for highest bidder */
+  .highest-bidder-alert.animate-in {
+    animation: slideInBounce 0.5s ease-out, alertPulse 2s ease-in-out 0.5s infinite;
+  }
+
+  @keyframes slideInBounce {
+    0% {
+      opacity: 0;
+      transform: translateY(-20px) scale(0.9);
+    }
+    60% {
+      transform: translateY(5px) scale(1.02);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* Outbid Alert */
+  .outbid-alert {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    border: 3px solid #b91c1c;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+    animation: outbidPulse 1.5s ease-in-out infinite;
+  }
+
+  .outbid-alert .alert-icon {
+    font-size: 2rem;
+    animation: panicShake 0.5s ease-in-out infinite;
+  }
+
+  .outbid-alert .alert-text {
+    color: #fef2f2;
+    flex: 1;
+  }
+
+  .outbid-alert.shake {
+    animation: shakeAlert 0.5s ease-in-out;
+  }
+
+  @keyframes outbidPulse {
+    0%, 100% {
+      box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+    }
+    50% {
+      box-shadow: 0 6px 24px rgba(239, 68, 68, 0.6);
+    }
+  }
+
+  @keyframes shakeAlert {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+    20%, 40%, 60%, 80% { transform: translateX(8px); }
+  }
+
+  @keyframes panicShake {
+    0%, 100% { transform: rotate(-15deg); }
+    50% { transform: rotate(15deg); }
+  }
+
+  .bid-again-btn {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 2px solid #fecaca;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .bid-again-btn:hover {
+    background: #ffffff;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 
   /* Winner Alert */
