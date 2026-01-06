@@ -3,7 +3,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: marketplace-postgres
-    restart: unless-stopped
+    restart: "no"
     environment:
       POSTGRES_DB: marketplace
       POSTGRES_USER: postgres
@@ -26,7 +26,7 @@ services:
       context: ./cms
       dockerfile: Dockerfile
     container_name: marketplace-backend
-    restart: unless-stopped
+    restart: "no"
     ports:
       - "3001:3001"
     environment:
@@ -56,7 +56,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: marketplace-frontend
-    restart: unless-stopped
+    restart: "no"
     ports:
       - "5173:5173"
     environment:
