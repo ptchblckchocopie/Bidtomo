@@ -20,6 +20,7 @@ const pool = new Pool({
 });
 
 interface BidJob {
+  type?: 'bid' | 'accept_bid';
   productId: number;
   bidderId: number;
   amount: number;
@@ -27,6 +28,7 @@ interface BidJob {
   censorName?: boolean;
   retryCount?: number;
   jobId?: string;
+  sellerId?: number;
 }
 
 interface Product {
@@ -278,6 +280,53 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
   }
 }
 
+// Process accept bid - marks product as sold atomically
+async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?: string }> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // Get current product state with lock
+    const productResult = await client.query<Product>(
+      `SELECT id, current_bid as "currentBid", status, active
+       FROM products WHERE id = $1 FOR UPDATE`,
+      [job.productId]
+    );
+
+    if (productResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Product not found' };
+    }
+
+    const product = productResult.rows[0];
+
+    // Validate product is still available
+    if (product.status !== 'available') {
+      await client.query('ROLLBACK');
+      return { success: false, error: `Product is already ${product.status}` };
+    }
+
+    // Update product status to 'sold'
+    await client.query(
+      `UPDATE products SET status = 'sold', updated_at = NOW() WHERE id = $1`,
+      [job.productId]
+    );
+
+    await client.query('COMMIT');
+
+    console.log(`[WORKER] Accept bid processed: Product ${job.productId} marked as sold`);
+
+    return { success: true };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('[WORKER] Error processing accept bid:', error);
+    return { success: false, error: String(error) };
+  } finally {
+    client.release();
+  }
+}
+
 // Publish bid result to SSE service via Redis
 async function publishBidResult(productId: number, result: { success: boolean; bidId?: number; amount?: number; bidderId?: number; error?: string }) {
   if (!redisConnected) {
@@ -297,6 +346,29 @@ async function publishBidResult(productId: number, result: { success: boolean; b
     console.log(`[WORKER] Published to ${channel}`);
   } catch (error) {
     console.error('[WORKER] Failed to publish bid result:', error);
+  }
+}
+
+// Publish accept bid result to SSE service via Redis
+async function publishAcceptResult(productId: number, result: { success: boolean; winnerId?: number; amount?: number; error?: string }) {
+  if (!redisConnected) {
+    console.warn('[WORKER] Redis not connected, cannot publish result');
+    return;
+  }
+
+  const channel = `sse:product:${productId}`;
+  const message = JSON.stringify({
+    type: 'accepted',
+    status: 'sold',
+    ...result,
+    timestamp: Date.now(),
+  });
+
+  try {
+    await redisPub.publish(channel, message);
+    console.log(`[WORKER] Published accept result to ${channel}`);
+  } catch (error) {
+    console.error('[WORKER] Failed to publish accept result:', error);
   }
 }
 
@@ -352,62 +424,86 @@ async function runWorker() {
         job.jobId = generateJobId();
       }
 
-      console.log(`[WORKER] Processing bid: Product ${job.productId}, Amount ${job.amount}, Job ${job.jobId}`);
+      // Handle different job types
+      if (job.type === 'accept_bid') {
+        // Process accept bid
+        console.log(`[WORKER] Processing accept_bid: Product ${job.productId}, Job ${job.jobId}`);
 
-      // Save to database in case of crash
-      await savePendingBidToDb(job);
+        const acceptResult = await processAcceptBid(job);
 
-      const bidResult = await processBid(job);
-
-      if (bidResult.success) {
-        // Remove from pending bids
-        await removePendingBidFromDb(job.jobId);
-
-        // Publish result to SSE
-        await publishBidResult(job.productId, {
-          ...bidResult,
-          amount: job.amount,
-          bidderId: job.bidderId,
-        });
+        if (acceptResult.success) {
+          await publishAcceptResult(job.productId, {
+            success: true,
+            winnerId: job.bidderId,
+            amount: job.amount,
+          });
+          console.log(`[WORKER] Accept bid completed: Product ${job.productId}`);
+        } else {
+          await publishAcceptResult(job.productId, {
+            success: false,
+            error: acceptResult.error,
+          });
+          console.log(`[WORKER] Accept bid failed: ${acceptResult.error}`);
+        }
       } else {
-        // Check if it's a transient error (not a validation error)
-        const isValidationError = [
-          'Product not found',
-          'Product is sold',
-          'Product is ended',
-          'Product is not active',
-          'Auction has ended',
-          'Bid must be at least',
-        ].some((msg) => bidResult.error?.includes(msg));
+        // Process regular bid
+        console.log(`[WORKER] Processing bid: Product ${job.productId}, Amount ${job.amount}, Job ${job.jobId}`);
 
-        if (isValidationError) {
-          // Remove from pending - it's a valid rejection
+        // Save to database in case of crash
+        await savePendingBidToDb(job);
+
+        const bidResult = await processBid(job);
+
+        if (bidResult.success) {
+          // Remove from pending bids
           await removePendingBidFromDb(job.jobId);
+
+          // Publish result to SSE
           await publishBidResult(job.productId, {
             ...bidResult,
             amount: job.amount,
             bidderId: job.bidderId,
           });
-          console.log(`[WORKER] Bid rejected: ${bidResult.error}`);
         } else {
-          // Transient error - retry
-          const retryCount = (job.retryCount || 0) + 1;
+          // Check if it's a transient error (not a validation error)
+          const isValidationError = [
+            'Product not found',
+            'Product is sold',
+            'Product is ended',
+            'Product is not active',
+            'Auction has ended',
+            'Bid must be at least',
+          ].some((msg) => bidResult.error?.includes(msg));
 
-          if (retryCount < MAX_RETRIES) {
-            job.retryCount = retryCount;
-            console.log(`[WORKER] Retrying bid ${job.jobId} (attempt ${retryCount}/${MAX_RETRIES})`);
-            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY * retryCount));
-            await redisQueue.rpush(QUEUE_KEY, JSON.stringify(job));
-          } else {
-            console.error(`[WORKER] Bid ${job.jobId} failed after ${MAX_RETRIES} retries`);
-            await moveToFailedQueue(job, bidResult.error || 'Unknown error');
+          if (isValidationError) {
+            // Remove from pending - it's a valid rejection
             await removePendingBidFromDb(job.jobId);
             await publishBidResult(job.productId, {
-              success: false,
-              error: 'Bid processing failed. Please try again.',
+              ...bidResult,
               amount: job.amount,
               bidderId: job.bidderId,
             });
+            console.log(`[WORKER] Bid rejected: ${bidResult.error}`);
+          } else {
+            // Transient error - retry
+            const retryCount = (job.retryCount || 0) + 1;
+
+            if (retryCount < MAX_RETRIES) {
+              job.retryCount = retryCount;
+              console.log(`[WORKER] Retrying bid ${job.jobId} (attempt ${retryCount}/${MAX_RETRIES})`);
+              await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY * retryCount));
+              await redisQueue.rpush(QUEUE_KEY, JSON.stringify(job));
+            } else {
+              console.error(`[WORKER] Bid ${job.jobId} failed after ${MAX_RETRIES} retries`);
+              await moveToFailedQueue(job, bidResult.error || 'Unknown error');
+              await removePendingBidFromDb(job.jobId);
+              await publishBidResult(job.productId, {
+                success: false,
+                error: 'Bid processing failed. Please try again.',
+                amount: job.amount,
+                bidderId: job.bidderId,
+              });
+            }
           }
         }
       }
