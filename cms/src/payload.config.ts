@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { buildConfig } from 'payload/config';
 import { postgresAdapter } from '@payloadcms/db-postgres';
 import { lexicalEditor } from '@payloadcms/richtext-lexical';
@@ -21,8 +24,10 @@ const adapter = s3Adapter({
   acl: 'public-read'
 });
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 export default buildConfig({
-  serverURL: process.env.SERVER_URL || 'https://app.bidmo.to',
+  serverURL: isProduction ? (process.env.SERVER_URL || 'https://app.bidmo.to') : '',
   cors: [
     'http://localhost:5173',
     'http://localhost:3001',
@@ -48,15 +53,27 @@ export default buildConfig({
     bundler: webpackBundler(),
     disable: process.env.VERCEL === '1', // Disable admin UI on Vercel serverless
     webpack: (config) => {
-      // Externalize Node.js built-in modules and auth helpers for the admin bundle
-      const existingExternals = config.externals && typeof config.externals === 'object' ? config.externals : {};
-      config.externals = {
-        ...existingExternals,
-        fs: 'commonjs fs',
-        path: 'commonjs path',
-        './auth-helpers': 'commonjs ./auth-helpers',
-        'jsonwebtoken': 'commonjs jsonwebtoken',
+      // Provide browser-compatible fallbacks for Node.js built-in modules
+      config.resolve = {
+        ...config.resolve,
+        fallback: {
+          ...config.resolve?.fallback,
+          fs: false,
+          path: require.resolve('path-browserify'),
+          crypto: false,
+          stream: false,
+          os: false,
+          util: false,
+          buffer: false,
+        },
       };
+      // Externalize server-only modules that shouldn't be in browser bundle
+      config.externals = [
+        ...(Array.isArray(config.externals) ? config.externals : []),
+        'jsonwebtoken',
+        'jwa',
+        'jws',
+      ];
       return config;
     },
   },
@@ -777,8 +794,15 @@ export default buildConfig({
       collections: {
         media: {
           adapter: adapter,
-          prefix: 'bidmoto', // Empty prefix to match existing files at bucket root
-          disableLocalStorage: true
+          prefix: 'bidmoto',
+          disableLocalStorage: true,
+          generateFileURL: ({ filename, prefix }) => {
+            const bucket = process.env.S3_BUCKET || 'veent';
+            const endpoint = process.env.S3_ENDPOINT || 'https://sgp1.digitaloceanspaces.com';
+            // Convert endpoint to CDN URL format
+            const cdnUrl = endpoint.replace('https://', `https://${bucket}.`);
+            return `${cdnUrl}/${prefix}/${filename}`;
+          },
         }
       }
     })
