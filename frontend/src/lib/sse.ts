@@ -1,7 +1,29 @@
 import { writable, type Writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
-const SSE_URL = import.meta.env.PUBLIC_SSE_URL || 'http://localhost:3002';
+// Dynamically determine SSE URL based on current hostname
+function getSseUrl(): string {
+  if (import.meta.env.PUBLIC_SSE_URL) {
+    return import.meta.env.PUBLIC_SSE_URL;
+  }
+  if (browser && typeof window !== 'undefined') {
+    return `http://${window.location.hostname}:3002`;
+  }
+  return 'http://localhost:3002';
+}
+
+// Dynamically determine API URL based on current hostname
+function getApiUrl(): string {
+  if (import.meta.env.PUBLIC_API_URL) {
+    return import.meta.env.PUBLIC_API_URL;
+  }
+  if (browser && typeof window !== 'undefined') {
+    return `http://${window.location.hostname}:3001`;
+  }
+  return 'http://localhost:3001';
+}
+
+const SSE_URL = getSseUrl();
 
 // Connection states
 export type SSEConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -24,6 +46,17 @@ export interface MessageEvent {
   senderId: number;
   preview?: string;
   timestamp: number;
+  // Full message data for instant display (no extra HTTP request needed)
+  message?: {
+    id: string;
+    message: string;
+    sender: { id: string; name?: string; email?: string };
+    receiver: { id: string };
+    product: { id: string };
+    read: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
 }
 
 export interface RedisStatusEvent {
@@ -39,7 +72,25 @@ export interface ConnectedEvent {
   fallbackPolling?: boolean;
 }
 
-export type SSEEvent = BidEvent | MessageEvent | RedisStatusEvent | ConnectedEvent;
+export interface AcceptedEvent {
+  type: 'accepted';
+  success: boolean;
+  status: 'sold';
+  winnerId?: number;
+  amount?: number;
+  error?: string;
+  timestamp: number;
+}
+
+export interface TypingEvent {
+  type: 'typing';
+  productId: number;
+  userId: number;
+  isTyping: boolean;
+  timestamp: number;
+}
+
+export type SSEEvent = BidEvent | MessageEvent | RedisStatusEvent | ConnectedEvent | AcceptedEvent | TypingEvent;
 
 // Product SSE client
 class ProductSSEClient {
@@ -148,7 +199,7 @@ class ProductSSEClient {
 
     this.pollingInterval = setInterval(async () => {
       try {
-        const apiUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:3001';
+        const apiUrl = getApiUrl();
         const response = await fetch(`${apiUrl}/api/products/${this.productId}/status`);
 
         if (response.ok) {
@@ -351,7 +402,7 @@ export async function queueBid(
   amount: number,
   censorName: boolean = false
 ): Promise<{ success: boolean; jobId?: string; bidId?: number; error?: string; fallback?: boolean }> {
-  const apiUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:3001';
+  const apiUrl = getApiUrl();
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
 
   try {
