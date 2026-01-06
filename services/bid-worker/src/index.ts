@@ -221,11 +221,13 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
       return { success: false, error: 'Auction has ended' };
     }
 
-    // Validate bid amount
-    const currentBid = product.currentBid || 0;
+    // Validate bid amount (ensure numeric values)
+    const currentBid = Number(product.currentBid) || 0;
+    const bidInterval = Number(product.bidInterval) || 1;
+    const startingPrice = Number(product.startingPrice) || 0;
     const minimumBid = currentBid > 0
-      ? currentBid + product.bidInterval
-      : product.startingPrice;
+      ? currentBid + bidInterval
+      : startingPrice;
 
     if (job.amount < minimumBid) {
       await client.query('ROLLBACK');
