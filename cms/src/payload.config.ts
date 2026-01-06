@@ -612,27 +612,40 @@ export default buildConfig({
           async ({ req, doc, operation }) => {
             // Publish notification to receiver via SSE when message is created
             if (operation === 'create') {
-              setImmediate(async () => {
-                try {
-                  const receiverId = typeof doc.receiver === 'object' ? doc.receiver.id : doc.receiver;
-                  const senderId = typeof doc.sender === 'object' ? doc.sender.id : doc.sender;
-                  const productId = typeof doc.product === 'object' ? doc.product.id : doc.product;
+              try {
+                const receiverId = typeof doc.receiver === 'object' ? doc.receiver.id : doc.receiver;
+                const senderId = typeof doc.sender === 'object' ? doc.sender.id : doc.sender;
+                const productId = typeof doc.product === 'object' ? doc.product.id : doc.product;
 
-                  // Use global function (defined in server.ts) to avoid webpack bundling Redis
-                  const publishMessageNotification = (global as any).publishMessageNotification;
-                  if (publishMessageNotification) {
-                    await publishMessageNotification(receiverId, {
-                      type: 'new_message',
-                      messageId: doc.id,
-                      productId,
-                      senderId,
-                      preview: doc.message?.substring(0, 50) + (doc.message?.length > 50 ? '...' : ''),
-                    });
-                  }
-                } catch (error) {
-                  console.error('Error publishing message notification:', error);
+                // Get sender info from doc if populated, or from request user
+                const senderData = typeof doc.sender === 'object' ? doc.sender : (req.user?.id === senderId ? req.user : null);
+
+                // Use global function (defined in server.ts) to avoid webpack bundling Redis
+                const publishMessageNotification = (global as any).publishMessageNotification;
+                if (publishMessageNotification) {
+                  // Publish immediately - don't wait for response
+                  publishMessageNotification(receiverId, {
+                    type: 'new_message',
+                    messageId: doc.id,
+                    productId,
+                    senderId,
+                    preview: doc.message?.substring(0, 50) + (doc.message?.length > 50 ? '...' : ''),
+                    // Include full message data for instant display
+                    message: {
+                      id: doc.id,
+                      message: doc.message,
+                      sender: senderData ? { id: senderData.id, name: senderData.name, email: senderData.email } : { id: senderId },
+                      receiver: { id: receiverId },
+                      product: { id: productId },
+                      read: false,
+                      createdAt: doc.createdAt,
+                      updatedAt: doc.updatedAt,
+                    },
+                  }).catch((err: Error) => console.error('Error publishing message notification:', err));
                 }
-              });
+              } catch (error) {
+                console.error('Error in message afterChange hook:', error);
+              }
             }
             return doc;
           },
