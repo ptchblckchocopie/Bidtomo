@@ -1,178 +1,534 @@
 #!/bin/bash
 
 # Marketplace Platform - Start Script
-# This script starts both the PayloadCMS backend and SvelteKit frontend
+# This script starts all services: PayloadCMS, SvelteKit frontend, SSE service, and Bid Worker
 
 set -e  # Exit on error
 
 # Colors for output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
 RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  Marketplace Platform - Startup${NC}"
-echo -e "${BLUE}========================================${NC}"
-echo ""
+# Service colors for logs
+CMS_COLOR='\033[0;36m'      # Cyan
+FRONTEND_COLOR='\033[0;35m' # Magenta
+SSE_COLOR='\033[0;33m'      # Yellow
+WORKER_COLOR='\033[0;32m'   # Green
+REDIS_COLOR='\033[0;31m'    # Red
 
-# Check if Node.js is installed
-if ! command -v node &> /dev/null; then
-    echo -e "${RED}Error: Node.js is not installed.${NC}"
-    echo "Please install Node.js 18+ from https://nodejs.org/"
-    exit 1
-fi
+# Project root directory
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Check if PostgreSQL is running
-if ! command -v psql &> /dev/null; then
-    echo -e "${YELLOW}Warning: PostgreSQL CLI (psql) not found.${NC}"
-    echo -e "${YELLOW}Make sure PostgreSQL is installed and running.${NC}"
+# PIDs for cleanup
+CMS_PID=""
+FRONTEND_PID=""
+SSE_PID=""
+WORKER_PID=""
+DOCKER_DEPS_STARTED=false
+
+print_header() {
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}  Marketplace Platform - Startup${NC}"
+    echo -e "${BLUE}========================================${NC}"
     echo ""
-else
-    echo -e "${GREEN}✓ PostgreSQL CLI found${NC}"
-fi
+}
 
-echo -e "${GREEN}✓ Node.js $(node --version) found${NC}"
-echo ""
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
 
-# Check if .env file exists in cms directory
-if [ ! -f "cms/.env" ]; then
-    echo -e "${YELLOW}Warning: cms/.env file not found.${NC}"
-    echo "Creating .env from .env.example..."
-    if [ -f "cms/.env.example" ]; then
-        cp cms/.env.example cms/.env
-        echo -e "${GREEN}✓ Created cms/.env file${NC}"
-        echo -e "${YELLOW}Please edit cms/.env and configure your database connection.${NC}"
-        echo ""
+print_warning() {
+    echo -e "${YELLOW}⚠ $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
+
+print_info() {
+    echo -e "${BLUE}→ $1${NC}"
+}
+
+# Check prerequisites
+check_prerequisites() {
+    echo -e "${WHITE}Checking prerequisites...${NC}"
+    echo ""
+    local all_ok=true
+
+    # Check Node.js
+    if command -v node &> /dev/null; then
+        print_success "Node.js $(node --version)"
     else
-        echo -e "${RED}Error: cms/.env.example not found.${NC}"
+        print_error "Node.js is not installed"
+        echo "  Please install Node.js 18+ from https://nodejs.org/"
+        all_ok=false
+    fi
+
+    # Check npm
+    if command -v npm &> /dev/null; then
+        print_success "npm $(npm --version)"
+    else
+        print_error "npm is not installed"
+        all_ok=false
+    fi
+
+    # Check Docker
+    if command -v docker &> /dev/null; then
+        print_success "Docker is installed"
+    else
+        print_error "Docker is not installed"
+        echo "  Please install Docker: https://docs.docker.com/get-docker/"
+        all_ok=false
+    fi
+
+    echo ""
+
+    if [ "$all_ok" = false ]; then
+        print_error "Some prerequisites are missing. Please install them first."
         exit 1
-    fi
-else
-    echo -e "${GREEN}✓ cms/.env file exists${NC}"
-fi
-
-# Check if .env file exists in frontend directory
-if [ ! -f "frontend/.env" ]; then
-    echo -e "${YELLOW}Warning: frontend/.env file not found.${NC}"
-    echo "Creating .env from .env.example..."
-    if [ -f "frontend/.env.example" ]; then
-        cp frontend/.env.example frontend/.env
-        echo -e "${GREEN}✓ Created frontend/.env file${NC}"
-    else
-        echo -e "${YELLOW}Warning: frontend/.env.example not found. Skipping...${NC}"
-    fi
-else
-    echo -e "${GREEN}✓ frontend/.env file exists${NC}"
-fi
-
-# Function to check if dependencies are installed
-check_dependencies() {
-    local dir=$1
-    if [ ! -d "$dir/node_modules" ]; then
-        echo -e "${YELLOW}Installing dependencies in $dir...${NC}"
-        cd "$dir"
-        npm install
-        cd ..
-        echo -e "${GREEN}✓ Dependencies installed in $dir${NC}"
-    else
-        echo -e "${GREEN}✓ Dependencies already installed in $dir${NC}"
     fi
 }
 
-# Check and install dependencies
-echo ""
-echo -e "${BLUE}Checking dependencies...${NC}"
-check_dependencies "cms"
-check_dependencies "frontend"
+# Start Docker dependencies (PostgreSQL and Redis)
+start_docker_deps() {
+    print_info "Starting Docker dependencies..."
 
-echo ""
-echo -e "${BLUE}Starting services...${NC}"
-echo ""
+    # Check if Docker is available
+    if ! command -v docker &> /dev/null; then
+        print_error "Docker is not installed"
+        echo "  Please install Docker: https://docs.docker.com/get-docker/"
+        exit 1
+    fi
 
-# Create a temporary directory for logs
-mkdir -p .logs
+    # Check if Docker daemon is running
+    if ! docker info &> /dev/null 2>&1; then
+        print_error "Docker daemon is not running"
+        echo "  Please start Docker and try again"
+        exit 1
+    fi
 
-# Function to cleanup background processes on exit
+    print_success "Docker is available"
+
+    # Start the local docker-compose services
+    print_info "Starting PostgreSQL and Redis containers..."
+
+    cd "$PROJECT_ROOT"
+    docker compose -f docker-compose.local.yml up -d
+
+    # Wait for services to be healthy
+    print_info "Waiting for services to be ready..."
+
+    local max_attempts=30
+    local attempt=0
+
+    # Wait for PostgreSQL
+    while [ $attempt -lt $max_attempts ]; do
+        if docker compose -f docker-compose.local.yml exec -T marketplace-postgres pg_isready -U postgres &> /dev/null; then
+            print_success "PostgreSQL is ready"
+            break
+        fi
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+
+    if [ $attempt -eq $max_attempts ]; then
+        print_error "PostgreSQL failed to start"
+        docker compose -f docker-compose.local.yml logs marketplace-postgres
+        exit 1
+    fi
+
+    # Wait for Redis
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        if docker compose -f docker-compose.local.yml exec -T marketplace-redis redis-cli ping &> /dev/null 2>&1; then
+            print_success "Redis is ready"
+            break
+        fi
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+
+    if [ $attempt -eq $max_attempts ]; then
+        print_error "Redis failed to start"
+        docker compose -f docker-compose.local.yml logs marketplace-redis
+        exit 1
+    fi
+
+    DOCKER_DEPS_STARTED=true
+    echo ""
+}
+
+# Legacy function for backwards compatibility
+start_redis() {
+    # Redis is now started via docker-compose.local.yml
+    return 0
+}
+
+# Check and create .env files
+setup_env_files() {
+    echo -e "${WHITE}Setting up environment files...${NC}"
+
+    # CMS .env
+    if [ ! -f "$PROJECT_ROOT/cms/.env" ]; then
+        if [ -f "$PROJECT_ROOT/cms/.env.example" ]; then
+            cp "$PROJECT_ROOT/cms/.env.example" "$PROJECT_ROOT/cms/.env"
+            print_success "Created cms/.env from example"
+        else
+            print_warning "cms/.env.example not found, creating basic .env"
+            cat > "$PROJECT_ROOT/cms/.env" << 'EOF'
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/marketplace
+PAYLOAD_SECRET=dev-secret-change-in-production
+PORT=3001
+NODE_ENV=development
+REDIS_URL=redis://localhost:6380
+EOF
+            print_success "Created cms/.env"
+        fi
+    else
+        print_success "cms/.env exists"
+    fi
+
+    # Add or update REDIS_URL in cms/.env
+    if ! grep -q "REDIS_URL" "$PROJECT_ROOT/cms/.env" 2>/dev/null; then
+        echo "REDIS_URL=redis://localhost:6380" >> "$PROJECT_ROOT/cms/.env"
+        print_info "Added REDIS_URL to cms/.env"
+    elif grep -q "REDIS_URL=redis://localhost:6379" "$PROJECT_ROOT/cms/.env" 2>/dev/null; then
+        sed -i 's|REDIS_URL=redis://localhost:6379|REDIS_URL=redis://localhost:6380|g' "$PROJECT_ROOT/cms/.env"
+        print_info "Updated REDIS_URL to port 6380 in cms/.env"
+    fi
+
+    # Frontend .env
+    if [ ! -f "$PROJECT_ROOT/frontend/.env" ]; then
+        if [ -f "$PROJECT_ROOT/frontend/.env.example" ]; then
+            cp "$PROJECT_ROOT/frontend/.env.example" "$PROJECT_ROOT/frontend/.env"
+            print_success "Created frontend/.env from example"
+        else
+            cat > "$PROJECT_ROOT/frontend/.env" << 'EOF'
+PUBLIC_API_URL=http://localhost:3001
+VITE_API_URL=http://localhost:3001
+PUBLIC_SSE_URL=http://localhost:3002
+EOF
+            print_success "Created frontend/.env"
+        fi
+    else
+        print_success "frontend/.env exists"
+    fi
+
+    # Add PUBLIC_SSE_URL to frontend/.env if not present
+    if ! grep -q "PUBLIC_SSE_URL" "$PROJECT_ROOT/frontend/.env" 2>/dev/null; then
+        echo "PUBLIC_SSE_URL=http://localhost:3002" >> "$PROJECT_ROOT/frontend/.env"
+        print_info "Added PUBLIC_SSE_URL to frontend/.env"
+    fi
+
+    echo ""
+}
+
+# Install dependencies for a service
+install_deps() {
+    local dir=$1
+    local name=$2
+    local full_path="$PROJECT_ROOT/$dir"
+
+    if [ ! -d "$full_path" ]; then
+        return 0
+    fi
+
+    if [ ! -f "$full_path/package.json" ]; then
+        print_warning "$name has no package.json, skipping"
+        return 0
+    fi
+
+    if [ ! -d "$full_path/node_modules" ]; then
+        print_info "Installing dependencies in $name..."
+        (cd "$full_path" && npm install)
+        print_success "$name dependencies installed"
+    else
+        # Always run npm install to ensure new dependencies are installed
+        print_info "Checking $name dependencies..."
+        (cd "$full_path" && npm install --prefer-offline --silent 2>/dev/null || npm install --silent)
+        print_success "$name dependencies ready"
+    fi
+}
+
+# Install all dependencies
+install_all_deps() {
+    echo -e "${WHITE}Checking dependencies...${NC}"
+    install_deps "cms" "CMS"
+    install_deps "frontend" "Frontend"
+    install_deps "services/sse-service" "SSE Service"
+    install_deps "services/bid-worker" "Bid Worker"
+    echo ""
+}
+
+# Create log directory
+mkdir -p "$PROJECT_ROOT/.logs"
+
+# Prefix log output with colored service name
+prefix_output() {
+    local prefix=$1
+    local color=$2
+    while IFS= read -r line; do
+        echo -e "${color}[${prefix}]${NC} $line"
+    done
+}
+
+# Cleanup function
 cleanup() {
     echo ""
     echo -e "${YELLOW}Shutting down services...${NC}"
-    if [ ! -z "$CMS_PID" ]; then
-        kill $CMS_PID 2>/dev/null || true
+
+    # Kill processes by PID first
+    [ -n "$FRONTEND_PID" ] && kill $FRONTEND_PID 2>/dev/null && echo "  Stopped Frontend"
+    [ -n "$SSE_PID" ] && kill $SSE_PID 2>/dev/null && echo "  Stopped SSE Service"
+    [ -n "$WORKER_PID" ] && kill $WORKER_PID 2>/dev/null && echo "  Stopped Bid Worker"
+    [ -n "$CMS_PID" ] && kill $CMS_PID 2>/dev/null && echo "  Stopped CMS"
+
+    # Give processes time to terminate gracefully
+    sleep 1
+
+    # Force kill any remaining Node processes from this project
+    echo "  Cleaning up remaining processes..."
+    pkill -9 -f "$PROJECT_ROOT.*ts-node" 2>/dev/null || true
+    pkill -9 -f "$PROJECT_ROOT.*nodemon" 2>/dev/null || true
+    pkill -9 -f "$PROJECT_ROOT/cms.*npm" 2>/dev/null || true
+    pkill -9 -f "$PROJECT_ROOT/frontend.*npm" 2>/dev/null || true
+    pkill -9 -f "$PROJECT_ROOT/services.*npm" 2>/dev/null || true
+
+    # Stop Docker services if we started them
+    if [ "$DOCKER_DEPS_STARTED" = true ]; then
+        echo "  Stopping Docker containers..."
+        cd "$PROJECT_ROOT"
+        docker compose -f docker-compose.local.yml stop &> /dev/null
+        echo "  Stopped PostgreSQL and Redis containers"
     fi
-    if [ ! -z "$FRONTEND_PID" ]; then
-        kill $FRONTEND_PID 2>/dev/null || true
-    fi
-    echo -e "${GREEN}Services stopped.${NC}"
+
+    # Kill any remaining background jobs
+    jobs -p | xargs -r kill -9 2>/dev/null || true
+
+    echo -e "${GREEN}All services stopped.${NC}"
     exit 0
 }
 
-# Trap SIGINT (Ctrl+C) and SIGTERM
-trap cleanup SIGINT SIGTERM
+# Kill all services function - aggressive process termination
+kill_all_services() {
+    echo ""
+    echo -e "${YELLOW}Killing all services...${NC}"
 
-# Start PayloadCMS backend
-echo -e "${BLUE}Starting PayloadCMS backend...${NC}"
-cd cms
-npm run dev > ../.logs/cms.log 2>&1 &
-CMS_PID=$!
-cd ..
+    # Kill by PID first
+    [ -n "$FRONTEND_PID" ] && kill -9 $FRONTEND_PID 2>/dev/null
+    [ -n "$SSE_PID" ] && kill -9 $SSE_PID 2>/dev/null
+    [ -n "$WORKER_PID" ] && kill -9 $WORKER_PID 2>/dev/null
+    [ -n "$CMS_PID" ] && kill -9 $CMS_PID 2>/dev/null
 
-# Wait a bit for the backend to start
-sleep 2
+    # Kill all Node processes related to this project
+    pkill -9 -f "marketplace-platform.*ts-node" 2>/dev/null || true
+    pkill -9 -f "marketplace-platform.*nodemon" 2>/dev/null || true
+    pkill -9 -f "marketplace-platform/cms" 2>/dev/null || true
+    pkill -9 -f "marketplace-platform/frontend" 2>/dev/null || true
+    pkill -9 -f "marketplace-platform/services" 2>/dev/null || true
 
-# Check if CMS is still running
-if ! ps -p $CMS_PID > /dev/null; then
-    echo -e "${RED}Error: Failed to start PayloadCMS backend.${NC}"
-    echo "Check .logs/cms.log for details:"
-    tail -n 20 .logs/cms.log
-    exit 1
-fi
+    # Kill any npm processes in project directories
+    pgrep -f "$PROJECT_ROOT" | xargs -r kill -9 2>/dev/null || true
 
-echo -e "${GREEN}✓ PayloadCMS backend started (PID: $CMS_PID)${NC}"
-echo -e "  Logs: .logs/cms.log"
-echo -e "  Admin: ${BLUE}http://localhost:3001/admin${NC}"
-echo ""
+    # Kill background jobs
+    jobs -p | xargs -r kill -9 2>/dev/null || true
 
-# Start SvelteKit frontend
-echo -e "${BLUE}Starting SvelteKit frontend...${NC}"
-cd frontend
-npm run dev > ../.logs/frontend.log 2>&1 &
-FRONTEND_PID=$!
-cd ..
+    echo -e "${GREEN}  All Node processes killed${NC}"
 
-# Wait a bit for the frontend to start
-sleep 2
+    # Stop Docker containers
+    if [ "$DOCKER_DEPS_STARTED" = true ]; then
+        echo -e "${YELLOW}  Stopping Docker containers...${NC}"
+        docker compose -f docker-compose.local.yml stop &> /dev/null
+        echo -e "${GREEN}  Docker containers stopped${NC}"
+    fi
 
-# Check if frontend is still running
-if ! ps -p $FRONTEND_PID > /dev/null; then
-    echo -e "${RED}Error: Failed to start SvelteKit frontend.${NC}"
-    echo "Check .logs/frontend.log for details:"
-    tail -n 20 .logs/frontend.log
-    cleanup
-    exit 1
-fi
+    echo -e "${GREEN}All services stopped.${NC}"
+    exit 0
+}
 
-echo -e "${GREEN}✓ SvelteKit frontend started (PID: $FRONTEND_PID)${NC}"
-echo -e "  Logs: .logs/frontend.log"
-echo -e "  URL: ${BLUE}http://localhost:5173${NC}"
-echo ""
+# Confirm stop function
+confirm_stop() {
+    echo ""
+    echo -e "${YELLOW}Stop all services? (y/n)${NC}"
+    read -n 1 -r confirm
+    echo ""
+    if [[ $confirm =~ ^[Yy]$ ]]; then
+        kill_all_services
+    else
+        echo -e "${GREEN}Continuing...${NC}"
+    fi
+}
 
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}  All services started successfully!${NC}"
-echo -e "${GREEN}========================================${NC}"
-echo ""
-echo -e "Services:"
-echo -e "  • Backend:  ${BLUE}http://localhost:3001${NC}"
-echo -e "  • Admin:    ${BLUE}http://localhost:3001/admin${NC}"
-echo -e "  • Frontend: ${BLUE}http://localhost:5173${NC}"
-echo ""
-echo -e "Logs:"
-echo -e "  • Backend:  tail -f .logs/cms.log"
-echo -e "  • Frontend: tail -f .logs/frontend.log"
-echo ""
-echo -e "${YELLOW}Press Ctrl+C to stop all services${NC}"
-echo ""
+# Trap signals (SIGINT = Ctrl+C, SIGTERM = kill)
+trap kill_all_services SIGINT SIGTERM
 
-# Keep the script running and tail the logs
-tail -f .logs/cms.log .logs/frontend.log
+# Start a service with colored output
+start_service() {
+    local name=$1
+    local dir=$2
+    local cmd=$3
+    local color=$4
+    local log_file=$5
+    local pid_var=$6
+
+    print_info "Starting $name..."
+
+    cd "$dir"
+
+    # Run the command, pipe through prefix_output, and also save to log
+    ($cmd 2>&1 | while IFS= read -r line; do
+        echo "$line" >> "../$log_file"
+        echo -e "${color}[$name]${NC} $line"
+    done) &
+
+    local pid=$!
+    cd ..
+
+    sleep 2
+
+    # Check if process is still running
+    if ps -p $pid > /dev/null 2>&1; then
+        print_success "$name started (PID: $pid)"
+        eval "$pid_var=$pid"
+        return 0
+    else
+        print_error "Failed to start $name"
+        echo "Check $log_file for details"
+        return 1
+    fi
+}
+
+# Main execution
+main() {
+    print_header
+    check_prerequisites
+    start_docker_deps
+    setup_env_files
+    install_all_deps
+
+    echo -e "${WHITE}Starting services...${NC}"
+    echo ""
+
+    # Clear old logs
+    > "$PROJECT_ROOT/.logs/cms.log"
+    > "$PROJECT_ROOT/.logs/frontend.log"
+    > "$PROJECT_ROOT/.logs/sse.log"
+    > "$PROJECT_ROOT/.logs/worker.log"
+
+    # Start CMS
+    print_info "Starting PayloadCMS..."
+    (cd "$PROJECT_ROOT/cms" && npm run dev 2>&1 | while IFS= read -r line; do
+        echo "$line" >> "$PROJECT_ROOT/.logs/cms.log"
+        echo -e "${CMS_COLOR}[CMS]${NC} $line"
+    done) &
+    CMS_PID=$!
+    sleep 3
+
+    if ! ps -p $CMS_PID > /dev/null 2>&1; then
+        print_error "Failed to start PayloadCMS"
+        tail -20 "$PROJECT_ROOT/.logs/cms.log"
+        exit 1
+    fi
+    print_success "PayloadCMS started (PID: $CMS_PID)"
+
+    # Start SSE Service
+    print_info "Starting SSE Service..."
+    (cd "$PROJECT_ROOT/services/sse-service" && npm run dev 2>&1 | while IFS= read -r line; do
+        echo "$line" >> "$PROJECT_ROOT/.logs/sse.log"
+        echo -e "${SSE_COLOR}[SSE]${NC} $line"
+    done) &
+    SSE_PID=$!
+    sleep 2
+
+    if ! ps -p $SSE_PID > /dev/null 2>&1; then
+        print_error "Failed to start SSE Service"
+        tail -20 "$PROJECT_ROOT/.logs/sse.log"
+        cleanup
+        exit 1
+    fi
+    print_success "SSE Service started (PID: $SSE_PID)"
+
+    # Start Bid Worker
+    print_info "Starting Bid Worker..."
+    (cd "$PROJECT_ROOT/services/bid-worker" && npm run dev 2>&1 | while IFS= read -r line; do
+        echo "$line" >> "$PROJECT_ROOT/.logs/worker.log"
+        echo -e "${WORKER_COLOR}[WORKER]${NC} $line"
+    done) &
+    WORKER_PID=$!
+    sleep 2
+
+    if ! ps -p $WORKER_PID > /dev/null 2>&1; then
+        print_error "Failed to start Bid Worker"
+        tail -20 "$PROJECT_ROOT/.logs/worker.log"
+        cleanup
+        exit 1
+    fi
+    print_success "Bid Worker started (PID: $WORKER_PID)"
+
+    # Start Frontend
+    print_info "Starting SvelteKit Frontend..."
+    (cd "$PROJECT_ROOT/frontend" && npm run dev 2>&1 | while IFS= read -r line; do
+        echo "$line" >> "$PROJECT_ROOT/.logs/frontend.log"
+        echo -e "${FRONTEND_COLOR}[FRONTEND]${NC} $line"
+    done) &
+    FRONTEND_PID=$!
+    sleep 2
+
+    if ! ps -p $FRONTEND_PID > /dev/null 2>&1; then
+        print_error "Failed to start SvelteKit Frontend"
+        tail -20 "$PROJECT_ROOT/.logs/frontend.log"
+        cleanup
+        exit 1
+    fi
+    print_success "SvelteKit Frontend started (PID: $FRONTEND_PID)"
+
+    echo ""
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}  All services started successfully!${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    echo ""
+    echo -e "Services:"
+    echo -e "  ${CMS_COLOR}• CMS:${NC}      ${BLUE}http://localhost:3001${NC}"
+    echo -e "  ${CMS_COLOR}• Admin:${NC}    ${BLUE}http://localhost:3001/admin${NC}"
+    echo -e "  ${FRONTEND_COLOR}• Frontend:${NC} ${BLUE}http://localhost:5173${NC}"
+    echo -e "  ${SSE_COLOR}• SSE:${NC}      ${BLUE}http://localhost:3002${NC}"
+    echo -e "  ${REDIS_COLOR}• Redis:${NC}    ${BLUE}localhost:6380${NC}"
+    echo -e "  ${REDIS_COLOR}• PostgreSQL:${NC} ${BLUE}localhost:5433${NC}"
+    echo ""
+    echo -e "Log files:"
+    echo -e "  • CMS:      .logs/cms.log"
+    echo -e "  • Frontend: .logs/frontend.log"
+    echo -e "  • SSE:      .logs/sse.log"
+    echo -e "  • Worker:   .logs/worker.log"
+    echo ""
+    echo -e "${YELLOW}Press 'S' then 'Y' to stop all services, or Ctrl+C${NC}"
+    echo ""
+    echo -e "${WHITE}Live logs:${NC}"
+    echo ""
+
+    # Monitor for 'S' key press to stop services
+    while true; do
+        # Read a single character with timeout
+        if read -t 1 -n 1 key 2>/dev/null; then
+            if [[ "$key" == "s" || "$key" == "S" ]]; then
+                confirm_stop
+            fi
+        fi
+
+        # Check if any child processes died
+        for pid in $CMS_PID $FRONTEND_PID $SSE_PID $WORKER_PID; do
+            if [ -n "$pid" ] && ! ps -p $pid > /dev/null 2>&1; then
+                echo -e "${RED}A service has stopped unexpectedly. Check logs for details.${NC}"
+            fi
+        done
+    done
+}
+
+# Run main function
+main
