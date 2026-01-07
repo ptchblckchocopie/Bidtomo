@@ -4,7 +4,6 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
-  import { API_URL } from '$lib/api';
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
 
   export let data: PageData;
@@ -237,9 +236,15 @@
     }
 
     try {
+      const token = localStorage.getItem('auth_token');
+      const headers: HeadersInit = {};
+      if (token) {
+        headers['Authorization'] = `JWT ${token}`;
+      }
       const response = await fetch(
-        `${API_URL}/api/bids?where[bidder][equals]=${$authStore.user.id}&limit=1000`,
+        `/api/bridge/bids?where[bidder][equals]=${$authStore.user.id}&limit=1000`,
         {
+          headers,
           credentials: 'include',
         }
       );
