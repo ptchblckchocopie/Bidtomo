@@ -3,6 +3,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
+  import { unreadCountStore, triggerRefresh } from '$lib/stores/inbox';
   import { fetchConversations, fetchProductMessages, fetchMessageById, fetchProduct, fetchProductBids, sendMessage, markMessageAsRead, setTypingStatus } from '$lib/api';
   import type { Product, Message } from '$lib/api';
   import { goto } from '$app/navigation';
@@ -395,12 +396,27 @@
         lastMessageTime = new Date().toISOString();
       }
 
-      // Mark messages as read
+      // Mark messages as read and update global unread count
+      let markedCount = 0;
       for (const msg of messages) {
         const receiverId = typeof msg.receiver === 'object' ? msg.receiver.id : msg.receiver;
         if (receiverId === $authStore.user?.id && !msg.read) {
           await markMessageAsRead(msg.id);
+          markedCount++;
         }
+      }
+      // Update the store and trigger a refresh of the navbar badge
+      if (markedCount > 0) {
+        unreadCountStore.decrement(markedCount);
+      }
+
+      // Reset local conversation's unread count
+      const convIndex = conversations.findIndex(c => c.product.id === product.id);
+      if (convIndex !== -1 && conversations[convIndex].unreadCount > 0) {
+        conversations[convIndex] = {
+          ...conversations[convIndex],
+          unreadCount: 0
+        };
       }
 
       // Start polling for new messages
@@ -453,11 +469,16 @@
           lastMessageTime = uniqueNewMessages[uniqueNewMessages.length - 1].createdAt;
 
           // Mark new messages as read if they're for current user
+          let markedCount = 0;
           for (const msg of uniqueNewMessages) {
             const receiverId = typeof msg.receiver === 'object' ? msg.receiver.id : msg.receiver;
             if (receiverId === $authStore.user?.id && !msg.read) {
               await markMessageAsRead(msg.id);
+              markedCount++;
             }
+          }
+          if (markedCount > 0) {
+            unreadCountStore.decrement(markedCount);
           }
 
           // Clear animation after delay
@@ -732,6 +753,7 @@
                 const receiverId = typeof newMessage.receiver === 'object' ? newMessage.receiver.id : newMessage.receiver;
                 if (receiverId === $authStore.user?.id && !newMessage.read) {
                   markMessageAsRead(newMessage.id); // Don't await - fire and forget
+                  unreadCountStore.decrement(1); // Update navbar badge immediately
                 }
 
                 // Scroll to bottom for new messages
