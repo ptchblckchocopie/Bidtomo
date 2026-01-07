@@ -4,8 +4,8 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { logout as apiLogout, getUnreadMessageCount } from '$lib/api';
-  import { onMount, onDestroy } from 'svelte';
-  import { unreadCountStore, setRefreshCallback } from '$lib/stores/inbox';
+  import { onMount } from 'svelte';
+  import { unreadCountStore } from '$lib/stores/inbox';
 
   // SvelteKit passes params to all routes, but we don't need it here
   export let params: any = undefined;
@@ -14,7 +14,6 @@
 
   let mobileMenuOpen = false;
   let userMenuOpen = false;
-  let pollInterval: ReturnType<typeof setInterval> | null = null;
 
   // Subscribe to the shared unread count store
   $: unreadCount = $unreadCountStore;
@@ -60,21 +59,8 @@
   }
 
   onMount(() => {
-    // Fetch unread count on mount
+    // Fetch unread count once on page load
     fetchUnreadCount();
-
-    // Set up refresh callback so inbox can trigger a refresh
-    setRefreshCallback(fetchUnreadCount);
-
-    // Poll for new messages every 30 seconds
-    pollInterval = setInterval(fetchUnreadCount, 30000);
-  });
-
-  onDestroy(() => {
-    // Clean up interval on destroy
-    if (pollInterval) {
-      clearInterval(pollInterval);
-    }
   });
 
   // Refetch when auth state changes

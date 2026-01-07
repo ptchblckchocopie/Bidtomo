@@ -14,16 +14,3 @@ function createUnreadStore() {
 }
 
 export const unreadCountStore = createUnreadStore();
-
-// Helper to trigger a refresh from anywhere
-let refreshCallback: (() => void) | null = null;
-
-export function setRefreshCallback(cb: () => void) {
-  refreshCallback = cb;
-}
-
-export function triggerRefresh() {
-  if (refreshCallback) {
-    refreshCallback();
-  }
-}

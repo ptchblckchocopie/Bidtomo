@@ -3,7 +3,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
-  import { unreadCountStore, triggerRefresh } from '$lib/stores/inbox';
+  import { unreadCountStore } from '$lib/stores/inbox';
   import { fetchConversations, fetchProductMessages, fetchMessageById, fetchProduct, fetchProductBids, sendMessage, markMessageAsRead, setTypingStatus } from '$lib/api';
   import type { Product, Message } from '$lib/api';
   import { goto } from '$app/navigation';
