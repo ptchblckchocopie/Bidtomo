@@ -6,11 +6,6 @@ export default defineConfig({
   server: {
     host: true, // Enable network access
     port: 5173,
-    proxy: {
-      '/api': {
-        target: process.env.VITE_API_URL || 'http://localhost:3001',
-        changeOrigin: true,
-      },
-    },
+    // Proxy removed - all API calls now go through SvelteKit bridge endpoints
   },
 });
