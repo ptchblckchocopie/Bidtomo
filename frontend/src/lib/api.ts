@@ -103,6 +103,46 @@ export interface Transaction {
   updatedAt: string;
 }
 
+export interface Rating {
+  id: string;
+  transaction: string | Transaction;
+  rater: string | User;
+  ratee: string | User;
+  raterRole: 'buyer' | 'seller';
+  rating: number;
+  comment?: string;
+  followUp?: {
+    rating?: number;
+    comment?: string;
+    createdAt?: string;
+  };
+  hasFollowUp: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicUserProfile {
+  id: string;
+  name: string;
+  censorName: boolean;
+  role: 'admin' | 'seller' | 'buyer';
+  currency: 'PHP' | 'USD' | 'EUR' | 'GBP' | 'JPY';
+  createdAt: string;
+}
+
+export interface UserRatingStats {
+  averageRating: number;
+  totalRatings: number;
+  asSeller: {
+    averageRating: number;
+    totalRatings: number;
+  };
+  asBuyer: {
+    averageRating: number;
+    totalRatings: number;
+  };
+}
+
 export interface UserLimits {
   bids: {
     current: number;
@@ -1040,6 +1080,242 @@ export async function getUserLimits(): Promise<UserLimits | null> {
     return await response.json();
   } catch (error) {
     console.error('Error fetching user limits:', error);
+    return null;
+  }
+}
+
+// ============ Rating Functions ============
+
+// Create a rating for a transaction
+export async function createRating(
+  transactionId: string,
+  rating: number,
+  comment?: string
+): Promise<Rating | null> {
+  try {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/ratings`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({
+        transaction: transactionId,
+        rating,
+        comment,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.errors?.[0]?.message || 'Failed to create rating');
+    }
+
+    const data = await response.json();
+    return data.doc || data;
+  } catch (error) {
+    console.error('Error creating rating:', error);
+    throw error;
+  }
+}
+
+// Add follow-up to an existing rating
+export async function addRatingFollowUp(
+  ratingId: string,
+  followUpRating: number,
+  followUpComment?: string
+): Promise<Rating | null> {
+  try {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/ratings/${ratingId}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({
+        followUp: {
+          rating: followUpRating,
+          comment: followUpComment,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.errors?.[0]?.message || 'Failed to add follow-up');
+    }
+
+    const data = await response.json();
+    return data.doc || data;
+  } catch (error) {
+    console.error('Error adding follow-up:', error);
+    throw error;
+  }
+}
+
+// Fetch ratings for a user (received)
+export async function fetchUserRatings(
+  userId: string,
+  type: 'received' | 'given' = 'received'
+): Promise<Rating[]> {
+  try {
+    const response = await fetch(
+      `${BRIDGE_URL}/api/bridge/users/${userId}/ratings?type=${type}&depth=3`,
+      {
+        headers: getAuthHeaders(),
+        credentials: 'include',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch user ratings');
+    }
+
+    const data = await response.json();
+    return data.docs || [];
+  } catch (error) {
+    console.error('Error fetching user ratings:', error);
+    return [];
+  }
+}
+
+// Calculate user rating stats from ratings
+export function calculateUserRatingStats(ratings: Rating[]): UserRatingStats {
+  const sellerRatings = ratings.filter(r => r.raterRole === 'buyer'); // Buyers rate sellers
+  const buyerRatings = ratings.filter(r => r.raterRole === 'seller'); // Sellers rate buyers
+
+  const calcAverage = (ratingsList: Rating[]) => {
+    if (ratingsList.length === 0) return 0;
+    const sum = ratingsList.reduce((acc, r) => acc + r.rating, 0);
+    return sum / ratingsList.length;
+  };
+
+  return {
+    averageRating: calcAverage(ratings),
+    totalRatings: ratings.length,
+    asSeller: {
+      averageRating: calcAverage(sellerRatings),
+      totalRatings: sellerRatings.length,
+    },
+    asBuyer: {
+      averageRating: calcAverage(buyerRatings),
+      totalRatings: buyerRatings.length,
+    },
+  };
+}
+
+// Fetch public user profile
+export async function fetchUserProfile(userId: string): Promise<PublicUserProfile | null> {
+  try {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/users/${userId}`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch user profile');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return null;
+  }
+}
+
+// Fetch user's products (for public profile)
+export async function fetchUserProducts(
+  userId: string,
+  params?: {
+    status?: 'available' | 'sold' | 'ended';
+    active?: boolean;
+    limit?: number;
+    page?: number;
+  }
+): Promise<{ docs: Product[]; totalDocs: number; totalPages: number }> {
+  try {
+    const queryParams = new URLSearchParams();
+
+    if (params?.status) {
+      queryParams.append('where[status][equals]', params.status);
+    }
+    if (params?.active !== undefined) {
+      queryParams.append('where[active][equals]', String(params.active));
+    }
+    if (params?.limit) {
+      queryParams.append('limit', String(params.limit));
+    }
+    if (params?.page) {
+      queryParams.append('page', String(params.page));
+    }
+
+    queryParams.append('sort', '-createdAt');
+
+    const response = await fetch(
+      `${BRIDGE_URL}/api/bridge/users/${userId}/products?${queryParams.toString()}`,
+      {
+        headers: getAuthHeaders(),
+        credentials: 'include',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch user products');
+    }
+
+    const data = await response.json();
+    return {
+      docs: data.docs || [],
+      totalDocs: data.totalDocs || 0,
+      totalPages: data.totalPages || 0,
+    };
+  } catch (error) {
+    console.error('Error fetching user products:', error);
+    return { docs: [], totalDocs: 0, totalPages: 0 };
+  }
+}
+
+// Fetch rating for a specific transaction by the current user
+export async function fetchMyRatingForTransaction(transactionId: string): Promise<Rating | null> {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) return null;
+
+    const response = await fetch(
+      `${BRIDGE_URL}/api/bridge/ratings?where[transaction][equals]=${transactionId}&where[rater][equals]=${currentUser.id}&depth=1`,
+      {
+        headers: getAuthHeaders(),
+        credentials: 'include',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch rating');
+    }
+
+    const data = await response.json();
+    return data.docs?.[0] || null;
+  } catch (error) {
+    console.error('Error fetching rating:', error);
+    return null;
+  }
+}
+
+// Fetch transaction for a product
+export async function fetchTransactionForProduct(productId: string): Promise<Transaction | null> {
+  try {
+    const response = await fetch(
+      `${BRIDGE_URL}/api/bridge/transactions?where[product][equals]=${productId}&depth=1`,
+      {
+        headers: getAuthHeaders(),
+        credentials: 'include',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch transaction');
+    }
+
+    const data = await response.json();
+    return data.docs?.[0] || null;
+  } catch (error) {
+    console.error('Error fetching transaction:', error);
     return null;
   }
 }
