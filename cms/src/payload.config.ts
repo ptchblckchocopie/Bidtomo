@@ -154,6 +154,14 @@ export default buildConfig({
             description: 'Phone number without country code',
           },
         },
+        {
+          name: 'censorName',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            description: 'Hide your real name on public profile (shows as "User ***")',
+          },
+        },
       ],
     },
     {
@@ -842,6 +850,215 @@ export default buildConfig({
         {
           name: 'alt',
           type: 'text',
+        },
+      ],
+    },
+    {
+      slug: 'ratings',
+      admin: {
+        useAsTitle: 'id',
+      },
+      access: {
+        read: () => true, // Public - anyone can read ratings
+        create: ({ req }) => !!req.user, // Must be authenticated
+        update: async ({ req, id }) => {
+          // Only the rater can update their own rating
+          if (!req.user) return false;
+          if (req.user.role === 'admin') return true;
+          return true; // Detailed check in beforeChange hook
+        },
+        delete: ({ req }) => req.user?.role === 'admin',
+      },
+      hooks: {
+        beforeChange: [
+          async ({ req, data, operation, originalDoc }) => {
+            if (operation === 'create') {
+              // Auto-set rater to logged-in user
+              if (req.user && !data.rater) {
+                data.rater = req.user.id;
+              }
+
+              // Validate: prevent duplicate ratings (one per transaction per rater)
+              if (data.transaction && req.user) {
+                const existingRating = await req.payload.find({
+                  collection: 'ratings',
+                  where: {
+                    and: [
+                      { transaction: { equals: data.transaction } },
+                      { rater: { equals: req.user.id } },
+                    ],
+                  },
+                  limit: 1,
+                });
+
+                if (existingRating.docs.length > 0) {
+                  throw new Error('You have already rated this transaction');
+                }
+              }
+
+              // Validate: user must be part of the transaction
+              if (data.transaction && req.user) {
+                const transaction: any = await req.payload.findByID({
+                  collection: 'transactions',
+                  id: data.transaction,
+                });
+
+                if (!transaction) {
+                  throw new Error('Transaction not found');
+                }
+
+                const buyerId = typeof transaction.buyer === 'object' ? transaction.buyer.id : transaction.buyer;
+                const sellerId = typeof transaction.seller === 'object' ? transaction.seller.id : transaction.seller;
+
+                if (req.user.id !== buyerId && req.user.id !== sellerId) {
+                  throw new Error('You are not part of this transaction');
+                }
+
+                // Auto-set raterRole based on user's role in transaction
+                if (req.user.id === buyerId) {
+                  data.raterRole = 'buyer';
+                  data.ratee = sellerId; // Buyer rates seller
+                } else {
+                  data.raterRole = 'seller';
+                  data.ratee = buyerId; // Seller rates buyer
+                }
+              }
+            }
+
+            if (operation === 'update') {
+              // Only rater can update
+              if (req.user?.role !== 'admin') {
+                const raterId = typeof originalDoc?.rater === 'object' ? originalDoc.rater.id : originalDoc?.rater;
+                if (raterId !== req.user?.id) {
+                  throw new Error('You can only update your own rating');
+                }
+              }
+
+              // Check if follow-up already exists
+              if (originalDoc?.hasFollowUp) {
+                throw new Error('You can only add one follow-up to your rating');
+              }
+
+              // Check 30-day limit for follow-up
+              const createdAt = new Date(originalDoc?.createdAt);
+              const now = new Date();
+              const daysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+              if (daysDiff > 30) {
+                throw new Error('You can only add a follow-up within 30 days of your original rating');
+              }
+
+              // If adding follow-up, set hasFollowUp and timestamp
+              if (data.followUp && data.followUp.rating) {
+                data.hasFollowUp = true;
+                data.followUp.createdAt = new Date().toISOString();
+              }
+            }
+
+            return data;
+          },
+        ],
+      },
+      fields: [
+        {
+          name: 'transaction',
+          type: 'relationship',
+          relationTo: 'transactions',
+          required: true,
+          admin: {
+            description: 'The transaction being rated',
+          },
+        },
+        {
+          name: 'rater',
+          type: 'relationship',
+          relationTo: 'users',
+          required: true,
+          admin: {
+            readOnly: true,
+            description: 'User giving the rating (auto-set)',
+          },
+        },
+        {
+          name: 'ratee',
+          type: 'relationship',
+          relationTo: 'users',
+          required: true,
+          admin: {
+            readOnly: true,
+            description: 'User being rated (auto-set)',
+          },
+        },
+        {
+          name: 'raterRole',
+          type: 'select',
+          options: [
+            { label: 'Buyer', value: 'buyer' },
+            { label: 'Seller', value: 'seller' },
+          ],
+          required: true,
+          admin: {
+            readOnly: true,
+            description: 'Role of rater in the transaction (auto-set)',
+          },
+        },
+        {
+          name: 'rating',
+          type: 'number',
+          required: true,
+          min: 1,
+          max: 5,
+          admin: {
+            description: 'Rating from 1 to 5 stars',
+          },
+        },
+        {
+          name: 'comment',
+          type: 'textarea',
+          admin: {
+            description: 'Optional comment about the transaction',
+          },
+        },
+        {
+          name: 'followUp',
+          type: 'group',
+          admin: {
+            description: 'Follow-up rating (can only be added once within 30 days)',
+          },
+          fields: [
+            {
+              name: 'rating',
+              type: 'number',
+              min: 1,
+              max: 5,
+              admin: {
+                description: 'Follow-up rating from 1 to 5 stars',
+              },
+            },
+            {
+              name: 'comment',
+              type: 'textarea',
+              admin: {
+                description: 'Follow-up comment',
+              },
+            },
+            {
+              name: 'createdAt',
+              type: 'date',
+              admin: {
+                readOnly: true,
+                description: 'When the follow-up was added',
+              },
+            },
+          ],
+        },
+        {
+          name: 'hasFollowUp',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            readOnly: true,
+            description: 'Whether a follow-up has been added',
+          },
         },
       ],
     },
