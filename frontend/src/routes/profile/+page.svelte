@@ -2,11 +2,46 @@
   export let params: any = undefined; // SvelteKit passes this automatically
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { authStore } from '$lib/stores/auth';
+  import { authStore, getAuthToken } from '$lib/stores/auth';
   import { getUserLimits, type UserLimits } from '$lib/api';
 
   let userLimits: UserLimits | null = null;
   let loading = true;
+
+  // Edit mode state
+  let isEditing = false;
+  let saving = false;
+  let error = '';
+  let success = '';
+
+  // Form fields
+  let editName = '';
+  let editCountryCode = '+63';
+  let editPhoneNumber = '';
+
+  // Country codes list
+  const countryCodes = [
+    { code: '+63', country: 'Philippines', flag: '🇵🇭' },
+    { code: '+1', country: 'USA/Canada', flag: '🇺🇸' },
+    { code: '+44', country: 'UK', flag: '🇬🇧' },
+    { code: '+61', country: 'Australia', flag: '🇦🇺' },
+    { code: '+65', country: 'Singapore', flag: '🇸🇬' },
+    { code: '+81', country: 'Japan', flag: '🇯🇵' },
+    { code: '+82', country: 'South Korea', flag: '🇰🇷' },
+    { code: '+86', country: 'China', flag: '🇨🇳' },
+    { code: '+91', country: 'India', flag: '🇮🇳' },
+    { code: '+60', country: 'Malaysia', flag: '🇲🇾' },
+    { code: '+66', country: 'Thailand', flag: '🇹🇭' },
+    { code: '+84', country: 'Vietnam', flag: '🇻🇳' },
+    { code: '+62', country: 'Indonesia', flag: '🇮🇩' },
+    { code: '+49', country: 'Germany', flag: '🇩🇪' },
+    { code: '+33', country: 'France', flag: '🇫🇷' },
+    { code: '+39', country: 'Italy', flag: '🇮🇹' },
+    { code: '+34', country: 'Spain', flag: '🇪🇸' },
+    { code: '+971', country: 'UAE', flag: '🇦🇪' },
+    { code: '+966', country: 'Saudi Arabia', flag: '🇸🇦' },
+    { code: '+974', country: 'Qatar', flag: '🇶🇦' },
+  ];
 
   onMount(async () => {
     if (!$authStore.isAuthenticated) {
@@ -14,10 +49,92 @@
       return;
     }
 
+    // Initialize edit fields with current user data
+    initEditFields();
+
     // Fetch user's limits
     userLimits = await getUserLimits();
     loading = false;
   });
+
+  function initEditFields() {
+    const user = $authStore.user;
+    if (user) {
+      editName = user.name || '';
+      editCountryCode = user.countryCode || '+63';
+      editPhoneNumber = user.phoneNumber || '';
+    }
+  }
+
+  function startEditing() {
+    initEditFields();
+    isEditing = true;
+    error = '';
+    success = '';
+  }
+
+  function cancelEditing() {
+    isEditing = false;
+    error = '';
+  }
+
+  async function saveProfile() {
+    error = '';
+    success = '';
+
+    if (!editName.trim()) {
+      error = 'Name is required';
+      return;
+    }
+
+    saving = true;
+
+    try {
+      const token = getAuthToken();
+      const response = await fetch('/api/bridge/users/me', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `JWT ${token}`,
+        },
+        body: JSON.stringify({
+          name: editName.trim(),
+          countryCode: editCountryCode,
+          phoneNumber: editPhoneNumber.replace(/\D/g, ''),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update profile');
+      }
+
+      const updatedUser = await response.json();
+
+      // Update the auth store with new user data
+      authStore.set({
+        ...$authStore,
+        user: {
+          ...$authStore.user!,
+          name: editName.trim(),
+          countryCode: editCountryCode,
+          phoneNumber: editPhoneNumber.replace(/\D/g, ''),
+        },
+      });
+
+      success = 'Profile updated successfully!';
+      isEditing = false;
+    } catch (err: any) {
+      error = err.message || 'Failed to update profile';
+    } finally {
+      saving = false;
+    }
+  }
+
+  function formatPhoneNumber(countryCode: string, phone: string): string {
+    if (!phone) return 'Not set';
+    return `${countryCode} ${phone}`;
+  }
 
   function getProgressPercent(current: number, max: number): number {
     return (current / max) * 100;
@@ -31,33 +148,109 @@
 <div class="profile-page">
   <div class="profile-header">
     <h1>My Profile</h1>
-    <p class="subtitle">View your account information and activity limits</p>
+    <p class="subtitle">View and edit your account information</p>
   </div>
+
+  {#if error}
+    <div class="error-message">{error}</div>
+  {/if}
+
+  {#if success}
+    <div class="success-message">{success}</div>
+  {/if}
 
   <!-- User Info Card -->
   <div class="info-card">
     <div class="card-header">
-      <span class="icon">👤</span>
-      <h2>Account Information</h2>
+      <div class="header-left">
+        <span class="icon">👤</span>
+        <h2>Account Information</h2>
+      </div>
+      {#if !isEditing}
+        <button class="btn-edit" on:click={startEditing}>Edit Profile</button>
+      {/if}
     </div>
-    <div class="info-grid">
-      <div class="info-item">
-        <span class="info-label">Name:</span>
-        <span class="info-value">{$authStore.user?.name || 'N/A'}</span>
+
+    {#if isEditing}
+      <!-- Edit Form -->
+      <form on:submit|preventDefault={saveProfile} class="edit-form">
+        <div class="form-group">
+          <label for="editName">Full Name</label>
+          <input
+            id="editName"
+            type="text"
+            bind:value={editName}
+            placeholder="Enter your name"
+            disabled={saving}
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="editPhone">Phone Number</label>
+          <div class="phone-input-group">
+            <select
+              id="editCountryCode"
+              bind:value={editCountryCode}
+              disabled={saving}
+              class="country-code-select"
+            >
+              {#each countryCodes as { code, country, flag }}
+                <option value={code}>{flag} {code}</option>
+              {/each}
+            </select>
+            <input
+              id="editPhone"
+              type="tel"
+              bind:value={editPhoneNumber}
+              placeholder="9XX XXX XXXX"
+              disabled={saving}
+              class="phone-input"
+            />
+          </div>
+        </div>
+
+        <div class="form-group readonly">
+          <label>Email Address</label>
+          <div class="readonly-value">{$authStore.user?.email || 'N/A'}</div>
+          <span class="readonly-hint">Email cannot be changed</span>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" on:click={cancelEditing} disabled={saving}>
+            Cancel
+          </button>
+          <button type="submit" class="btn-save" disabled={saving}>
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </form>
+    {:else}
+      <!-- Display Mode -->
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="info-label">Name:</span>
+          <span class="info-value">{$authStore.user?.name || 'N/A'}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Email:</span>
+          <span class="info-value">{$authStore.user?.email || 'N/A'}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Phone:</span>
+          <span class="info-value">
+            {formatPhoneNumber($authStore.user?.countryCode || '+63', $authStore.user?.phoneNumber || '')}
+          </span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Currency:</span>
+          <span class="info-value">{$authStore.user?.currency || 'PHP'}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Role:</span>
+          <span class="info-value capitalize">{$authStore.user?.role || 'buyer'}</span>
+        </div>
       </div>
-      <div class="info-item">
-        <span class="info-label">Email:</span>
-        <span class="info-value">{$authStore.user?.email || 'N/A'}</span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">Currency:</span>
-        <span class="info-value">{$authStore.user?.currency || 'PHP'}</span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">Role:</span>
-        <span class="info-value capitalize">{$authStore.user?.role || 'buyer'}</span>
-      </div>
-    </div>
+    {/if}
   </div>
 
   <!-- Activity Limits -->
@@ -190,6 +383,24 @@
     font-size: 1.1rem;
   }
 
+  .error-message {
+    background-color: #fee2e2;
+    color: #dc2626;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    border: 1px solid #fecaca;
+  }
+
+  .success-message {
+    background-color: #d1fae5;
+    color: #059669;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    border: 1px solid #a7f3d0;
+  }
+
   .info-card {
     background: white;
     border-radius: 12px;
@@ -201,8 +412,14 @@
   .card-header {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    justify-content: space-between;
     margin-bottom: 1.5rem;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
   }
 
   .icon {
@@ -219,6 +436,133 @@
     font-size: 1.25rem;
     margin: 0;
     color: #111;
+  }
+
+  .btn-edit {
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-edit:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+  }
+
+  /* Edit Form Styles */
+  .edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .form-group label {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.9rem;
+  }
+
+  .form-group input,
+  .form-group select {
+    padding: 0.75rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+  }
+
+  .form-group input:focus,
+  .form-group select:focus {
+    outline: none;
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+
+  .form-group input:disabled,
+  .form-group select:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+  }
+
+  .phone-input-group {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .country-code-select {
+    width: 120px;
+    flex-shrink: 0;
+  }
+
+  .phone-input {
+    flex: 1;
+  }
+
+  .form-group.readonly .readonly-value {
+    padding: 0.75rem;
+    background: #f3f4f6;
+    border-radius: 6px;
+    color: #666;
+  }
+
+  .readonly-hint {
+    font-size: 0.8rem;
+    color: #9ca3af;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+  }
+
+  .btn-cancel {
+    padding: 0.75rem 1.5rem;
+    background: white;
+    color: #666;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-cancel:hover:not(:disabled) {
+    background: #f3f4f6;
+  }
+
+  .btn-save {
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-save:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+  }
+
+  .btn-save:disabled,
+  .btn-cancel:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .info-grid {
@@ -313,6 +657,8 @@
     color: white;
     padding: 1.5rem;
     margin-bottom: 0;
+    justify-content: flex-start;
+    gap: 0.75rem;
   }
 
   .limit-card h3 {
@@ -507,6 +853,25 @@
     .btn-primary,
     .btn-secondary,
     .btn-disabled {
+      width: 100%;
+    }
+
+    .form-actions {
+      flex-direction: column-reverse;
+    }
+
+    .btn-cancel,
+    .btn-save {
+      width: 100%;
+    }
+
+    .card-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .btn-edit {
       width: 100%;
     }
   }

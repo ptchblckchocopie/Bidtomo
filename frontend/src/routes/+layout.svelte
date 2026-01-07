@@ -146,6 +146,13 @@
                   >
                     📦 Dashboard
                   </a>
+                  <a
+                    href="/profile"
+                    on:click={closeUserMenu}
+                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors {currentPath === '/profile' ? 'bg-gray-50 font-semibold' : ''}"
+                  >
+                    👤 Profile
+                  </a>
                   <div class="border-t border-gray-200 my-1"></div>
                   <button
                     on:click={handleLogout}
@@ -239,6 +246,14 @@
               class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 mt-2 {currentPath.startsWith('/dashboard') ? 'bg-white/20' : ''}"
             >
               📦 Dashboard
+            </a>
+
+            <a
+              href="/profile"
+              on:click={closeMobileMenu}
+              class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 mt-2 {currentPath === '/profile' ? 'bg-white/20' : ''}"
+            >
+              👤 Profile
             </a>
 
             <!-- Mobile User Info -->
