@@ -122,7 +122,6 @@ class ProductSSEClient {
       this.eventSource = new EventSource(`${SSE_URL}/events/products/${this.productId}`);
 
       this.eventSource.onopen = () => {
-        console.log(`[SSE] Connected to product ${this.productId}`);
         this.state.set('connected');
         this.reconnectAttempts = 0;
         this.stopFallbackPolling();
@@ -134,7 +133,6 @@ class ProductSSEClient {
 
           // Handle different event types
           if (data.type === 'connected') {
-            console.log(`[SSE] Product ${this.productId} stream established`);
             if ((data as ConnectedEvent).fallbackPolling) {
               this.startFallbackPolling();
             }
@@ -154,18 +152,16 @@ class ProductSSEClient {
 
           // Notify all listeners
           this.listeners.forEach((listener) => listener(data));
-        } catch (error) {
-          console.error('[SSE] Error parsing message:', error);
+        } catch {
+          // Silently ignore parse errors
         }
       };
 
-      this.eventSource.onerror = (error) => {
-        console.error(`[SSE] Error for product ${this.productId}:`, error);
+      this.eventSource.onerror = () => {
         this.state.set('error');
         this.handleReconnect();
       };
-    } catch (error) {
-      console.error('[SSE] Failed to create EventSource:', error);
+    } catch {
       this.state.set('error');
       this.startFallbackPolling();
     }
@@ -173,7 +169,6 @@ class ProductSSEClient {
 
   private handleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('[SSE] Max reconnect attempts reached, falling back to polling');
       this.startFallbackPolling();
       return;
     }
@@ -184,8 +179,6 @@ class ProductSSEClient {
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
     this.reconnectAttempts++;
 
-    console.log(`[SSE] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
-
     this.reconnectTimer = setTimeout(() => {
       this.connect();
     }, delay);
@@ -194,8 +187,6 @@ class ProductSSEClient {
   private startFallbackPolling(): void {
     if (this.fallbackPolling) return;
     this.fallbackPolling = true;
-
-    console.log('[SSE] Starting fallback polling');
 
     this.pollingInterval = setInterval(async () => {
       try {
@@ -212,8 +203,8 @@ class ProductSSEClient {
           };
           this.listeners.forEach((listener) => listener(event));
         }
-      } catch (error) {
-        console.error('[SSE] Fallback polling error:', error);
+      } catch {
+        // Silently ignore polling errors
       }
     }, 5000); // Poll every 5 seconds
   }
@@ -245,7 +236,6 @@ class ProductSSEClient {
     this.stopFallbackPolling();
     this.state.set('disconnected');
     this.listeners.clear();
-    console.log(`[SSE] Disconnected from product ${this.productId}`);
   }
 }
 
@@ -277,7 +267,6 @@ class UserSSEClient {
       this.eventSource = new EventSource(`${SSE_URL}/events/users/${this.userId}`);
 
       this.eventSource.onopen = () => {
-        console.log(`[SSE] Connected to user ${this.userId}`);
         this.state.set('connected');
         this.reconnectAttempts = 0;
       };
@@ -286,33 +275,28 @@ class UserSSEClient {
         try {
           const data = JSON.parse(event.data) as SSEEvent;
 
-          if (data.type === 'connected') {
-            console.log(`[SSE] User ${this.userId} stream established`);
-          } else if (data.type === 'new_message') {
+          if (data.type === 'new_message') {
             this.lastMessage.set(data as MessageEvent);
             this.unreadCount.update((n) => n + 1);
           }
 
           this.listeners.forEach((listener) => listener(data));
-        } catch (error) {
-          console.error('[SSE] Error parsing message:', error);
+        } catch {
+          // Silently ignore parse errors
         }
       };
 
-      this.eventSource.onerror = (error) => {
-        console.error(`[SSE] Error for user ${this.userId}:`, error);
+      this.eventSource.onerror = () => {
         this.state.set('error');
         this.handleReconnect();
       };
-    } catch (error) {
-      console.error('[SSE] Failed to create EventSource:', error);
+    } catch {
       this.state.set('error');
     }
   }
 
   private handleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('[SSE] Max reconnect attempts reached for user connection');
       return;
     }
 
@@ -321,8 +305,6 @@ class UserSSEClient {
 
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
     this.reconnectAttempts++;
-
-    console.log(`[SSE] User reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
     this.reconnectTimer = setTimeout(() => {
       this.connect();
@@ -351,7 +333,6 @@ class UserSSEClient {
 
     this.state.set('disconnected');
     this.listeners.clear();
-    console.log(`[SSE] Disconnected from user ${this.userId}`);
   }
 }
 
@@ -427,7 +408,6 @@ export async function queueBid(
 
     return data;
   } catch (error) {
-    console.error('[SSE] Error queuing bid:', error);
     return { success: false, error: String(error) };
   }
 }

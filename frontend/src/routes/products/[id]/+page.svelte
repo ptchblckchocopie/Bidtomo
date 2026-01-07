@@ -409,7 +409,6 @@
       // Subscribe to bid events
       const unsubscribe = sseClient.subscribe(async (event: SSEEvent) => {
         if (event.type === 'bid' && (event as BidEvent).success) {
-          console.log('[SSE] Received bid update:', event);
           const bidEvent = event as BidEvent;
 
           // Update product current bid
@@ -459,8 +458,6 @@
             }
           }
         } else if (event.type === 'accepted') {
-          console.log('[SSE] Received accepted event:', event);
-
           // Smoothly update UI when bid is accepted
           if (data.product && event.success) {
             data.product.status = 'sold';
@@ -657,7 +654,6 @@
           }
         } else {
           // Bid was queued - show pending state
-          console.log('[SSE] Bid queued, waiting for SSE update:', queueResult.jobId);
         }
 
         // Reset bid amount to new minimum

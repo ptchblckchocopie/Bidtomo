@@ -665,7 +665,6 @@
   function startPolling() {
     // Don't start polling if SSE is connected
     if (sseConnected) {
-      console.log('[Inbox] SSE connected, skipping fallback polling');
       return;
     }
 
@@ -674,7 +673,6 @@
       clearInterval(pollingInterval);
     }
 
-    console.log('[Inbox] SSE disconnected, starting fallback polling');
     // Poll every 10 seconds as fallback when SSE is not available
     pollingInterval = setInterval(pollNewMessages, 10000);
   }
@@ -758,8 +756,6 @@
         }
       }
     });
-
-    console.log('[SSE] Subscribed to product typing events:', productIdStr);
   }
 
   // Unsubscribe from product SSE
@@ -861,7 +857,6 @@
 
     // Connect to SSE for real-time message notifications
     if ($authStore.user?.id) {
-      console.log('[Inbox] Connecting to user SSE for user:', $authStore.user.id);
       const sseClient = getUserSSE(String($authStore.user.id));
       sseClient.connect();
 
@@ -872,20 +867,16 @@
 
         if (sseConnected && !wasConnected) {
           // SSE just connected - stop polling
-          console.log('[Inbox] SSE connected, stopping fallback polling');
           stopPolling();
         } else if (!sseConnected && wasConnected && selectedProduct) {
           // SSE just disconnected - start polling if we have a selected conversation
-          console.log('[Inbox] SSE disconnected, starting fallback polling');
           startPolling();
         }
       });
 
       // Subscribe to message events
       const unsubscribe = sseClient.subscribe(async (event: SSEEvent) => {
-        console.log('[Inbox SSE] Received event:', event.type, event);
         if (event.type === 'new_message') {
-          console.log('[Inbox SSE] New message! Product:', (event as SSEMessageEvent).productId, 'Selected:', selectedProduct?.id);
           const msgEvent = event as SSEMessageEvent;
 
           // If this message is for the currently selected product, add it dynamically
