@@ -527,6 +527,16 @@
                 <h3>{product.title}</h3>
                 <p class="description">{product.description.substring(0, 100)}{product.description.length > 100 ? '...' : ''}</p>
 
+                {#if product.region || product.city}
+                  <div class="location-info">
+                    <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                      <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                    <span>{product.city}{product.city && product.region ? ', ' : ''}{product.region}</span>
+                  </div>
+                {/if}
+
                 <div class="pricing">
                   {#if product.currentBid}
                     <div class="current-bid-section">
@@ -976,8 +986,26 @@
 
   .description {
     color: #666;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
     flex: 1;
+  }
+
+  .location-info {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0.75rem;
+    padding: 0.375rem 0.5rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    width: fit-content;
+  }
+
+  .location-icon {
+    color: #dc2626;
+    flex-shrink: 0;
   }
 
   .pricing {
