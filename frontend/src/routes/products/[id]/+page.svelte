@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct, API_URL } from '$lib/api';
+  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
@@ -741,11 +741,11 @@
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/bid/accept`, {
+      const response = await fetch('/api/bridge/bid/accept', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `JWT ${token}`
         },
         body: JSON.stringify({
           productId: data.product.id
