@@ -4,7 +4,6 @@
   import { page } from '$app/stores';
   import { browser } from '$app/environment';
   import { authStore } from '$lib/stores/auth';
-  import { API_URL } from '$lib/api';
 
   let email = '';
   let password = '';
@@ -21,7 +20,7 @@
     submitting = true;
 
     try {
-      const response = await fetch(`${API_URL}/api/users/login`, {
+      const response = await fetch('/api/bridge/users/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
