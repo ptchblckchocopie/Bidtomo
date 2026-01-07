@@ -6,6 +6,9 @@ export interface User {
   email: string;
   name: string;
   role: 'admin' | 'seller' | 'buyer';
+  currency?: string;
+  countryCode?: string;
+  phoneNumber?: string;
 }
 
 export interface AuthState {

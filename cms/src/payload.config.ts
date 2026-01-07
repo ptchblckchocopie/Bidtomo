@@ -139,6 +139,21 @@ export default buildConfig({
             description: 'Your preferred currency for transactions',
           },
         },
+        {
+          name: 'countryCode',
+          type: 'text',
+          defaultValue: '+63',
+          admin: {
+            description: 'Phone country code',
+          },
+        },
+        {
+          name: 'phoneNumber',
+          type: 'text',
+          admin: {
+            description: 'Phone number without country code',
+          },
+        },
       ],
     },
     {

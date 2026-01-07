@@ -8,9 +8,35 @@
   let email = '';
   let password = '';
   let confirmPassword = '';
+  let countryCode = '+63';
+  let phoneNumber = '';
   let submitting = false;
   let error = '';
   let success = false;
+
+  // Country codes list with common countries
+  const countryCodes = [
+    { code: '+63', country: 'Philippines', flag: '🇵🇭' },
+    { code: '+1', country: 'USA/Canada', flag: '🇺🇸' },
+    { code: '+44', country: 'UK', flag: '🇬🇧' },
+    { code: '+61', country: 'Australia', flag: '🇦🇺' },
+    { code: '+65', country: 'Singapore', flag: '🇸🇬' },
+    { code: '+81', country: 'Japan', flag: '🇯🇵' },
+    { code: '+82', country: 'South Korea', flag: '🇰🇷' },
+    { code: '+86', country: 'China', flag: '🇨🇳' },
+    { code: '+91', country: 'India', flag: '🇮🇳' },
+    { code: '+60', country: 'Malaysia', flag: '🇲🇾' },
+    { code: '+66', country: 'Thailand', flag: '🇹🇭' },
+    { code: '+84', country: 'Vietnam', flag: '🇻🇳' },
+    { code: '+62', country: 'Indonesia', flag: '🇮🇩' },
+    { code: '+49', country: 'Germany', flag: '🇩🇪' },
+    { code: '+33', country: 'France', flag: '🇫🇷' },
+    { code: '+39', country: 'Italy', flag: '🇮🇹' },
+    { code: '+34', country: 'Spain', flag: '🇪🇸' },
+    { code: '+971', country: 'UAE', flag: '🇦🇪' },
+    { code: '+966', country: 'Saudi Arabia', flag: '🇸🇦' },
+    { code: '+974', country: 'Qatar', flag: '🇶🇦' },
+  ];
 
   // Get redirect URL from query params
   const redirectUrl = $page.url.searchParams.get('redirect') || '/';
@@ -22,7 +48,7 @@
     success = false;
 
     // Validation
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name || !email || !password || !confirmPassword || !phoneNumber) {
       error = 'Please fill in all fields';
       return;
     }
@@ -34,6 +60,13 @@
 
     if (password.length < 6) {
       error = 'Password must be at least 6 characters';
+      return;
+    }
+
+    // Phone number validation - basic check for digits only
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    if (cleanPhone.length < 7 || cleanPhone.length > 15) {
+      error = 'Please enter a valid phone number';
       return;
     }
 
@@ -50,6 +83,8 @@
           name,
           email,
           password,
+          countryCode,
+          phoneNumber: phoneNumber.replace(/\D/g, ''), // Store only digits
           role: 'seller', // Users can both buy and sell
         }),
       });
@@ -146,6 +181,31 @@
           required
           disabled={submitting || success}
         />
+      </div>
+
+      <div class="form-group">
+        <label for="phone">Phone Number</label>
+        <div class="phone-input-group">
+          <select
+            id="countryCode"
+            bind:value={countryCode}
+            disabled={submitting || success}
+            class="country-code-select"
+          >
+            {#each countryCodes as { code, country, flag }}
+              <option value={code}>{flag} {code}</option>
+            {/each}
+          </select>
+          <input
+            id="phone"
+            type="tel"
+            bind:value={phoneNumber}
+            placeholder="9XX XXX XXXX"
+            required
+            disabled={submitting || success}
+            class="phone-input"
+          />
+        </div>
       </div>
 
       <div class="form-group">
@@ -273,6 +333,38 @@
   input:disabled {
     background-color: #f5f5f5;
     cursor: not-allowed;
+  }
+
+  .phone-input-group {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .country-code-select {
+    width: 110px;
+    padding: 0.875rem 0.5rem;
+    font-size: 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    font-family: inherit;
+    background-color: white;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .country-code-select:focus {
+    outline: none;
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+
+  .country-code-select:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+  }
+
+  .phone-input {
+    flex: 1;
   }
 
   button {
