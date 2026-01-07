@@ -4,8 +4,9 @@
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
   import { unreadCountStore } from '$lib/stores/inbox';
-  import { fetchConversations, fetchProductMessages, fetchMessageById, fetchProduct, fetchProductBids, sendMessage, markMessageAsRead, setTypingStatus } from '$lib/api';
-  import type { Product, Message } from '$lib/api';
+  import { fetchConversations, fetchProductMessages, fetchMessageById, fetchProduct, fetchProductBids, sendMessage, markMessageAsRead, setTypingStatus, fetchTransactionForProduct, fetchMyRatingForTransaction, createRating, addRatingFollowUp } from '$lib/api';
+  import type { Product, Message, Transaction, Rating } from '$lib/api';
+  import StarRating from '$lib/components/StarRating.svelte';
   import { goto } from '$app/navigation';
   import { getUserSSE, disconnectUserSSE, getProductSSE, disconnectProductSSE, type SSEEvent, type MessageEvent as SSEMessageEvent, type TypingEvent } from '$lib/sse';
 
@@ -44,6 +45,18 @@
   let conversationUpdateDebounce: ReturnType<typeof setTimeout> | null = null;
   let sseConnected = false;
   let sseStateUnsubscribe: (() => void) | null = null;
+
+  // Rating state
+  let transaction: Transaction | null = null;
+  let myRating: Rating | null = null;
+  let otherPartyRating: Rating | null = null;
+  let showRatingModal = false;
+  let ratingValue = 0;
+  let ratingComment = '';
+  let submittingRating = false;
+  let ratingError = '';
+  let buyerName: string | null = null;
+  let sellerName: string | null = null;
 
   // Get product ID from query params if navigated from purchases page
   $: productId = $page.url.searchParams.get('product');
@@ -236,6 +249,116 @@
     return { allowed: true };
   }
 
+  // Load transaction and rating data for the selected product
+  async function loadRatingData(product: Product) {
+    // Reset rating state
+    transaction = null;
+    myRating = null;
+    otherPartyRating = null;
+    buyerName = null;
+    sellerName = null;
+
+    // Set seller name
+    sellerName = product.seller?.name || 'Unknown Seller';
+
+    // Only load rating data for sold products
+    if (product.status !== 'sold') return;
+
+    try {
+      // Fetch transaction
+      const txn = await fetchTransactionForProduct(product.id);
+      if (!txn) return;
+
+      transaction = txn;
+
+      // Get buyer name from transaction
+      if (typeof txn.buyer === 'object' && txn.buyer) {
+        buyerName = txn.buyer.name || 'Unknown Buyer';
+      }
+
+      // Fetch my rating
+      myRating = await fetchMyRatingForTransaction(txn.id);
+
+      // Fetch the other party's rating (to show how they rated)
+      const response = await fetch(
+        `/api/bridge/ratings?where[transaction][equals]=${txn.id}&depth=1`,
+        {
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const allRatings = data.docs || [];
+
+        // Find the rating from the other party
+        const currentUserId = $authStore.user?.id;
+        otherPartyRating = allRatings.find((r: Rating) => {
+          const raterId = typeof r.rater === 'object' ? r.rater.id : r.rater;
+          return raterId !== currentUserId;
+        }) || null;
+      }
+    } catch (err) {
+      console.error('Error loading rating data:', err);
+    }
+  }
+
+  // Submit a new rating
+  async function submitRating() {
+    if (!transaction || ratingValue === 0) return;
+
+    submittingRating = true;
+    ratingError = '';
+
+    try {
+      const newRating = await createRating(transaction.id, ratingValue, ratingComment || undefined);
+      if (newRating) {
+        myRating = newRating;
+        showRatingModal = false;
+        ratingValue = 0;
+        ratingComment = '';
+      }
+    } catch (err: any) {
+      ratingError = err.message || 'Failed to submit rating';
+    } finally {
+      submittingRating = false;
+    }
+  }
+
+  // Get buyer info from messages or bids
+  async function getBuyerFromProduct(product: Product): Promise<string | null> {
+    if (!$authStore.user) return null;
+
+    // If user is the seller, find the buyer from messages or bids
+    if (product.seller?.id === $authStore.user.id) {
+      // Try to get from messages
+      const otherUsersInMessages = messages
+        .map(m => getOtherUser(m))
+        .filter((u, i, arr) => u && arr.findIndex(x => x?.id === u.id) === i);
+
+      if (otherUsersInMessages.length > 0 && otherUsersInMessages[0]) {
+        return otherUsersInMessages[0].name || 'Unknown Buyer';
+      }
+
+      // Fallback to highest bidder
+      try {
+        const bids = await fetchProductBids(product.id);
+        if (bids.length > 0) {
+          const sortedBids = [...bids].sort((a, b) => b.amount - a.amount);
+          const highestBid = sortedBids[0];
+          if (typeof highestBid.bidder === 'object' && highestBid.bidder) {
+            return highestBid.bidder.name || 'Unknown Buyer';
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching bids:', err);
+      }
+    }
+
+    return null;
+  }
+
   async function loadConversations() {
     loading = true;
     try {
@@ -282,6 +405,14 @@
                 lastMessageTime = messages[messages.length - 1].createdAt;
               } else {
                 lastMessageTime = new Date().toISOString();
+              }
+
+              // Load rating data for the product
+              await loadRatingData(product);
+
+              // If buyer name wasn't set from transaction, try to get it from messages/bids
+              if (!buyerName && product.seller?.id === $authStore.user?.id) {
+                buyerName = await getBuyerFromProduct(product);
               }
 
               // Start polling for new messages
@@ -419,6 +550,14 @@
           ...conversations[convIndex],
           unreadCount: 0
         };
+      }
+
+      // Load rating data for the product
+      await loadRatingData(product);
+
+      // If buyer name wasn't set from transaction, try to get it from messages/bids
+      if (!buyerName && product.seller?.id === $authStore.user?.id) {
+        buyerName = await getBuyerFromProduct(product);
       }
 
       // Start polling for new messages
@@ -989,6 +1128,22 @@
                 •
                 <span class="status-badge status-{selectedProduct.status}">{selectedProduct.status}</span>
               </p>
+              <div class="transaction-parties">
+                <div class="party-info">
+                  <span class="party-label">Seller:</span>
+                  <a href="/users/{selectedProduct.seller.id}" class="party-name">{sellerName || selectedProduct.seller?.name || 'Unknown'}</a>
+                </div>
+                {#if buyerName || (selectedProduct.status === 'sold' && transaction)}
+                  <div class="party-info">
+                    <span class="party-label">Buyer:</span>
+                    {#if transaction && typeof transaction.buyer === 'object' && transaction.buyer}
+                      <a href="/users/{transaction.buyer.id}" class="party-name">{buyerName || 'Unknown'}</a>
+                    {:else}
+                      <span class="party-name">{buyerName || 'Unknown'}</span>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
             </div>
             <a href="/products/{selectedProduct.id}?from=inbox" class="view-product-link">View Product →</a>
           </div>
@@ -1040,6 +1195,79 @@
             <div class="error-message">{error}</div>
           {/if}
 
+          <!-- Inline Rating Section -->
+          {#if selectedProduct.status === 'sold' && transaction}
+            <div class="inline-rating-section">
+              {#if !myRating}
+                <div class="rating-prompt">
+                  <div class="rating-prompt-header">
+                    <span class="rating-icon">⭐</span>
+                    <span class="rating-title">Rate this transaction</span>
+                  </div>
+                  <p class="rating-prompt-text">
+                    How was your experience with {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'the buyer') : (sellerName || 'the seller')} for this order?
+                  </p>
+                  <div class="inline-rating-form">
+                    <div class="inline-star-selector">
+                      <StarRating
+                        rating={ratingValue}
+                        interactive={true}
+                        size="medium"
+                        on:change={(e) => ratingValue = e.detail.rating}
+                      />
+                      {#if ratingValue > 0}
+                        <span class="rating-value-text">{ratingValue}/5</span>
+                      {/if}
+                    </div>
+                    {#if ratingValue > 0}
+                      <div class="inline-comment-row">
+                        <input
+                          type="text"
+                          bind:value={ratingComment}
+                          placeholder="Add a comment (optional)"
+                          class="inline-comment-input"
+                        />
+                        <button
+                          class="inline-submit-btn"
+                          on:click={submitRating}
+                          disabled={submittingRating}
+                        >
+                          {submittingRating ? '...' : 'Submit'}
+                        </button>
+                      </div>
+                    {/if}
+                  </div>
+                  {#if ratingError}
+                    <div class="inline-rating-error">{ratingError}</div>
+                  {/if}
+                </div>
+              {:else}
+                <div class="rating-submitted-inline">
+                  <div class="rating-submitted-header">
+                    <span class="rating-check">✓</span>
+                    <span>You rated {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'the buyer') : (sellerName || 'the seller')}</span>
+                  </div>
+                  <div class="rating-submitted-content">
+                    <StarRating rating={myRating.rating} size="small" />
+                    <span class="rating-score">{myRating.rating}/5</span>
+                    {#if myRating.comment}
+                      <span class="rating-comment-text">"{myRating.comment}"</span>
+                    {/if}
+                  </div>
+                  {#if otherPartyRating}
+                    <div class="other-party-rating">
+                      <span class="other-rating-label">
+                        {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'Buyer') : (sellerName || 'Seller')} rated you:
+                      </span>
+                      <StarRating rating={otherPartyRating.rating} size="small" />
+                      <span class="rating-score">{otherPartyRating.rating}/5</span>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+            </div>
+          {/if}
+
           {#if !canChat}
             <div class="chat-blocked-message">
               <div class="blocked-icon">🔒</div>
@@ -1073,6 +1301,58 @@
     </div>
   {/if}
 </div>
+
+<!-- Rating Modal -->
+{#if showRatingModal && selectedProduct && transaction}
+  <div class="modal-overlay" on:click={() => showRatingModal = false} on:keydown={(e) => e.key === 'Escape' && (showRatingModal = false)} role="button" tabindex="0">
+    <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-modal="true">
+      <button class="modal-close" on:click={() => showRatingModal = false}>&times;</button>
+      <h2>Rate Your {$authStore.user?.id === selectedProduct.seller.id ? 'Buyer' : 'Seller'}</h2>
+      <p class="modal-subtitle">
+        {#if $authStore.user?.id === selectedProduct.seller.id}
+          How was your experience with {buyerName || 'the buyer'}?
+        {:else}
+          How was your experience with {sellerName || 'the seller'}?
+        {/if}
+      </p>
+
+      <div class="rating-selector">
+        <StarRating
+          rating={ratingValue}
+          interactive={true}
+          size="large"
+          on:change={(e) => ratingValue = e.detail.rating}
+        />
+        <span class="rating-value-display">{ratingValue > 0 ? `${ratingValue}/5` : 'Select rating'}</span>
+      </div>
+
+      <div class="comment-input">
+        <label for="rating-comment">Comment (optional)</label>
+        <textarea
+          id="rating-comment"
+          bind:value={ratingComment}
+          placeholder="Share your experience..."
+          rows="3"
+        ></textarea>
+      </div>
+
+      {#if ratingError}
+        <div class="rating-error">{ratingError}</div>
+      {/if}
+
+      <div class="modal-actions">
+        <button class="btn-cancel" on:click={() => showRatingModal = false}>Cancel</button>
+        <button
+          class="btn-submit"
+          on:click={submitRating}
+          disabled={submittingRating || ratingValue === 0}
+        >
+          {submittingRating ? 'Submitting...' : 'Submit Rating'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .inbox-page {
@@ -1748,6 +2028,458 @@
 
     .tab {
       width: 100%;
+    }
+  }
+
+  /* Transaction Parties */
+  .transaction-parties {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  .party-info {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.85rem;
+  }
+
+  .party-label {
+    color: #666;
+  }
+
+  .party-name {
+    color: #333;
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .party-name:hover {
+    color: #dc2626;
+    text-decoration: underline;
+  }
+
+  .my-rating-badge,
+  .other-rating-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  /* Submit Rating Button */
+  .submit-rating-btn {
+    margin-top: 0.75rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .submit-rating-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  }
+
+  /* Rating Submitted */
+  .rating-submitted {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: #f0fdf4;
+    border-radius: 6px;
+    font-size: 0.85rem;
+  }
+
+  .rating-label {
+    color: #059669;
+    font-weight: 500;
+  }
+
+  .rating-comment {
+    font-style: italic;
+    color: #666;
+    font-size: 0.8rem;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Modal Styles */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+  }
+
+  .modal-content {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    max-width: 450px;
+    width: 100%;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #999;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.2s;
+  }
+
+  .modal-close:hover {
+    background: #f0f0f0;
+    color: #333;
+  }
+
+  .modal-content h2 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+    color: #333;
+  }
+
+  .modal-subtitle {
+    color: #666;
+    margin: 0 0 1.5rem 0;
+    font-size: 0.95rem;
+  }
+
+  .rating-selector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .rating-value-display {
+    font-size: 0.9rem;
+    color: #666;
+    font-weight: 500;
+  }
+
+  .comment-input {
+    margin-bottom: 1.5rem;
+  }
+
+  .comment-input label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #333;
+  }
+
+  .comment-input textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  .comment-input textarea:focus {
+    outline: none;
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+
+  .rating-error {
+    color: #dc2626;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    text-align: center;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+  }
+
+  .btn-cancel {
+    padding: 0.75rem 1.5rem;
+    background: white;
+    color: #666;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-cancel:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+  }
+
+  .btn-submit {
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .btn-submit:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+  }
+
+  .btn-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Inline Rating Section */
+  .inline-rating-section {
+    border-top: 2px solid #f0f0f0;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  }
+
+  .rating-prompt {
+    text-align: center;
+  }
+
+  .rating-prompt-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .rating-icon {
+    font-size: 1.25rem;
+  }
+
+  .rating-title {
+    font-weight: 600;
+    font-size: 1rem;
+    color: #92400e;
+  }
+
+  .rating-prompt-text {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.85rem;
+    color: #78350f;
+  }
+
+  .inline-rating-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .inline-star-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .rating-value-text {
+    font-weight: 600;
+    color: #92400e;
+    font-size: 0.9rem;
+  }
+
+  .inline-comment-row {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 400px;
+  }
+
+  .inline-comment-input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 2px solid #fbbf24;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    background: white;
+  }
+
+  .inline-comment-input:focus {
+    outline: none;
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+  }
+
+  .inline-submit-btn {
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    white-space: nowrap;
+  }
+
+  .inline-submit-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+  }
+
+  .inline-submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .inline-rating-error {
+    color: #dc2626;
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+  }
+
+  /* Rating Submitted Inline */
+  .rating-submitted-inline {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+  }
+
+  .rating-submitted-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #065f46;
+    font-size: 0.9rem;
+  }
+
+  .rating-check {
+    color: #10b981;
+    font-size: 1.1rem;
+  }
+
+  .rating-submitted-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .rating-score {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.85rem;
+  }
+
+  .rating-comment-text {
+    font-style: italic;
+    color: #666;
+    font-size: 0.85rem;
+  }
+
+  .other-party-rating {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(16, 185, 129, 0.3);
+    flex-wrap: wrap;
+  }
+
+  .other-rating-label {
+    font-size: 0.8rem;
+    color: #065f46;
+  }
+
+  /* Mobile responsive for new elements */
+  @media (max-width: 768px) {
+    .transaction-parties {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .rating-submitted {
+      flex-wrap: wrap;
+    }
+
+    .rating-comment {
+      max-width: 100%;
+      width: 100%;
+    }
+
+    .modal-content {
+      padding: 1.5rem;
+    }
+
+    .modal-actions {
+      flex-direction: column-reverse;
+    }
+
+    .btn-cancel,
+    .btn-submit {
+      width: 100%;
+    }
+
+    .inline-rating-section {
+      padding: 0.75rem 1rem;
+    }
+
+    .inline-comment-row {
+      flex-direction: column;
+    }
+
+    .inline-submit-btn {
+      width: 100%;
+    }
+
+    .rating-submitted-content {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .other-party-rating {
+      flex-direction: column;
+      align-items: flex-start;
     }
   }
 </style>
