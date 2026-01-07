@@ -56,6 +56,10 @@
   let showAcceptBidModal = false;
   let bidSectionOpen = false;
   let censorMyName = false;
+  // Save censor name preference to localStorage when it changes
+  $: if (typeof window !== 'undefined') {
+    localStorage.setItem('bid_censor_name', String(censorMyName));
+  }
   let accepting = false;
   let acceptError = '';
   let acceptSuccess = false;
@@ -356,6 +360,12 @@
       } catch (e) {
         console.error('Error parsing saved state:', e);
       }
+    }
+
+    // Load censor name preference from localStorage
+    const savedCensorPref = localStorage.getItem('bid_censor_name');
+    if (savedCensorPref !== null) {
+      censorMyName = savedCensorPref === 'true';
     }
 
     // Connect to SSE for real-time updates
@@ -952,7 +962,7 @@
                 <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
               </div>
             {:else if data.product.currentBid && !hasAuctionEnded && data.product.status !== 'ended'}
-              <div class="highest-bid-container">
+              <div class="highest-bid-container" class:expanded={bidSectionOpen && !isOwner}>
                 <div class="highest-bid-header">
                   <div class="highest-bid-label" class:label-pulse={priceChanged}>CURRENT HIGHEST BID</div>
                 </div>
@@ -968,14 +978,30 @@
                   {/if}
                 </div>
                 <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+                {#if !isOwner}
+                  <button class="bid-toggle-pill" on:click={() => bidSectionOpen = !bidSectionOpen} aria-label={bidSectionOpen ? 'Hide bid form' : 'Show bid form'}>
+                    <span class="pill-text">{bidSectionOpen ? 'Close' : 'Place Bid'}</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class:chevron-up={bidSectionOpen}>
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </button>
+                {/if}
               </div>
             {:else if !hasAuctionEnded && data.product.status !== 'ended'}
-              <div class="highest-bid-container">
+              <div class="highest-bid-container" class:expanded={bidSectionOpen && !isOwner}>
                 <div class="highest-bid-header">
                   <div class="highest-bid-label">STARTING BID</div>
                 </div>
                 <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
                 <div class="starting-price-small">No bids yet - be the first!</div>
+                {#if !isOwner}
+                  <button class="bid-toggle-pill" on:click={() => bidSectionOpen = !bidSectionOpen} aria-label={bidSectionOpen ? 'Hide bid form' : 'Show bid form'}>
+                    <span class="pill-text">{bidSectionOpen ? 'Close' : 'Place Bid'}</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class:chevron-up={bidSectionOpen}>
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </button>
+                {/if}
               </div>
             {/if}
           </div>
@@ -1010,68 +1036,70 @@
               {/if}
             </div>
           {:else}
-            <!-- Bidder view - Place Bid section -->
-            <div class="bid-section">
-              <div class="bid-section-header">
-                <h3>Place Your Bid</h3>
-              </div>
-
-              {#if !$authStore.isAuthenticated}
-                <div class="info-message">
-                  <p>🔒 You must be logged in to place a bid</p>
+            <!-- Bidder view - Place Bid section (collapsible) -->
+            <div class="bid-section" class:bid-section-open={bidSectionOpen} class:bid-section-closed={!bidSectionOpen}>
+              <div class="bid-section-content">
+                <div class="bid-section-header">
+                  <h3>Place Your Bid</h3>
                 </div>
-              {/if}
 
-              {#if bidError}
-                <div class="error-message">
-                  {bidError}
-                </div>
-              {/if}
+                {#if !$authStore.isAuthenticated}
+                  <div class="info-message">
+                    <p>🔒 You must be logged in to place a bid</p>
+                  </div>
+                {/if}
 
-              <div class="bid-form">
-                <div class="bid-input-group">
-                  <label>Your Bid Amount</label>
-                  <div class="bid-row">
-                    <div class="bid-control">
-                      <button
-                        class="bid-arrow-btn"
-                        on:click={decrementBid}
-                        disabled={bidding || bidAmount <= minBid}
-                        type="button"
-                        aria-label="Decrease bid"
-                      >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                      </button>
-                      <input
-                        type="number"
-                        class="bid-amount-input"
-                        bind:value={bidAmount}
-                        on:blur={validateBidAmount}
-                        min={minBid}
-                        step={bidInterval}
-                        disabled={bidding}
-                      />
-                      <button
-                        class="bid-arrow-btn"
-                        on:click={incrementBid}
-                        disabled={bidding}
-                        type="button"
-                        aria-label="Increase bid"
-                      >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <polyline points="18 15 12 9 6 15"></polyline>
-                        </svg>
+                {#if bidError}
+                  <div class="error-message">
+                    {bidError}
+                  </div>
+                {/if}
+
+                <div class="bid-form">
+                  <div class="bid-input-group">
+                    <label>Your Bid Amount</label>
+                    <div class="bid-row">
+                      <div class="bid-control">
+                        <button
+                          class="bid-arrow-btn"
+                          on:click={decrementBid}
+                          disabled={bidding || bidAmount <= minBid}
+                          type="button"
+                          aria-label="Decrease bid"
+                        >
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                          </svg>
+                        </button>
+                        <input
+                          type="number"
+                          class="bid-amount-input"
+                          bind:value={bidAmount}
+                          on:blur={validateBidAmount}
+                          min={minBid}
+                          step={bidInterval}
+                          disabled={bidding}
+                        />
+                        <button
+                          class="bid-arrow-btn"
+                          on:click={incrementBid}
+                          disabled={bidding}
+                          type="button"
+                          aria-label="Increase bid"
+                        >
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="18 15 12 9 6 15"></polyline>
+                          </svg>
+                        </button>
+                      </div>
+                      <button class="place-bid-btn" on:click={handlePlaceBid} disabled={bidding}>
+                        {bidding ? 'Placing Bid...' : 'Place Bid'}
                       </button>
                     </div>
-                    <button class="place-bid-btn" on:click={handlePlaceBid} disabled={bidding}>
-                      {bidding ? 'Placing Bid...' : 'Place Bid'}
-                    </button>
+                    <p class="bid-hint">
+                      Minimum bid: {formatPrice(minBid, sellerCurrency)} • Increment: {formatPrice(bidInterval, sellerCurrency)}
+                    </p>
                   </div>
-                  <p class="bid-hint">
-                    Minimum bid: {formatPrice(minBid, sellerCurrency)} • Increment: {formatPrice(bidInterval, sellerCurrency)}
-                  </p>
                 </div>
               </div>
             </div>
@@ -1442,6 +1470,28 @@
     margin-bottom: 3rem;
   }
 
+  /* Tablet breakpoint for bid controls */
+  @media (max-width: 1024px) {
+    .bid-amount-input {
+      font-size: clamp(1.1rem, 3.5vw, 1.5rem) !important;
+    }
+
+    .bid-arrow-btn {
+      width: 40px;
+      height: 40px;
+    }
+
+    .bid-arrow-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .bid-control {
+      padding: 0.375rem;
+      gap: 0.375rem;
+    }
+  }
+
   @media (max-width: 768px) {
     .product-content {
       grid-template-columns: 1fr;
@@ -1502,8 +1552,22 @@
       padding: 1rem;
     }
 
+    .bid-section-closed:not(.owner-section) {
+      padding: 0 1rem;
+    }
+
+    .bid-section-open:not(.owner-section) {
+      padding: 1rem;
+    }
+
     .bid-section-header h3 {
       font-size: 1.25rem;
+    }
+
+    .bid-toggle-pill {
+      padding: 0.5rem 1rem;
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
     }
 
     /* Countdown timer adjustments */
@@ -2110,6 +2174,84 @@
     transition: all 0.3s ease;
   }
 
+  /* Collapsible bid section styles */
+  .bid-section:not(.owner-section) {
+    overflow: hidden;
+    transition: max-height 0.4s ease-out, opacity 0.3s ease, padding 0.3s ease, margin 0.3s ease;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    margin-top: -8px;
+  }
+
+  .bid-section-closed:not(.owner-section) {
+    max-height: 0;
+    opacity: 0;
+    padding: 0 1.5rem;
+    margin-bottom: 0;
+    pointer-events: none;
+  }
+
+  .bid-section-open:not(.owner-section) {
+    max-height: 500px;
+    opacity: 1;
+    padding: 1.5rem;
+  }
+
+  .bid-section-content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Pill toggle button */
+  .bid-toggle-pill {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    width: auto;
+    margin: 0.75rem auto 0;
+    padding: 0.625rem 1.25rem;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .bid-toggle-pill:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    transform: translateY(-1px);
+  }
+
+  .bid-toggle-pill:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+  }
+
+  .bid-toggle-pill .pill-text {
+    letter-spacing: 0.02em;
+  }
+
+  .bid-toggle-pill svg {
+    transition: transform 0.3s ease;
+  }
+
+  .bid-toggle-pill svg.chevron-up {
+    transform: rotate(180deg);
+  }
+
+  /* Expanded highest-bid-container styling */
+  .highest-bid-container.expanded {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    margin-bottom: 0;
+  }
+
   .auction-ended-section {
     background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
     padding: 2rem;
@@ -2275,6 +2417,8 @@
     padding: 0.5rem;
     flex: 1;
     min-height: 64px;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .bid-arrow-btn {
@@ -2323,14 +2467,15 @@
   .bid-amount-input {
     flex: 1;
     text-align: center;
-    font-size: 1.75rem;
+    font-size: clamp(1.25rem, 4vw, 1.75rem);
     font-weight: 700;
     color: #667eea;
-    padding: 0.5rem;
+    padding: 0.25rem;
     border: none;
     background: transparent;
     outline: none;
     width: 100%;
+    min-width: 0;
   }
 
   .bid-amount-input:focus {
