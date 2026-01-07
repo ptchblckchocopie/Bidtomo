@@ -84,6 +84,11 @@ if [ "$LOCAL" != "$REMOTE" ]; then
 
     echo "$(date): CMS built to $NEW_DIST"
 
+    ### RUN MIGRATIONS ###
+    echo "$(date): Running migrations..."
+    cd /var/www/marketplace/cms
+    npm run migrate
+
     ### RELOAD ###
     echo "$(date): Reloading services..."
     pm2 reload all --update-env
