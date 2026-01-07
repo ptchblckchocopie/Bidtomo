@@ -22,7 +22,7 @@
       </h1>
 
       <p class="text-lg sm:text-xl lg:text-2xl mb-4 opacity-95">
-        Bid mo 'to! The Filipino way to bid, buy, and sell unique items
+        Bid mo 'to! The Filipino way to bid, buy, and sell unique items!
       </p>
 
       <p class="text-base sm:text-lg mb-10 opacity-90 max-w-2xl mx-auto">
