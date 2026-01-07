@@ -12,16 +12,6 @@ function getSseUrl(): string {
   return 'http://localhost:3002';
 }
 
-// Dynamically determine API URL based on current hostname
-function getApiUrl(): string {
-  if (import.meta.env.PUBLIC_API_URL) {
-    return import.meta.env.PUBLIC_API_URL;
-  }
-  if (browser && typeof window !== 'undefined') {
-    return `http://${window.location.hostname}:3001`;
-  }
-  return 'http://localhost:3001';
-}
 
 const SSE_URL = getSseUrl();
 
@@ -199,8 +189,8 @@ class ProductSSEClient {
 
     this.pollingInterval = setInterval(async () => {
       try {
-        const apiUrl = getApiUrl();
-        const response = await fetch(`${apiUrl}/api/products/${this.productId}/status`);
+        // Use bridge endpoint instead of direct CMS access
+        const response = await fetch(`/api/bridge/products/${this.productId}/status`);
 
         if (response.ok) {
           const data = await response.json();
@@ -402,11 +392,11 @@ export async function queueBid(
   amount: number,
   censorName: boolean = false
 ): Promise<{ success: boolean; jobId?: string; bidId?: number; error?: string; fallback?: boolean }> {
-  const apiUrl = getApiUrl();
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
 
   try {
-    const response = await fetch(`${apiUrl}/api/bid/queue`, {
+    // Use bridge endpoint instead of direct CMS access
+    const response = await fetch('/api/bridge/bid/queue', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,26 +1,21 @@
-// API utility functions for interacting with PayloadCMS backend
+// API utility functions for interacting with backend via SvelteKit bridge
+// All requests go through /api/bridge/* to avoid exposing PayloadCMS structure
 
 import { browser } from '$app/environment';
 import { getAuthToken } from './stores/auth';
 
-// Dynamically determine API URL based on current hostname
-function getApiUrl(): string {
-  // Use environment variable if set
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
+// Bridge API base URL - uses relative paths in browser, absolute for SSR
+function getBridgeUrl(): string {
+  if (browser) {
+    // In browser, use relative paths (same origin)
+    return '';
   }
-
-  // In browser, use current hostname with API port
-  if (browser && typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    return `http://${hostname}:3001`;
-  }
-
-  // Fallback for SSR
-  return 'http://localhost:3001';
+  // For SSR, we can't call our own API routes, so return empty string
+  // SSR requests will need to be handled differently if needed
+  return '';
 }
 
-export const API_URL = getApiUrl();
+const BRIDGE_URL = getBridgeUrl();
 
 // Helper function to get auth headers
 function getAuthHeaders(): HeadersInit {
@@ -180,7 +175,8 @@ export async function fetchProducts(params?: {
     queryParams.append('sort', '-createdAt');
 
     const fetchFn = params?.customFetch || fetch;
-    const response = await fetchFn(`${API_URL}/api/products?${queryParams.toString()}`, {
+    const response = await fetchFn(`${BRIDGE_URL}/api/bridge/products?${queryParams.toString()}`, {
+      headers: getAuthHeaders(),
       credentials: 'include',
     });
 
@@ -233,7 +229,7 @@ export async function fetchMyBidsProducts(params?: {
     queryParams.append('limit', '1000'); // Get all user's bids
 
     const fetchFn = params?.customFetch || fetch;
-    const bidsResponse = await fetchFn(`${API_URL}/api/bids?${queryParams.toString()}`, {
+    const bidsResponse = await fetchFn(`${BRIDGE_URL}/api/bridge/bids?${queryParams.toString()}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -290,7 +286,7 @@ export async function fetchMyBidsProducts(params?: {
     // Sort by creation date (newest first)
     productQueryParams.append('sort', '-createdAt');
 
-    const productsResponse = await fetchFn(`${API_URL}/api/products?${productQueryParams.toString()}`, {
+    const productsResponse = await fetchFn(`${BRIDGE_URL}/api/bridge/products?${productQueryParams.toString()}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -322,7 +318,7 @@ export async function fetchMyBidsProducts(params?: {
 // Fetch products by seller
 export async function fetchProductsBySeller(sellerId: string): Promise<Product[]> {
   try {
-    const response = await fetch(`${API_URL}/api/products?where[seller][equals]=${sellerId}`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/products?where[seller][equals]=${sellerId}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -345,7 +341,7 @@ export async function fetchActiveProductsBySeller(sellerId: string, customFetch?
     const fetchFn = customFetch || fetch;
     const now = new Date().toISOString();
     const response = await fetchFn(
-      `${API_URL}/api/products?where[and][0][seller][equals]=${sellerId}&where[and][1][status][equals]=available&where[and][2][active][equals]=true&where[and][3][auctionEndDate][greater_than]=${now}`,
+      `${BRIDGE_URL}/api/bridge/products?where[and][0][seller][equals]=${sellerId}&where[and][1][status][equals]=available&where[and][2][active][equals]=true&where[and][3][auctionEndDate][greater_than]=${now}`,
       {
         headers: getAuthHeaders(),
         credentials: 'include',
@@ -369,7 +365,7 @@ export async function fetchHiddenProductsBySeller(sellerId: string, customFetch?
   try {
     const fetchFn = customFetch || fetch;
     const response = await fetchFn(
-      `${API_URL}/api/products?where[and][0][seller][equals]=${sellerId}&where[and][1][active][equals]=false`,
+      `${BRIDGE_URL}/api/bridge/products?where[and][0][seller][equals]=${sellerId}&where[and][1][active][equals]=false`,
       {
         headers: getAuthHeaders(),
         credentials: 'include',
@@ -394,7 +390,7 @@ export async function fetchEndedProductsBySeller(sellerId: string, customFetch?:
     const fetchFn = customFetch || fetch;
     const now = new Date().toISOString();
     const response = await fetchFn(
-      `${API_URL}/api/products?where[and][0][seller][equals]=${sellerId}&where[and][1][or][0][status][equals]=sold&where[and][1][or][1][status][equals]=ended&where[and][1][or][2][and][0][status][equals]=available&where[and][1][or][2][and][1][auctionEndDate][less_than_equal]=${now}`,
+      `${BRIDGE_URL}/api/bridge/products?where[and][0][seller][equals]=${sellerId}&where[and][1][or][0][status][equals]=sold&where[and][1][or][1][status][equals]=ended&where[and][1][or][2][and][0][status][equals]=available&where[and][1][or][2][and][1][auctionEndDate][less_than_equal]=${now}`,
       {
         headers: getAuthHeaders(),
         credentials: 'include',
@@ -417,7 +413,8 @@ export async function fetchEndedProductsBySeller(sellerId: string, customFetch?:
 export async function fetchProduct(id: string, customFetch?: typeof fetch): Promise<Product | null> {
   try {
     const fetchFn = customFetch || fetch;
-    const response = await fetchFn(`${API_URL}/api/products/${id}`, {
+    const response = await fetchFn(`${BRIDGE_URL}/api/bridge/products/${id}`, {
+      headers: getAuthHeaders(),
       credentials: 'include',
     });
 
@@ -442,7 +439,8 @@ export async function checkProductStatus(id: string): Promise<{
   bidCount: number;
 } | null> {
   try {
-    const response = await fetch(`${API_URL}/api/products/${id}/status`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/products/${id}/status`, {
+      headers: getAuthHeaders(),
       credentials: 'include',
     });
 
@@ -471,7 +469,7 @@ export async function createProduct(productData: {
   delivery_options?: 'delivery' | 'meetup' | 'both';
 }): Promise<Product | null> {
   try {
-    const response = await fetch(`${API_URL}/api/products`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/products`, {
       method: 'POST',
       headers: getAuthHeaders(),
       credentials: 'include',
@@ -519,7 +517,7 @@ export async function updateProduct(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    const response = await fetch(`${API_URL}/api/products/${productId}`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/products/${productId}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
       credentials: 'include',
@@ -554,7 +552,7 @@ export async function updateProduct(
 // Login
 export async function login(email: string, password: string): Promise<{ user: User; token: string } | null> {
   try {
-    const response = await fetch(`${API_URL}/api/users/login`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/users/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -577,7 +575,7 @@ export async function login(email: string, password: string): Promise<{ user: Us
 // Logout
 export async function logout(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/api/users/logout`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/users/logout`, {
       method: 'POST',
       headers: getAuthHeaders(),
       credentials: 'include',
@@ -594,7 +592,7 @@ export async function logout(): Promise<boolean> {
 export async function getCurrentUser(customFetch?: typeof fetch): Promise<User | null> {
   try {
     const fetchFn = customFetch || fetch;
-    const response = await fetchFn(`${API_URL}/api/users/me`, {
+    const response = await fetchFn(`${BRIDGE_URL}/api/bridge/users/me`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -616,7 +614,7 @@ export async function placeBid(productId: string, amount: number, censorName: bo
   try {
     console.log('Placing bid:', { productId, amount, censorName, headers: getAuthHeaders() });
 
-    const response = await fetch(`${API_URL}/api/bids`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/bids`, {
       method: 'POST',
       headers: getAuthHeaders(),
       credentials: 'include',
@@ -651,7 +649,8 @@ export async function placeBid(productId: string, amount: number, censorName: bo
 export async function fetchProductBids(productId: string, customFetch?: typeof fetch): Promise<Bid[]> {
   try {
     const fetchFn = customFetch || fetch;
-    const response = await fetchFn(`${API_URL}/api/bids?where[product][equals]=${productId}&sort=-bidTime`, {
+    const response = await fetchFn(`${BRIDGE_URL}/api/bridge/bids?where[product][equals]=${productId}&sort=-bidTime`, {
+      headers: getAuthHeaders(),
       credentials: 'include',
     });
 
@@ -670,7 +669,7 @@ export async function fetchProductBids(productId: string, customFetch?: typeof f
 // Fetch user's purchases (products they won)
 export async function fetchMyPurchases(): Promise<Product[]> {
   try {
-    const response = await fetch(`${API_URL}/api/products?where[status][in][0]=sold&where[status][in][1]=ended&limit=100`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/products?where[status][in][0]=sold&where[status][in][1]=ended&limit=100`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -709,7 +708,7 @@ export async function fetchMyPurchases(): Promise<Product[]> {
 // Send a message
 export async function sendMessage(productId: string, receiverId: string, message: string): Promise<Message | null> {
   try {
-    const response = await fetch(`${API_URL}/api/messages`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/messages`, {
       method: 'POST',
       headers: getAuthHeaders(),
       credentials: 'include',
@@ -743,7 +742,7 @@ export async function fetchProductMessages(
   try {
     // When loading latest messages, sort descending and reverse the result
     const sortOrder = options?.latest ? '-createdAt' : 'createdAt';
-    let url = `${API_URL}/api/messages?where[product][equals]=${productId}&sort=${sortOrder}`;
+    let url = `${BRIDGE_URL}/api/bridge/messages?where[product][equals]=${productId}&sort=${sortOrder}`;
 
     // If 'after' timestamp is provided, only fetch messages created after that time
     if (after) {
@@ -783,7 +782,7 @@ export async function fetchProductMessages(
 // Fetch a single message by ID
 export async function fetchMessageById(messageId: string | number): Promise<Message | null> {
   try {
-    const response = await fetch(`${API_URL}/api/messages/${messageId}?depth=1`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/messages/${messageId}?depth=1`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -802,7 +801,7 @@ export async function fetchMessageById(messageId: string | number): Promise<Mess
 // Fetch all conversations (grouped by product)
 export async function fetchConversations(): Promise<{ product: Product; lastMessage: Message; unreadCount: number }[]> {
   try {
-    const response = await fetch(`${API_URL}/api/messages?limit=1000&sort=-createdAt`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/messages?limit=1000&sort=-createdAt`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -872,7 +871,7 @@ export async function getUnreadMessageCount(): Promise<number> {
 // Set typing status
 export async function setTypingStatus(productId: string, isTyping: boolean): Promise<void> {
   try {
-    await fetch(`${API_URL}/api/typing`, {
+    await fetch(`${BRIDGE_URL}/api/bridge/typing`, {
       method: 'POST',
       headers: getAuthHeaders(),
       credentials: 'include',
@@ -889,7 +888,7 @@ export async function setTypingStatus(productId: string, isTyping: boolean): Pro
 // Get typing status for a product
 export async function getTypingStatus(productId: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/api/typing/${productId}`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/typing/${productId}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -909,7 +908,7 @@ export async function getTypingStatus(productId: string): Promise<boolean> {
 // Mark message as read
 export async function markMessageAsRead(messageId: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/api/messages/${messageId}`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/messages/${messageId}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
       credentials: 'include',
@@ -926,7 +925,7 @@ export async function markMessageAsRead(messageId: string): Promise<boolean> {
 // Fetch user's transactions
 export async function fetchMyTransactions(): Promise<Transaction[]> {
   try {
-    const response = await fetch(`${API_URL}/api/transactions?limit=100&sort=-createdAt`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/transactions?limit=100&sort=-createdAt`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -950,7 +949,7 @@ export async function updateTransactionStatus(
   notes?: string
 ): Promise<Transaction | null> {
   try {
-    const response = await fetch(`${API_URL}/api/transactions/${transactionId}`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/transactions/${transactionId}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
       credentials: 'include',
@@ -971,7 +970,7 @@ export async function updateTransactionStatus(
 // Delete media from PayloadCMS
 export async function deleteMedia(mediaId: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/api/media/${mediaId}`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/media/${mediaId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
       credentials: 'include',
@@ -1004,7 +1003,7 @@ export async function uploadMedia(file: File): Promise<string | null> {
       console.error('No auth token found - user may not be logged in');
     }
 
-    const response = await fetch(`${API_URL}/api/media`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/media`, {
       method: 'POST',
       headers,
       credentials: 'include',
@@ -1029,7 +1028,7 @@ export async function uploadMedia(file: File): Promise<string | null> {
 // Get user limits (bidding and posting)
 export async function getUserLimits(): Promise<UserLimits | null> {
   try {
-    const response = await fetch(`${API_URL}/api/users/limits`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/users/limits`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
