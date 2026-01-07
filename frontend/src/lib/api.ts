@@ -649,7 +649,7 @@ export async function placeBid(productId: string, amount: number, censorName: bo
 export async function fetchProductBids(productId: string, customFetch?: typeof fetch): Promise<Bid[]> {
   try {
     const fetchFn = customFetch || fetch;
-    const response = await fetchFn(`${BRIDGE_URL}/api/bridge/bids?where[product][equals]=${productId}&sort=-bidTime`, {
+    const response = await fetchFn(`${BRIDGE_URL}/api/bridge/bids?where[product][equals]=${productId}&sort=-bidTime&limit=1000`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
