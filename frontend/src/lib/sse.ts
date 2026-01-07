@@ -25,6 +25,9 @@ export interface BidEvent {
   bidId?: number;
   amount?: number;
   bidderId?: number;
+  bidderName?: string;
+  censorName?: boolean;
+  bidTime?: string;
   error?: string;
   timestamp: number;
 }

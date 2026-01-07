@@ -527,6 +527,7 @@ const start = async () => {
         // If Redis is down, fall back to direct bid creation
         console.warn('[CMS] Redis queue failed, falling back to direct bid creation');
 
+        const bidTime = new Date().toISOString();
         const bid = await payload.create({
           collection: 'bids',
           data: {
@@ -534,7 +535,7 @@ const start = async () => {
             bidder: userId,
             amount,
             censorName: censorName || false,
-            bidTime: new Date().toISOString(),
+            bidTime,
           },
         });
 
@@ -545,13 +546,22 @@ const start = async () => {
           data: { currentBid: amount },
         });
 
-        // Publish update via Redis if possible
+        // Get bidder name for SSE event
+        const bidder = await payload.findByID({
+          collection: 'users',
+          id: userId,
+        });
+
+        // Publish update via Redis if possible (with full bid data)
         publishProductUpdate(parseInt(productId, 10), {
           type: 'bid',
           success: true,
           bidId: bid.id,
           amount,
           bidderId: userId,
+          bidderName: bidder?.name || 'Anonymous',
+          censorName: censorName || false,
+          bidTime,
         });
 
         return res.json({

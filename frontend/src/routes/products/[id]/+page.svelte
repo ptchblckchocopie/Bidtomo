@@ -377,10 +377,11 @@
       const unsubscribe = sseClient.subscribe(async (event: SSEEvent) => {
         if (event.type === 'bid' && (event as BidEvent).success) {
           console.log('[SSE] Received bid update:', event);
+          const bidEvent = event as BidEvent;
 
           // Update product current bid
-          if (data.product && (event as BidEvent).amount) {
-            const newAmount = (event as BidEvent).amount!;
+          if (data.product && bidEvent.amount) {
+            const newAmount = bidEvent.amount;
             const previousBid = data.product.currentBid || data.product.startingPrice;
 
             if (newAmount > previousBid) {
@@ -388,15 +389,25 @@
               priceChanged = true;
               data.product.currentBid = newAmount;
 
-              // Reload bids to get the new bid details
-              const updatedBids = await fetchProductBids(data.product.id);
-              const previousBidIds = new Set(data.bids.map(b => b.id));
-              newBidIds = new Set(
-                updatedBids
-                  .filter(b => !previousBidIds.has(b.id))
-                  .map(b => b.id)
-              );
-              data.bids = updatedBids;
+              // Create new bid object from SSE data (no need to fetch!)
+              if (bidEvent.bidId && bidEvent.bidderId) {
+                const newBid = {
+                  id: String(bidEvent.bidId),
+                  amount: bidEvent.amount,
+                  bidTime: bidEvent.bidTime || new Date().toISOString(),
+                  censorName: bidEvent.censorName || false,
+                  bidder: {
+                    id: String(bidEvent.bidderId),
+                    name: bidEvent.bidderName || 'Anonymous',
+                    email: '',
+                  },
+                  product: data.product.id,
+                };
+
+                // Add to beginning of bids array
+                newBidIds = new Set([String(bidEvent.bidId)]);
+                data.bids = [newBid as any, ...data.bids];
+              }
 
               // Update min bid
               minBid = (data.product.currentBid || data.product.startingPrice || 0) + bidInterval;
@@ -463,10 +474,10 @@
       } else {
         // Tab is visible again, restart intervals
         if (!pollingInterval) {
+          checkForUpdates(); // Immediate update when returning
           pollingInterval = setInterval(() => {
             checkForUpdates();
-          }, 3000);
-          checkForUpdates(); // Immediate update when returning
+          }, 10000); // Use same 10 second interval as initial
         }
         if (!countdownInterval && data.product?.auctionEndDate) {
           updateCountdown(); // Immediate update
@@ -830,7 +841,7 @@
             class="live-indicator"
             class:updating={isUpdating}
             class:connected={connectionStatus === 'connected'}
-            title="Real-time updates active (polling every 3 seconds)"
+            title="Real-time updates active (SSE + fallback polling)"
           >
             <span class="live-dot"></span>
             <span class="live-text">LIVE</span>

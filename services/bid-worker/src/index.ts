@@ -185,7 +185,7 @@ async function recoverPendingBids(): Promise<void> {
 }
 
 // Process a single bid
-async function processBid(job: BidJob): Promise<{ success: boolean; error?: string; bidId?: number }> {
+async function processBid(job: BidJob): Promise<{ success: boolean; error?: string; bidId?: number; bidderName?: string; bidTime?: string }> {
   const client = await pool.connect();
 
   try {
@@ -266,11 +266,19 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
       [job.amount, job.productId]
     );
 
+    // Get bidder name for SSE event
+    const bidderResult = await client.query(
+      `SELECT name FROM users WHERE id = $1`,
+      [job.bidderId]
+    );
+    const bidderName = bidderResult.rows[0]?.name || 'Anonymous';
+
     await client.query('COMMIT');
 
+    const bidTime = new Date().toISOString();
     console.log(`[WORKER] Bid ${bidId} processed: Product ${job.productId}, Amount ${job.amount}`);
 
-    return { success: true, bidId };
+    return { success: true, bidId, bidderName, bidTime };
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('[WORKER] Error processing bid:', error);
@@ -328,7 +336,19 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
 }
 
 // Publish bid result to SSE service via Redis
-async function publishBidResult(productId: number, result: { success: boolean; bidId?: number; amount?: number; bidderId?: number; error?: string }) {
+async function publishBidResult(
+  productId: number,
+  result: {
+    success: boolean;
+    bidId?: number;
+    amount?: number;
+    bidderId?: number;
+    error?: string;
+    bidderName?: string;
+    censorName?: boolean;
+    bidTime?: string;
+  }
+) {
   if (!redisConnected) {
     console.warn('[WORKER] Redis not connected, cannot publish result');
     return;
@@ -458,11 +478,12 @@ async function runWorker() {
           // Remove from pending bids
           await removePendingBidFromDb(job.jobId);
 
-          // Publish result to SSE
+          // Publish result to SSE with full bid data
           await publishBidResult(job.productId, {
             ...bidResult,
             amount: job.amount,
             bidderId: job.bidderId,
+            censorName: job.censorName,
           });
         } else {
           // Check if it's a transient error (not a validation error)
