@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct } from '$lib/api';
+  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct, fetchUserRatings, calculateUserRatingStats, fetchUserProducts, type UserRatingStats } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import type { PageData } from './$types';
   import ProductForm from '$lib/components/ProductForm.svelte';
   import ImageSlider from '$lib/components/ImageSlider.svelte';
+  import StarRating from '$lib/components/StarRating.svelte';
   import type { Product } from '$lib/api';
   import { getProductSSE, disconnectProductSSE, queueBid as queueBidToRedis, type SSEEvent, type BidEvent } from '$lib/sse';
 
@@ -55,7 +56,7 @@
   let showEditModal = false;
   let showAcceptBidModal = false;
   let bidSectionOpen = false;
-  let censorMyName = false;
+  let censorMyName = true;
   // Save censor name preference to localStorage when it changes
   $: if (typeof window !== 'undefined') {
     localStorage.setItem('bid_censor_name', String(censorMyName));
@@ -63,6 +64,11 @@
   let accepting = false;
   let acceptError = '';
   let acceptSuccess = false;
+
+  // Seller rating data
+  let sellerRatingStats: UserRatingStats | null = null;
+  let sellerCompletedSales = 0;
+  let loadingSellerData = true;
 
   // Sort bids by amount (highest to lowest)
   $: sortedBids = [...data.bids].sort((a, b) => b.amount - a.amount);
@@ -151,8 +157,8 @@
 
     const isCurrentlyHighest = currentUserId && currentHighestBidderId === currentUserId;
 
-    // Check if user was outbid
-    if (wasHighestBidder && !isCurrentlyHighest && currentUserId) {
+    // Check if user was outbid (but NOT if they just placed a successful bid themselves)
+    if (wasHighestBidder && !isCurrentlyHighest && currentUserId && !bidSuccess && !bidding) {
       wasOutbid = true;
       outbidAnimating = true;
       currentBidderMessage = getRandomMessage(outbidMessages);
@@ -166,6 +172,10 @@
       }, 5000);
     } else if (isCurrentlyHighest && !wasHighestBidder) {
       // User just became highest bidder
+      wasOutbid = false;
+      currentBidderMessage = getRandomMessage(highestBidderMessages);
+    } else if (isCurrentlyHighest && wasHighestBidder && bidSuccess) {
+      // User outbid themselves - still highest bidder, update message
       wasOutbid = false;
       currentBidderMessage = getRandomMessage(highestBidderMessages);
     } else if (isCurrentlyHighest && !currentBidderMessage) {
@@ -349,6 +359,24 @@
     await checkForUpdates();
   }
 
+  // Load seller rating data
+  async function loadSellerData(sellerId: string) {
+    try {
+      loadingSellerData = true;
+
+      // Fetch ratings received by seller
+      const ratings = await fetchUserRatings(sellerId, 'received');
+      sellerRatingStats = calculateUserRatingStats(ratings);
+
+      // Fetch completed sales count
+      const soldProducts = await fetchUserProducts(sellerId, { status: 'sold' });
+      sellerCompletedSales = soldProducts.totalDocs;
+    } catch (error) {
+      console.error('Error loading seller data:', error);
+    } finally {
+      loadingSellerData = false;
+    }
+  }
 
   onMount(() => {
     // Load last known state from localStorage if available
@@ -366,6 +394,11 @@
     const savedCensorPref = localStorage.getItem('bid_censor_name');
     if (savedCensorPref !== null) {
       censorMyName = savedCensorPref === 'true';
+    }
+
+    // Fetch seller rating data
+    if (data.product?.seller?.id) {
+      loadSellerData(data.product.seller.id);
     }
 
     // Connect to SSE for real-time updates
@@ -665,7 +698,6 @@
 
   function cancelBid() {
     showConfirmBidModal = false;
-    censorMyName = false;
   }
 
   function closeSuccessAlert() {
@@ -924,7 +956,62 @@
 
         <div class="seller-info">
           <h3>Seller Information</h3>
-          <p><strong>Name:</strong> {data.product.seller?.name || 'Unknown'}</p>
+          <div class="seller-card">
+            <div class="seller-header">
+              <div class="seller-avatar">
+                {data.product.seller?.name?.charAt(0)?.toUpperCase() || '?'}
+              </div>
+              <div class="seller-details">
+                <a href="/users/{data.product.seller?.id}" class="seller-name">
+                  {data.product.seller?.name || 'Unknown'}
+                </a>
+                {#if data.product.seller?.createdAt}
+                  <span class="member-since">Member since {new Date(data.product.seller.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
+                {/if}
+              </div>
+            </div>
+
+            <div class="seller-stats">
+              {#if loadingSellerData}
+                <div class="loading-stats">Loading...</div>
+              {:else}
+                <div class="stat-item">
+                  <span class="stat-title">Seller</span>
+                  <div class="stat-rating">
+                    <StarRating rating={sellerRatingStats?.asSeller?.averageRating || 0} size="small" />
+                    <span class="stat-value">{(sellerRatingStats?.asSeller?.averageRating || 0).toFixed(1)}</span>
+                  </div>
+                  <span class="stat-label">{sellerRatingStats?.asSeller?.totalRatings || 0} rating{(sellerRatingStats?.asSeller?.totalRatings || 0) !== 1 ? 's' : ''}</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                  <span class="stat-title">Buyer</span>
+                  <div class="stat-rating">
+                    <StarRating rating={sellerRatingStats?.asBuyer?.averageRating || 0} size="small" />
+                    <span class="stat-value">{(sellerRatingStats?.asBuyer?.averageRating || 0).toFixed(1)}</span>
+                  </div>
+                  <span class="stat-label">{sellerRatingStats?.asBuyer?.totalRatings || 0} rating{(sellerRatingStats?.asBuyer?.totalRatings || 0) !== 1 ? 's' : ''}</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                  <span class="stat-value">{sellerCompletedSales}</span>
+                  <span class="stat-label">sale{sellerCompletedSales !== 1 ? 's' : ''}</span>
+                </div>
+              {/if}
+            </div>
+
+            {#if data.product.region || data.product.city}
+              <div class="seller-location">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <span>{data.product.city}{data.product.city && data.product.region ? ', ' : ''}{data.product.region}</span>
+              </div>
+            {/if}
+
+            <a href="/users/{data.product.seller?.id}" class="view-profile-btn">View Profile</a>
+          </div>
         </div>
       </div>
 
@@ -936,8 +1023,8 @@
           </div>
         {/if}
 
-        {#if !isOwner && (!hasAuctionEnded || data.product.status === 'sold')}
-          <div class="price-info" class:sold-info={data.product.status === 'sold'}>
+        {#if !isOwner && !hasAuctionEnded && data.product.status !== 'sold'}
+          <div class="price-info">
             {#if showConfetti}
               <div class="confetti-container">
                 {#each Array(50) as _, i}
@@ -953,26 +1040,7 @@
               </div>
             {/if}
 
-            {#if data.product.status === 'sold'}
-              <div class="highest-bid-container">
-                <div class="sold-badge">✓ SOLD</div>
-                <div class="bid-with-percentage">
-                  <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid || data.product.startingPrice, sellerCurrency)}</div>
-                  {#if data.product.currentBid && data.product.currentBid > data.product.startingPrice}
-                    <div class="percentage-increase">
-                      <svg class="arrow-up-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="18 15 12 9 6 15"></polyline>
-                      </svg>
-                      <span class="percentage-text">{percentageIncrease}%</span>
-                    </div>
-                  {/if}
-                </div>
-                {#if highestBid}
-                  <div class="sold-to-info">Sold to: {getBidderName(highestBid)}</div>
-                {/if}
-                <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
-              </div>
-            {:else if data.product.currentBid && !hasAuctionEnded && data.product.status !== 'ended'}
+            {#if data.product.currentBid && !hasAuctionEnded && data.product.status !== 'ended' && data.product.status !== 'sold'}
               <div class="highest-bid-container" class:expanded={bidSectionOpen && !isOwner}>
                 <div class="highest-bid-header">
                   <div class="highest-bid-label" class:label-pulse={priceChanged}>CURRENT HIGHEST BID</div>
@@ -1349,26 +1417,32 @@
   </div>
 {/if}
 
-<!-- Success Alert Modal -->
+<!-- Success Toast -->
 {#if bidSuccess}
-  <div class="success-alert-overlay" on:click={closeSuccessAlert}>
-    <div class="success-alert-content" on:click|stopPropagation>
-      <button class="success-alert-close" on:click={closeSuccessAlert} aria-label="Close">
-        &times;
-      </button>
-
-      <div class="success-alert-icon">
-        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+  <div class="success-toast">
+    <div class="toast-confetti">
+      {#each Array(20) as _, i}
+        <div class="toast-confetti-piece" style="--i: {i}; --x: {Math.random() * 100}%; --delay: {Math.random() * 0.5}s; --color: {['#ff6b6b', '#4ecdc4', '#45b7d1', '#feca57', '#ff6348', '#1dd1a1', '#667eea', '#f368e0'][i % 8]}"></div>
+      {/each}
+    </div>
+    <div class="toast-content">
+      <div class="toast-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
         </svg>
       </div>
-
-      <h2>Bid Placed Successfully!</h2>
-      <p>You are now the highest bidder.</p>
-
-      <div class="success-alert-progress"></div>
+      <div class="toast-text">
+        <span class="toast-title">Bid Placed Successfully!</span>
+        <span class="toast-subtitle">You're now the highest bidder</span>
+      </div>
+      <button class="toast-close" on:click={closeSuccessAlert} aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
     </div>
+    <div class="toast-progress"></div>
   </div>
 {/if}
 
@@ -2585,6 +2659,143 @@
     margin-bottom: 1rem;
   }
 
+  /* Seller Card Styles */
+  .seller-card {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 1.25rem;
+    border: 1px solid #e9ecef;
+  }
+
+  .seller-header {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    margin-bottom: 1rem;
+  }
+
+  .seller-avatar {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 1.25rem;
+  }
+
+  .seller-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .seller-name {
+    font-weight: 600;
+    color: #333;
+    text-decoration: none;
+    font-size: 1.1rem;
+  }
+
+  .seller-name:hover {
+    color: #667eea;
+  }
+
+  .member-since {
+    font-size: 0.8rem;
+    color: #666;
+  }
+
+  .seller-stats {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.875rem 0;
+    border-top: 1px solid #e9ecef;
+    border-bottom: 1px solid #e9ecef;
+    margin-bottom: 1rem;
+  }
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .stat-rating {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .stat-value {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #333;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    color: #666;
+  }
+
+  .stat-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #667eea;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .stat-divider {
+    width: 1px;
+    height: 40px;
+    background: #e9ecef;
+  }
+
+  .loading-stats {
+    font-size: 0.85rem;
+    color: #666;
+    padding: 0.5rem 0;
+  }
+
+  .seller-location {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 1rem;
+  }
+
+  .seller-location svg {
+    color: #dc2626;
+  }
+
+  .view-profile-btn {
+    display: block;
+    width: 100%;
+    padding: 0.75rem;
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    text-align: center;
+    color: #333;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .view-profile-btn:hover {
+    background: #667eea;
+    border-color: #667eea;
+    color: white;
+  }
+
   /* Price Analytics */
   .price-analytics {
     margin-bottom: 2rem;
@@ -3426,139 +3637,172 @@
     transform: none;
   }
 
-  /* Success Alert Styles */
-  .success-alert-overlay {
+  /* Success Toast Styles */
+  .success-toast {
     position: fixed;
+    top: 1.5rem;
+    right: 1.5rem;
+    z-index: 10000;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(16, 185, 129, 0.4), 0 4px 12px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    animation: toastSlideIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    min-width: 320px;
+    max-width: 400px;
+  }
+
+  @keyframes toastSlideIn {
+    from {
+      transform: translateX(120%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .toast-confetti {
+    position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-    animation: fadeIn 0.3s ease-out;
+    pointer-events: none;
+    overflow: hidden;
   }
 
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  .success-alert-content {
-    background: white;
-    border-radius: 24px;
-    padding: 3rem;
-    max-width: 500px;
-    width: 90%;
-    text-align: center;
-    position: relative;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    animation: slideUp 0.4s ease-out;
-  }
-
-  @keyframes slideUp {
-    from {
-      transform: translateY(50px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-
-  .success-alert-close {
+  .toast-confetti-piece {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background: none;
-    border: none;
-    font-size: 2.5rem;
-    color: #999;
-    cursor: pointer;
-    line-height: 1;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 8px;
+    height: 8px;
+    background: var(--color);
+    left: var(--x);
+    top: -10px;
+    border-radius: 2px;
+    animation: confettiFall 2s ease-out var(--delay) forwards;
+    opacity: 0;
+  }
+
+  .toast-confetti-piece:nth-child(odd) {
     border-radius: 50%;
-    transition: all 0.2s;
+    width: 6px;
+    height: 6px;
   }
 
-  .success-alert-close:hover {
-    background-color: #f0f0f0;
-    color: #333;
-  }
-
-  .success-alert-icon {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin: 0 auto 1.5rem;
-    color: #10b981;
-    animation: checkmark 0.6s ease-out;
-  }
-
-  .success-alert-icon svg {
-    display: block;
-  }
-
-  @keyframes checkmark {
+  @keyframes confettiFall {
     0% {
-      transform: scale(0) rotate(-45deg);
-      opacity: 0;
-    }
-    50% {
-      transform: scale(1.2) rotate(0deg);
+      opacity: 1;
+      transform: translateY(0) rotate(0deg) scale(1);
     }
     100% {
-      transform: scale(1) rotate(0deg);
-      opacity: 1;
+      opacity: 0;
+      transform: translateY(100px) rotate(720deg) scale(0.5);
     }
   }
 
-  .success-alert-content h2 {
-    font-size: 2rem;
-    margin: 0 0 1rem 0;
-    color: #1f2937;
+  .toast-content {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding: 1rem 1.25rem;
+    position: relative;
+  }
+
+  .toast-icon {
+    width: 44px;
+    height: 44px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: white;
+    animation: iconPop 0.5s ease-out 0.2s both;
+  }
+
+  @keyframes iconPop {
+    0% {
+      transform: scale(0);
+    }
+    50% {
+      transform: scale(1.2);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .toast-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    flex: 1;
+  }
+
+  .toast-title {
     font-weight: 700;
+    font-size: 1rem;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   }
 
-  .success-alert-content p {
-    font-size: 1.25rem;
-    color: #6b7280;
-    margin: 0 0 2rem 0;
+  .toast-subtitle {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.9);
   }
 
-  .success-alert-progress {
+  .toast-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: white;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .toast-close:hover {
+    background: rgba(255, 255, 255, 0.35);
+    transform: scale(1.1);
+  }
+
+  .toast-progress {
     height: 4px;
-    background: #e5e7eb;
-    border-radius: 2px;
-    overflow: hidden;
-    margin-top: 2rem;
+    background: rgba(255, 255, 255, 0.3);
   }
 
-  .success-alert-progress::after {
+  .toast-progress::after {
     content: '';
     display: block;
     height: 100%;
-    background: linear-gradient(90deg, #10b981, #059669);
-    animation: progress 5s linear;
+    background: rgba(255, 255, 255, 0.8);
+    animation: toastProgress 5s linear forwards;
   }
 
-  @keyframes progress {
+  @keyframes toastProgress {
     from {
       width: 100%;
     }
     to {
       width: 0%;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .success-toast {
+      top: 1rem;
+      right: 1rem;
+      left: 1rem;
+      min-width: auto;
+      max-width: none;
     }
   }
 
