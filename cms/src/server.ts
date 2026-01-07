@@ -14,13 +14,20 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 const allowedOrigins: string[] = [
   'http://localhost:5173',
   'http://localhost:3001',
+  'http://localhost:3000',
   'http://192.168.18.117:5173',
   'http://192.168.18.117:3001',
   'http://192.168.1.34:5173',
   'http://192.168.1.34:3001',
+  'http://157.230.40.58',
+  'http://157.230.40.58:3001',
+  'http://157.230.40.58:3000',
   'https://bidmo.to',
   'https://www.bidmo.to',
   'https://app.bidmo.to',
+  'http://bidmo.to',
+  'http://www.bidmo.to',
+  'http://app.bidmo.to',
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
 ];
 

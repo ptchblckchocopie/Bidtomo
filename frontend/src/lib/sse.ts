@@ -1,12 +1,19 @@
 import { writable, type Writable } from 'svelte/store';
 import { browser } from '$app/environment';
+import { PUBLIC_SSE_URL } from '$env/static/public';
 
 // Dynamically determine SSE URL based on current hostname
 function getSseUrl(): string {
-  if (import.meta.env.PUBLIC_SSE_URL) {
-    return import.meta.env.PUBLIC_SSE_URL;
+  // Use SvelteKit's static public env
+  if (PUBLIC_SSE_URL) {
+    return PUBLIC_SSE_URL;
   }
+  // Fallback for development
   if (browser && typeof window !== 'undefined') {
+    // In production, use same origin with /api/sse path
+    if (window.location.protocol === 'https:') {
+      return `${window.location.origin}/api/sse`;
+    }
     return `http://${window.location.hostname}:3002`;
   }
   return 'http://localhost:3002';

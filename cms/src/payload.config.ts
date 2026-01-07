@@ -27,7 +27,7 @@ const adapter = s3Adapter({
 const isProduction = process.env.NODE_ENV === 'production';
 
 export default buildConfig({
-  serverURL: isProduction ? (process.env.SERVER_URL || 'https://app.bidmo.to') : '',
+  serverURL: process.env.SERVER_URL || (isProduction ? 'https://app.bidmo.to' : ''),
   cors: [
     'http://localhost:5173',
     'http://localhost:3001',
