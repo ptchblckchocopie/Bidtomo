@@ -132,7 +132,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10">
         {#each [
           { icon: '🎯', title: 'Shape the Future', desc: 'Your feedback directly influences what features we build next' },
-          { icon: '🆓', title: 'Free Forever for Beta Users', desc: 'Early adopters get premium features when we launch officially' },
+          { icon: '🎁', title: 'Huge Benefits for Beta Users', desc: 'Early adopters get premium features when we launch officially' },
           { icon: '🤝', title: 'Build Community', desc: 'Connect with fellow Filipinos who love unique finds and good deals' },
           { icon: '📈', title: 'Grow With Us', desc: 'Be part of the journey from experimental platform to full-scale marketplace' }
         ] as benefit}
