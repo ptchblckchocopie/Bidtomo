@@ -3,7 +3,6 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
-  import { API_URL } from '$lib/api';
 
   let name = '';
   let email = '';
@@ -41,7 +40,7 @@
     submitting = true;
 
     try {
-      const response = await fetch(`${API_URL}/api/users`, {
+      const response = await fetch('/api/bridge/users/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -64,7 +63,7 @@
 
       // Automatically log them in after registration
       setTimeout(async () => {
-        const loginResponse = await fetch(`${API_URL}/api/users/login`, {
+        const loginResponse = await fetch('/api/bridge/users/login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
