@@ -42,6 +42,8 @@
   let chatBlockedReason = '';
   let newMessageIds: Set<string> = new Set();
   let conversationUpdateDebounce: ReturnType<typeof setTimeout> | null = null;
+  let sseConnected = false;
+  let sseStateUnsubscribe: (() => void) | null = null;
 
   // Get product ID from query params if navigated from purchases page
   $: productId = $page.url.searchParams.get('product');
@@ -353,8 +355,8 @@
       clearInterval(conversationListPollingInterval);
     }
 
-    // Poll every 5 seconds (less frequent than message polling)
-    conversationListPollingInterval = setInterval(pollConversationList, 5000);
+    // Poll every 30 seconds as fallback (SSE handles real-time updates)
+    conversationListPollingInterval = setInterval(pollConversationList, 30000);
   }
 
   // Stop polling conversation list
@@ -520,14 +522,21 @@
     }
   }
 
-  // Start polling (fallback - SSE handles real-time, this is backup)
+  // Start polling (fallback - only when SSE is disconnected)
   function startPolling() {
+    // Don't start polling if SSE is connected
+    if (sseConnected) {
+      console.log('[Inbox] SSE connected, skipping fallback polling');
+      return;
+    }
+
     // Clear existing interval
     if (pollingInterval) {
       clearInterval(pollingInterval);
     }
 
-    // Poll every 10 seconds as fallback (SSE handles real-time updates)
+    console.log('[Inbox] SSE disconnected, starting fallback polling');
+    // Poll every 10 seconds as fallback when SSE is not available
     pollingInterval = setInterval(pollNewMessages, 10000);
   }
 
@@ -717,6 +726,22 @@
       const sseClient = getUserSSE(String($authStore.user.id));
       sseClient.connect();
 
+      // Subscribe to SSE connection state to enable/disable polling
+      sseStateUnsubscribe = sseClient.state.subscribe((state) => {
+        const wasConnected = sseConnected;
+        sseConnected = state === 'connected';
+
+        if (sseConnected && !wasConnected) {
+          // SSE just connected - stop polling
+          console.log('[Inbox] SSE connected, stopping fallback polling');
+          stopPolling();
+        } else if (!sseConnected && wasConnected && selectedProduct) {
+          // SSE just disconnected - start polling if we have a selected conversation
+          console.log('[Inbox] SSE disconnected, starting fallback polling');
+          startPolling();
+        }
+      });
+
       // Subscribe to message events
       const unsubscribe = sseClient.subscribe(async (event: SSEEvent) => {
         console.log('[Inbox SSE] Received event:', event.type, event);
@@ -791,13 +816,14 @@
         stopConversationListPolling();
         // Note: SSE stays connected for typing, no need to disconnect
       } else {
-        // Tab is visible again, restart polling if we have a selected product
+        // Tab is visible again
         if (selectedProduct) {
+          // Only start polling if SSE is not connected (startPolling checks this)
           startPolling();
           // Re-subscribe to product SSE for typing
           subscribeToProductSSE(String(selectedProduct.id));
         }
-        // Always restart conversation list polling
+        // Always restart conversation list polling (this is less frequent)
         startConversationListPolling();
       }
     };
@@ -831,6 +857,11 @@
     }
     iAmTyping = false;
     otherUserTyping = false;
+
+    // Unsubscribe from SSE state
+    if (sseStateUnsubscribe) {
+      sseStateUnsubscribe();
+    }
 
     // Disconnect from user SSE
     if ($authStore.user?.id) {
