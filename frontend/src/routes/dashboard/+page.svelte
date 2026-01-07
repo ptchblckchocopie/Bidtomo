@@ -486,8 +486,8 @@
         {:else}
           <div class="purchases-list">
             {#each purchases as product}
-              <div class="purchase-item" on:click={() => openProductModal(product)} role="button" tabindex="0">
-                <div class="purchase-image">
+              <div class="purchase-card">
+                <div class="purchase-image" on:click={() => openProductModal(product)} role="button" tabindex="0">
                   {#if product.images && product.images.length > 0}
                     {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
                     {#if validImages.length > 0}
@@ -505,15 +505,34 @@
                   {/if}
                 </div>
 
-                <div class="purchase-details">
-                  <h3>{product.title}</h3>
-                  <div class="purchase-meta">
-                    <span class="purchase-price">Won for: {formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}</span>
-                    <span class="purchase-date">📅 {formatDate(product.updatedAt)}</span>
+                <div class="purchase-content">
+                  <div class="purchase-info" on:click={() => openProductModal(product)} role="button" tabindex="0">
+                    <h3>{product.title}</h3>
+                    <div class="purchase-price-tag">
+                      {formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}
+                    </div>
+                    <div class="purchase-meta-row">
+                      <span class="purchase-date">📅 {formatDate(product.updatedAt)}</span>
+                      <span class="status-badge {getStatusBadgeClass(product.status)}">
+                        {getStatusText(product.status)}
+                      </span>
+                    </div>
+                    <div class="purchase-seller">
+                      Seller: {product.seller?.name || 'Unknown'}
+                    </div>
                   </div>
-                  <span class="status-badge {getStatusBadgeClass(product.status)}">
-                    {getStatusText(product.status)}
-                  </span>
+
+                  <div class="purchase-actions">
+                    <a href="/inbox?product={product.id}" class="btn-message">
+                      <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                      Message Seller
+                    </a>
+                    <a href="/products/{product.id}" class="btn-view-product">
+                      View Details
+                    </a>
+                  </div>
                 </div>
               </div>
             {/each}
@@ -945,66 +964,171 @@
     gap: 1.5rem;
   }
 
-  .purchase-item {
+  .purchase-card {
     display: flex;
-    gap: 1.5rem;
     background: white;
-    border-radius: 12px;
-    padding: 1.5rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    cursor: pointer;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
     transition: all 0.3s ease;
+    border: 1px solid #e5e7eb;
   }
 
-  .purchase-item:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    transform: translateX(4px);
+  .purchase-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
   }
 
   .purchase-image {
-    width: 150px;
-    height: 150px;
+    width: 200px;
+    height: 200px;
     flex-shrink: 0;
-    border-radius: 8px;
     overflow: hidden;
     background: #f3f4f6;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .purchase-image::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to right, transparent 80%, rgba(0,0,0,0.02));
   }
 
   .purchase-image img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform 0.3s ease;
   }
 
-  .purchase-details {
+  .purchase-card:hover .purchase-image img {
+    transform: scale(1.05);
+  }
+
+  .purchase-content {
     flex: 1;
     display: flex;
     flex-direction: column;
+    padding: 1.5rem;
+    min-width: 0;
   }
 
-  .purchase-details h3 {
+  .purchase-info {
+    flex: 1;
+    cursor: pointer;
+  }
+
+  .purchase-info h3 {
     font-size: 1.25rem;
-    font-weight: 600;
+    font-weight: 700;
     color: #1f2937;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .purchase-price-tag {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #059669;
     margin-bottom: 0.75rem;
   }
 
-  .purchase-meta {
+  .purchase-meta-row {
     display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .purchase-price {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #059669;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
   }
 
   .purchase-date {
     font-size: 0.875rem;
     color: #6b7280;
+  }
+
+  .purchase-seller {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 1rem;
+  }
+
+  .purchase-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f3f4f6;
+    margin-top: auto;
+  }
+
+  .btn-message {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: white;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: all 0.2s;
+    flex: 1;
+  }
+
+  .btn-message:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  }
+
+  .btn-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .btn-view-product {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.25rem;
+    background: white;
+    color: #374151;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: all 0.2s;
+    flex: 1;
+  }
+
+  .btn-view-product:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+  }
+
+  /* Tablet styles for purchases */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .purchase-image {
+      width: 160px;
+      height: 160px;
+    }
+
+    .purchase-content {
+      padding: 1.25rem;
+    }
+
+    .purchase-actions {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
   }
 
   /* Empty State */
@@ -1230,13 +1354,36 @@
       grid-template-columns: 1fr;
     }
 
-    .purchase-item {
+    .purchase-card {
       flex-direction: column;
     }
 
     .purchase-image {
       width: 100%;
-      height: 200px;
+      height: 180px;
+    }
+
+    .purchase-content {
+      padding: 1.25rem;
+    }
+
+    .purchase-info h3 {
+      font-size: 1.1rem;
+    }
+
+    .purchase-price-tag {
+      font-size: 1.25rem;
+    }
+
+    .purchase-actions {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .btn-message,
+    .btn-view-product {
+      width: 100%;
+      padding: 0.875rem 1rem;
     }
 
     .info-grid {
