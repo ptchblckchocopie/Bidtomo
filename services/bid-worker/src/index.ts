@@ -295,9 +295,9 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
   try {
     await client.query('BEGIN');
 
-    // Get current product state with lock
-    const productResult = await client.query<Product>(
-      `SELECT id, current_bid as "currentBid", status, active
+    // Get current product state with lock (including title for the message)
+    const productResult = await client.query<Product & { title: string }>(
+      `SELECT id, title, current_bid as "currentBid", status, active
        FROM products WHERE id = $1 FOR UPDATE`,
       [job.productId]
     );
@@ -321,9 +321,85 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
       [job.productId]
     );
 
+    // Create congratulation message from seller to buyer
+    const congratsMessage = `Congratulations! Your bid has been accepted for "${product.title}". Let's discuss the next steps for completing this transaction.`;
+
+    const messageResult = await client.query(
+      `INSERT INTO messages (message, read, created_at, updated_at)
+       VALUES ($1, false, NOW(), NOW())
+       RETURNING id`,
+      [congratsMessage]
+    );
+    const messageId = messageResult.rows[0].id;
+
+    // Create message relationships (product, sender=seller, receiver=buyer)
+    await client.query(
+      `INSERT INTO messages_rels (parent_id, path, products_id)
+       VALUES ($1, 'product', $2)`,
+      [messageId, job.productId]
+    );
+    await client.query(
+      `INSERT INTO messages_rels (parent_id, path, users_id)
+       VALUES ($1, 'sender', $2)`,
+      [messageId, job.sellerId]
+    );
+    await client.query(
+      `INSERT INTO messages_rels (parent_id, path, users_id)
+       VALUES ($1, 'receiver', $2)`,
+      [messageId, job.bidderId]
+    );
+
+    // Create transaction record
+    const transactionNotes = `Transaction created for "${product.title}" with winning bid of ${job.amount}`;
+
+    const transactionResult = await client.query(
+      `INSERT INTO transactions (amount, status, notes, created_at, updated_at)
+       VALUES ($1, 'pending', $2, NOW(), NOW())
+       RETURNING id`,
+      [job.amount, transactionNotes]
+    );
+    const transactionId = transactionResult.rows[0].id;
+
+    // Create transaction relationships (product, seller, buyer)
+    await client.query(
+      `INSERT INTO transactions_rels (parent_id, path, products_id)
+       VALUES ($1, 'product', $2)`,
+      [transactionId, job.productId]
+    );
+    await client.query(
+      `INSERT INTO transactions_rels (parent_id, path, users_id)
+       VALUES ($1, 'seller', $2)`,
+      [transactionId, job.sellerId]
+    );
+    await client.query(
+      `INSERT INTO transactions_rels (parent_id, path, users_id)
+       VALUES ($1, 'buyer', $2)`,
+      [transactionId, job.bidderId]
+    );
+
     await client.query('COMMIT');
 
     console.log(`[WORKER] Accept bid processed: Product ${job.productId} marked as sold`);
+    console.log(`[WORKER] Auto-created congratulation message (ID: ${messageId}) and transaction (ID: ${transactionId})`);
+
+    // Publish message notification to buyer via SSE
+    if (redisConnected) {
+      try {
+        const channel = `sse:user:${job.bidderId}`;
+        const notification = JSON.stringify({
+          type: 'new_message',
+          messageId,
+          productId: job.productId,
+          senderId: job.sellerId,
+          preview: congratsMessage.substring(0, 50),
+          timestamp: Date.now(),
+        });
+        await redisPub.publish(channel, notification);
+        console.log(`[WORKER] Published message notification to buyer ${job.bidderId}`);
+      } catch (notifyError) {
+        console.error('[WORKER] Failed to publish message notification:', notifyError);
+      }
+    }
 
     return { success: true };
   } catch (error) {
