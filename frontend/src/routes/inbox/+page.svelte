@@ -4,9 +4,10 @@
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
   import { unreadCountStore } from '$lib/stores/inbox';
-  import { fetchConversations, fetchProductMessages, fetchMessageById, fetchProduct, fetchProductBids, sendMessage, markMessageAsRead, setTypingStatus, fetchTransactionForProduct, fetchMyRatingForTransaction, createRating, addRatingFollowUp } from '$lib/api';
+  import { fetchConversations, fetchProductMessages, fetchMessageById, fetchProduct, fetchProductBids, sendMessage, markMessageAsRead, setTypingStatus, fetchTransactionForProduct, fetchMyRatingForTransaction, createRating, addRatingFollowUp, createVoidRequest, respondToVoidRequest, submitSellerChoice, respondToSecondBidderOffer, getVoidRequestsForTransaction, type VoidRequest } from '$lib/api';
   import type { Product, Message, Transaction, Rating } from '$lib/api';
   import StarRating from '$lib/components/StarRating.svelte';
+  import KebabMenu from '$lib/components/KebabMenu.svelte';
   import { goto } from '$app/navigation';
   import { getUserSSE, disconnectUserSSE, getProductSSE, disconnectProductSSE, type SSEEvent, type MessageEvent as SSEMessageEvent, type TypingEvent } from '$lib/sse';
 
@@ -14,6 +15,188 @@
     selectedProduct = null;
     // Clear URL parameter
     goto('/inbox', { replaceState: true });
+  }
+
+  // Handle kebab menu actions
+  function handleMenuAction(action: string) {
+    if (!selectedProduct) return;
+
+    switch (action) {
+      case 'view_product':
+        goto(`/products/${selectedProduct.id}?from=inbox`);
+        break;
+      case 'void_bid':
+        openVoidModal();
+        break;
+    }
+  }
+
+  // Void request functions
+  function openVoidModal() {
+    voidReason = '';
+    voidError = '';
+    showVoidModal = true;
+  }
+
+  function closeVoidModal() {
+    showVoidModal = false;
+    voidReason = '';
+    voidError = '';
+  }
+
+  async function handleSubmitVoidRequest() {
+    if (!transaction || !voidReason.trim()) {
+      voidError = 'Please provide a reason for voiding';
+      return;
+    }
+
+    submittingVoid = true;
+    voidError = '';
+
+    try {
+      const result = await createVoidRequest(transaction.id as string, voidReason);
+      if (result.success) {
+        closeVoidModal();
+        // Show success message or update UI
+        alert('Void request submitted successfully. Waiting for the other party to respond.');
+      } else {
+        voidError = result.error || 'Failed to create void request';
+      }
+    } catch (err: any) {
+      voidError = err.message || 'Failed to create void request';
+    } finally {
+      submittingVoid = false;
+    }
+  }
+
+  function openVoidApprovalModal(request: VoidRequest) {
+    pendingVoidRequest = request;
+    voidRejectionReason = '';
+    voidError = '';
+    showVoidApprovalModal = true;
+  }
+
+  function closeVoidApprovalModal() {
+    showVoidApprovalModal = false;
+    pendingVoidRequest = null;
+    voidRejectionReason = '';
+    voidError = '';
+  }
+
+  async function handleRespondToVoid(action: 'approve' | 'reject') {
+    if (!pendingVoidRequest) return;
+
+    if (action === 'reject' && !voidRejectionReason.trim()) {
+      voidError = 'Please provide a reason for rejection';
+      return;
+    }
+
+    submittingVoid = true;
+    voidError = '';
+
+    try {
+      const result = await respondToVoidRequest(
+        pendingVoidRequest.id as string,
+        action,
+        action === 'reject' ? voidRejectionReason : undefined
+      );
+
+      if (result.success) {
+        closeVoidApprovalModal();
+        if (action === 'approve' && result.requiresSellerChoice) {
+          // Check if current user is seller
+          const isSeller = selectedProduct?.seller?.id === $authStore.user?.id;
+          if (isSeller) {
+            showSellerChoiceModal = true;
+          } else {
+            alert('Void request approved. The seller will decide what to do next.');
+          }
+        } else {
+          alert(action === 'approve' ? 'Void request approved' : 'Void request rejected');
+        }
+      } else {
+        voidError = result.error || 'Failed to respond to void request';
+      }
+    } catch (err: any) {
+      voidError = err.message || 'Failed to respond to void request';
+    } finally {
+      submittingVoid = false;
+    }
+  }
+
+  function closeSellerChoiceModal() {
+    showSellerChoiceModal = false;
+    voidError = '';
+  }
+
+  async function handleSellerChoice(choice: 'restart_bidding' | 'offer_second_bidder') {
+    if (!pendingVoidRequest && !voidRequest) return;
+    const requestId = (pendingVoidRequest?.id || voidRequest?.id) as string;
+
+    submittingVoid = true;
+    voidError = '';
+
+    try {
+      const result = await submitSellerChoice(requestId, choice);
+      if (result.success) {
+        closeSellerChoiceModal();
+        if (choice === 'restart_bidding') {
+          alert(`Auction restarted! ${result.notifiedBidders || 0} bidders have been notified.`);
+        } else {
+          alert(`Offer sent to the second highest bidder.`);
+        }
+        // Refresh the page to update product status
+        window.location.reload();
+      } else {
+        if (result.onlyOption === 'restart_bidding') {
+          voidError = 'No second bidder available. Please restart the bidding instead.';
+        } else {
+          voidError = result.error || 'Failed to process choice';
+        }
+      }
+    } catch (err: any) {
+      voidError = err.message || 'Failed to process choice';
+    } finally {
+      submittingVoid = false;
+    }
+  }
+
+  function openSecondBidderOfferModal(request: VoidRequest) {
+    pendingVoidRequest = request;
+    voidError = '';
+    showSecondBidderOfferModal = true;
+  }
+
+  function closeSecondBidderOfferModal() {
+    showSecondBidderOfferModal = false;
+    pendingVoidRequest = null;
+    voidError = '';
+  }
+
+  async function handleSecondBidderResponse(action: 'accept' | 'decline') {
+    if (!pendingVoidRequest) return;
+
+    submittingVoid = true;
+    voidError = '';
+
+    try {
+      const result = await respondToSecondBidderOffer(pendingVoidRequest.id as string, action);
+      if (result.success) {
+        closeSecondBidderOfferModal();
+        if (action === 'accept') {
+          alert('Congratulations! You have secured the item. Check your inbox for next steps.');
+          window.location.reload();
+        } else {
+          alert('You have declined the offer.');
+        }
+      } else {
+        voidError = result.error || 'Failed to respond to offer';
+      }
+    } catch (err: any) {
+      voidError = err.message || 'Failed to respond to offer';
+    } finally {
+      submittingVoid = false;
+    }
   }
 
   let conversations: { product: Product; lastMessage: Message; unreadCount: number }[] = [];
@@ -57,6 +240,18 @@
   let ratingError = '';
   let buyerName: string | null = null;
   let sellerName: string | null = null;
+
+  // Void request state
+  let voidRequest: VoidRequest | null = null;
+  let showVoidModal = false;
+  let showVoidApprovalModal = false;
+  let showSellerChoiceModal = false;
+  let showSecondBidderOfferModal = false;
+  let voidReason = '';
+  let voidRejectionReason = '';
+  let submittingVoid = false;
+  let voidError = '';
+  let pendingVoidRequest: VoidRequest | null = null;
 
   // Get product ID from query params if navigated from purchases page
   $: productId = $page.url.searchParams.get('product');
@@ -1136,7 +1331,13 @@
                 {/if}
               </div>
             </div>
-            <a href="/products/{selectedProduct.id}?from=inbox" class="view-product-link">View Product →</a>
+            <KebabMenu
+              items={[
+                { label: 'View Product', action: 'view_product', show: true, icon: '🔗' },
+                { label: 'Void Bid', action: 'void_bid', show: selectedProduct.status === 'sold' && !!transaction && (transaction.status === 'pending' || transaction.status === 'in_progress'), variant: 'danger', icon: '❌' }
+              ]}
+              on:select={(e) => handleMenuAction(e.detail.action)}
+            />
           </div>
 
           <div class="chat-messages" bind:this={chatMessagesElement} on:scroll={handleScroll}>
@@ -1339,6 +1540,192 @@
           disabled={submittingRating || ratingValue === 0}
         >
           {submittingRating ? 'Submitting...' : 'Submit Rating'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Void Request Modal -->
+{#if showVoidModal}
+  <div class="modal-overlay" on:click={closeVoidModal}>
+    <div class="modal void-modal" on:click|stopPropagation>
+      <button class="modal-close" on:click={closeVoidModal}>&times;</button>
+      <h2>Request Void</h2>
+      <p class="void-description">
+        You are requesting to void the transaction for <strong>{selectedProduct?.title}</strong>.
+        The other party will need to approve this request.
+      </p>
+
+      <div class="form-group">
+        <label for="voidReason">Reason for void request <span class="required">*</span></label>
+        <textarea
+          id="voidReason"
+          bind:value={voidReason}
+          placeholder="Please explain why you want to void this transaction..."
+          rows="4"
+        ></textarea>
+      </div>
+
+      {#if voidError}
+        <div class="void-error">{voidError}</div>
+      {/if}
+
+      <div class="modal-actions">
+        <button class="btn-cancel" on:click={closeVoidModal}>Cancel</button>
+        <button
+          class="btn-submit btn-danger"
+          on:click={handleSubmitVoidRequest}
+          disabled={submittingVoid || !voidReason.trim()}
+        >
+          {submittingVoid ? 'Submitting...' : 'Submit Void Request'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Void Approval Modal -->
+{#if showVoidApprovalModal && pendingVoidRequest}
+  <div class="modal-overlay" on:click={closeVoidApprovalModal}>
+    <div class="modal void-modal" on:click|stopPropagation>
+      <button class="modal-close" on:click={closeVoidApprovalModal}>&times;</button>
+      <h2>Void Request</h2>
+      <p class="void-description">
+        <strong>{typeof pendingVoidRequest.initiator === 'object' ? pendingVoidRequest.initiator.name : 'User'}</strong>
+        has requested to void the transaction for <strong>{selectedProduct?.title}</strong>.
+      </p>
+
+      <div class="void-reason-display">
+        <label>Their reason:</label>
+        <p>{pendingVoidRequest.reason}</p>
+      </div>
+
+      <div class="form-group rejection-reason" style="display: none;" id="rejectionReasonGroup">
+        <label for="voidRejectionReason">Reason for rejection <span class="required">*</span></label>
+        <textarea
+          id="voidRejectionReason"
+          bind:value={voidRejectionReason}
+          placeholder="Please explain why you are rejecting this void request..."
+          rows="3"
+        ></textarea>
+      </div>
+
+      {#if voidError}
+        <div class="void-error">{voidError}</div>
+      {/if}
+
+      <div class="modal-actions three-buttons">
+        <button class="btn-cancel" on:click={closeVoidApprovalModal}>Cancel</button>
+        <button
+          class="btn-reject"
+          on:click={() => {
+            const group = document.getElementById('rejectionReasonGroup');
+            if (group && group.style.display === 'none') {
+              group.style.display = 'block';
+            } else {
+              handleRespondToVoid('reject');
+            }
+          }}
+          disabled={submittingVoid}
+        >
+          {submittingVoid ? 'Processing...' : 'Reject'}
+        </button>
+        <button
+          class="btn-submit btn-success"
+          on:click={() => handleRespondToVoid('approve')}
+          disabled={submittingVoid}
+        >
+          {submittingVoid ? 'Processing...' : 'Approve Void'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Seller Choice Modal -->
+{#if showSellerChoiceModal}
+  <div class="modal-overlay" on:click={() => showSellerChoiceModal = false}>
+    <div class="modal void-modal seller-choice-modal" on:click|stopPropagation>
+      <button class="modal-close" on:click={() => showSellerChoiceModal = false}>&times;</button>
+      <h2>Transaction Voided</h2>
+      <p class="void-description">
+        The void request for <strong>{selectedProduct?.title}</strong> has been approved.
+        As the seller, please choose what to do next:
+      </p>
+
+      <div class="choice-options">
+        <button
+          class="choice-option"
+          on:click={() => handleSellerChoice('restart_bidding')}
+          disabled={submittingVoid}
+        >
+          <div class="choice-icon">🔄</div>
+          <div class="choice-content">
+            <h3>Restart Bidding</h3>
+            <p>Reopen the auction and let all bidders participate again</p>
+          </div>
+        </button>
+
+        <button
+          class="choice-option"
+          on:click={() => handleSellerChoice('offer_second_bidder')}
+          disabled={submittingVoid}
+        >
+          <div class="choice-icon">🥈</div>
+          <div class="choice-content">
+            <h3>Offer to 2nd Highest Bidder</h3>
+            <p>Give the second highest bidder a chance to purchase at their bid amount</p>
+          </div>
+        </button>
+      </div>
+
+      {#if voidError}
+        <div class="void-error">{voidError}</div>
+      {/if}
+    </div>
+  </div>
+{/if}
+
+<!-- Second Bidder Offer Modal -->
+{#if showSecondBidderOfferModal && pendingVoidRequest?.secondBidderOffer}
+  <div class="modal-overlay" on:click={() => showSecondBidderOfferModal = false}>
+    <div class="modal void-modal" on:click|stopPropagation>
+      <button class="modal-close" on:click={() => showSecondBidderOfferModal = false}>&times;</button>
+      <h2>Purchase Offer</h2>
+      <p class="void-description">
+        You have been offered the chance to purchase <strong>{selectedProduct?.title}</strong>
+        as the second highest bidder!
+      </p>
+
+      <div class="offer-details">
+        <div class="offer-amount">
+          <label>Your bid amount:</label>
+          <span class="amount">{formatPrice(pendingVoidRequest.secondBidderOffer.offerAmount, selectedProduct?.seller?.currency || 'PHP')}</span>
+        </div>
+        <p class="offer-note">
+          The original winner has voided their purchase. Would you like to buy this item at your bid amount?
+        </p>
+      </div>
+
+      {#if voidError}
+        <div class="void-error">{voidError}</div>
+      {/if}
+
+      <div class="modal-actions">
+        <button
+          class="btn-cancel"
+          on:click={() => handleSecondBidderResponse('decline')}
+          disabled={submittingVoid}
+        >
+          {submittingVoid ? 'Processing...' : 'Decline'}
+        </button>
+        <button
+          class="btn-submit btn-success"
+          on:click={() => handleSecondBidderResponse('accept')}
+          disabled={submittingVoid}
+        >
+          {submittingVoid ? 'Processing...' : 'Accept Offer'}
         </button>
       </div>
     </div>
@@ -2471,6 +2858,240 @@
     .other-party-rating {
       flex-direction: column;
       align-items: flex-start;
+    }
+  }
+
+  /* Base Modal Styles */
+  .modal {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    max-width: 450px;
+    width: 90%;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal h2 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+    color: #333;
+  }
+
+  /* Void Modal Styles */
+  .void-modal {
+    max-width: 480px;
+  }
+
+  .void-modal .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .void-modal .form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #333;
+  }
+
+  .void-modal .form-group .required {
+    color: #dc2626;
+  }
+
+  .void-modal .form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    resize: vertical;
+    min-height: 100px;
+    font-family: inherit;
+  }
+
+  .void-modal .form-group textarea:focus {
+    outline: none;
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  }
+
+  .void-description {
+    color: #666;
+    margin-bottom: 1.5rem;
+    line-height: 1.5;
+  }
+
+  .void-error {
+    background: #fef2f2;
+    color: #dc2626;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+
+  .void-reason-display {
+    background: #f8fafc;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+  }
+
+  .void-reason-display label {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  .void-reason-display p {
+    color: #333;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .btn-danger {
+    background: #dc2626;
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background: #b91c1c;
+  }
+
+  .btn-success {
+    background: #10b981;
+  }
+
+  .btn-success:hover:not(:disabled) {
+    background: #059669;
+  }
+
+  .btn-reject {
+    background: #f97316;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: background 0.2s;
+  }
+
+  .btn-reject:hover:not(:disabled) {
+    background: #ea580c;
+  }
+
+  .btn-reject:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .modal-actions.three-buttons {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+  }
+
+  /* Seller Choice Modal */
+  .seller-choice-modal {
+    max-width: 520px;
+  }
+
+  .choice-options {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .choice-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+    width: 100%;
+  }
+
+  .choice-option:hover:not(:disabled) {
+    border-color: #dc2626;
+    background: #fff5f5;
+  }
+
+  .choice-option:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .choice-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+  }
+
+  .choice-content h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
+    color: #333;
+  }
+
+  .choice-content p {
+    margin: 0;
+    color: #666;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  /* Second Bidder Offer Modal */
+  .offer-details {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    padding: 1.25rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  .offer-amount {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .offer-amount label {
+    color: #92400e;
+    font-size: 0.9rem;
+  }
+
+  .offer-amount .amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #b45309;
+  }
+
+  .offer-note {
+    color: #92400e;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  @media (max-width: 768px) {
+    .modal-actions.three-buttons {
+      flex-direction: column-reverse;
+    }
+
+    .modal-actions.three-buttons button {
+      width: 100%;
+    }
+
+    .choice-option {
+      flex-direction: column;
+      text-align: center;
     }
   }
 </style>

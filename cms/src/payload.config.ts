@@ -5,10 +5,13 @@ import { buildConfig } from 'payload/config';
 import { postgresAdapter } from '@payloadcms/db-postgres';
 import { lexicalEditor } from '@payloadcms/richtext-lexical';
 import { webpackBundler } from '@payloadcms/bundler-webpack';
+// Note: Using custom emailService.ts for emails instead of Payload's email adapter
+// The @payloadcms/email-resend is for Payload v3, not v2
 import path from 'path';
 import { s3Adapter } from '@payloadcms/plugin-cloud-storage/s3';
 import { cloudStorage } from '@payloadcms/plugin-cloud-storage';
 import { authenticateJWT } from './auth-helpers';
+import { EmailTemplates } from './collections/EmailTemplates';
 
 // Configure S3 adapter for DigitalOcean Spaces
 const adapter = s3Adapter({
@@ -84,6 +87,7 @@ export default buildConfig({
       connectionString: process.env.DATABASE_URI || process.env.DATABASE_URL || 'postgresql://localhost:5432/marketplace',
     },
     migrationDir: path.resolve(__dirname, '../migrations'),
+    push: false, // Disable - use manual migrations
     ...(process.env.NODE_ENV === 'production' && {
       ssl: process.env.DATABASE_CA_CERT ? {
         rejectUnauthorized: true,
@@ -93,6 +97,7 @@ export default buildConfig({
       },
     }),
   }),
+  // Using custom emailService.ts for emails - see services/emailService.ts
   collections: [
     {
       slug: 'users',
@@ -810,6 +815,7 @@ export default buildConfig({
             { label: 'In Progress', value: 'in_progress' },
             { label: 'Completed', value: 'completed' },
             { label: 'Cancelled', value: 'cancelled' },
+            { label: 'Voided', value: 'voided' },
           ],
           defaultValue: 'pending',
           required: true,
@@ -820,6 +826,168 @@ export default buildConfig({
           admin: {
             description: 'Transaction notes or details',
           },
+        },
+        {
+          name: 'voidRequest',
+          type: 'relationship',
+          relationTo: 'void-requests',
+          admin: {
+            description: 'Associated void request if voided',
+          },
+        },
+      ],
+    },
+    // Void Requests Collection
+    {
+      slug: 'void-requests',
+      admin: {
+        useAsTitle: 'id',
+        group: 'Transactions',
+      },
+      access: {
+        read: ({ req }) => !!req.user,
+        create: ({ req }) => !!req.user,
+        update: ({ req }) => !!req.user,
+        delete: ({ req }) => req.user?.role === 'admin',
+      },
+      fields: [
+        {
+          name: 'transaction',
+          type: 'relationship',
+          relationTo: 'transactions',
+          required: true,
+          admin: {
+            description: 'Transaction being voided',
+          },
+        },
+        {
+          name: 'product',
+          type: 'relationship',
+          relationTo: 'products',
+          required: true,
+          admin: {
+            description: 'Product associated with this void request',
+          },
+        },
+        {
+          name: 'initiator',
+          type: 'relationship',
+          relationTo: 'users',
+          required: true,
+          admin: {
+            description: 'User who initiated the void request',
+          },
+        },
+        {
+          name: 'initiatorRole',
+          type: 'select',
+          options: [
+            { label: 'Buyer', value: 'buyer' },
+            { label: 'Seller', value: 'seller' },
+          ],
+          required: true,
+          admin: {
+            description: 'Role of the initiator in this transaction',
+          },
+        },
+        {
+          name: 'reason',
+          type: 'textarea',
+          required: true,
+          admin: {
+            description: 'Reason for voiding the transaction',
+          },
+        },
+        {
+          name: 'status',
+          type: 'select',
+          options: [
+            { label: 'Pending', value: 'pending' },
+            { label: 'Approved', value: 'approved' },
+            { label: 'Rejected', value: 'rejected' },
+            { label: 'Cancelled', value: 'cancelled' },
+          ],
+          defaultValue: 'pending',
+          required: true,
+          admin: {
+            description: 'Current status of the void request',
+          },
+        },
+        {
+          name: 'rejectionReason',
+          type: 'textarea',
+          admin: {
+            description: 'Reason for rejection (if rejected)',
+          },
+        },
+        {
+          name: 'approvedAt',
+          type: 'date',
+          admin: {
+            description: 'When the void request was approved',
+          },
+        },
+        {
+          name: 'sellerChoice',
+          type: 'select',
+          options: [
+            { label: 'Restart Bidding', value: 'restart_bidding' },
+            { label: 'Offer to 2nd Bidder', value: 'offer_second_bidder' },
+          ],
+          admin: {
+            description: 'Seller choice after void is approved',
+          },
+        },
+        {
+          name: 'secondBidderOffer',
+          type: 'group',
+          admin: {
+            description: 'Details of offer to second highest bidder',
+          },
+          fields: [
+            {
+              name: 'offeredTo',
+              type: 'relationship',
+              relationTo: 'users',
+              admin: {
+                description: '2nd highest bidder offered to',
+              },
+            },
+            {
+              name: 'offerAmount',
+              type: 'number',
+              admin: {
+                description: 'Amount offered (their bid amount)',
+              },
+            },
+            {
+              name: 'offerStatus',
+              type: 'select',
+              options: [
+                { label: 'Pending', value: 'pending' },
+                { label: 'Accepted', value: 'accepted' },
+                { label: 'Declined', value: 'declined' },
+                { label: 'Expired', value: 'expired' },
+              ],
+              admin: {
+                description: 'Status of the offer to 2nd bidder',
+              },
+            },
+            {
+              name: 'offeredAt',
+              type: 'date',
+              admin: {
+                description: 'When the offer was sent',
+              },
+            },
+            {
+              name: 'respondedAt',
+              type: 'date',
+              admin: {
+                description: 'When the 2nd bidder responded',
+              },
+            },
+          ],
         },
       ],
     },
@@ -1062,6 +1230,8 @@ export default buildConfig({
         },
       ],
     },
+    // Email Templates collection
+    EmailTemplates,
   ],
   plugins: [
     cloudStorage({

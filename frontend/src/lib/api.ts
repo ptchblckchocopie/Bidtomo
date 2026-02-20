@@ -97,7 +97,7 @@ export interface Transaction {
   seller: string | User;
   buyer: string | User;
   amount: number;
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'voided';
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -117,6 +117,28 @@ export interface Rating {
     createdAt?: string;
   };
   hasFollowUp: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VoidRequest {
+  id: string;
+  transaction: string | Transaction;
+  product: string | Product;
+  initiator: string | User;
+  initiatorRole: 'buyer' | 'seller';
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  rejectionReason?: string;
+  approvedAt?: string;
+  sellerChoice?: 'restart_bidding' | 'offer_second_bidder';
+  secondBidderOffer?: {
+    offeredTo: string | User;
+    offerAmount: number;
+    offerStatus: 'pending' | 'accepted' | 'declined' | 'expired';
+    offeredAt: string;
+    respondedAt?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -1317,5 +1339,135 @@ export async function fetchTransactionForProduct(productId: string): Promise<Tra
   } catch (error) {
     console.error('Error fetching transaction:', error);
     return null;
+  }
+}
+
+// Create a void request for a transaction
+export async function createVoidRequest(
+  transactionId: string,
+  reason: string
+): Promise<{ success: boolean; voidRequest?: VoidRequest; error?: string }> {
+  try {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/void-request/create`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ transactionId, reason }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Failed to create void request' };
+    }
+
+    return { success: true, voidRequest: data.voidRequest };
+  } catch (error) {
+    console.error('Error creating void request:', error);
+    return { success: false, error: 'Failed to create void request' };
+  }
+}
+
+// Respond to a void request (approve or reject)
+export async function respondToVoidRequest(
+  voidRequestId: string,
+  action: 'approve' | 'reject',
+  rejectionReason?: string
+): Promise<{ success: boolean; voidRequest?: VoidRequest; error?: string; requiresSellerChoice?: boolean }> {
+  try {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/void-request/respond`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ voidRequestId, action, rejectionReason }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Failed to respond to void request' };
+    }
+
+    return { success: true, voidRequest: data.voidRequest, requiresSellerChoice: data.requiresSellerChoice };
+  } catch (error) {
+    console.error('Error responding to void request:', error);
+    return { success: false, error: 'Failed to respond to void request' };
+  }
+}
+
+// Submit seller's choice after void is approved
+export async function submitSellerChoice(
+  voidRequestId: string,
+  choice: 'restart_bidding' | 'offer_second_bidder'
+): Promise<{ success: boolean; voidRequest?: VoidRequest; error?: string; notifiedBidders?: number; onlyOption?: string }> {
+  try {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/void-request/seller-choice`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ voidRequestId, choice }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Failed to submit seller choice', onlyOption: data.onlyOption };
+    }
+
+    return { success: true, voidRequest: data.voidRequest, notifiedBidders: data.notifiedBidders };
+  } catch (error) {
+    console.error('Error submitting seller choice:', error);
+    return { success: false, error: 'Failed to submit seller choice' };
+  }
+}
+
+// Respond to second bidder offer
+export async function respondToSecondBidderOffer(
+  voidRequestId: string,
+  action: 'accept' | 'decline'
+): Promise<{ success: boolean; voidRequest?: VoidRequest; error?: string }> {
+  try {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/void-request/second-bidder-response`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ voidRequestId, action }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Failed to respond to offer' };
+    }
+
+    return { success: true, voidRequest: data.voidRequest };
+  } catch (error) {
+    console.error('Error responding to second bidder offer:', error);
+    return { success: false, error: 'Failed to respond to offer' };
+  }
+}
+
+// Get void requests for a transaction
+export async function getVoidRequestsForTransaction(
+  transactionId: string
+): Promise<VoidRequest[]> {
+  try {
+    const response = await fetch(
+      `${BRIDGE_URL}/api/bridge/void-request/${transactionId}`,
+      {
+        headers: getAuthHeaders(),
+        credentials: 'include',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch void requests');
+    }
+
+    const data = await response.json();
+    return data.voidRequests || [];
+  } catch (error) {
+    console.error('Error fetching void requests:', error);
+    return [];
   }
 }

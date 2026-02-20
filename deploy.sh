@@ -2,6 +2,21 @@
 set -e
 cd /var/www/marketplace
 
+# Load environment variables from CMS .env file
+if [ -f "/var/www/marketplace/cms/.env" ]; then
+    export $(grep -v '^#' /var/www/marketplace/cms/.env | xargs)
+fi
+
+# Parse DATABASE_URL for psql (format: postgresql://user:pass@host:port/dbname)
+if [ -n "$DATABASE_URL" ]; then
+    # Extract components from DATABASE_URL
+    DB_USER=$(echo $DATABASE_URL | sed -n 's|.*://\([^:]*\):.*|\1|p')
+    DB_PASSWORD=$(echo $DATABASE_URL | sed -n 's|.*://[^:]*:\([^@]*\)@.*|\1|p')
+    DB_HOST=$(echo $DATABASE_URL | sed -n 's|.*@\([^:]*\):.*|\1|p')
+    DB_PORT=$(echo $DATABASE_URL | sed -n 's|.*:\([0-9]*\)/.*|\1|p')
+    DB_NAME=$(echo $DATABASE_URL | sed -n 's|.*/\([^?]*\).*|\1|p')
+fi
+
 # Fetch latest changes
 git fetch origin main
 
@@ -85,9 +100,18 @@ if [ "$LOCAL" != "$REMOTE" ]; then
     echo "$(date): CMS built to $NEW_DIST"
 
     ### RUN MIGRATIONS ###
-    echo "$(date): Running migrations..."
+    echo "$(date): Running SQL migrations..."
     cd /var/www/marketplace/cms
-    npm run migrate
+
+    # Run all SQL migration files in order
+    for migration in migrations/*.sql; do
+        if [ -f "$migration" ]; then
+            echo "$(date): Running migration: $migration"
+            PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$migration" || true
+        fi
+    done
+
+    echo "$(date): SQL migrations complete"
 
     ### RELOAD ###
     echo "$(date): Reloading services..."

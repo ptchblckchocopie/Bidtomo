@@ -6,8 +6,18 @@ const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres
 const QUEUE_KEY = 'bids:pending';
 const FAILED_QUEUE_KEY = 'bids:failed';
 const PROCESSING_KEY = 'bids:processing';
+const EMAIL_QUEUE_KEY = 'email:queue';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
+
+// Currency symbols for email formatting
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  PHP: '₱',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  JPY: '¥',
+};
 
 // Redis clients (separate for blocking operations)
 let redisQueue: Redis;
@@ -288,6 +298,39 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
   }
 }
 
+// Queue email to the email service via Redis
+async function queueEmail(emailData: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  metadata?: {
+    type?: string;
+    productId?: number;
+    userId?: number;
+  };
+}): Promise<boolean> {
+  if (!redisConnected) {
+    console.warn('[WORKER] Redis not connected, cannot queue email');
+    return false;
+  }
+
+  try {
+    const queuedEmail = {
+      ...emailData,
+      id: `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      queuedAt: Date.now(),
+      attempts: 0,
+    };
+    await redisPub.rpush(EMAIL_QUEUE_KEY, JSON.stringify(queuedEmail));
+    console.log(`[WORKER] Queued email to ${emailData.to}: ${emailData.subject}`);
+    return true;
+  } catch (error) {
+    console.error('[WORKER] Failed to queue email:', error);
+    return false;
+  }
+}
+
 // Process accept bid - marks product as sold atomically
 async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?: string }> {
   const client = await pool.connect();
@@ -308,6 +351,20 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
     }
 
     const product = productResult.rows[0];
+
+    // Get buyer (bidder) details
+    const buyerResult = await client.query<{ id: number; name: string; email: string; currency: string }>(
+      `SELECT id, name, email, currency FROM users WHERE id = $1`,
+      [job.bidderId]
+    );
+    const buyer = buyerResult.rows[0];
+
+    // Get seller details
+    const sellerResult = await client.query<{ id: number; name: string; email: string; currency: string }>(
+      `SELECT id, name, email, currency FROM users WHERE id = $1`,
+      [job.sellerId]
+    );
+    const seller = sellerResult.rows[0];
 
     // Validate product is still available
     if (product.status !== 'available') {
@@ -400,6 +457,66 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
         console.error('[WORKER] Failed to publish message notification:', notifyError);
       }
     }
+
+    // Send email notifications to buyer and seller
+    const currencySymbol = CURRENCY_SYMBOLS[seller?.currency || 'PHP'] || '₱';
+    const platformUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    // Email to buyer - congratulations for winning
+    if (buyer?.email) {
+      await queueEmail({
+        to: buyer.email,
+        subject: `Congratulations! You won the bid for "${product.title}"`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0;">Congratulations!</h1>
+            </div>
+            <div style="background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px;">
+              <p>Hi ${buyer.name},</p>
+              <p>Great news! Your bid has been accepted for <strong>${product.title}</strong>.</p>
+              <div style="background: #fef3c7; padding: 15px; border-radius: 4px; margin: 15px 0;">
+                <p style="margin: 5px 0;"><strong>Winning Bid:</strong> ${currencySymbol}${job.amount.toLocaleString()}</p>
+                <p style="margin: 5px 0;"><strong>Seller:</strong> ${seller?.name || 'Seller'}</p>
+              </div>
+              <p>The seller has been notified and will reach out to you shortly to discuss the next steps.</p>
+              <p><a href="${platformUrl}/inbox?product=${job.productId}" style="display: inline-block; background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 15px;">Go to Inbox</a></p>
+              <p style="margin-top: 20px;">Thank you for using Veent Marketplace!</p>
+            </div>
+          </div>
+        `,
+        metadata: { type: 'bid_won_buyer', productId: job.productId, userId: job.bidderId },
+      });
+    }
+
+    // Email to seller - item sold notification
+    if (seller?.email) {
+      await queueEmail({
+        to: seller.email,
+        subject: `Your item "${product.title}" has been sold!`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: #16a34a; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0;">Item Sold!</h1>
+            </div>
+            <div style="background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px;">
+              <p>Hi ${seller.name},</p>
+              <p>Great news! Your item <strong>${product.title}</strong> has been sold.</p>
+              <div style="background: #dcfce7; padding: 15px; border-radius: 4px; margin: 15px 0;">
+                <p style="margin: 5px 0;"><strong>Winning Bid:</strong> ${currencySymbol}${job.amount.toLocaleString()}</p>
+                <p style="margin: 5px 0;"><strong>Buyer:</strong> ${buyer?.name || 'Buyer'} (${buyer?.email || 'N/A'})</p>
+              </div>
+              <p>A conversation has been automatically created. Please reach out to the buyer to arrange payment and delivery.</p>
+              <p><a href="${platformUrl}/inbox?product=${job.productId}" style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 15px;">Contact Buyer</a></p>
+              <p style="margin-top: 20px;">Thank you for selling on Veent Marketplace!</p>
+            </div>
+          </div>
+        `,
+        metadata: { type: 'bid_won_seller', productId: job.productId, userId: job.sellerId },
+      });
+    }
+
+    console.log(`[WORKER] Queued email notifications for buyer and seller`);
 
     return { success: true };
   } catch (error) {
