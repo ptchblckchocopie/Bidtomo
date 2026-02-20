@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, isRedisConnected } from './redis';
+import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 
 dotenv.config();
 
@@ -710,6 +711,753 @@ const start = async () => {
       redis: isRedisConnected() ? 'connected' : 'disconnected',
       timestamp: Date.now(),
     });
+  });
+
+  // ============================================
+  // Void Request API Endpoints
+  // ============================================
+
+  // Create void request
+  app.post('/api/void-request/create', async (req, res) => {
+    try {
+      // Authenticate user - check for existing auth first, then JWT
+      let userId: number | null = null;
+      if ((req as any).user?.id) {
+        userId = (req as any).user.id;
+      } else {
+        const authHeader = req.headers.authorization;
+        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
+          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+          try {
+            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            if (decoded.id) userId = decoded.id;
+          } catch (jwtError) {
+            console.error('JWT verification failed:', jwtError);
+          }
+        }
+      }
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { transactionId, reason } = req.body;
+
+      if (!transactionId || !reason) {
+        return res.status(400).json({ error: 'Missing transactionId or reason' });
+      }
+
+      // Get transaction with relationships
+      const transaction: any = await payload.findByID({
+        collection: 'transactions',
+        id: transactionId,
+        depth: 1,
+      });
+
+      if (!transaction) {
+        return res.status(404).json({ error: 'Transaction not found' });
+      }
+
+      const buyerId = typeof transaction.buyer === 'object' ? transaction.buyer.id : transaction.buyer;
+      const sellerId = typeof transaction.seller === 'object' ? transaction.seller.id : transaction.seller;
+      const productId = typeof transaction.product === 'object' ? transaction.product.id : transaction.product;
+
+      // Verify user is buyer or seller
+      if (userId !== buyerId && userId !== sellerId) {
+        return res.status(403).json({ error: 'Only buyer or seller can create void request' });
+      }
+
+      // Check if transaction can be voided (must be pending or in_progress)
+      if (!['pending', 'in_progress'].includes(transaction.status)) {
+        return res.status(400).json({ error: `Cannot void transaction with status: ${transaction.status}` });
+      }
+
+      // Check if there's already a pending void request
+      const existingRequests = await payload.find({
+        collection: 'void-requests',
+        where: {
+          transaction: { equals: transactionId },
+          status: { equals: 'pending' },
+        },
+        limit: 1,
+      });
+
+      if (existingRequests.docs.length > 0) {
+        return res.status(400).json({ error: 'There is already a pending void request for this transaction' });
+      }
+
+      const initiatorRole = userId === sellerId ? 'seller' : 'buyer';
+
+      // Create void request
+      const voidRequest = await payload.create({
+        collection: 'void-requests',
+        data: {
+          transaction: transactionId,
+          product: productId,
+          initiator: userId,
+          initiatorRole,
+          reason,
+          status: 'pending',
+        },
+      });
+
+      // Get user details for notification
+      const initiator: any = await payload.findByID({ collection: 'users', id: userId });
+      const product: any = await payload.findByID({ collection: 'products', id: productId });
+      const otherPartyId = userId === sellerId ? buyerId : sellerId;
+      const otherParty: any = await payload.findByID({ collection: 'users', id: otherPartyId });
+
+      // Send SSE notification to other party
+      publishMessageNotification(otherPartyId, {
+        type: 'void_request',
+        messageId: voidRequest.id,
+        productId,
+        senderId: userId,
+        preview: `Void request for ${product.title}`,
+      });
+
+      // Send email notification to other party
+      if (otherParty?.email) {
+        await sendVoidRequestEmail({
+          to: otherParty.email,
+          productTitle: product.title,
+          initiatorName: initiator.name,
+          reason,
+          isInitiator: false,
+          productId,
+          voidRequestId: voidRequest.id as number,
+        });
+      }
+
+      res.json({
+        success: true,
+        voidRequestId: voidRequest.id,
+        message: 'Void request created successfully',
+      });
+    } catch (error: any) {
+      console.error('Error creating void request:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Respond to void request (approve/reject)
+  app.post('/api/void-request/respond', async (req, res) => {
+    try {
+      // Authenticate user - check for existing auth first, then JWT
+      let userId: number | null = null;
+      if ((req as any).user?.id) {
+        userId = (req as any).user.id;
+      } else {
+        const authHeader = req.headers.authorization;
+        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
+          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+          try {
+            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            if (decoded.id) userId = decoded.id;
+          } catch (jwtError) {
+            console.error('JWT verification failed:', jwtError);
+          }
+        }
+      }
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { voidRequestId, action, rejectionReason } = req.body;
+
+      if (!voidRequestId || !action) {
+        return res.status(400).json({ error: 'Missing voidRequestId or action' });
+      }
+
+      if (!['approve', 'reject'].includes(action)) {
+        return res.status(400).json({ error: 'Action must be approve or reject' });
+      }
+
+      // Get void request with relationships
+      const voidRequest: any = await payload.findByID({
+        collection: 'void-requests',
+        id: voidRequestId,
+        depth: 2,
+      });
+
+      if (!voidRequest) {
+        return res.status(404).json({ error: 'Void request not found' });
+      }
+
+      if (voidRequest.status !== 'pending') {
+        return res.status(400).json({ error: `Void request is already ${voidRequest.status}` });
+      }
+
+      // Get transaction details
+      const transaction = voidRequest.transaction;
+      const buyerId = typeof transaction.buyer === 'object' ? transaction.buyer.id : transaction.buyer;
+      const sellerId = typeof transaction.seller === 'object' ? transaction.seller.id : transaction.seller;
+      const initiatorId = typeof voidRequest.initiator === 'object' ? voidRequest.initiator.id : voidRequest.initiator;
+
+      // Verify user is the OTHER party (not the initiator)
+      if (userId === initiatorId) {
+        return res.status(403).json({ error: 'Cannot respond to your own void request' });
+      }
+
+      if (userId !== buyerId && userId !== sellerId) {
+        return res.status(403).json({ error: 'Only buyer or seller can respond to void request' });
+      }
+
+      const productId = typeof voidRequest.product === 'object' ? voidRequest.product.id : voidRequest.product;
+      const product: any = await payload.findByID({ collection: 'products', id: productId });
+      const initiator: any = await payload.findByID({ collection: 'users', id: initiatorId });
+
+      if (action === 'approve') {
+        // Update void request status
+        await payload.update({
+          collection: 'void-requests',
+          id: voidRequestId,
+          data: {
+            status: 'approved',
+            approvedAt: new Date().toISOString(),
+          },
+        });
+
+        // Update transaction status to voided
+        await payload.update({
+          collection: 'transactions',
+          id: transaction.id,
+          data: {
+            status: 'voided',
+            voidRequest: voidRequestId,
+          },
+        });
+
+        // Send notification to initiator
+        publishMessageNotification(initiatorId, {
+          type: 'void_approved',
+          messageId: voidRequestId,
+          productId,
+          senderId: userId,
+          preview: `Void request approved for ${product.title}`,
+        });
+
+        // Send email to initiator
+        if (initiator?.email) {
+          await sendVoidResponseEmail({
+            to: initiator.email,
+            productTitle: product.title,
+            approved: true,
+            productId,
+            voidRequestId,
+          });
+        }
+
+        // If user responding is the buyer, notify seller to make choice
+        // If user responding is the seller, they need to make the choice
+        const isSeller = userId === sellerId;
+
+        res.json({
+          success: true,
+          message: 'Void request approved',
+          requiresSellerChoice: true,
+          isSeller,
+          voidRequestId,
+        });
+      } else {
+        // Reject the void request
+        await payload.update({
+          collection: 'void-requests',
+          id: voidRequestId,
+          data: {
+            status: 'rejected',
+            rejectionReason: rejectionReason || 'No reason provided',
+          },
+        });
+
+        // Send notification to initiator
+        publishMessageNotification(initiatorId, {
+          type: 'void_rejected',
+          messageId: voidRequestId,
+          productId,
+          senderId: userId,
+          preview: `Void request rejected for ${product.title}`,
+        });
+
+        // Send email to initiator
+        if (initiator?.email) {
+          await sendVoidResponseEmail({
+            to: initiator.email,
+            productTitle: product.title,
+            approved: false,
+            rejectionReason,
+            productId,
+            voidRequestId,
+          });
+        }
+
+        res.json({
+          success: true,
+          message: 'Void request rejected',
+        });
+      }
+    } catch (error: any) {
+      console.error('Error responding to void request:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Seller choice after void approval
+  app.post('/api/void-request/seller-choice', async (req, res) => {
+    try {
+      // Authenticate user - check for existing auth first, then JWT
+      let userId: number | null = null;
+      if ((req as any).user?.id) {
+        userId = (req as any).user.id;
+      } else {
+        const authHeader = req.headers.authorization;
+        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
+          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+          try {
+            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            if (decoded.id) userId = decoded.id;
+          } catch (jwtError) {
+            console.error('JWT verification failed:', jwtError);
+          }
+        }
+      }
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { voidRequestId, choice } = req.body;
+
+      if (!voidRequestId || !choice) {
+        return res.status(400).json({ error: 'Missing voidRequestId or choice' });
+      }
+
+      if (!['restart_bidding', 'offer_second_bidder'].includes(choice)) {
+        return res.status(400).json({ error: 'Choice must be restart_bidding or offer_second_bidder' });
+      }
+
+      // Get void request
+      const voidRequest: any = await payload.findByID({
+        collection: 'void-requests',
+        id: voidRequestId,
+        depth: 2,
+      });
+
+      if (!voidRequest) {
+        return res.status(404).json({ error: 'Void request not found' });
+      }
+
+      if (voidRequest.status !== 'approved') {
+        return res.status(400).json({ error: 'Void request must be approved first' });
+      }
+
+      if (voidRequest.sellerChoice) {
+        return res.status(400).json({ error: 'Seller choice already made' });
+      }
+
+      // Verify user is the seller
+      const transaction = voidRequest.transaction;
+      const sellerId = typeof transaction.seller === 'object' ? transaction.seller.id : transaction.seller;
+
+      if (userId !== sellerId) {
+        return res.status(403).json({ error: 'Only seller can make this choice' });
+      }
+
+      const productId = typeof voidRequest.product === 'object' ? voidRequest.product.id : voidRequest.product;
+      const product: any = await payload.findByID({ collection: 'products', id: productId, depth: 1 });
+      const seller: any = await payload.findByID({ collection: 'users', id: sellerId });
+
+      if (choice === 'restart_bidding') {
+        // Set new auction end date (24 hours from now)
+        const newEndDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+        // Update product status back to available
+        await payload.update({
+          collection: 'products',
+          id: productId,
+          data: {
+            status: 'available',
+            auctionEndDate: newEndDate,
+          },
+        });
+
+        // Update void request with choice
+        await payload.update({
+          collection: 'void-requests',
+          id: voidRequestId,
+          data: {
+            sellerChoice: 'restart_bidding',
+          },
+        });
+
+        // Get all bidders for this product
+        const bids = await payload.find({
+          collection: 'bids',
+          where: { product: { equals: productId } },
+          depth: 1,
+        });
+
+        // Notify all bidders
+        const notifiedBidders = new Set<number>();
+        for (const bid of bids.docs) {
+          const bidderId = typeof (bid as any).bidder === 'object' ? (bid as any).bidder.id : (bid as any).bidder;
+          if (notifiedBidders.has(bidderId)) continue;
+          notifiedBidders.add(bidderId);
+
+          const bidder: any = await payload.findByID({ collection: 'users', id: bidderId });
+
+          // SSE notification
+          publishMessageNotification(bidderId, {
+            type: 'auction_restarted',
+            messageId: voidRequestId,
+            productId,
+            senderId: sellerId,
+            preview: `Bidding reopened for ${product.title}`,
+          });
+
+          // Email notification
+          if (bidder?.email) {
+            await sendAuctionRestartedEmail({
+              to: bidder.email,
+              productTitle: product.title,
+              productId,
+              newEndDate,
+            });
+          }
+        }
+
+        // Broadcast product update
+        publishProductUpdate(productId, {
+          type: 'status_change',
+          status: 'available',
+          auctionEndDate: newEndDate,
+        });
+
+        res.json({
+          success: true,
+          message: 'Auction restarted successfully',
+          newEndDate,
+          notifiedBidders: notifiedBidders.size,
+        });
+      } else {
+        // Offer to second highest bidder
+        const bids = await payload.find({
+          collection: 'bids',
+          where: { product: { equals: productId } },
+          sort: '-amount',
+          limit: 2,
+          depth: 1,
+        });
+
+        if (bids.docs.length < 2) {
+          return res.status(400).json({
+            error: 'No second bidder available. Please restart the bidding instead.',
+            onlyOption: 'restart_bidding',
+          });
+        }
+
+        const secondBid: any = bids.docs[1];
+        const secondBidderId = typeof secondBid.bidder === 'object' ? secondBid.bidder.id : secondBid.bidder;
+        const secondBidder: any = await payload.findByID({ collection: 'users', id: secondBidderId });
+
+        // Update void request with offer details
+        await payload.update({
+          collection: 'void-requests',
+          id: voidRequestId,
+          data: {
+            sellerChoice: 'offer_second_bidder',
+            secondBidderOffer: {
+              offeredTo: secondBidderId,
+              offerAmount: secondBid.amount,
+              offerStatus: 'pending',
+              offeredAt: new Date().toISOString(),
+            },
+          },
+        });
+
+        // SSE notification to second bidder
+        publishMessageNotification(secondBidderId, {
+          type: 'second_bidder_offer',
+          messageId: voidRequestId,
+          productId,
+          senderId: sellerId,
+          preview: `Offer to purchase ${product.title}`,
+        });
+
+        // Email to second bidder
+        if (secondBidder?.email) {
+          await sendSecondBidderOfferEmail({
+            to: secondBidder.email,
+            productTitle: product.title,
+            offerAmount: secondBid.amount,
+            currency: seller?.currency || 'PHP',
+            productId,
+            voidRequestId,
+          });
+        }
+
+        res.json({
+          success: true,
+          message: 'Offer sent to second highest bidder',
+          secondBidder: {
+            id: secondBidderId,
+            name: secondBidder?.name,
+            amount: secondBid.amount,
+          },
+        });
+      }
+    } catch (error: any) {
+      console.error('Error processing seller choice:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Second bidder response to offer
+  app.post('/api/void-request/second-bidder-response', async (req, res) => {
+    try {
+      // Authenticate user - check for existing auth first, then JWT
+      let userId: number | null = null;
+      if ((req as any).user?.id) {
+        userId = (req as any).user.id;
+      } else {
+        const authHeader = req.headers.authorization;
+        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
+          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+          try {
+            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            if (decoded.id) userId = decoded.id;
+          } catch (jwtError) {
+            console.error('JWT verification failed:', jwtError);
+          }
+        }
+      }
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { voidRequestId, action } = req.body;
+
+      if (!voidRequestId || !action) {
+        return res.status(400).json({ error: 'Missing voidRequestId or action' });
+      }
+
+      if (!['accept', 'decline'].includes(action)) {
+        return res.status(400).json({ error: 'Action must be accept or decline' });
+      }
+
+      // Get void request
+      const voidRequest: any = await payload.findByID({
+        collection: 'void-requests',
+        id: voidRequestId,
+        depth: 2,
+      });
+
+      if (!voidRequest) {
+        return res.status(404).json({ error: 'Void request not found' });
+      }
+
+      if (voidRequest.sellerChoice !== 'offer_second_bidder') {
+        return res.status(400).json({ error: 'No offer available for this void request' });
+      }
+
+      if (!voidRequest.secondBidderOffer || voidRequest.secondBidderOffer.offerStatus !== 'pending') {
+        return res.status(400).json({ error: 'Offer is not pending' });
+      }
+
+      const offeredToId = typeof voidRequest.secondBidderOffer.offeredTo === 'object'
+        ? voidRequest.secondBidderOffer.offeredTo.id
+        : voidRequest.secondBidderOffer.offeredTo;
+
+      if (userId !== offeredToId) {
+        return res.status(403).json({ error: 'Only the offered bidder can respond' });
+      }
+
+      const transaction = voidRequest.transaction;
+      const sellerId = typeof transaction.seller === 'object' ? transaction.seller.id : transaction.seller;
+      const productId = typeof voidRequest.product === 'object' ? voidRequest.product.id : voidRequest.product;
+      const product: any = await payload.findByID({ collection: 'products', id: productId });
+      const seller: any = await payload.findByID({ collection: 'users', id: sellerId });
+      const buyer: any = await payload.findByID({ collection: 'users', id: userId });
+
+      if (action === 'accept') {
+        // Update offer status
+        await payload.update({
+          collection: 'void-requests',
+          id: voidRequestId,
+          data: {
+            secondBidderOffer: {
+              ...voidRequest.secondBidderOffer,
+              offerStatus: 'accepted',
+              respondedAt: new Date().toISOString(),
+            },
+          },
+        });
+
+        // Update product status to sold
+        await payload.update({
+          collection: 'products',
+          id: productId,
+          data: { status: 'sold' },
+        });
+
+        // Create new transaction
+        const newTransaction = await payload.create({
+          collection: 'transactions',
+          data: {
+            product: productId,
+            seller: sellerId,
+            buyer: userId,
+            amount: voidRequest.secondBidderOffer.offerAmount,
+            status: 'pending',
+            notes: `Transaction created after void - offer to 2nd bidder accepted`,
+          },
+        });
+
+        // Create congratulations message
+        const congratsMessage = `Congratulations! Your offer has been accepted for "${product.title}". Let's discuss the next steps for completing this transaction.`;
+        await payload.create({
+          collection: 'messages',
+          data: {
+            product: productId,
+            sender: sellerId,
+            receiver: userId,
+            message: congratsMessage,
+            read: false,
+          },
+        });
+
+        // Notify seller
+        publishMessageNotification(sellerId, {
+          type: 'second_bidder_accepted',
+          messageId: voidRequestId,
+          productId,
+          senderId: userId,
+          preview: `${buyer.name} accepted the offer for ${product.title}`,
+        });
+
+        // Send emails
+        if (buyer?.email) {
+          await queueEmail({
+            to: buyer.email,
+            subject: `Congratulations! You've secured "${product.title}"`,
+            html: `
+              <h2>Congratulations!</h2>
+              <p>Your offer for <strong>${product.title}</strong> has been accepted.</p>
+              <p>Amount: ${voidRequest.secondBidderOffer.offerAmount}</p>
+              <p>Please check your inbox to coordinate with the seller.</p>
+            `,
+          });
+        }
+
+        if (seller?.email) {
+          await queueEmail({
+            to: seller.email,
+            subject: `${buyer.name} accepted your offer for "${product.title}"`,
+            html: `
+              <h2>Offer Accepted!</h2>
+              <p><strong>${buyer.name}</strong> has accepted your offer for <strong>${product.title}</strong>.</p>
+              <p>Amount: ${voidRequest.secondBidderOffer.offerAmount}</p>
+              <p>Please check your inbox to coordinate the transaction.</p>
+            `,
+          });
+        }
+
+        res.json({
+          success: true,
+          message: 'Offer accepted successfully',
+          transactionId: newTransaction.id,
+        });
+      } else {
+        // Decline the offer
+        await payload.update({
+          collection: 'void-requests',
+          id: voidRequestId,
+          data: {
+            secondBidderOffer: {
+              ...voidRequest.secondBidderOffer,
+              offerStatus: 'declined',
+              respondedAt: new Date().toISOString(),
+            },
+          },
+        });
+
+        // Notify seller
+        publishMessageNotification(sellerId, {
+          type: 'second_bidder_declined',
+          messageId: voidRequestId,
+          productId,
+          senderId: userId,
+          preview: `${buyer.name} declined the offer for ${product.title}`,
+        });
+
+        // Email seller
+        if (seller?.email) {
+          await queueEmail({
+            to: seller.email,
+            subject: `Offer declined for "${product.title}"`,
+            html: `
+              <h2>Offer Declined</h2>
+              <p><strong>${buyer.name}</strong> has declined your offer for <strong>${product.title}</strong>.</p>
+              <p>You may want to restart the bidding to find another buyer.</p>
+            `,
+          });
+        }
+
+        res.json({
+          success: true,
+          message: 'Offer declined',
+          suggestRestartBidding: true,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error processing second bidder response:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get void request for a transaction
+  app.get('/api/void-request/:transactionId', async (req, res) => {
+    try {
+      // Authenticate user - check for existing auth first, then JWT
+      let userId: number | null = null;
+      if ((req as any).user?.id) {
+        userId = (req as any).user.id;
+      } else {
+        const authHeader = req.headers.authorization;
+        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
+          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+          try {
+            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            if (decoded.id) userId = decoded.id;
+          } catch (jwtError) {
+            console.error('JWT verification failed:', jwtError);
+          }
+        }
+      }
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { transactionId } = req.params;
+
+      const voidRequests = await payload.find({
+        collection: 'void-requests',
+        where: { transaction: { equals: parseInt(transactionId, 10) } },
+        sort: '-createdAt',
+        depth: 2,
+      });
+
+      res.json({
+        success: true,
+        voidRequests: voidRequests.docs,
+      });
+    } catch (error: any) {
+      console.error('Error fetching void request:', error);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // In-memory typing status store
