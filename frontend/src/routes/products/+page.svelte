@@ -29,18 +29,27 @@
   let newProductCount = $state(0);
 
   // Admin hide/show
-  let hiddenProductIds: Set<string | number> = $state(new Set());
+  let removedProductIds: (string | number)[] = $state([]);
+  let adminModalProduct: { id: string | number; title: string; active: boolean } | null = $state(null);
+  let adminModalLoading = $state(false);
 
-  async function toggleProductVisibility(productId: string | number, currentlyActive: boolean) {
-    const action = currentlyActive ? 'hide' : 'unhide';
-    const confirmed = confirm(`Are you sure you want to ${action} this item?`);
-    if (!confirmed) return;
+  function openAdminModal(product: any) {
+    adminModalProduct = { id: product.id, title: product.title, active: product.active };
+  }
 
-    const result = await updateProduct(String(productId), { active: !currentlyActive });
+  function closeAdminModal() {
+    adminModalProduct = null;
+    adminModalLoading = false;
+  }
+
+  async function confirmToggleVisibility() {
+    if (!adminModalProduct) return;
+    adminModalLoading = true;
+    const result = await updateProduct(String(adminModalProduct.id), { active: !adminModalProduct.active });
     if (result) {
-      hiddenProductIds.add(productId);
-      hiddenProductIds = new Set(hiddenProductIds);
+      removedProductIds = [...removedProductIds, adminModalProduct.id];
     }
+    closeAdminModal();
   }
 
   // Items per page options
@@ -117,7 +126,7 @@
   }
 
   function changeTab(status: string) {
-    hiddenProductIds = new Set();
+    removedProductIds = [];
     updateURL({
       status,
       page: '1', // Reset to page 1 on tab change
@@ -303,7 +312,7 @@
   // Sort products to show ones with user bids first, filter out toggled items
   let sortedProducts = $derived(
     [...data.products]
-      .filter((p: any) => !hiddenProductIds.has(p.id))
+      .filter((p: any) => !removedProductIds.includes(p.id))
       .sort((a, b) => {
         const aHasBid = userBids[a.id] ? 1 : 0;
         const bHasBid = userBids[b.id] ? 1 : 0;
@@ -592,7 +601,7 @@
       <section class="auction-section">
         <div class="products-grid">
           {#each sortedProducts as product}
-            <a href="/products/{product.id}?from=browse" class="product-card" class:ended-card={data.status === 'ended'} class:hidden-card={!product.active}>
+            <a href="/products/{product.id}?from=browse" class="product-card" class:ended-card={data.status === 'ended'}>
               <div class="product-image">
                 {#if product.images && product.images.length > 0 && product.images[0].image}
                   <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" />
@@ -668,7 +677,7 @@
                     {#if $authStore.user?.role === 'admin' && data.status !== 'hidden'}
                       <button
                         class="admin-hide-btn"
-                        onclick={(e) => { e.preventDefault(); e.stopPropagation(); toggleProductVisibility(product.id, product.active); }}
+                        onclick={(e) => { e.preventDefault(); e.stopPropagation(); openAdminModal(product); }}
                       >
                         Hide
                       </button>
@@ -676,7 +685,7 @@
                     {#if data.status === 'hidden'}
                       <button
                         class="admin-show-btn"
-                        onclick={(e) => { e.preventDefault(); e.stopPropagation(); toggleProductVisibility(product.id, product.active); }}
+                        onclick={(e) => { e.preventDefault(); e.stopPropagation(); openAdminModal(product); }}
                       >
                         Unhide
                       </button>
@@ -753,6 +762,47 @@
     </div>
   {/if}
 </div>
+
+<!-- Admin Hide/Unhide Confirmation Modal -->
+{#if adminModalProduct}
+  <div class="modal-overlay" onclick={closeAdminModal}>
+    <div class="modal-content confirm-modal" onclick={(e) => e.stopPropagation()}>
+      <button class="modal-close" onclick={closeAdminModal}>&times;</button>
+
+      <div class="modal-header">
+        <h2>{adminModalProduct.active ? 'Hide Item' : 'Unhide Item'}</h2>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-product-title">"{adminModalProduct.title}"</p>
+        <p class="modal-description">
+          {#if adminModalProduct.active}
+            This item will be hidden from all users and moved to the <strong>Hidden Items</strong> tab. The seller will not be notified.
+          {:else}
+            This item will be restored and visible to all users again under <strong>Active Auctions</strong>.
+          {/if}
+        </p>
+
+        <div class="modal-actions">
+          <button class="btn-modal-cancel" onclick={closeAdminModal} disabled={adminModalLoading}>
+            Cancel
+          </button>
+          <button
+            class="btn-modal-confirm {adminModalProduct.active ? 'btn-modal-hide' : 'btn-modal-unhide'}"
+            onclick={confirmToggleVisibility}
+            disabled={adminModalLoading}
+          >
+            {#if adminModalLoading}
+              Processing...
+            {:else}
+              {adminModalProduct.active ? 'Hide Item' : 'Unhide Item'}
+            {/if}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .products-page {
@@ -1230,22 +1280,22 @@
     letter-spacing: 0.5px;
   }
 
-  .hidden-card {
-    opacity: 0.5;
-  }
-
-  .admin-hide-btn {
+  .admin-hide-btn,
+  .admin-show-btn {
     padding: 0.25rem 0.75rem;
     font-size: 0.7rem;
     font-weight: 700;
     text-transform: uppercase;
-    background: #dc3545;
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     letter-spacing: 0.5px;
     transition: background 0.2s;
+  }
+
+  .admin-hide-btn {
+    background: #dc3545;
   }
 
   .admin-hide-btn:hover {
@@ -1253,17 +1303,7 @@
   }
 
   .admin-show-btn {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
     background: #198754;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    letter-spacing: 0.5px;
-    transition: background 0.2s;
   }
 
   .admin-show-btn:hover {
@@ -1277,6 +1317,152 @@
   .tab-admin.active {
     border-color: #dc3545;
     color: #dc3545;
+  }
+
+  /* Admin Confirmation Modal */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease-out;
+    padding: 1rem;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .modal-content {
+    background-color: var(--color-white);
+    max-width: 460px;
+    width: 90%;
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-md);
+    position: relative;
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes slideUp {
+    from { transform: translateY(50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: 2px solid var(--color-border);
+    font-size: 2rem;
+    color: var(--color-fg);
+    opacity: 0.6;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .modal-close:hover {
+    background-color: var(--color-muted);
+    opacity: 1;
+  }
+
+  .modal-header {
+    padding: 2rem 2rem 1rem 2rem;
+    text-align: center;
+  }
+
+  .modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--color-fg);
+  }
+
+  .modal-body {
+    padding: 0 2rem 2rem 2rem;
+    text-align: center;
+  }
+
+  .modal-product-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-fg);
+    margin-bottom: 0.75rem;
+  }
+
+  .modal-description {
+    font-size: 0.95rem;
+    color: var(--color-fg);
+    opacity: 0.7;
+    margin-bottom: 1.5rem;
+    line-height: 1.5;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .btn-modal-cancel,
+  .btn-modal-confirm {
+    flex: 1;
+    padding: 0.85rem 1.5rem;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: var(--border-bh) solid var(--color-border);
+  }
+
+  .btn-modal-cancel {
+    background-color: var(--color-muted);
+    color: var(--color-fg);
+  }
+
+  .btn-modal-cancel:hover {
+    background-color: var(--color-border);
+  }
+
+  .btn-modal-hide {
+    background: #dc3545;
+    color: white;
+  }
+
+  .btn-modal-hide:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-bh-md);
+    background: #b02a37;
+  }
+
+  .btn-modal-unhide {
+    background: #198754;
+    color: white;
+  }
+
+  .btn-modal-unhide:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-bh-md);
+    background: #146c43;
+  }
+
+  .btn-modal-confirm:disabled,
+  .btn-modal-cancel:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
   }
 
   .status-active {
