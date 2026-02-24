@@ -76,7 +76,7 @@ const start = async () => {
   let payloadReady = false;
 
   // Access denied page for non-admin users
-  const FROG_VIDEO_URL = `${process.env.SUPABASE_URL || 'https://htcdkqplcmdbyjlvzono.supabase.co'}/storage/v1/object/public/${process.env.S3_BUCKET || 'bidmo-media'}/frog.mp4`;
+  const FROG_VIDEO_URL = `${process.env.SUPABASE_URL || 'https://htcdkqplcmdbyjlvzono.supabase.co'}/storage/v1/object/public/${process.env.S3_BUCKET || 'bidmo-media'}/bidmoto/frog.mp4`;
 
   app.get('/admin/access-denied', (req, res) => {
     res.clearCookie('payload-token');
