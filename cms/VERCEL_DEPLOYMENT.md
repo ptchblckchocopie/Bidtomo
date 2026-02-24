@@ -44,12 +44,14 @@ NODE_ENV=production
 ### Steps
 
 1. **Build the project**:
+
    ```bash
    cd cms
    npm run build
    ```
 
 2. **Deploy to Vercel** (from cms directory):
+
    ```bash
    vercel
    ```
@@ -75,6 +77,7 @@ NODE_ENV=production
 **Cause**: Cold start timeout or initialization error
 
 **Solutions**:
+
 - Check Vercel logs (click on the deployment → "Functions" tab → View logs)
 - Verify DATABASE_URI includes `?sslmode=require` for Digital Ocean
 - Verify PAYLOAD_SECRET is set
@@ -83,6 +86,7 @@ NODE_ENV=production
 #### Error: Database connection failed
 
 **Fix**: Ensure your Digital Ocean database:
+
 1. Has SSL enabled
 2. Connection string includes `?sslmode=require`
 3. Is not restricted to specific IPs (or whitelist Vercel IPs)
@@ -90,6 +94,7 @@ NODE_ENV=production
 #### Slow Response Times
 
 **Expected**: First request after cold start will be VERY slow (10-30 seconds)
+
 - Subsequent requests will be faster (if within ~5 minutes)
 - This is why Vercel is **not recommended** for this use case
 
@@ -122,9 +127,9 @@ When ready to move to a proper server platform:
 **Database**: Digital Ocean PostgreSQL
 
 This gives you:
+
 - ✅ Fast, reliable backend
 - ✅ No cold starts
 - ✅ SSE/WebSocket support
 - ✅ Better performance
 - ✅ Often still free or very cheap
-

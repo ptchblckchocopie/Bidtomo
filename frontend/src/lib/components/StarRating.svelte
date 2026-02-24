@@ -1,21 +1,28 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  let {
+    rating = $bindable(0),
+    maxRating = 5,
+    interactive = false,
+    size = 'medium' as 'small' | 'medium' | 'large',
+    showValue = false,
+    disabled = false,
+    onChange
+  }: {
+    rating?: number;
+    maxRating?: number;
+    interactive?: boolean;
+    size?: 'small' | 'medium' | 'large';
+    showValue?: boolean;
+    disabled?: boolean;
+    onChange?: (detail: { rating: number }) => void;
+  } = $props();
 
-  export let rating: number = 0;
-  export let maxRating: number = 5;
-  export let interactive: boolean = false;
-  export let size: 'small' | 'medium' | 'large' = 'medium';
-  export let showValue: boolean = false;
-  export let disabled: boolean = false;
-
-  const dispatch = createEventDispatcher();
-
-  let hoverRating: number = 0;
+  let hoverRating: number = $state(0);
 
   function handleClick(value: number) {
     if (!interactive || disabled) return;
     rating = value;
-    dispatch('change', { rating: value });
+    onChange?.({ rating: value });
   }
 
   function handleMouseEnter(value: number) {
@@ -36,8 +43,8 @@
     }
   }
 
-  $: displayRating = hoverRating || rating;
-  $: sizeClass = `size-${size}`;
+  let displayRating = $derived(hoverRating || rating);
+  let sizeClass = $derived(`size-${size}`);
 </script>
 
 <div class="star-rating {sizeClass}" class:interactive class:disabled role={interactive ? 'radiogroup' : 'img'} aria-label={`Rating: ${rating} out of ${maxRating} stars`}>
@@ -52,10 +59,10 @@
         class="star"
         class:filled
         class:half-filled={halfFilled}
-        on:click={() => handleClick(value)}
-        on:mouseenter={() => handleMouseEnter(value)}
-        on:mouseleave={handleMouseLeave}
-        on:keydown={(e) => handleKeyDown(e, value)}
+        onclick={() => handleClick(value)}
+        onmouseenter={() => handleMouseEnter(value)}
+        onmouseleave={handleMouseLeave}
+        onkeydown={(e) => handleKeyDown(e, value)}
         aria-label={`${value} star${value !== 1 ? 's' : ''}`}
         aria-pressed={rating === value}
         {disabled}

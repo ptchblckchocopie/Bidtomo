@@ -1,5 +1,4 @@
 <script lang="ts">
-  export let params: any = undefined; // SvelteKit passes this automatically
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { browser } from '$app/environment';
@@ -75,7 +74,7 @@
       </div>
     {/if}
 
-    <form on:submit={handleLogin}>
+    <form onsubmit={handleLogin}>
       <div class="form-group">
         <label for="email">Email Address</label>
         <input

@@ -1,5 +1,4 @@
 <script lang="ts">
-  export let params: any = undefined; // SvelteKit passes this automatically
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore, getAuthToken } from '$lib/stores/auth';
@@ -167,13 +166,13 @@
         <h2>Account Information</h2>
       </div>
       {#if !isEditing}
-        <button class="btn-edit" on:click={startEditing}>Edit Profile</button>
+        <button class="btn-edit" onclick={startEditing}>Edit Profile</button>
       {/if}
     </div>
 
     {#if isEditing}
       <!-- Edit Form -->
-      <form on:submit|preventDefault={saveProfile} class="edit-form">
+      <form onsubmit={(e) => { e.preventDefault(); saveProfile(); }} class="edit-form">
         <div class="form-group">
           <label for="editName">Full Name</label>
           <input
@@ -216,7 +215,7 @@
         </div>
 
         <div class="form-actions">
-          <button type="button" class="btn-cancel" on:click={cancelEditing} disabled={saving}>
+          <button type="button" class="btn-cancel" onclick={cancelEditing} disabled={saving}>
             Cancel
           </button>
           <button type="submit" class="btn-save" disabled={saving}>

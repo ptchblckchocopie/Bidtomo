@@ -9,12 +9,12 @@
   import StarRating from '$lib/components/StarRating.svelte';
   import type { Product } from '$lib/api';
   import { getProductSSE, disconnectProductSSE, queueBid as queueBidToRedis, type SSEEvent, type BidEvent } from '$lib/sse';
+  import { onMount, onDestroy } from 'svelte';
 
-  export let data: PageData;
-  export let params: any = undefined; // SvelteKit passes this automatically
+  let { data } = $props<{ data: PageData }>();
 
   // Dynamic back link based on 'from' parameter
-  $: backLink = (() => {
+  let backLink = $derived.by(() => {
     const from = $page.url.searchParams.get('from');
     switch (from) {
       case 'inbox':
@@ -25,9 +25,9 @@
       default:
         return '/products';
     }
-  })();
+  });
 
-  $: backLinkText = (() => {
+  let backLinkText = $derived.by(() => {
     const from = $page.url.searchParams.get('from');
     switch (from) {
       case 'inbox':
@@ -37,80 +37,84 @@
       default:
         return 'Back to Products';
     }
-  })();
+  });
 
-  let bidAmount = 0;
+  let bidAmount = $state(0);
 
-  $: bidInterval = data.product?.bidInterval || 1;
-  $: minBid = (data.product?.currentBid || data.product?.startingPrice || 0) + bidInterval;
+  let bidInterval = $derived(data.product?.bidInterval || 1);
+  let minBid = $derived((data.product?.currentBid || data.product?.startingPrice || 0) + bidInterval);
 
   // Update bidAmount when minBid changes
-  $: if (minBid && bidAmount === 0) {
-    bidAmount = minBid;
-  }
-  let bidding = false;
-  let bidError = '';
-  let bidSuccess = false;
-  let showLoginModal = false;
-  let showConfirmBidModal = false;
-  let showEditModal = false;
-  let showAcceptBidModal = false;
-  let bidSectionOpen = false;
-  let censorMyName = true;
+  $effect(() => {
+    if (minBid && bidAmount === 0) {
+      bidAmount = minBid;
+    }
+  });
+  let bidding = $state(false);
+  let bidError = $state('');
+  let bidSuccess = $state(false);
+  let showLoginModal = $state(false);
+  let showConfirmBidModal = $state(false);
+  let showEditModal = $state(false);
+  let showAcceptBidModal = $state(false);
+  let bidSectionOpen = $state(false);
+  let censorMyName = $state(true);
   // Save censor name preference to localStorage when it changes
-  $: if (typeof window !== 'undefined') {
-    localStorage.setItem('bid_censor_name', String(censorMyName));
-  }
-  let accepting = false;
-  let acceptError = '';
-  let acceptSuccess = false;
+  $effect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bid_censor_name', String(censorMyName));
+    }
+  });
+  let accepting = $state(false);
+  let acceptError = $state('');
+  let acceptSuccess = $state(false);
 
   // Seller rating data
-  let sellerRatingStats: UserRatingStats | null = null;
-  let sellerCompletedSales = 0;
-  let loadingSellerData = true;
+  let sellerRatingStats: UserRatingStats | null = $state(null);
+  let sellerCompletedSales = $state(0);
+  let loadingSellerData = $state(true);
 
   // Sort bids by amount (highest to lowest)
-  $: sortedBids = [...data.bids].sort((a, b) => b.amount - a.amount);
+  let sortedBids = $derived([...data.bids].sort((a, b) => b.amount - a.amount));
 
   // Calculate percentage increase from starting price
-  $: percentageIncrease = data.product?.currentBid && data.product?.startingPrice
+  let percentageIncrease = $derived(data.product?.currentBid && data.product?.startingPrice
     ? ((data.product.currentBid - data.product.startingPrice) / data.product.startingPrice * 100).toFixed(1)
-    : '0.0';
+    : '0.0');
 
   // Countdown timer
-  let timeRemaining = '';
-  let countdownInterval: ReturnType<typeof setInterval> | null = null;
+  let timeRemaining = $state('');
+  let countdownInterval: ReturnType<typeof setInterval> | null = $state(null);
 
   // Check if auction has ended by time (not just status)
-  $: hasAuctionEnded = data.product?.auctionEndDate
+  let hasAuctionEnded = $derived(data.product?.auctionEndDate
     ? new Date().getTime() > new Date(data.product.auctionEndDate).getTime()
-    : false;
+    : false);
 
   // Real-time update with polling
-  let pollingInterval: ReturnType<typeof setInterval> | null = null;
-  let lastKnownState = {
+  let pollingInterval: ReturnType<typeof setInterval> | null = $state(null);
+  let lastKnownState = $state({
     updatedAt: data.product?.updatedAt || '',
     latestBidTime: '',
     bidCount: data.bids.length,
     status: data.product?.status || 'active',
     currentBid: data.product?.currentBid
-  };
-  let isUpdating = false;
-  let connectionStatus: 'connected' | 'disconnected' = 'connected';
+  });
+  let isUpdating = $state(false);
+  let connectionStatus: 'connected' | 'disconnected' = $state('connected');
 
   // Animation tracking
-  let previousBids: any[] = [...data.bids];
-  let newBidIds = new Set<string>();
-  let priceChanged = false;
-  let showConfetti = false;
-  let animatingBidId: string | null = null;
+  let previousBids: any[] = $state([...data.bids]);
+  let newBidIds = $state(new Set<string>());
+  let priceChanged = $state(false);
+  let showConfetti = $state(false);
+  let animatingBidId: string | null = $state(null);
 
   // Outbid tracking
-  let wasOutbid = false;
-  let wasHighestBidder = false;
-  let outbidAnimating = false;
-  let currentBidderMessage = '';
+  let wasOutbid = $state(false);
+  let wasHighestBidder = $state(false);
+  let outbidAnimating = $state(false);
+  let currentBidderMessage = $state('');
 
   // Random messages for highest bidder
   const highestBidderMessages = [
@@ -149,8 +153,19 @@
     return messages[Math.floor(Math.random() * messages.length)];
   }
 
+  // Check if current user is the seller
+  let isOwner = $derived($authStore.user?.id && data.product?.seller?.id &&
+               $authStore.user.id === data.product.seller.id);
+
+  // Get highest bid
+  let highestBid = $derived(sortedBids.length > 0 ? sortedBids[0] : null);
+
+  // Check if current user is the highest bidder
+  let isHighestBidder = $derived($authStore.user?.id && highestBid &&
+                       (typeof highestBid.bidder === 'object' ? highestBid.bidder.id : highestBid.bidder) === $authStore.user.id);
+
   // Update bidder message when status changes
-  $: {
+  $effect(() => {
     const currentUserId = $authStore.user?.id;
     const currentHighestBidderId = highestBid ?
       (typeof highestBid.bidder === 'object' ? highestBid.bidder.id : highestBid.bidder) : null;
@@ -183,29 +198,37 @@
       currentBidderMessage = getRandomMessage(highestBidderMessages);
     }
 
-    wasHighestBidder = isCurrentlyHighest;
-  }
+    wasHighestBidder = !!isCurrentlyHighest;
+  });
 
-  // Prepare chart data - bids sorted by time (oldest first)
-  $: chartData = [...data.bids]
-    .sort((a, b) => new Date(a.bidTime).getTime() - new Date(b.bidTime).getTime())
-    .map((bid, index) => ({
-      time: new Date(bid.bidTime),
-      price: bid.amount,
-      index
-    }));
+  // Prepare chart data - bids sorted by time (oldest first), with x/y coordinates
+  let chartData = $derived.by(() => {
+    const points = [...data.bids]
+      .sort((a, b) => new Date(a.bidTime).getTime() - new Date(b.bidTime).getTime())
+      .map((bid, index) => ({
+        time: new Date(bid.bidTime),
+        price: bid.amount,
+        index,
+        x: 0,
+        y: 0
+      }));
 
-  // Calculate chart dimensions and scales
-  $: if (chartData.length > 0) {
-    const minPrice = data.product?.startingPrice || Math.min(...chartData.map(d => d.price));
-    const maxPrice = Math.max(...chartData.map(d => d.price));
-    const priceRange = maxPrice - minPrice || 1;
+    if (points.length > 0) {
+      const minPrice = data.product?.startingPrice || Math.min(...points.map(d => d.price));
+      const maxPrice = Math.max(...points.map(d => d.price));
+      const priceRange = maxPrice - minPrice || 1;
 
-    chartData.forEach((d: any) => {
-      d.x = (d.index / Math.max(chartData.length - 1, 1)) * 100;
-      d.y = 100 - ((d.price - minPrice) / priceRange) * 100;
-    });
-  }
+      points.forEach((d) => {
+        d.x = (d.index / Math.max(points.length - 1, 1)) * 100;
+        d.y = 100 - ((d.price - minPrice) / priceRange) * 100;
+      });
+    }
+
+    return points;
+  });
+
+  // Get the seller's currency for this product
+  let sellerCurrency = $derived(data.product?.seller?.currency || 'PHP');
 
   async function updateCountdown() {
     if (!data.product?.auctionEndDate) return;
@@ -254,14 +277,14 @@
     }
   }
 
-  $: if (data.product?.auctionEndDate) {
-    updateCountdown();
-    if (!countdownInterval) {
-      countdownInterval = setInterval(updateCountdown, 1000);
+  $effect(() => {
+    if (data.product?.auctionEndDate) {
+      updateCountdown();
+      if (!countdownInterval) {
+        countdownInterval = setInterval(updateCountdown, 1000);
+      }
     }
-  }
-
-  import { onMount, onDestroy } from 'svelte';
+  });
 
   // Function to check for updates and refresh data if needed
   async function checkForUpdates() {
@@ -441,10 +464,11 @@
                 data.bids = [newBid as any, ...data.bids];
               }
 
-              // Update min bid
-              minBid = (data.product.currentBid || data.product.startingPrice || 0) + bidInterval;
-              if (bidAmount < minBid) {
-                bidAmount = minBid;
+              // Update bid amount if it's below the new minimum
+              // (minBid is $derived and will auto-update, but we need to adjust bidAmount)
+              const newMinBid = (data.product.currentBid || data.product.startingPrice || 0) + bidInterval;
+              if (bidAmount < newMinBid) {
+                bidAmount = newMinBid;
               }
 
               // Clear animations after delay
@@ -544,9 +568,6 @@
     }).format(price);
   }
 
-  // Get the seller's currency for this product
-  $: sellerCurrency = data.product?.seller?.currency || 'PHP';
-
   function formatDate(dateString: string): string {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -639,11 +660,11 @@
           const updatedBids = await fetchProductBids(data.product.id);
 
           // Mark the new bid for animation
-          const previousBidIds = new Set(data.bids.map(b => b.id));
+          const previousBidIds = new Set(data.bids.map((b: any) => b.id));
           newBidIds = new Set(
             updatedBids
-              .filter(b => !previousBidIds.has(b.id))
-              .map(b => b.id)
+              .filter((b: any) => !previousBidIds.has(b.id))
+              .map((b: any) => b.id)
           );
 
           data.bids = updatedBids;
@@ -723,17 +744,6 @@
     showLoginModal = false;
   }
 
-  // Check if current user is the seller
-  $: isOwner = $authStore.user?.id && data.product?.seller?.id &&
-               $authStore.user.id === data.product.seller.id;
-
-  // Get highest bid
-  $: highestBid = sortedBids.length > 0 ? sortedBids[0] : null;
-
-  // Check if current user is the highest bidder
-  $: isHighestBidder = $authStore.user?.id && highestBid &&
-                       (typeof highestBid.bidder === 'object' ? highestBid.bidder.id : highestBid.bidder) === $authStore.user.id;
-
   function openEditModal() {
     if (!data.product) return;
     showEditModal = true;
@@ -752,10 +762,10 @@
         seller: data.product.seller
       };
 
-      // Update min bid if needed
-      minBid = (data.product.currentBid || data.product.startingPrice || 0) + bidInterval;
-      if (bidAmount < minBid) {
-        bidAmount = minBid;
+      // minBid is $derived and will auto-update; adjust bidAmount if needed
+      const newMinBid = (data.product.currentBid || data.product.startingPrice || 0) + bidInterval;
+      if (bidAmount < newMinBid) {
+        bidAmount = newMinBid;
       }
     }
 
@@ -855,7 +865,7 @@
     <div class="product-header">
       <a href={backLink} class="back-link">&larr; {backLinkText}</a>
       {#if isOwner}
-        <button class="edit-product-btn" on:click={openEditModal}>
+        <button class="edit-product-btn" onclick={openEditModal}>
           ✏️ Edit Product
         </button>
       {/if}
@@ -1054,7 +1064,7 @@
                 </div>
                 <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
                 {#if !isOwner}
-                  <button class="bid-toggle-pill" on:click={() => bidSectionOpen = !bidSectionOpen} aria-label={bidSectionOpen ? 'Hide bid form' : 'Show bid form'}>
+                  <button class="bid-toggle-pill" onclick={() => bidSectionOpen = !bidSectionOpen} aria-label={bidSectionOpen ? 'Hide bid form' : 'Show bid form'}>
                     <span class="pill-text">{bidSectionOpen ? 'Close' : 'Place Bid'}</span>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class:chevron-up={bidSectionOpen}>
                       <polyline points="6 9 12 15 18 9"></polyline>
@@ -1070,7 +1080,7 @@
                 <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
                 <div class="starting-price-small">No bids yet - be the first!</div>
                 {#if !isOwner}
-                  <button class="bid-toggle-pill" on:click={() => bidSectionOpen = !bidSectionOpen} aria-label={bidSectionOpen ? 'Hide bid form' : 'Show bid form'}>
+                  <button class="bid-toggle-pill" onclick={() => bidSectionOpen = !bidSectionOpen} aria-label={bidSectionOpen ? 'Hide bid form' : 'Show bid form'}>
                     <span class="pill-text">{bidSectionOpen ? 'Close' : 'Place Bid'}</span>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class:chevron-up={bidSectionOpen}>
                       <polyline points="6 9 12 15 18 9"></polyline>
@@ -1101,7 +1111,7 @@
                   <p class="bidder-info">by {getBidderName(highestBid)}</p>
                 </div>
 
-                <button class="accept-bid-btn" on:click={openAcceptBidModal}>
+                <button class="accept-bid-btn" onclick={openAcceptBidModal}>
                   ✓ Accept Bid & Close Auction
                 </button>
               {:else}
@@ -1137,7 +1147,7 @@
                       <div class="bid-control">
                         <button
                           class="bid-arrow-btn"
-                          on:click={decrementBid}
+                          onclick={decrementBid}
                           disabled={bidding || bidAmount <= minBid}
                           type="button"
                           aria-label="Decrease bid"
@@ -1150,14 +1160,14 @@
                           type="number"
                           class="bid-amount-input"
                           bind:value={bidAmount}
-                          on:blur={validateBidAmount}
+                          onblur={validateBidAmount}
                           min={minBid}
                           step={bidInterval}
                           disabled={bidding}
                         />
                         <button
                           class="bid-arrow-btn"
-                          on:click={incrementBid}
+                          onclick={incrementBid}
                           disabled={bidding}
                           type="button"
                           aria-label="Increase bid"
@@ -1167,7 +1177,7 @@
                           </svg>
                         </button>
                       </div>
-                      <button class="place-bid-btn" on:click={handlePlaceBid} disabled={bidding}>
+                      <button class="place-bid-btn" onclick={handlePlaceBid} disabled={bidding}>
                         {bidding ? 'Placing Bid...' : 'Place Bid'}
                       </button>
                     </div>
@@ -1291,9 +1301,9 @@
 
 <!-- Confirm Bid Modal -->
 {#if showConfirmBidModal && data.product}
-  <div class="modal-overlay" on:click={cancelBid}>
-    <div class="modal-content confirm-modal" on:click|stopPropagation>
-      <button class="modal-close" on:click={cancelBid}>&times;</button>
+  <div class="modal-overlay" onclick={cancelBid}>
+    <div class="modal-content confirm-modal" onclick={(e) => e.stopPropagation()}>
+      <button class="modal-close" onclick={cancelBid}>&times;</button>
 
       <div class="modal-header">
         <h2>Confirm Your Bid</h2>
@@ -1340,10 +1350,10 @@
         </div>
 
         <div class="modal-actions">
-          <button class="btn-cancel-bid" on:click={cancelBid}>
+          <button class="btn-cancel-bid" onclick={cancelBid}>
             Cancel
           </button>
-          <button class="btn-confirm-bid" on:click={confirmPlaceBid}>
+          <button class="btn-confirm-bid" onclick={confirmPlaceBid}>
             Confirm Bid
           </button>
         </div>
@@ -1356,7 +1366,7 @@
 {#if showAcceptBidModal && highestBid}
   <div class="modal-overlay">
     <div class="modal-content confirm-modal">
-      <button class="modal-close" on:click={closeAcceptBidModal}>&times;</button>
+      <button class="modal-close" onclick={closeAcceptBidModal}>&times;</button>
 
       <div class="modal-header">
         <h2>Accept Bid & Close Auction</h2>
@@ -1401,10 +1411,10 @@
         </div>
 
         <div class="modal-actions">
-          <button class="btn-cancel-bid" on:click={closeAcceptBidModal} disabled={accepting}>
+          <button class="btn-cancel-bid" onclick={closeAcceptBidModal} disabled={accepting}>
             Cancel
           </button>
-          <button class="btn-accept-bid" on:click={confirmAcceptBid} disabled={accepting}>
+          <button class="btn-accept-bid" onclick={confirmAcceptBid} disabled={accepting}>
             {accepting ? 'Accepting...' : 'Accept Bid & Close'}
           </button>
         </div>
@@ -1431,7 +1441,7 @@
         <span class="toast-title">Bid Placed Successfully!</span>
         <span class="toast-subtitle">You're now the highest bidder</span>
       </div>
-      <button class="toast-close" on:click={closeSuccessAlert} aria-label="Close">
+      <button class="toast-close" onclick={closeSuccessAlert} aria-label="Close">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1444,9 +1454,9 @@
 
 <!-- Login Modal -->
 {#if showLoginModal}
-  <div class="modal-overlay" on:click={closeModal}>
-    <div class="modal-content" on:click|stopPropagation>
-      <button class="modal-close" on:click={closeModal}>&times;</button>
+  <div class="modal-overlay" onclick={closeModal}>
+    <div class="modal-content" onclick={(e) => e.stopPropagation()}>
+      <button class="modal-close" onclick={closeModal}>&times;</button>
 
       <div class="modal-header">
         <h2>🔒 Login Required</h2>
@@ -1476,7 +1486,7 @@
 {#if showEditModal}
   <div class="modal-overlay">
     <div class="modal-content edit-modal">
-      <button class="modal-close" on:click={closeEditModal}>&times;</button>
+      <button class="modal-close" onclick={closeEditModal}>&times;</button>
 
       <div class="modal-header">
         <h2>Edit Product</h2>

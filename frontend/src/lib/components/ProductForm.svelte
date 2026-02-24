@@ -7,54 +7,63 @@
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
 
   // Props
-  export let mode: 'create' | 'edit' = 'create';
-  export let product: Product | null = null;
-  export let onSuccess: ((product: Product) => void) | null = null;
-  export let onCancel: (() => void) | null = null;
+  let {
+    mode = 'create',
+    product = null,
+    onSuccess = null,
+    onCancel = null
+  }: {
+    mode?: 'create' | 'edit';
+    product?: Product | null;
+    onSuccess?: ((product: Product) => void) | null;
+    onCancel?: (() => void) | null;
+  } = $props();
 
   // Form fields
-  let title = product?.title || '';
-  let description = product?.description || '';
-  let keywords: string[] = product?.keywords?.map(k => k.keyword) || [];
-  let startingPrice = product?.startingPrice || 0;
-  let bidInterval = 0;
-  let auctionEndDate = '';
-  let active = product?.active ?? true;
-  let region = product?.region || '';
-  let city = product?.city || '';
-  let deliveryOptions: 'delivery' | 'meetup' | 'both' | '' = product?.delivery_options || '';
+  let title = $state(product?.title || '');
+  let description = $state(product?.description || '');
+  let keywords = $state<string[]>(product?.keywords?.map(k => k.keyword) || []);
+  let startingPrice = $state(product?.startingPrice || 0);
+  let bidInterval = $state(0);
+  let auctionEndDate = $state('');
+  let active = $state(product?.active ?? true);
+  let region = $state(product?.region || '');
+  let city = $state(product?.city || '');
+  let deliveryOptions: 'delivery' | 'meetup' | 'both' | '' = $state(product?.delivery_options || '');
 
   // Image handling
-  let existingImages: Array<{ id: string; image: { id: string; url: string; alt?: string } }> = [];
-  let imageFiles: File[] = [];
-  let imagesToDelete: string[] = [];
+  let existingImages = $state<Array<{ id: string; image: { id: string; url: string; alt?: string } }>>([]);
+  let imageFiles = $state<File[]>([]);
+  let imagesToDelete = $state<string[]>([]);
 
   // State
-  let submitting = false;
-  let error = '';
-  let success = false;
-  let hasBids = false;
-  let loadingMessage = '';
-  let showToast = false;
-  let toastMessage = '';
-  let toastType: 'success' | 'error' = 'success';
+  let submitting = $state(false);
+  let error = $state('');
+  let success = $state(false);
+  let hasBids = $state(false);
+  let loadingMessage = $state('');
+  let showToast = $state(false);
+  let toastMessage = $state('');
+  let toastType: 'success' | 'error' = $state('success');
 
   // Duration controls
-  let customDays = 0;
-  let customHours = 0;
-  let isUpdatingFromDuration = false;
-  let isUpdatingFromDate = false;
+  let customDays = $state(0);
+  let customHours = $state(0);
+  let isUpdatingFromDuration = $state(false);
+  let isUpdatingFromDate = $state(false);
 
   // User currency
-  $: userCurrency = $authStore.user?.currency || 'PHP';
+  let userCurrency = $derived($authStore.user?.currency || 'PHP');
 
   // Get cities for selected region
-  $: availableCities = region ? getCitiesByRegion(region) : [];
+  let availableCities = $derived(region ? getCitiesByRegion(region) : []);
 
   // Reset city when region changes
-  $: if (region && !availableCities.includes(city)) {
-    city = '';
-  }
+  $effect(() => {
+    if (region && !availableCities.includes(city)) {
+      city = '';
+    }
+  });
 
   // Initialize form on mount
   onMount(() => {
@@ -82,10 +91,10 @@
       hasBids = !!(product.currentBid && product.currentBid > 0);
 
       // Load existing images
-      existingImages = product.images?.map((img, index) => ({
+      existingImages = (product.images?.map((img: any, index: number) => ({
         id: `existing-${index}`,
         image: typeof img.image === 'object' ? img.image : { id: img.image, url: '', alt: '' }
-      })) || [];
+      })) || []) as Array<{ id: string; image: { id: string; url: string; alt?: string } }>;
 
       imageFiles = [];
       imagesToDelete = [];
@@ -158,12 +167,12 @@
   }
 
   // Make minEndDate reactive to mode and product changes
-  $: minEndDate = getMinimumEndDate();
+  let minEndDate = $derived(getMinimumEndDate());
 
   // Store previous values to detect actual changes
-  let prevAuctionEndDate = '';
-  let prevCustomDays = 0;
-  let prevCustomHours = 0;
+  let prevAuctionEndDate = $state('');
+  let prevCustomDays = $state(0);
+  let prevCustomHours = $state(0);
 
   // Function to update auction date from custom duration
   function updateDateFromDuration() {
@@ -221,17 +230,21 @@
   }
 
   // Apply custom duration automatically when values change
-  $: if ((customDays !== prevCustomDays || customHours !== prevCustomHours) && !isUpdatingFromDate) {
-    prevCustomDays = customDays;
-    prevCustomHours = customHours;
-    updateDateFromDuration();
-  }
+  $effect(() => {
+    if ((customDays !== prevCustomDays || customHours !== prevCustomHours) && !isUpdatingFromDate) {
+      prevCustomDays = customDays;
+      prevCustomHours = customHours;
+      updateDateFromDuration();
+    }
+  });
 
   // Update custom duration when auction date changes
-  $: if (auctionEndDate && auctionEndDate !== prevAuctionEndDate && !isUpdatingFromDuration) {
-    prevAuctionEndDate = auctionEndDate;
-    updateDurationFromDate();
-  }
+  $effect(() => {
+    if (auctionEndDate && auctionEndDate !== prevAuctionEndDate && !isUpdatingFromDuration) {
+      prevAuctionEndDate = auctionEndDate;
+      updateDurationFromDate();
+    }
+  });
 
   // Image handling for create mode
   function handleImageSelect(event: Event) {
@@ -287,8 +300,8 @@
   }
 
   // Drag and drop for reordering images
-  let draggedIndex: number | null = null;
-  let draggingExisting = false;
+  let draggedIndex: number | null = $state(null);
+  let draggingExisting = $state(false);
 
   function handleDragStart(event: DragEvent, index: number, isExisting: boolean = false) {
     draggedIndex = index;
@@ -534,7 +547,7 @@
   }
 </script>
 
-<form on:submit={handleSubmit} class="product-form">
+<form onsubmit={handleSubmit} class="product-form">
   <div class="form-group">
     <label for="title">Product Title *</label>
     <input
@@ -624,7 +637,7 @@
             type="file"
             accept="image/*"
             multiple
-            on:change={handleImageSelect}
+            onchange={handleImageSelect}
             disabled={submitting}
             style="display: none;"
           />
@@ -640,10 +653,10 @@
               class="image-preview-item"
               class:dragging={draggedIndex === index && draggingExisting}
               draggable="true"
-              on:dragstart={(e) => handleDragStart(e, index, true)}
-              on:dragover={handleDragOver}
-              on:drop={(e) => handleDrop(e, index, true)}
-              on:dragend={handleDragEnd}
+              ondragstart={(e) => handleDragStart(e, index, true)}
+              ondragover={handleDragOver}
+              ondrop={(e) => handleDrop(e, index, true)}
+              ondragend={handleDragEnd}
               role="button"
               tabindex="0"
             >
@@ -651,7 +664,7 @@
               <button
                 type="button"
                 class="remove-image-btn"
-                on:click={() => removeExistingImage(img.image.id)}
+                onclick={() => removeExistingImage(img.image.id)}
                 disabled={submitting}
                 title="Remove image"
               >
@@ -667,10 +680,10 @@
               class="image-preview-item"
               class:dragging={draggedIndex === index && !draggingExisting}
               draggable="true"
-              on:dragstart={(e) => handleDragStart(e, index, false)}
-              on:dragover={handleDragOver}
-              on:drop={(e) => handleDrop(e, index, false)}
-              on:dragend={handleDragEnd}
+              ondragstart={(e) => handleDragStart(e, index, false)}
+              ondragover={handleDragOver}
+              ondrop={(e) => handleDrop(e, index, false)}
+              ondragend={handleDragEnd}
               role="button"
               tabindex="0"
             >
@@ -678,7 +691,7 @@
               <button
                 type="button"
                 class="remove-image-btn"
-                on:click={() => removeImage(index)}
+                onclick={() => removeImage(index)}
                 disabled={submitting}
                 title="Remove image"
               >
@@ -807,7 +820,7 @@
       {submitting ? (mode === 'edit' ? 'Updating...' : 'Creating Listing...') : (mode === 'edit' ? 'Update Product' : 'Create Listing')}
     </button>
     {#if onCancel}
-      <button type="button" class="btn-secondary" on:click={onCancel} disabled={submitting}>
+      <button type="button" class="btn-secondary" onclick={onCancel} disabled={submitting}>
         Cancel
       </button>
     {/if}

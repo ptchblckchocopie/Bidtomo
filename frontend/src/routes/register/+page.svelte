@@ -1,5 +1,4 @@
 <script lang="ts">
-  export let params: any = undefined; // SvelteKit passes this automatically
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
@@ -158,7 +157,7 @@
       </div>
     {/if}
 
-    <form on:submit={handleRegister}>
+    <form onsubmit={handleRegister}>
       <div class="form-group">
         <label for="name">Full Name</label>
         <input
