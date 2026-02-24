@@ -303,6 +303,12 @@ class UserSSEClient {
     this.eventSource?.close();
     this.eventSource = null;
 
+    // Clear any existing reconnect timer to prevent race conditions
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
     this.reconnectAttempts++;
 

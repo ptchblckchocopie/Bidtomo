@@ -11,7 +11,8 @@
       "Bash(PGPASSWORD=postgres psql:*)",
       "Bash(ls:*)",
       "Bash(node:*)",
-      "Bash(echo Got token, testing void-requests...:*)"
+      "Bash(echo Got token, testing void-requests...:*)",
+      "Bash(grep:*)"
     ]
   }
 }
