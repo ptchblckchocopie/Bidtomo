@@ -11,17 +11,6 @@
   <title>BidMo.to - Browse Auctions</title>
 </svelte:head>
 
-<div class="loading-redirect">
+<div class="flex items-center justify-center min-h-[60vh] text-lg text-bh-fg/60">
   <p>Redirecting to Browse Products...</p>
 </div>
-
-<style>
-  .loading-redirect {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 60vh;
-    font-size: 1.2rem;
-    color: #666;
-  }
-</style>

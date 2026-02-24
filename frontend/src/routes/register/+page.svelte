@@ -140,26 +140,26 @@
   <title>Register - BidMo.to</title>
 </svelte:head>
 
-<div class="register-page">
-  <div class="register-container">
-    <h1>Create Account</h1>
-    <p class="subtitle">Join our marketplace to buy and sell products</p>
+<div class="min-h-[calc(100vh-200px)] flex items-center justify-center p-8 bg-bh-blue">
+  <div class="card-bh p-8 md:p-12 max-w-[500px] w-full">
+    <h1 class="headline-bh text-4xl mb-2 text-center">Create Account</h1>
+    <p class="text-bh-fg/60 text-center mb-8">Join our marketplace to buy and sell products</p>
 
     {#if success}
-      <div class="success-message">
+      <div class="bg-bh-blue text-white border-4 border-bh-border p-4 mb-6 text-center font-bold">
         Account created successfully! Logging you in...
       </div>
     {/if}
 
     {#if error}
-      <div class="error-message">
+      <div class="bg-bh-red text-white border-4 border-bh-border p-4 mb-6 text-center font-bold">
         {error}
       </div>
     {/if}
 
     <form onsubmit={handleRegister}>
-      <div class="form-group">
-        <label for="name">Full Name</label>
+      <div class="mb-6">
+        <label for="name" class="block mb-2 font-bold text-bh-fg">Full Name</label>
         <input
           id="name"
           type="text"
@@ -167,11 +167,12 @@
           placeholder="John Doe"
           required
           disabled={submitting || success}
+          class="input-bh"
         />
       </div>
 
-      <div class="form-group">
-        <label for="email">Email Address</label>
+      <div class="mb-6">
+        <label for="email" class="block mb-2 font-bold text-bh-fg">Email Address</label>
         <input
           id="email"
           type="email"
@@ -179,17 +180,18 @@
           placeholder="your@email.com"
           required
           disabled={submitting || success}
+          class="input-bh"
         />
       </div>
 
-      <div class="form-group">
-        <label for="phone">Phone Number</label>
-        <div class="phone-input-group">
+      <div class="mb-6">
+        <label for="phone" class="block mb-2 font-bold text-bh-fg">Phone Number</label>
+        <div class="flex gap-2">
           <select
             id="countryCode"
             bind:value={countryCode}
             disabled={submitting || success}
-            class="country-code-select"
+            class="input-bh w-[110px]"
           >
             {#each countryCodes as { code, country, flag }}
               <option value={code}>{flag} {code}</option>
@@ -202,13 +204,13 @@
             placeholder="9XX XXX XXXX"
             required
             disabled={submitting || success}
-            class="phone-input"
+            class="input-bh flex-1"
           />
         </div>
       </div>
 
-      <div class="form-group">
-        <label for="password">Password</label>
+      <div class="mb-6">
+        <label for="password" class="block mb-2 font-bold text-bh-fg">Password</label>
         <input
           id="password"
           type="password"
@@ -216,11 +218,12 @@
           placeholder="Enter a strong password (min 6 characters)"
           required
           disabled={submitting || success}
+          class="input-bh"
         />
       </div>
 
-      <div class="form-group">
-        <label for="confirmPassword">Confirm Password</label>
+      <div class="mb-6">
+        <label for="confirmPassword" class="block mb-2 font-bold text-bh-fg">Confirm Password</label>
         <input
           id="confirmPassword"
           type="password"
@@ -228,212 +231,27 @@
           placeholder="Re-enter your password"
           required
           disabled={submitting || success}
+          class="input-bh"
         />
       </div>
 
-      <button type="submit" disabled={submitting || success}>
+      <button type="submit" disabled={submitting || success} class="btn-bh-red w-full text-lg py-3 mt-4">
         {submitting ? 'Creating Account...' : 'Create Account'}
       </button>
     </form>
 
-    <div class="additional-info">
-      <p>Already have an account? <a href="/login?redirect={encodeURIComponent(redirectUrl)}">Login here</a></p>
-      <div class="features">
-        <h3>Why join?</h3>
-        <ul>
-          <li>✓ Sell your products to a global audience</li>
-          <li>✓ Bid on unique items from sellers worldwide</li>
-          <li>✓ Track your bids and listings in one place</li>
-          <li>✓ Secure transactions and buyer protection</li>
+    <div class="mt-8 text-center">
+      <p class="text-bh-fg/60 mb-6">Already have an account? <a href="/login?redirect={encodeURIComponent(redirectUrl)}" class="text-bh-blue font-bold hover:underline">Login here</a></p>
+
+      <div class="card-bh bg-bh-muted p-6 text-left">
+        <h3 class="font-bold text-lg text-bh-fg mb-4">Why join?</h3>
+        <ul class="list-none p-0 m-0 space-y-2 text-bh-fg/80">
+          <li>&#10003; Sell your products to a global audience</li>
+          <li>&#10003; Bid on unique items from sellers worldwide</li>
+          <li>&#10003; Track your bids and listings in one place</li>
+          <li>&#10003; Secure transactions and buyer protection</li>
         </ul>
       </div>
     </div>
   </div>
 </div>
-
-<style>
-  .register-page {
-    min-height: calc(100vh - 200px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-  }
-
-  .register-container {
-    max-width: 500px;
-    width: 100%;
-    background-color: white;
-    padding: 3rem;
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  }
-
-  h1 {
-    font-size: 2.5rem;
-    margin-bottom: 0.5rem;
-    text-align: center;
-    color: #333;
-  }
-
-  .subtitle {
-    color: #666;
-    text-align: center;
-    margin-bottom: 2rem;
-  }
-
-  .success-message {
-    background-color: #10b981;
-    color: white;
-    padding: 1rem;
-    border-radius: 6px;
-    margin-bottom: 1.5rem;
-    text-align: center;
-    font-weight: 500;
-  }
-
-  .error-message {
-    background-color: #ef4444;
-    color: white;
-    padding: 1rem;
-    border-radius: 6px;
-    margin-bottom: 1.5rem;
-    text-align: center;
-  }
-
-  .form-group {
-    margin-bottom: 1.5rem;
-  }
-
-  label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    color: #333;
-  }
-
-  input {
-    width: 100%;
-    padding: 0.875rem;
-    font-size: 1rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 6px;
-    font-family: inherit;
-    transition: border-color 0.2s;
-  }
-
-  input:focus {
-    outline: none;
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
-  }
-
-  input:disabled {
-    background-color: #f5f5f5;
-    cursor: not-allowed;
-  }
-
-  .phone-input-group {
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .country-code-select {
-    width: 110px;
-    padding: 0.875rem 0.5rem;
-    font-size: 1rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 6px;
-    font-family: inherit;
-    background-color: white;
-    cursor: pointer;
-    transition: border-color 0.2s;
-  }
-
-  .country-code-select:focus {
-    outline: none;
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
-  }
-
-  .country-code-select:disabled {
-    background-color: #f5f5f5;
-    cursor: not-allowed;
-  }
-
-  .phone-input {
-    flex: 1;
-  }
-
-  button {
-    width: 100%;
-    padding: 1rem;
-    font-size: 1.1rem;
-    font-weight: 600;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    margin-top: 1rem;
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  button:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
-  }
-
-  button:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .additional-info {
-    margin-top: 2rem;
-    text-align: center;
-  }
-
-  .additional-info > p {
-    color: #666;
-    margin-bottom: 1.5rem;
-  }
-
-  .additional-info a {
-    color: #dc2626;
-    text-decoration: none;
-    font-weight: 600;
-  }
-
-  .additional-info a:hover {
-    text-decoration: underline;
-  }
-
-  .features {
-    text-align: left;
-    background-color: #f9fafb;
-    padding: 1.5rem;
-    border-radius: 8px;
-    margin-top: 1.5rem;
-  }
-
-  .features h3 {
-    margin-top: 0;
-    margin-bottom: 1rem;
-    color: #333;
-    font-size: 1.1rem;
-  }
-
-  .features ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  .features li {
-    padding: 0.5rem 0;
-    color: #555;
-  }
-</style>

@@ -341,9 +341,9 @@
 </svelte:head>
 <!-- Beta Notice Banner -->
 <div class="-mx-4 sm:-mx-6 lg:-mx-8 mb-0 overflow-hidden relative z-10">
-  <div class="bg-gradient-to-br from-yellow-400 to-yellow-500 border-b-4 border-yellow-600 px-3 py-4">
+  <div class="bg-bh-yellow border-b-4 border-bh-border px-3 py-4">
     <div class="max-w-7xl mx-auto text-center">
-      <div class="inline-block bg-black/20 text-white px-2 sm:px-3 py-1 rounded-full text-xs font-bold tracking-wide sm:tracking-wider mb-2">
+      <div class="inline-block bg-black/20 text-white px-2 sm:px-3 py-1 border-2 border-bh-border text-xs font-bold tracking-wide sm:tracking-wider mb-2">
         🚧 EXPERIMENTAL
       </div>
       <p class="text-white text-xs sm:text-sm md:text-base leading-snug sm:leading-relaxed mx-auto max-w-5xl px-2 break-words">
@@ -358,14 +358,14 @@
 
 <!-- Welcome Hero Section -->
 <div class="-mx-4 sm:-mx-6 lg:-mx-8 mb-8">
-  <section class="bg-gradient-to-br from-primary to-primary-dark text-white px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 text-center">
+  <section class="bg-bh-red border-b-4 border-bh-border text-white px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 text-center">
     <div class="max-w-4xl mx-auto">
       <div class="mb-6">
-        <img src="/bidmo.to.png" alt="BidMo.to" class="h-20 sm:h-28 lg:h-36 w-auto mx-auto drop-shadow-2xl" />
+        <img src="/bidmo.to.png" alt="BidMo.to" class="h-20 sm:h-28 lg:h-36 w-auto mx-auto" />
       </div>
 
       <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold mb-3">
-        Welcome to <span class="bg-gradient-to-r from-yellow-400 to-yellow-500 bg-clip-text text-transparent">BidMo.to</span>
+        Welcome to <span class="text-bh-yellow">BidMo.to</span>
       </h1>
 
       <p class="text-base sm:text-lg lg:text-xl mb-3 opacity-95">
@@ -385,7 +385,7 @@
         {#if $authStore.isAuthenticated}
           <div class="flex items-center gap-2">
             <span class="text-xl">🔨</span>
-            <a href="/sell" class="hover:text-yellow-400 transition">List an Item</a>
+            <a href="/sell" class="hover:text-bh-yellow transition">List an Item</a>
           </div>
         {/if}
         <div class="flex items-center gap-2">
@@ -417,7 +417,7 @@
           bind:value={searchInput}
           oninput={handleSearchInput}
           placeholder="Search by title, description, or keywords..."
-          class="search-input"
+          class="search-input input-bh"
         />
         {#if searchInput}
           <button class="clear-search" onclick={() => { searchInput = ''; handleSearchInput(); }}>✕</button>
@@ -683,15 +683,6 @@
     width: 100%;
     padding: 1rem 3rem 1rem 1rem;
     font-size: 1rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
-    transition: border-color 0.2s;
-  }
-
-  .search-input:focus {
-    outline: none;
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
   }
 
   .location-filters {
@@ -707,31 +698,29 @@
     min-width: 200px;
     padding: 0.75rem 1rem;
     font-size: 0.95rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
+    border: 2px solid var(--color-border);
     transition: border-color 0.2s;
-    background-color: white;
+    background-color: var(--color-white);
     cursor: pointer;
   }
 
   .location-select:focus {
     outline: none;
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    border-color: var(--color-red);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .location-select:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--color-muted);
     cursor: not-allowed;
     opacity: 0.6;
   }
 
   .btn-clear-filters {
     padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    background: var(--color-fg);
     color: white;
     border: none;
-    border-radius: 8px;
     font-weight: 600;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
@@ -740,7 +729,7 @@
 
   .btn-clear-filters:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .clear-search {
@@ -759,7 +748,7 @@
   }
 
   .clear-search:hover {
-    color: #dc2626;
+    color: var(--color-red);
   }
 
   .search-results {
@@ -770,10 +759,9 @@
 
   .btn-clear-search {
     padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    background: var(--color-fg);
     color: white;
     border: none;
-    border-radius: 6px;
     font-weight: 600;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
@@ -781,7 +769,7 @@
 
   .btn-clear-search:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .controls-container {
@@ -803,9 +791,8 @@
   .items-per-page select {
     padding: 0.5rem 2.5rem 0.5rem 0.75rem;
     font-size: 0.95rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 6px;
-    background-color: white;
+    border: 2px solid var(--color-border);
+    background-color: var(--color-white);
     background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
     background-repeat: no-repeat;
     background-position: right 0.5rem center;
@@ -821,8 +808,8 @@
 
   .items-per-page select:focus {
     outline: none;
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    border-color: var(--color-red);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   /* Tabs */
@@ -830,16 +817,15 @@
     display: flex;
     gap: 0.5rem;
     margin-bottom: 2rem;
-    border-bottom: 2px solid #f0f0f0;
+    border-bottom: 2px solid var(--color-border);
     padding-bottom: 0.5rem;
   }
 
   .tab {
     flex: 1;
     padding: 0.75rem 1rem;
-    background: white;
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
+    background: var(--color-white);
+    border: 2px solid var(--color-border);
     font-weight: 600;
     font-size: 1rem;
     color: #666;
@@ -852,27 +838,27 @@
   }
 
   .tab:hover {
-    background: #f9fafb;
+    background: var(--color-muted);
     border-color: #d1d5db;
   }
 
   .tab.active {
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    border-color: #dc2626;
+    background: var(--color-red);
+    border-color: var(--color-red);
+    border-bottom: 4px solid var(--color-border);
     color: white;
   }
 
   .tab-badge {
     background: rgba(255, 255, 255, 0.3);
     padding: 0.125rem 0.5rem;
-    border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 700;
   }
 
   .tab.active .tab-badge {
     background: rgba(255, 255, 255, 0.9);
-    color: #dc2626;
+    color: var(--color-red);
   }
 
   .auction-section {
@@ -895,7 +881,6 @@
     background-color: rgba(0, 0, 0, 0.85);
     color: white;
     padding: 0.75rem 1.5rem;
-    border-radius: 8px;
     font-size: 1.25rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -906,8 +891,7 @@
   .empty-state {
     text-align: center;
     padding: 4rem 2rem;
-    background-color: #f9f9f9;
-    border-radius: 8px;
+    background-color: var(--color-muted);
   }
 
   .empty-state p {
@@ -922,7 +906,7 @@
   }
 
   .empty-state a {
-    color: #0066cc;
+    color: var(--color-blue);
     font-weight: bold;
   }
 
@@ -933,20 +917,20 @@
   }
 
   .product-card {
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    background: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
     overflow: hidden;
     transition: transform 0.2s, box-shadow 0.2s;
     text-decoration: none;
     color: inherit;
     display: flex;
     flex-direction: column;
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .product-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .product-image {
@@ -954,7 +938,7 @@
     width: 100%;
     height: 200px;
     overflow: hidden;
-    background-color: #f0f0f0;
+    background-color: var(--color-muted);
   }
 
   .product-image img {
@@ -969,7 +953,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #e0e0e0;
+    background-color: var(--color-muted);
     color: #999;
     font-size: 1.2rem;
   }
@@ -1000,13 +984,12 @@
     color: #666;
     margin-bottom: 0.75rem;
     padding: 0.375rem 0.5rem;
-    background-color: #f8f9fa;
-    border-radius: 4px;
+    background-color: var(--color-muted);
     width: fit-content;
   }
 
   .location-icon {
-    color: #dc2626;
+    color: var(--color-red);
     flex-shrink: 0;
   }
 
@@ -1049,9 +1032,8 @@
     flex-direction: column;
     gap: 0.25rem;
     padding: 0.5rem;
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    border-radius: 6px;
+    background: var(--color-muted);
+    border: 2px solid var(--color-blue);
     margin-top: 0.5rem;
   }
 
@@ -1092,24 +1074,23 @@
   }
 
   .current-bid {
-    color: #0066cc;
+    color: var(--color-blue);
   }
 
   .your-bid {
-    color: #10b981;
+    color: var(--color-blue);
   }
 
   .percent-increase {
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: var(--color-blue);
     color: white;
     padding: 0.25rem 0.5rem;
-    border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 700;
-    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .arrow-up-mini {
@@ -1122,7 +1103,7 @@
     justify-content: space-between;
     align-items: center;
     padding-top: 1rem;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--color-border);
   }
 
   .status-row {
@@ -1134,7 +1115,6 @@
 
   .status {
     padding: 0.25rem 0.75rem;
-    border-radius: 4px;
     font-size: 0.85rem;
     font-weight: bold;
     text-transform: uppercase;
@@ -1142,29 +1122,28 @@
 
   .owner-badge {
     padding: 0.25rem 0.75rem;
-    border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
-    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    background: var(--color-blue);
     color: white;
-    box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+    box-shadow: var(--shadow-bh-sm);
     letter-spacing: 0.5px;
   }
 
   .status-active {
-    background-color: #10b981;
+    background: var(--color-blue);
     color: white;
   }
 
   .status-ended {
-    background-color: #ef4444;
+    background: var(--color-red);
     color: white;
   }
 
   .status-sold {
-    background-color: #6366f1;
-    color: white;
+    background: var(--color-yellow);
+    color: var(--color-fg);
   }
 
   .status-cancelled {
@@ -1177,7 +1156,6 @@
     align-items: center;
     gap: 0.375rem;
     padding: 0.5rem 0.75rem;
-    border-radius: 6px;
     font-size: 0.875rem;
     font-weight: 700;
     font-family: 'Courier New', monospace;
@@ -1190,42 +1168,42 @@
 
   /* Normal - More than 24 hours */
   .countdown-normal {
-    background-color: #e0f2fe;
-    color: #0369a1;
-    border: 1px solid #7dd3fc;
+    background-color: var(--color-muted);
+    color: var(--color-blue);
+    border: 2px solid var(--color-blue);
   }
 
   /* Warning - Less than 24 hours */
   .countdown-warning {
-    background-color: #fef3c7;
-    color: #92400e;
-    border: 1px solid #fbbf24;
+    background-color: var(--color-yellow);
+    color: var(--color-fg);
+    border: 2px solid var(--color-border);
     animation: pulse-warning 2s ease-in-out infinite;
   }
 
   /* Urgent - Less than 12 hours */
   .countdown-urgent {
-    background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
-    color: #9a3412;
-    border: 2px solid #f97316;
+    background: var(--color-yellow);
+    color: var(--color-fg);
+    border: 2px solid var(--color-border);
     animation: pulse-urgent 1.5s ease-in-out infinite;
-    box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   /* Critical - Less than 3 hours */
   .countdown-critical {
-    background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
-    color: #991b1b;
-    border: 2px solid #dc2626;
+    background: var(--color-red);
+    color: var(--color-white);
+    border: 2px solid var(--color-border);
     animation: pulse-critical 1s ease-in-out infinite;
-    box-shadow: 0 2px 12px rgba(220, 38, 38, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   /* Ended */
   .countdown-ended {
-    background-color: #f3f4f6;
+    background-color: var(--color-muted);
     color: #6b7280;
-    border: 1px solid #d1d5db;
+    border: 2px solid var(--color-border);
   }
 
   @keyframes pulse-warning {
@@ -1240,22 +1218,22 @@
   @keyframes pulse-urgent {
     0%, 100% {
       transform: scale(1);
-      box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+      box-shadow: var(--shadow-bh-sm);
     }
     50% {
       transform: scale(1.03);
-      box-shadow: 0 4px 12px rgba(249, 115, 22, 0.5);
+      box-shadow: var(--shadow-bh-md);
     }
   }
 
   @keyframes pulse-critical {
     0%, 100% {
       transform: scale(1);
-      box-shadow: 0 2px 12px rgba(220, 38, 38, 0.4);
+      box-shadow: var(--shadow-bh-md);
     }
     50% {
       transform: scale(1.05);
-      box-shadow: 0 6px 16px rgba(220, 38, 38, 0.6);
+      box-shadow: var(--shadow-bh-md);
     }
   }
 
@@ -1271,27 +1249,26 @@
 
   .pagination-btn {
     padding: 0.625rem 1.25rem;
-    background-color: white;
-    border: 2px solid #dc2626;
-    color: #dc2626;
-    border-radius: 6px;
+    background-color: var(--color-white);
+    border: 2px solid var(--color-red);
+    color: var(--color-red);
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .pagination-btn:hover:not(:disabled) {
-    background-color: #dc2626;
+    background-color: var(--color-red);
     color: white;
     transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .pagination-btn:disabled {
     opacity: 0.3;
     cursor: not-allowed;
-    border-color: #ccc;
-    color: #ccc;
+    border-color: var(--color-border);
+    color: var(--color-border);
   }
 
   .pagination-numbers {
@@ -1302,23 +1279,22 @@
   .pagination-number {
     min-width: 2.5rem;
     padding: 0.625rem 0.75rem;
-    background-color: white;
-    border: 2px solid #e5e7eb;
+    background-color: var(--color-white);
+    border: 2px solid var(--color-border);
     color: #666;
-    border-radius: 6px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .pagination-number:hover {
-    border-color: #dc2626;
-    color: #dc2626;
+    border-color: var(--color-red);
+    color: var(--color-red);
   }
 
   .pagination-number.active {
-    background-color: #dc2626;
-    border-color: #dc2626;
+    background-color: var(--color-red);
+    border-color: var(--color-red);
     color: white;
   }
 </style>

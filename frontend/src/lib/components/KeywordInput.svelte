@@ -87,20 +87,20 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: white;
+    border: var(--border-bh) solid var(--color-border);
+    background-color: var(--color-white);
     min-height: 44px;
     transition: border-color 0.2s, box-shadow 0.2s;
   }
 
   .keyword-pills-wrapper:focus-within {
-    border-color: #0066cc;
-    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+    outline: none;
+    ring: 2px solid var(--color-blue);
+    box-shadow: 0 0 0 2px var(--color-blue);
   }
 
   .keyword-pills-wrapper.disabled {
-    background-color: #f5f5f5;
+    background-color: var(--color-muted);
     cursor: not-allowed;
   }
 
@@ -109,13 +109,12 @@
     align-items: center;
     gap: 0.375rem;
     padding: 0.375rem 0.625rem;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    background: var(--color-blue);
     color: white;
-    border-radius: 16px;
     font-size: 0.875rem;
     font-weight: 500;
+    border: 2px solid var(--color-border);
     animation: slideIn 0.2s ease-out;
-    box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
   }
 
   @keyframes slideIn {
@@ -138,7 +137,6 @@
     color: white;
     width: 18px;
     height: 18px;
-    border-radius: 50%;
     cursor: pointer;
     font-size: 1.25rem;
     line-height: 1;
@@ -179,7 +177,8 @@
   .field-hint {
     margin: 0.5rem 0 0 0;
     font-size: 0.875rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
     font-style: italic;
   }
 </style>
