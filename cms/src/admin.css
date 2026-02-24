@@ -1,0 +1,6 @@
+/* Hide the "Back to Dashboard" button on the Unauthorized page */
+.unauthorized .dashboard__card-list,
+.unauthorized a[href="/admin"],
+.unauthorized .btn {
+  display: none !important;
+}
