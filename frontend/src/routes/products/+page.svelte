@@ -5,7 +5,7 @@
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
-  import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type NewProductEvent, type BidUpdateEvent } from '$lib/sse';
+  import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type BidUpdateEvent } from '$lib/sse';
 
   let { data, params }: { data: PageData; params?: any } = $props();
 

@@ -1,10 +1,11 @@
+import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import Redis from 'ioredis';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || process.env.SSE_PORT || '3002', 10);
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6380';
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const CORS_ORIGIN = process.env.SSE_CORS_ORIGIN || 'http://localhost:5173';
 
 // Connection managers
@@ -60,25 +61,15 @@ const ALLOWED_ORIGINS = (process.env.SSE_CORS_ORIGIN || '')
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
-
-    // Allow localhost
     if (origin.includes('localhost')) return callback(null, true);
-
-    // Allow any local network IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
     if (origin.match(/^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/)) {
       return callback(null, true);
     }
-
-    // Allow configured CORS origins (supports comma-separated list)
     if (ALLOWED_ORIGINS.some(allowed => origin === allowed || origin.endsWith(allowed))) {
       return callback(null, true);
     }
-
-    // Allow Vercel preview deployments
     if (origin.endsWith('.vercel.app')) return callback(null, true);
-
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -92,6 +83,7 @@ app.get('/health', (req, res) => {
     userConnections: userConnections.size,
     globalConnections: globalConnections.size,
     redis: redisConnected ? 'connected' : 'disconnected',
+    redisUrl: REDIS_URL,
     reconnectAttempts,
   });
 });
@@ -102,30 +94,18 @@ function broadcastRedisStatus(connected: boolean) {
 
   productConnections.forEach((connections) => {
     connections.forEach((res) => {
-      try {
-        res.write(message);
-      } catch (error) {
-        // Connection already closed
-      }
+      try { res.write(message); } catch { /* closed */ }
     });
   });
 
   userConnections.forEach((connections) => {
     connections.forEach((res) => {
-      try {
-        res.write(message);
-      } catch (error) {
-        // Connection already closed
-      }
+      try { res.write(message); } catch { /* closed */ }
     });
   });
 
   globalConnections.forEach((res) => {
-    try {
-      res.write(message);
-    } catch (error) {
-      // Connection already closed
-    }
+    try { res.write(message); } catch { /* closed */ }
   });
 }
 
@@ -134,23 +114,18 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
   const { productId } = req.params;
   const origin = req.headers.origin;
 
-  // Set CORS headers for SSE
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
 
-  // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
-  res.setHeader('Content-Encoding', 'none'); // Disable compression for SSE
-
-  // Flush headers immediately
+  res.setHeader('Content-Encoding', 'none');
   res.flushHeaders();
 
-  // Send initial connection event with Redis status
   res.write(`data: ${JSON.stringify({
     type: 'connected',
     productId,
@@ -158,32 +133,22 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
     fallbackPolling: !redisConnected
   })}\n\n`);
 
-  // Add to connections
   if (!productConnections.has(productId)) {
     productConnections.set(productId, new Set());
   }
   productConnections.get(productId)!.add(res);
-
   console.log(`[SSE] Product ${productId} connected. Total: ${productConnections.get(productId)!.size}`);
 
-  // Heartbeat every 30 seconds
   const heartbeat = setInterval(() => {
-    try {
-      res.write(`:heartbeat ${Date.now()}\n\n`);
-    } catch (error) {
-      clearInterval(heartbeat);
-    }
+    try { res.write(`:heartbeat ${Date.now()}\n\n`); } catch { clearInterval(heartbeat); }
   }, 30000);
 
-  // Cleanup on disconnect
   req.on('close', () => {
     clearInterval(heartbeat);
     const connections = productConnections.get(productId);
     if (connections) {
       connections.delete(res);
-      if (connections.size === 0) {
-        productConnections.delete(productId);
-      }
+      if (connections.size === 0) productConnections.delete(productId);
       console.log(`[SSE] Product ${productId} disconnected. Remaining: ${connections.size}`);
     }
   });
@@ -194,55 +159,40 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
   const { userId } = req.params;
   const origin = req.headers.origin;
 
-  // Set CORS headers for SSE
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
 
-  // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
-  res.setHeader('Content-Encoding', 'none'); // Disable compression for SSE
-
-  // Flush headers immediately
+  res.setHeader('Content-Encoding', 'none');
   res.flushHeaders();
 
-  // Send initial connection event
   res.write(`data: ${JSON.stringify({
     type: 'connected',
     userId,
     redis: redisConnected ? 'connected' : 'disconnected'
   })}\n\n`);
 
-  // Add to connections
   if (!userConnections.has(userId)) {
     userConnections.set(userId, new Set());
   }
   userConnections.get(userId)!.add(res);
-
   console.log(`[SSE] User ${userId} connected. Total: ${userConnections.get(userId)!.size}`);
 
-  // Heartbeat every 30 seconds
   const heartbeat = setInterval(() => {
-    try {
-      res.write(`:heartbeat ${Date.now()}\n\n`);
-    } catch (error) {
-      clearInterval(heartbeat);
-    }
+    try { res.write(`:heartbeat ${Date.now()}\n\n`); } catch { clearInterval(heartbeat); }
   }, 30000);
 
-  // Cleanup on disconnect
   req.on('close', () => {
     clearInterval(heartbeat);
     const connections = userConnections.get(userId);
     if (connections) {
       connections.delete(res);
-      if (connections.size === 0) {
-        userConnections.delete(userId);
-      }
+      if (connections.size === 0) userConnections.delete(userId);
       console.log(`[SSE] User ${userId} disconnected. Remaining: ${connections.size}`);
     }
   });
@@ -252,22 +202,18 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
 app.get('/events/global', (req: Request, res: Response) => {
   const origin = req.headers.origin;
 
-  // Set CORS headers for SSE
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
 
-  // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   res.setHeader('Content-Encoding', 'none');
-
   res.flushHeaders();
 
-  // Send initial connection event
   res.write(`data: ${JSON.stringify({
     type: 'connected',
     channel: 'global',
@@ -277,16 +223,10 @@ app.get('/events/global', (req: Request, res: Response) => {
   globalConnections.add(res);
   console.log(`[SSE] Global client connected. Total: ${globalConnections.size}`);
 
-  // Heartbeat every 30 seconds
   const heartbeat = setInterval(() => {
-    try {
-      res.write(`:heartbeat ${Date.now()}\n\n`);
-    } catch (error) {
-      clearInterval(heartbeat);
-    }
+    try { res.write(`:heartbeat ${Date.now()}\n\n`); } catch { clearInterval(heartbeat); }
   }, 30000);
 
-  // Cleanup on disconnect
   req.on('close', () => {
     clearInterval(heartbeat);
     globalConnections.delete(res);
@@ -304,12 +244,9 @@ function broadcastToGlobal(data: object) {
   globalConnections.forEach((res) => {
     try {
       res.write(message);
-      if (typeof (res as any).flush === 'function') {
-        (res as any).flush();
-      }
+      if (typeof (res as any).flush === 'function') (res as any).flush();
       sent++;
-    } catch (error) {
-      console.error('[SSE] Error broadcasting to global client:', error);
+    } catch {
       globalConnections.delete(res);
     }
   });
@@ -328,13 +265,9 @@ function broadcastToProduct(productId: string, data: object) {
   connections.forEach((res) => {
     try {
       res.write(message);
-      // Flush immediately to prevent buffering
-      if (typeof (res as any).flush === 'function') {
-        (res as any).flush();
-      }
+      if (typeof (res as any).flush === 'function') (res as any).flush();
       sent++;
-    } catch (error) {
-      console.error(`[SSE] Error broadcasting to product ${productId}:`, error);
+    } catch {
       connections.delete(res);
     }
   });
@@ -353,13 +286,9 @@ function broadcastToUser(userId: string, data: object) {
   connections.forEach((res) => {
     try {
       res.write(message);
-      // Flush immediately to prevent buffering
-      if (typeof (res as any).flush === 'function') {
-        (res as any).flush();
-      }
+      if (typeof (res as any).flush === 'function') (res as any).flush();
       sent++;
-    } catch (error) {
-      console.error(`[SSE] Error broadcasting to user ${userId}:`, error);
+    } catch {
       connections.delete(res);
     }
   });
@@ -370,17 +299,14 @@ function broadcastToUser(userId: string, data: object) {
 // Subscribe to Redis channels
 async function setupRedisSubscriber() {
   try {
-    // Unsubscribe first to prevent duplicate subscriptions on reconnect
     try {
       await redis.punsubscribe('sse:product:*', 'sse:user:*', 'sse:global');
     } catch {
       // Ignore errors if not previously subscribed
     }
 
-    // Subscribe to pattern channels + global channel
     await redis.psubscribe('sse:product:*', 'sse:user:*', 'sse:global');
 
-    // Remove existing handlers to prevent duplicates on Redis reconnect
     redis.removeAllListeners('pmessage');
 
     redis.on('pmessage', (_pattern, channel, message) => {
@@ -389,12 +315,9 @@ async function setupRedisSubscriber() {
         const data = JSON.parse(message);
 
         if (channel === 'sse:global') {
-          // Global events (new products, etc.)
-          console.log(`[SSE] Broadcasting global event, type: ${data.type}`);
           broadcastToGlobal(data);
         } else if (channel.startsWith('sse:product:')) {
           const productId = channel.replace('sse:product:', '');
-          console.log(`[SSE] Broadcasting to product ${productId}, data type: ${data.type}`);
           broadcastToProduct(productId, data);
 
           // Also forward bid and accepted events to global subscribers
@@ -404,7 +327,6 @@ async function setupRedisSubscriber() {
           }
         } else if (channel.startsWith('sse:user:')) {
           const userId = channel.replace('sse:user:', '');
-          console.log(`[SSE] Broadcasting to user ${userId}, data type: ${data.type}, connected users: ${userConnections.has(userId) ? userConnections.get(userId)?.size : 0}`);
           broadcastToUser(userId, data);
         }
       } catch (error) {
@@ -415,7 +337,6 @@ async function setupRedisSubscriber() {
     console.log('[SSE] Redis subscriber ready');
   } catch (error) {
     console.error('[SSE] Failed to subscribe to Redis:', error);
-    // Retry subscription after delay
     setTimeout(setupRedisSubscriber, 5000);
   }
 }
@@ -430,7 +351,6 @@ function watchRedisConnection() {
       broadcastRedisStatus(redisConnected);
 
       if (redisConnected) {
-        // Re-subscribe on reconnection
         setupRedisSubscriber();
       }
     }
@@ -440,10 +360,8 @@ function watchRedisConnection() {
 // Start server
 async function start() {
   try {
-    // Initialize Redis
     redis = initRedis();
 
-    // Wait for initial connection (with timeout)
     await new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
         console.warn('[SSE] Redis initial connection timeout, starting anyway...');
@@ -456,12 +374,10 @@ async function start() {
       });
     });
 
-    // Setup Redis subscriber if connected
     if (redisConnected) {
       await setupRedisSubscriber();
     }
 
-    // Watch for reconnections
     watchRedisConnection();
 
     app.listen(PORT, '0.0.0.0', () => {

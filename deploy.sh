@@ -99,6 +99,20 @@ if [ "$LOCAL" != "$REMOTE" ]; then
 
     echo "$(date): CMS built to $NEW_DIST"
 
+    ### SSE SERVICE BUILD ###
+    echo "$(date): Building SSE service..."
+    cd /var/www/marketplace/services/sse-service
+    npm install --production=false 2>/dev/null || true
+    npx tsc
+    echo "$(date): SSE service built"
+
+    ### BID WORKER BUILD ###
+    echo "$(date): Building bid worker..."
+    cd /var/www/marketplace/services/bid-worker
+    npm install --production=false 2>/dev/null || true
+    npx tsc
+    echo "$(date): Bid worker built"
+
     ### RUN MIGRATIONS ###
     echo "$(date): Running SQL migrations..."
     cd /var/www/marketplace/cms
