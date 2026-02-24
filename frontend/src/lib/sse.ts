@@ -1,12 +1,12 @@
 import { writable, type Writable } from 'svelte/store';
 import { browser } from '$app/environment';
-import { PUBLIC_SSE_URL } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 
 // Dynamically determine SSE URL based on current hostname
 function getSseUrl(): string {
-  // Use SvelteKit's static public env
-  if (PUBLIC_SSE_URL) {
-    return PUBLIC_SSE_URL;
+  // Use SvelteKit's dynamic public env (gracefully handles missing variable)
+  if (env.PUBLIC_SSE_URL) {
+    return env.PUBLIC_SSE_URL;
   }
   // Fallback for development
   if (browser && typeof window !== 'undefined') {
