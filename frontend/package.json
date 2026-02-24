@@ -24,6 +24,7 @@
   "type": "module",
   "dependencies": {
     "@sentry/sveltekit": "^10.39.0",
-    "@sveltejs/adapter-node": "^5.5.3"
+    "@sveltejs/adapter-node": "^5.5.3",
+    "@sveltejs/adapter-vercel": "^6.3.2"
   }
 }
