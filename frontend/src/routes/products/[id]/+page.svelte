@@ -869,6 +869,17 @@
           ✏️ Edit Product
         </button>
       {/if}
+      {#if $authStore.user?.role === 'admin'}
+        <button
+          class="admin-hide-btn"
+          onclick={async () => {
+            const result = await updateProduct(String(data.product.id), { active: !data.product.active });
+            if (result) data.product.active = !data.product.active;
+          }}
+        >
+          {data.product.active ? 'Hide Product' : 'Show Product'}
+        </button>
+      {/if}
     </div>
 
     <div class="product-content">
@@ -1545,6 +1556,24 @@
   .edit-product-btn:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-bh-md);
+  }
+
+  .admin-hide-btn {
+    padding: 0.75rem 1.5rem;
+    background: #dc3545;
+    color: white;
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .admin-hide-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-bh-md);
+    background: #b02a37;
   }
 
   .back-link {

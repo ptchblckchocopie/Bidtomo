@@ -104,11 +104,15 @@ export default buildConfig({
   collections: [
     {
       slug: 'users',
-      auth: true,
+      auth: {
+        verify: false,
+      },
       admin: {
         useAsTitle: 'email',
+        hidden: ({ user }) => user?.role !== 'admin',
       },
       access: {
+        admin: ({ req }) => req.user?.role === 'admin',
         read: () => true,
         create: () => true,
         update: ({ req }) => !!req.user,
