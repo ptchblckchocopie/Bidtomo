@@ -245,6 +245,12 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
       return { success: false, error: 'Auction has ended' };
     }
 
+    // Validate bid amount is a valid number
+    if (typeof job.amount !== 'number' || isNaN(job.amount) || job.amount <= 0) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Invalid bid amount' };
+    }
+
     // Validate bid amount (ensure numeric values)
     const currentBid = Number(product.currentBid) || 0;
     const bidInterval = Number(product.bidInterval) || 1;
@@ -738,11 +744,11 @@ async function runWorker() {
           // Check if it's a transient error (not a validation error)
           const isValidationError = [
             'Product not found',
-            'Product is sold',
-            'Product is ended',
+            'Product is ',
             'Product is not active',
             'Auction has ended',
             'Bid must be at least',
+            'Invalid bid amount',
           ].some((msg) => bidResult.error?.includes(msg));
 
           if (isValidationError) {

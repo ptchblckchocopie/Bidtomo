@@ -579,7 +579,7 @@
                 <div class="auction-info">
                   <div class="status-row">
                     <span class="status status-{product.status}">{product.status}</span>
-                    {#if $authStore.user && product.seller.id === $authStore.user.id}
+                    {#if $authStore.user && product.seller?.id === $authStore.user.id}
                       <span class="owner-badge">Your Listing</span>
                     {/if}
                   </div>

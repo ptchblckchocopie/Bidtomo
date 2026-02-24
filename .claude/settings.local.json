@@ -12,8 +12,8 @@
       "Bash(ls:*)",
       "Bash(node:*)",
       "Bash(echo Got token, testing void-requests...:*)",
-      "Bash(cd \"C:/Svelte+Payload/bidmo.to\" && npx @railway/cli run --service cms -- bash -c \"cd cms && npx payload migrate\" 2>&1)",
-      "Bash(cd \"C:/Svelte+Payload/bidmo.to/cms\" && DATABASE_URI=\"postgresql://postgres:***REMOVED***@yamanote.proxy.rlwy.net:19952/railway\" PAYLOAD_SECRET=\"***REMOVED***\" npx payload migrate 2>&1)"
+      "Bash(grep:*)",
+      "Bash(git add:*)"
     ]
   }
 }

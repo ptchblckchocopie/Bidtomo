@@ -201,7 +201,7 @@ export default buildConfig({
           async ({ req, data, operation, originalDoc }) => {
             // Check if user owns the product (except for admins)
             if (operation === 'update' && req.user?.role !== 'admin') {
-              const sellerId = typeof originalDoc?.seller === 'object'
+              const sellerId = originalDoc?.seller && typeof originalDoc.seller === 'object'
                 ? originalDoc.seller.id
                 : originalDoc?.seller;
 

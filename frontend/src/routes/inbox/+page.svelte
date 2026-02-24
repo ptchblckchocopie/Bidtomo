@@ -975,7 +975,7 @@
       // Determine receiver - if user is seller, send to highest bidder; if buyer, send to seller
       let receiverId: string;
 
-      if (selectedProduct.seller.id === $authStore.user.id) {
+      if (selectedProduct.seller?.id === $authStore.user?.id) {
         // User is seller - find highest bidder from messages
         const otherUsers = messages
           .map(m => getOtherUser(m))
