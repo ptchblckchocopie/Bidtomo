@@ -281,6 +281,13 @@ function broadcastToUser(userId: string, data: object) {
 // Subscribe to Redis channels
 async function setupRedisSubscriber() {
   try {
+    // Unsubscribe first to prevent duplicate subscriptions on reconnect
+    try {
+      await redis.punsubscribe('sse:product:*', 'sse:user:*');
+    } catch {
+      // Ignore errors if not previously subscribed
+    }
+
     // Subscribe to pattern channels
     await redis.psubscribe('sse:product:*', 'sse:user:*');
 
