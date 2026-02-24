@@ -284,6 +284,9 @@ async function setupRedisSubscriber() {
     // Subscribe to pattern channels
     await redis.psubscribe('sse:product:*', 'sse:user:*');
 
+    // Remove existing handlers to prevent duplicates on Redis reconnect
+    redis.removeAllListeners('pmessage');
+
     redis.on('pmessage', (pattern, channel, message) => {
       console.log(`[SSE] Redis pmessage received on channel: ${channel}`);
       try {
