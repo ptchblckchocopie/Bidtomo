@@ -76,6 +76,8 @@ const start = async () => {
   let payloadReady = false;
 
   // Access denied page for non-admin users
+  const FROG_VIDEO_URL = `${process.env.SUPABASE_URL || 'https://htcdkqplcmdbyjlvzono.supabase.co'}/storage/v1/object/public/${process.env.S3_BUCKET || 'bidmo-media'}/frog.mp4`;
+
   app.get('/admin/access-denied', (req, res) => {
     res.clearCookie('payload-token');
     res.send(`<!DOCTYPE html>
@@ -86,21 +88,23 @@ const start = async () => {
   <title>Access Denied - Bidmo.to CMS</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0f0f0f; color: #e0e0e0; }
-    .container { text-align: center; padding: 2.5rem; max-width: 440px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; }
-    .icon { font-size: 3rem; margin-bottom: 1rem; }
-    h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 0.75rem; }
-    p { font-size: 0.95rem; opacity: 0.65; line-height: 1.6; margin-bottom: 1.75rem; }
-    a { display: inline-block; padding: 0.7rem 2rem; background: #3b82f6; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 500; font-size: 0.95rem; transition: background 0.2s; }
-    a:hover { background: #2563eb; }
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #000; overflow: hidden; }
+    .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; z-index: 10; }
+    video { max-width: 80vw; max-height: 80vh; border-radius: 12px; box-shadow: 0 0 80px rgba(0,0,0,0.8); }
+    .text-overlay { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); text-align: center; z-index: 20; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .text-overlay h1 { font-size: 1.3rem; color: #fff; margin-bottom: 0.5rem; text-shadow: 0 2px 8px rgba(0,0,0,0.8); }
+    .text-overlay p { font-size: 0.85rem; color: rgba(255,255,255,0.6); text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="icon">&#128274;</div>
+  <div class="overlay">
+    <video autoplay loop muted playsinline>
+      <source src="${FROG_VIDEO_URL}" type="video/mp4">
+    </video>
+  </div>
+  <div class="text-overlay">
     <h1>Access Denied</h1>
-    <p>Only admin accounts can access the CMS panel.<br>Your session has been logged out.</p>
-    <a href="/admin">Back to Login</a>
+    <p>Only admin accounts can access this panel.</p>
   </div>
 </body>
 </html>`);
