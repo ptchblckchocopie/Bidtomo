@@ -1,8 +1,9 @@
+import 'dotenv/config';
 import Redis from 'ioredis';
 import { Pool } from 'pg';
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6380';
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5433/marketplace';
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/marketplace';
 const QUEUE_KEY = 'bids:pending';
 const FAILED_QUEUE_KEY = 'bids:failed';
 const PROCESSING_KEY = 'bids:processing';
