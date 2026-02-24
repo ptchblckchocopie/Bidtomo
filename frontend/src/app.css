@@ -1,3 +1,107 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Bauhaus Design Tokens ── */
+:root {
+  --color-bg: #F0F0F0;
+  --color-fg: #121212;
+  --color-red: #D02020;
+  --color-blue: #1040C0;
+  --color-yellow: #F0C020;
+  --color-border: #121212;
+  --color-muted: #E0E0E0;
+  --color-white: #FFFFFF;
+
+  --shadow-bh-sm: 3px 3px 0px #121212;
+  --shadow-bh-md: 5px 5px 0px #121212;
+
+  --border-bh: 3px;
+  --border-bh-lg: 5px;
+}
+
+/* ── Global Base ── */
+@layer base {
+  body {
+    font-family: 'Outfit', sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+  }
+
+  /* Bauhaus: no rounded corners (except explicit rounded-full for circles) */
+  *,
+  *::before,
+  *::after {
+    border-radius: 0 !important;
+  }
+
+  /* Allow rounded-full to work for badges/circles */
+  .rounded-full {
+    border-radius: 9999px !important;
+  }
+}
+
+/* ── Bauhaus Component Classes ── */
+@layer components {
+  /* ── Buttons ── */
+  .btn-bh {
+    @apply inline-flex items-center justify-center px-5 py-2.5 font-bold text-sm
+           border-bh border-bh-border bg-bh-muted text-bh-fg
+           shadow-bh-sm transition-all cursor-pointer;
+  }
+  .btn-bh:hover {
+    @apply translate-y-0.5;
+    box-shadow: 1px 1px 0px var(--color-border);
+  }
+  .btn-bh:active {
+    @apply translate-y-1;
+    box-shadow: none;
+  }
+  .btn-bh:disabled {
+    @apply opacity-50 cursor-not-allowed translate-y-0;
+    box-shadow: var(--shadow-bh-sm);
+  }
+
+  .btn-bh-red {
+    @apply btn-bh bg-bh-red text-white;
+  }
+
+  .btn-bh-blue {
+    @apply btn-bh bg-bh-blue text-white;
+  }
+
+  .btn-bh-yellow {
+    @apply btn-bh bg-bh-yellow text-bh-fg;
+  }
+
+  .btn-bh-outline {
+    @apply btn-bh bg-transparent text-bh-fg;
+  }
+
+  /* ── Card ── */
+  .card-bh {
+    @apply bg-white border-bh border-bh-border shadow-bh-sm;
+  }
+
+  /* ── Input ── */
+  .input-bh {
+    @apply w-full px-3 py-2.5 text-base font-outfit
+           border-bh border-bh-border bg-white text-bh-fg;
+  }
+  .input-bh:focus {
+    @apply outline-none ring-2 ring-bh-blue ring-offset-1;
+  }
+  .input-bh:disabled {
+    @apply bg-bh-muted cursor-not-allowed;
+  }
+
+  /* ── Headline ── */
+  .headline-bh {
+    @apply font-outfit font-black tracking-tight text-bh-fg uppercase;
+  }
+
+  /* ── Divider ── */
+  .divider-bh {
+    @apply w-full h-1 bg-bh-fg my-8;
+  }
+}

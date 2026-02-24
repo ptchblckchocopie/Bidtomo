@@ -1511,13 +1511,16 @@
   }
 
   .error a {
-    color: #0066cc;
+    color: var(--color-blue);
     text-decoration: none;
   }
 
   .product-detail {
     max-width: 1200px;
     margin: 0 auto;
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
+    padding: 2rem;
   }
 
   .product-header {
@@ -1529,10 +1532,10 @@
 
   .edit-product-btn {
     padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
-    border: none;
-    border-radius: 8px;
+    background: var(--color-red);
+    color: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
@@ -1541,11 +1544,11 @@
 
   .edit-product-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .back-link {
-    color: #0066cc;
+    color: var(--color-blue);
     text-decoration: none;
     font-size: 1.1rem;
   }
@@ -1760,26 +1763,36 @@
     font-size: 2.5rem;
     margin-top: 0;
     margin-bottom: 1rem;
-    color: #333;
+    color: var(--color-fg);
   }
 
   .status-badge {
     display: inline-block;
     padding: 0.5rem 1rem;
-    border-radius: 4px;
     font-weight: bold;
     text-transform: uppercase;
     margin-bottom: 1.5rem;
+    border: var(--border-bh) solid var(--color-border);
   }
 
   .status-active {
-    background-color: #10b981;
-    color: white;
+    background-color: var(--color-blue);
+    color: var(--color-white);
   }
 
   .status-ended {
-    background-color: #ef4444;
-    color: white;
+    background-color: var(--color-red);
+    color: var(--color-white);
+  }
+
+  .status-sold {
+    background-color: var(--color-yellow);
+    color: var(--color-fg);
+  }
+
+  .status-available {
+    background-color: var(--color-blue);
+    color: var(--color-white);
   }
 
   .bid-section-header-wrapper {
@@ -1806,14 +1819,14 @@
 
   .bid-section-header-btn h3 {
     margin: 0;
-    color: #1f2937;
+    color: var(--color-fg);
     font-size: 1.5rem;
     text-align: left;
   }
 
   .accordion-arrow {
     transition: transform 0.3s ease;
-    color: #ef4444;
+    color: var(--color-red);
   }
 
   .accordion-arrow.open {
@@ -1824,10 +1837,10 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    background: var(--color-red);
     padding: 0.75rem 1.25rem;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+    box-shadow: var(--shadow-bh-sm);
+    border: var(--border-bh) solid var(--color-border);
   }
 
   .countdown-timer-inline .countdown-label {
@@ -1839,21 +1852,20 @@
   }
 
   .countdown-timer-inline .countdown-time {
-    color: white;
+    color: var(--color-white);
     font-size: 1.5rem;
     font-weight: 900;
     font-family: 'Courier New', monospace;
     letter-spacing: 1.5px;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
   }
 
   .price-info {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--color-blue);
     padding: 2rem;
-    border-radius: 12px;
     margin-bottom: 1.5rem;
     text-align: center;
-    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+    box-shadow: var(--shadow-bh-md);
+    border: var(--border-bh) solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1862,7 +1874,7 @@
   }
 
   .highest-bid-container {
-    color: white;
+    color: var(--color-white);
     position: relative;
     width: 100%;
   }
@@ -1892,13 +1904,12 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    background: var(--color-red);
     padding: 0.75rem 1.25rem;
-    border-radius: 0 12px 0 12px;
     font-size: 0.875rem;
     font-weight: 700;
-    border: none;
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     margin: 0;
     z-index: 10;
   }
@@ -1910,11 +1921,10 @@
   }
 
   .countdown-timer-badge .countdown-time {
-    color: #ffffff;
+    color: var(--color-white);
     font-weight: 900;
     letter-spacing: 1px;
     font-family: 'Courier New', monospace;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .bid-with-percentage {
@@ -1930,7 +1940,7 @@
     font-size: 3.5rem;
     font-weight: 900;
     line-height: 1;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    color: var(--color-white);
     margin-bottom: 0;
   }
 
@@ -1940,15 +1950,14 @@
     justify-content: center;
     gap: 0.375rem;
     padding: 0.625rem 1rem;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    border: 2px solid #047857;
-    border-radius: 50px;
+    background: var(--color-blue);
+    border: 2px solid var(--color-border);
     animation: percentageBounce 2s ease-in-out infinite, percentageGlow 2s ease-in-out infinite;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .arrow-up-icon {
-    color: white;
+    color: var(--color-white);
     animation: arrowBounce 1s ease-in-out infinite;
     flex-shrink: 0;
   }
@@ -1956,9 +1965,8 @@
   .percentage-text {
     font-size: 1.25rem;
     font-weight: 900;
-    color: white;
+    color: var(--color-white);
     letter-spacing: 0.5px;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   @keyframes percentageBounce {
@@ -1972,12 +1980,12 @@
 
   @keyframes percentageGlow {
     0%, 100% {
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-      border-color: #047857;
+      box-shadow: var(--shadow-bh-sm);
+      border-color: var(--color-border);
     }
     50% {
-      box-shadow: 0 6px 24px rgba(16, 185, 129, 0.7);
-      border-color: #10b981;
+      box-shadow: var(--shadow-bh-md);
+      border-color: var(--color-blue);
     }
   }
 
@@ -1998,16 +2006,16 @@
 
   /* Inactive Warning Banner */
   .inactive-warning {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: white;
+    background: var(--color-yellow);
+    color: var(--color-fg);
     padding: 1rem 1.5rem;
-    border-radius: 8px;
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
     gap: 0.75rem;
     font-weight: 600;
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     animation: warningPulse 2s ease-in-out infinite;
   }
 
@@ -2018,10 +2026,10 @@
 
   @keyframes warningPulse {
     0%, 100% {
-      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+      box-shadow: var(--shadow-bh-sm);
     }
     50% {
-      box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
+      box-shadow: var(--shadow-bh-md);
     }
   }
 
@@ -2036,8 +2044,8 @@
 
   /* Sold Info Styles */
   .sold-info {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4) !important;
+    background: var(--color-blue) !important;
+    box-shadow: var(--shadow-bh-md) !important;
   }
 
   .sold-badge {
@@ -2045,42 +2053,41 @@
     font-weight: 900;
     letter-spacing: 3px;
     margin-bottom: 0.75rem;
-    color: white;
+    color: var(--color-white);
     background-color: rgba(255, 255, 255, 0.2);
     padding: 0.5rem 1.5rem;
-    border-radius: 50px;
     display: inline-block;
+    border: var(--border-bh) solid var(--color-border);
   }
 
   .sold-to-info {
     font-size: 1.1rem;
     font-weight: 600;
     margin-top: 0.75rem;
-    color: white;
+    color: var(--color-white);
     opacity: 0.95;
   }
 
   /* Highest Bidder Alert */
   .highest-bidder-alert {
-    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-    border: 3px solid #d97706;
-    border-radius: 12px;
+    background: var(--color-yellow);
+    border: var(--border-bh) solid var(--color-border);
     padding: 1.25rem 1.5rem;
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
     gap: 1rem;
-    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+    box-shadow: var(--shadow-bh-sm);
     animation: alertPulse 2s ease-in-out infinite;
   }
 
   @keyframes alertPulse {
     0%, 100% {
-      box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+      box-shadow: var(--shadow-bh-sm);
       transform: scale(1);
     }
     50% {
-      box-shadow: 0 6px 24px rgba(245, 158, 11, 0.6);
+      box-shadow: var(--shadow-bh-md);
       transform: scale(1.02);
     }
   }
@@ -2102,7 +2109,7 @@
   .alert-text {
     font-size: 1.25rem;
     font-weight: 700;
-    color: #78350f;
+    color: var(--color-fg);
     letter-spacing: 0.5px;
   }
 
@@ -2127,15 +2134,14 @@
 
   /* Outbid Alert */
   .outbid-alert {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    border: 3px solid #b91c1c;
-    border-radius: 12px;
+    background: var(--color-red);
+    border: var(--border-bh) solid var(--color-border);
     padding: 1.25rem 1.5rem;
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
     gap: 1rem;
-    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+    box-shadow: var(--shadow-bh-sm);
     animation: outbidPulse 1.5s ease-in-out infinite;
   }
 
@@ -2145,7 +2151,7 @@
   }
 
   .outbid-alert .alert-text {
-    color: #fef2f2;
+    color: var(--color-white);
     flex: 1;
   }
 
@@ -2155,10 +2161,10 @@
 
   @keyframes outbidPulse {
     0%, 100% {
-      box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+      box-shadow: var(--shadow-bh-sm);
     }
     50% {
-      box-shadow: 0 6px 24px rgba(239, 68, 68, 0.6);
+      box-shadow: var(--shadow-bh-md);
     }
   }
 
@@ -2175,22 +2181,21 @@
 
   /* Winner Alert */
   .winner-alert {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    border: 3px solid #047857;
-    border-radius: 12px;
+    background: var(--color-blue);
+    border: var(--border-bh) solid var(--color-border);
     padding: 1.5rem;
     margin-bottom: 1.5rem;
-    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+    box-shadow: var(--shadow-bh-sm);
     animation: winnerPulse 2s ease-in-out infinite;
   }
 
   @keyframes winnerPulse {
     0%, 100% {
-      box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+      box-shadow: var(--shadow-bh-sm);
       transform: scale(1);
     }
     50% {
-      box-shadow: 0 6px 28px rgba(16, 185, 129, 0.6);
+      box-shadow: var(--shadow-bh-md);
       transform: scale(1.01);
     }
   }
@@ -2222,12 +2227,12 @@
   .winner-alert-header .alert-text {
     font-size: 1.5rem;
     font-weight: 800;
-    color: white;
+    color: var(--color-white);
     letter-spacing: 0.5px;
   }
 
   .winner-alert-message {
-    color: #f0fdf4;
+    color: var(--color-white);
     font-size: 1rem;
     margin-bottom: 1rem;
     line-height: 1.5;
@@ -2239,38 +2244,36 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 0.875rem 1.5rem;
-    background: white;
-    color: #059669;
+    background: var(--color-white);
+    color: var(--color-blue);
     text-decoration: none;
-    border-radius: 8px;
     font-weight: 700;
     font-size: 1.125rem;
     transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .winner-message-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    background: #f0fdf4;
+    box-shadow: var(--shadow-bh-md);
+    background: var(--color-muted);
   }
 
   .bid-section {
-    background-color: #e7f3ff;
+    background-color: var(--color-muted);
     padding: 1.5rem;
-    border-radius: 8px;
     margin-bottom: 2rem;
     display: flex;
     flex-direction: column;
     transition: all 0.3s ease;
+    border: var(--border-bh) solid var(--color-border);
   }
 
   /* Collapsible bid section styles */
   .bid-section:not(.owner-section) {
     overflow: hidden;
     transition: max-height 0.4s ease-out, opacity 0.3s ease, padding 0.3s ease, margin 0.3s ease;
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
     margin-top: -8px;
   }
 
@@ -2302,26 +2305,25 @@
     width: auto;
     margin: 0.75rem auto 0;
     padding: 0.625rem 1.25rem;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    border: none;
-    border-radius: 50px;
+    background: var(--color-blue);
+    border: var(--border-bh) solid var(--color-border);
     cursor: pointer;
-    color: white;
+    color: var(--color-white);
     font-weight: 600;
     font-size: 0.9rem;
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    box-shadow: var(--shadow-bh-sm);
     transition: all 0.2s ease;
   }
 
   .bid-toggle-pill:hover {
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    background: var(--color-red);
+    box-shadow: var(--shadow-bh-md);
     transform: translateY(-1px);
   }
 
   .bid-toggle-pill:active {
     transform: translateY(0);
-    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .bid-toggle-pill .pill-text {
@@ -2344,30 +2346,30 @@
   }
 
   .auction-ended-section {
-    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    background: var(--color-muted);
     padding: 2rem;
-    border-radius: 12px;
     margin-bottom: 2rem;
     text-align: center;
-    border: 2px solid #d1d5db;
+    border: var(--border-bh) solid var(--color-border);
   }
 
   .ended-header h3 {
     font-size: 1.5rem;
-    color: #374151;
+    color: var(--color-fg);
     margin-bottom: 1.5rem;
   }
 
   .winner-info {
-    background: white;
+    background: var(--color-white);
     padding: 1.5rem;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 2px solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .winner-label {
     font-size: 0.875rem;
-    color: #6b7280;
+    color: var(--color-fg);
+    opacity: 0.7;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: 0.5rem;
@@ -2384,19 +2386,19 @@
   .winner-amount {
     font-size: 2.5rem;
     font-weight: 700;
-    color: #10b981;
+    color: var(--color-blue);
   }
 
   .winner-percentage-increase {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
+    background: var(--color-blue);
+    color: var(--color-white);
     padding: 0.375rem 0.75rem;
-    border-radius: 6px;
     font-size: 0.875rem;
     font-weight: 600;
+    border: 2px solid var(--color-border);
   }
 
   .winner-percentage-increase .arrow-up-icon {
@@ -2407,14 +2409,15 @@
 
   .winner-bidder {
     font-size: 1.125rem;
-    color: #374151;
+    color: var(--color-fg);
     font-weight: 500;
     margin-bottom: 0.5rem;
   }
 
   .starting-price-note {
     font-size: 0.875rem;
-    color: #6b7280;
+    color: var(--color-fg);
+    opacity: 0.7;
     margin-top: 0.5rem;
   }
 
@@ -2430,13 +2433,14 @@
   .no-winner-text {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #ef4444;
+    color: var(--color-red);
     margin-bottom: 0.5rem;
   }
 
   .no-winner-desc {
     font-size: 1rem;
-    color: #6b7280;
+    color: var(--color-fg);
+    opacity: 0.7;
   }
 
   .contact-section {
@@ -2447,19 +2451,20 @@
     display: block;
     width: 100%;
     padding: 1rem;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
+    background: var(--color-red);
+    color: var(--color-white);
     text-align: center;
     text-decoration: none;
-    border-radius: 8px;
     font-weight: 600;
     font-size: 1.1rem;
     transition: transform 0.2s, box-shadow 0.2s;
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .contact-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .bid-form {
@@ -2495,16 +2500,15 @@
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 600;
-    color: #333;
+    color: var(--color-fg);
   }
 
   .bid-control {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background-color: white;
-    border: 2px solid #667eea;
-    border-radius: 8px;
+    background-color: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
     padding: 0.5rem;
     flex: 1;
     min-height: 64px;
@@ -2513,10 +2517,9 @@
   }
 
   .bid-arrow-btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    border-radius: 6px;
+    background: var(--color-blue);
+    color: var(--color-white);
+    border: 2px solid var(--color-border);
     width: 48px;
     height: 48px;
     display: flex;
@@ -2529,7 +2532,7 @@
 
   .bid-arrow-btn:hover:not(:disabled) {
     transform: scale(1.1);
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .bid-arrow-btn:active:not(:disabled) {
@@ -2537,7 +2540,7 @@
   }
 
   .bid-arrow-btn:disabled {
-    background: #e5e7eb;
+    background: var(--color-muted);
     cursor: not-allowed;
     opacity: 0.5;
   }
@@ -2551,7 +2554,7 @@
     text-align: center;
     font-size: 1.75rem;
     font-weight: 700;
-    color: #667eea;
+    color: var(--color-blue);
     padding: 0.5rem;
   }
 
@@ -2560,7 +2563,7 @@
     text-align: center;
     font-size: clamp(1.25rem, 4vw, 1.75rem);
     font-weight: 700;
-    color: #667eea;
+    color: var(--color-blue);
     padding: 0.25rem;
     border: none;
     background: transparent;
@@ -2570,9 +2573,8 @@
   }
 
   .bid-amount-input:focus {
-    color: #4c63d2;
-    background: rgba(102, 126, 234, 0.05);
-    border-radius: 4px;
+    color: var(--color-blue);
+    background: var(--color-muted);
   }
 
   .bid-amount-input::-webkit-inner-spin-button,
@@ -2589,7 +2591,8 @@
     margin-top: 0.5rem;
     margin-bottom: 0;
     font-size: 0.9rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.7;
     font-weight: 500;
   }
 
@@ -2597,10 +2600,10 @@
     padding: 0 2.5rem;
     font-size: 1.1rem;
     font-weight: 700;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    border: none;
-    border-radius: 8px;
+    background: var(--color-red);
+    color: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
     white-space: nowrap;
@@ -2613,41 +2616,42 @@
 
   .place-bid-btn:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .place-bid-btn:disabled {
-    background: #ccc;
+    background: var(--color-muted);
+    color: var(--color-fg);
     cursor: not-allowed;
     transform: none;
   }
 
   .success-message {
-    background-color: #10b981;
-    color: white;
+    background-color: var(--color-blue);
+    color: var(--color-white);
     padding: 1rem;
-    border-radius: 4px;
     margin-bottom: 1rem;
     animation: slideDown 0.3s ease-out;
+    border: var(--border-bh) solid var(--color-border);
   }
 
   .error-message {
-    background-color: #ef4444;
-    color: white;
+    background-color: var(--color-red);
+    color: var(--color-white);
     padding: 1rem;
-    border-radius: 4px;
     margin-bottom: 1rem;
     animation: slideDown 0.3s ease-out;
+    border: var(--border-bh) solid var(--color-border);
   }
 
   .info-message {
-    background-color: #3b82f6;
-    color: white;
+    background-color: var(--color-blue);
+    color: var(--color-white);
     padding: 1rem;
-    border-radius: 6px;
     margin-bottom: 1rem;
     text-align: center;
     animation: slideDown 0.3s ease-out;
+    border: var(--border-bh) solid var(--color-border);
   }
 
   .info-message p {
@@ -2667,10 +2671,10 @@
 
   /* Seller Card Styles */
   .seller-card {
-    background: #f8f9fa;
-    border-radius: 12px;
+    background: var(--color-muted);
     padding: 1.25rem;
-    border: 1px solid #e9ecef;
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .seller-header {
@@ -2683,14 +2687,14 @@
   .seller-avatar {
     width: 48px;
     height: 48px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 50%;
+    background: var(--color-blue);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--color-white);
     font-weight: 600;
     font-size: 1.25rem;
+    border: 2px solid var(--color-border);
   }
 
   .seller-details {
@@ -2701,18 +2705,19 @@
 
   .seller-name {
     font-weight: 600;
-    color: #333;
+    color: var(--color-fg);
     text-decoration: none;
     font-size: 1.1rem;
   }
 
   .seller-name:hover {
-    color: #667eea;
+    color: var(--color-blue);
   }
 
   .member-since {
     font-size: 0.8rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.7;
   }
 
   .seller-stats {
@@ -2720,8 +2725,8 @@
     align-items: center;
     gap: 1rem;
     padding: 0.875rem 0;
-    border-top: 1px solid #e9ecef;
-    border-bottom: 1px solid #e9ecef;
+    border-top: 2px solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
     margin-bottom: 1rem;
   }
 
@@ -2741,31 +2746,33 @@
   .stat-value {
     font-weight: 600;
     font-size: 1.1rem;
-    color: #333;
+    color: var(--color-fg);
   }
 
   .stat-label {
     font-size: 0.75rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.7;
   }
 
   .stat-title {
     font-size: 0.7rem;
     font-weight: 600;
-    color: #667eea;
+    color: var(--color-blue);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
   .stat-divider {
-    width: 1px;
+    width: 2px;
     height: 40px;
-    background: #e9ecef;
+    background: var(--color-border);
   }
 
   .loading-stats {
     font-size: 0.85rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.7;
     padding: 0.5rem 0;
   }
 
@@ -2774,32 +2781,32 @@
     align-items: center;
     gap: 0.375rem;
     font-size: 0.85rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.7;
     margin-bottom: 1rem;
   }
 
   .seller-location svg {
-    color: #dc2626;
+    color: var(--color-red);
   }
 
   .view-profile-btn {
     display: block;
     width: 100%;
     padding: 0.75rem;
-    background: white;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
+    background: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
     text-align: center;
-    color: #333;
+    color: var(--color-fg);
     font-weight: 500;
     text-decoration: none;
     transition: all 0.2s ease;
   }
 
   .view-profile-btn:hover {
-    background: #667eea;
-    border-color: #667eea;
-    color: white;
+    background: var(--color-blue);
+    border-color: var(--color-border);
+    color: var(--color-white);
   }
 
   /* Price Analytics */
@@ -2811,14 +2818,14 @@
     margin-top: 0;
     margin-bottom: 1rem;
     font-size: 1.3rem;
-    color: #333;
+    color: var(--color-fg);
   }
 
   .chart-container {
     padding: 1.5rem;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .price-chart {
@@ -2828,7 +2835,7 @@
   }
 
   .grid-line {
-    stroke: #e5e7eb;
+    stroke: var(--color-border);
     stroke-width: 0.2;
   }
 
@@ -2839,24 +2846,24 @@
 
   .price-line {
     fill: none;
-    stroke: #dc2626;
+    stroke: var(--color-red);
     stroke-width: 1;
     vector-effect: non-scaling-stroke;
   }
 
   .data-point {
-    fill: #dc2626;
-    stroke: white;
+    fill: var(--color-red);
+    stroke: var(--color-white);
     stroke-width: 0.5;
     vector-effect: non-scaling-stroke;
   }
 
   .data-point.first-point {
-    fill: #10b981;
+    fill: var(--color-blue);
   }
 
   .data-point.last-point {
-    fill: #f59e0b;
+    fill: var(--color-yellow);
     r: 2;
   }
 
@@ -2866,9 +2873,8 @@
     align-items: flex-start;
     margin-top: 1rem;
     padding: 1rem;
-    background: white;
-    border-radius: 8px;
-    border: 2px solid #f0f0f0;
+    background: var(--color-white);
+    border: 2px solid var(--color-border);
   }
 
   .label-left,
@@ -2887,7 +2893,8 @@
 
   .label-title {
     font-size: 0.75rem;
-    color: #999;
+    color: var(--color-fg);
+    opacity: 0.6;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 0.25rem;
@@ -2897,19 +2904,19 @@
   .label-value {
     font-size: 1.1rem;
     font-weight: 700;
-    color: #dc2626;
+    color: var(--color-red);
   }
 
   .label-left .label-value {
-    color: #10b981;
+    color: var(--color-blue);
   }
 
   .label-right .label-value {
-    color: #f59e0b;
+    color: var(--color-yellow);
   }
 
   .label-center .label-title {
-    color: #667eea;
+    color: var(--color-blue);
     font-size: 0.9rem;
   }
 
@@ -2922,7 +2929,7 @@
     margin-top: 0;
     margin-bottom: 1rem;
     font-size: 1.3rem;
-    color: #333;
+    color: var(--color-fg);
   }
 
   .bid-history-list {
@@ -2937,39 +2944,38 @@
     align-items: center;
     gap: calc(1rem * var(--scale));
     padding: calc(1rem * var(--scale));
-    background-color: #f9fafb;
-    border-radius: 8px;
-    border: 2px solid #e5e7eb;
+    background-color: var(--color-muted);
+    border: 2px solid var(--color-border);
     transition: all 0.2s;
   }
 
   .bid-history-item:hover {
-    border-color: #667eea;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+    border-color: var(--color-blue);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   /* Gold styling for #1 ranked bid */
   .bid-history-item.rank-1 {
-    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-    border: 3px solid #f59e0b;
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    background: var(--color-yellow);
+    border: 3px solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     position: relative;
   }
 
   .bid-history-item.rank-1:hover {
-    border-color: #d97706;
-    box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
+    border-color: var(--color-fg);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .bid-rank {
     font-size: calc(1rem * var(--scale));
     font-weight: 700;
-    color: #667eea;
+    color: var(--color-blue);
     min-width: calc(35px * var(--scale));
   }
 
   .bid-history-item.rank-1 .bid-rank {
-    color: #f59e0b;
+    color: var(--color-fg);
     font-size: calc(1.2rem * var(--scale));
   }
 
@@ -2980,7 +2986,7 @@
   .bid-amount {
     font-size: calc(1.3rem * var(--scale));
     font-weight: 700;
-    color: #333;
+    color: var(--color-fg);
     margin-bottom: calc(0.25rem * var(--scale));
   }
 
@@ -2988,7 +2994,8 @@
     display: flex;
     gap: 1rem;
     font-size: calc(0.9rem * var(--scale));
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.7;
   }
 
   .bidder-name {
@@ -3000,26 +3007,26 @@
   }
 
   .bid-history-item.rank-1 .bid-amount {
-    color: #f59e0b;
+    color: var(--color-fg);
     font-weight: 900;
   }
 
   .bid-history-item.rank-1 .bidder-name {
-    color: #92400e;
+    color: var(--color-fg);
   }
 
   .highest-badge {
     position: absolute;
     top: -0.75rem;
     right: 1rem;
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: white;
+    background: var(--color-red);
+    color: var(--color-white);
     padding: 0.375rem 0.875rem;
-    border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.5px;
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+    border: 2px solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   /* Modal Styles */
@@ -3049,13 +3056,13 @@
   }
 
   .modal-content {
-    background-color: white;
-    border-radius: 12px;
+    background-color: var(--color-white);
     max-width: 500px;
     width: 90%;
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-md);
     position: relative;
     animation: slideUp 0.3s ease-out;
     margin: auto;
@@ -3077,9 +3084,10 @@
     top: 1rem;
     right: 1rem;
     background: none;
-    border: none;
+    border: 2px solid var(--color-border);
     font-size: 2rem;
-    color: #999;
+    color: var(--color-fg);
+    opacity: 0.6;
     cursor: pointer;
     line-height: 1;
     padding: 0;
@@ -3088,13 +3096,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
     transition: all 0.2s;
   }
 
   .modal-close:hover {
-    background-color: #f0f0f0;
-    color: #333;
+    background-color: var(--color-muted);
+    color: var(--color-fg);
+    opacity: 1;
   }
 
   .modal-header {
@@ -3105,7 +3113,7 @@
   .modal-header h2 {
     margin: 0;
     font-size: 1.75rem;
-    color: #333;
+    color: var(--color-fg);
   }
 
   .modal-body {
@@ -3115,7 +3123,8 @@
 
   .modal-body > p {
     font-size: 1.1rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.7;
     margin-bottom: 2rem;
   }
 
@@ -3129,37 +3138,38 @@
   .btn-register {
     flex: 1;
     padding: 1rem 2rem;
-    border-radius: 8px;
     text-decoration: none;
     font-weight: 600;
     font-size: 1.1rem;
     text-align: center;
     transition: transform 0.2s, box-shadow 0.2s;
+    border: var(--border-bh) solid var(--color-border);
   }
 
   .btn-login {
-    background-color: #0066cc;
-    color: white;
+    background-color: var(--color-blue);
+    color: var(--color-white);
   }
 
   .btn-login:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 102, 204, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .btn-register {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: var(--color-red);
+    color: var(--color-white);
   }
 
   .btn-register:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .modal-note {
     font-size: 0.9rem;
-    color: #999;
+    color: var(--color-fg);
+    opacity: 0.6;
     margin: 0;
   }
 
@@ -3175,17 +3185,17 @@
   .product-title {
     font-size: 1.25rem;
     font-weight: 700;
-    color: #333;
+    color: var(--color-fg);
     margin: 0 0 1.5rem 0;
     padding-bottom: 1rem;
-    border-bottom: 2px solid #e5e7eb;
+    border-bottom: 2px solid var(--color-border);
   }
 
   .bid-confirmation {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--color-blue);
     padding: 1.5rem;
-    border-radius: 12px;
     margin-bottom: 1.5rem;
+    border: var(--border-bh) solid var(--color-border);
   }
 
   .confirm-row {
@@ -3193,7 +3203,7 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 0.75rem;
-    color: white;
+    color: var(--color-white);
   }
 
   .confirm-row:last-child {
@@ -3217,15 +3227,15 @@
 
   .confirm-message {
     font-size: 1rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.7;
     margin: 0 0 1.5rem 0;
     line-height: 1.6;
   }
 
   .privacy-toggle {
-    background-color: #f9fafb;
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
+    background-color: var(--color-muted);
+    border: 2px solid var(--color-border);
     padding: 1rem;
     margin-bottom: 1.5rem;
   }
@@ -3242,20 +3252,21 @@
     width: 20px;
     height: 20px;
     cursor: pointer;
-    accent-color: #dc2626;
+    accent-color: var(--color-red);
   }
 
   .toggle-text {
     font-size: 1rem;
     font-weight: 600;
-    color: #333;
+    color: var(--color-fg);
   }
 
   .toggle-hint {
     margin: 0.75rem 0 0 0;
     padding-left: 2rem;
     font-size: 0.875rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.7;
     font-style: italic;
   }
 
@@ -3263,33 +3274,32 @@
   .btn-confirm-bid {
     flex: 1;
     padding: 1rem 2rem;
-    border-radius: 8px;
     text-decoration: none;
     font-weight: 600;
     font-size: 1.1rem;
     text-align: center;
     transition: transform 0.2s, box-shadow 0.2s;
-    border: none;
+    border: var(--border-bh) solid var(--color-border);
     cursor: pointer;
   }
 
   .btn-cancel-bid {
-    background-color: #e5e7eb;
-    color: #333;
+    background-color: var(--color-muted);
+    color: var(--color-fg);
   }
 
   .btn-cancel-bid:hover {
-    background-color: #d1d5db;
+    background-color: var(--color-border);
   }
 
   .btn-confirm-bid {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
+    background: var(--color-blue);
+    color: var(--color-white);
   }
 
   .btn-confirm-bid:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   /* Edit Modal Styles */
@@ -3309,7 +3319,7 @@
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 600;
-    color: #333;
+    color: var(--color-fg);
     font-size: 0.95rem;
   }
 
@@ -3318,8 +3328,7 @@
   .form-group select {
     width: 100%;
     padding: 0.75rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 6px;
+    border: var(--border-bh) solid var(--color-border);
     font-size: 1rem;
     font-family: inherit;
     transition: border-color 0.2s;
@@ -3329,14 +3338,13 @@
   .form-group textarea:focus,
   .form-group select:focus {
     outline: none;
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    border-color: var(--color-red);
   }
 
   .form-group input:disabled,
   .form-group textarea:disabled,
   .form-group select:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--color-muted);
     cursor: not-allowed;
   }
 
@@ -3366,7 +3374,8 @@
   .field-hint {
     margin: 0.5rem 0 0 0;
     font-size: 0.875rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.7;
     font-style: italic;
   }
 
@@ -3374,32 +3383,31 @@
   .btn-save-edit {
     flex: 1;
     padding: 1rem 2rem;
-    border-radius: 8px;
     font-weight: 600;
     font-size: 1.1rem;
     text-align: center;
     transition: transform 0.2s, box-shadow 0.2s;
-    border: none;
+    border: var(--border-bh) solid var(--color-border);
     cursor: pointer;
   }
 
   .btn-cancel-edit {
-    background-color: #e5e7eb;
-    color: #333;
+    background-color: var(--color-muted);
+    color: var(--color-fg);
   }
 
   .btn-cancel-edit:hover:not(:disabled) {
-    background-color: #d1d5db;
+    background-color: var(--color-border);
   }
 
   .btn-save-edit {
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
+    background: var(--color-red);
+    color: var(--color-white);
   }
 
   .btn-save-edit:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .btn-cancel-edit:disabled,
@@ -3411,8 +3419,8 @@
 
   /* Owner Section Styles */
   .owner-section {
-    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-    border: 2px solid #f59e0b;
+    background: var(--color-yellow);
+    border: var(--border-bh) solid var(--color-border);
   }
 
   .highest-bid-info {
@@ -3423,7 +3431,7 @@
 
   .info-text {
     font-size: 0.95rem;
-    color: #92400e;
+    color: var(--color-fg);
     font-weight: 600;
     margin: 0 0 0.5rem 0;
   }
@@ -3431,14 +3439,13 @@
   .bid-amount-large {
     font-size: 2.5rem;
     font-weight: 900;
-    color: #f59e0b;
+    color: var(--color-blue);
     margin: 0.5rem 0;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 
   .bidder-info {
     font-size: 1rem;
-    color: #92400e;
+    color: var(--color-fg);
     margin: 0.5rem 0 0 0;
   }
 
@@ -3447,10 +3454,10 @@
     padding: 1.25rem;
     font-size: 1.2rem;
     font-weight: 700;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    border: none;
-    border-radius: 8px;
+    background: var(--color-blue);
+    color: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
     margin-top: 1rem;
@@ -3458,41 +3465,39 @@
 
   .accept-bid-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   /* Accept Bid Modal Styles */
   .accept-confirmation {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: var(--color-blue);
   }
 
   .warning-message {
-    background-color: #fef3c7;
-    border: 2px solid #f59e0b;
-    border-radius: 8px;
+    background-color: var(--color-yellow);
+    border: var(--border-bh) solid var(--color-border);
     padding: 1rem;
     margin-top: 1.5rem;
-    color: #92400e;
+    color: var(--color-fg);
     font-weight: 600;
   }
 
   .btn-accept-bid {
     flex: 1;
     padding: 1rem 2rem;
-    border-radius: 8px;
     font-weight: 600;
     font-size: 1.1rem;
     text-align: center;
     transition: transform 0.2s, box-shadow 0.2s;
-    border: none;
+    border: var(--border-bh) solid var(--color-border);
     cursor: pointer;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
+    background: var(--color-blue);
+    color: var(--color-white);
   }
 
   .btn-accept-bid:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .btn-accept-bid:disabled {
@@ -3506,7 +3511,7 @@
     display: flex;
     gap: 0.5rem;
     margin-top: 1rem;
-    border-bottom: 2px solid #e5e7eb;
+    border-bottom: 2px solid var(--color-border);
   }
 
   .tab-btn {
@@ -3514,7 +3519,8 @@
     background-color: transparent;
     border: none;
     border-bottom: 3px solid transparent;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.7;
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
@@ -3523,12 +3529,14 @@
   }
 
   .tab-btn:hover:not(:disabled) {
-    color: #dc2626;
+    color: var(--color-red);
+    opacity: 1;
   }
 
   .tab-btn.active {
-    color: #dc2626;
-    border-bottom-color: #dc2626;
+    color: var(--color-red);
+    border-bottom-color: var(--color-red);
+    opacity: 1;
   }
 
   .tab-btn:disabled {
@@ -3564,10 +3572,9 @@
 
   .duration-btn {
     padding: 0.75rem 1.25rem;
-    background-color: white;
-    border: 2px solid #dc2626;
-    color: #dc2626;
-    border-radius: 6px;
+    background-color: var(--color-white);
+    border: var(--border-bh) solid var(--color-red);
+    color: var(--color-red);
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
@@ -3575,10 +3582,10 @@
   }
 
   .duration-btn:hover:not(:disabled) {
-    background-color: #dc2626;
-    color: white;
+    background-color: var(--color-red);
+    color: var(--color-white);
     transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .duration-btn:disabled {
@@ -3603,29 +3610,27 @@
     width: 80px;
     padding: 0.625rem;
     font-size: 1rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 6px;
+    border: var(--border-bh) solid var(--color-border);
     font-family: inherit;
   }
 
   .duration-input:focus {
     outline: none;
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    border-color: var(--color-red);
   }
 
   .duration-unit {
     font-size: 0.875rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.7;
     font-weight: 500;
   }
 
   .apply-duration-btn {
     padding: 0.625rem 1.5rem;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
-    border: none;
-    border-radius: 6px;
+    background: var(--color-red);
+    color: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
@@ -3634,7 +3639,7 @@
 
   .apply-duration-btn:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .apply-duration-btn:disabled {
@@ -3649,9 +3654,9 @@
     top: 1.5rem;
     right: 1.5rem;
     z-index: 10000;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(16, 185, 129, 0.4), 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: var(--color-blue);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-md);
     overflow: hidden;
     animation: toastSlideIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     min-width: 320px;
@@ -3686,13 +3691,11 @@
     background: var(--color);
     left: var(--x);
     top: -10px;
-    border-radius: 2px;
     animation: confettiFall 2s ease-out var(--delay) forwards;
     opacity: 0;
   }
 
   .toast-confetti-piece:nth-child(odd) {
-    border-radius: 50%;
     width: 6px;
     height: 6px;
   }
@@ -3720,13 +3723,13 @@
     width: 44px;
     height: 44px;
     background: rgba(255, 255, 255, 0.25);
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    color: white;
+    color: var(--color-white);
     animation: iconPop 0.5s ease-out 0.2s both;
+    border: 2px solid var(--color-border);
   }
 
   @keyframes iconPop {
@@ -3751,8 +3754,7 @@
   .toast-title {
     font-weight: 700;
     font-size: 1rem;
-    color: white;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    color: var(--color-white);
   }
 
   .toast-subtitle {
@@ -3762,15 +3764,14 @@
 
   .toast-close {
     background: rgba(255, 255, 255, 0.2);
-    border: none;
+    border: 2px solid var(--color-border);
     width: 28px;
     height: 28px;
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: white;
+    color: var(--color-white);
     transition: all 0.2s;
     flex-shrink: 0;
   }
@@ -3829,40 +3830,38 @@
     align-items: center;
     gap: 0.375rem;
     padding: 0.375rem 0.625rem;
-    border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 700;
     transition: all 0.3s;
+    border: 2px solid var(--color-border);
   }
 
-  /* Connected state - Green (always active with polling) */
+  /* Connected state - Blue (always active with polling) */
   .live-indicator.connected {
-    background: rgba(16, 185, 129, 0.1);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    color: #059669;
+    background: var(--color-muted);
+    color: var(--color-blue);
   }
 
   .live-indicator.connected .live-dot {
-    background: #10b981;
+    background: var(--color-blue);
     animation: pulse-dot 2s ease-in-out infinite;
   }
 
-  /* Updating state - Blue (when actively fetching data) */
+  /* Updating state - Red (when actively fetching data) */
   .live-indicator.updating {
-    background: rgba(59, 130, 246, 0.1);
-    border-color: rgba(59, 130, 246, 0.3);
-    color: #2563eb;
+    background: var(--color-muted);
+    border-color: var(--color-red);
+    color: var(--color-red);
   }
 
   .live-indicator.updating .live-dot {
-    background: #3b82f6;
+    background: var(--color-red);
     animation: pulse-dot 0.5s ease-in-out infinite;
   }
 
   .live-dot {
     width: 8px;
     height: 8px;
-    border-radius: 50%;
   }
 
   .live-text {
@@ -3928,7 +3927,7 @@
     }
     25% {
       transform: scale(1.3);
-      color: #10b981;
+      color: var(--color-yellow);
     }
     50% {
       transform: scale(0.95);
@@ -3948,13 +3947,13 @@
 
   @keyframes labelPulse {
     0%, 100% {
-      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+      background: var(--color-red);
       transform: scale(1);
     }
     50% {
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      background: var(--color-blue);
       transform: scale(1.05);
-      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+      box-shadow: var(--shadow-bh-md);
     }
   }
 
@@ -3974,21 +3973,21 @@
     position: absolute;
     top: 8px;
     right: 8px;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
+    background: var(--color-blue);
+    color: var(--color-white);
     padding: 0.25rem 0.625rem;
-    border-radius: 12px;
     font-size: 0.7rem;
     font-weight: 800;
     letter-spacing: 0.05em;
     animation: newBadgePulse 1s ease-in-out infinite;
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+    border: 2px solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     z-index: 10;
   }
 
   @keyframes newBidHighlight {
     0% {
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      background: var(--color-blue);
       transform: translateX(-100%) scale(0.95);
       opacity: 0;
     }
@@ -3997,19 +3996,19 @@
       opacity: 1;
     }
     30% {
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4);
+      background: var(--color-blue);
+      box-shadow: var(--shadow-bh-md);
     }
     50% {
-      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+      background: var(--color-yellow);
     }
     75% {
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      background: var(--color-blue);
     }
     100% {
-      background: white;
+      background: var(--color-white);
       transform: translateX(0) scale(1);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      box-shadow: var(--shadow-bh-sm);
     }
   }
 
@@ -4051,19 +4050,18 @@
     align-items: center;
     gap: 0.5rem;
     padding: 1rem 2rem;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
-    border-radius: 8px;
+    background: var(--color-red);
+    color: var(--color-white);
     font-weight: 600;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
-    border: none;
+    border: var(--border-bh) solid var(--color-border);
     font-size: 1rem;
   }
 
   .image-upload-btn:hover:not(.disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .image-upload-btn.disabled {
@@ -4084,10 +4082,9 @@
   .image-preview-item {
     position: relative;
     aspect-ratio: 1;
-    border-radius: 8px;
     overflow: hidden;
-    border: 2px solid #e5e7eb;
-    background: #f9fafb;
+    border: 2px solid var(--color-border);
+    background: var(--color-muted);
   }
 
   .image-preview-item img {
@@ -4102,10 +4099,9 @@
     right: 0.5rem;
     width: 32px;
     height: 32px;
-    background: rgba(220, 38, 38, 0.9);
-    color: white;
-    border: none;
-    border-radius: 50%;
+    background: var(--color-red);
+    color: var(--color-white);
+    border: 2px solid var(--color-border);
     font-size: 1.25rem;
     cursor: pointer;
     display: flex;
@@ -4118,7 +4114,7 @@
   }
 
   .remove-image-btn:hover:not(:disabled) {
-    background: #991b1b;
+    background: var(--color-fg);
     transform: scale(1.1);
   }
 
@@ -4131,10 +4127,9 @@
     position: absolute;
     bottom: 0.5rem;
     left: 0.5rem;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
+    background: var(--color-fg);
+    color: var(--color-white);
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 600;
   }
@@ -4143,10 +4138,9 @@
     position: absolute;
     top: 0.5rem;
     left: 0.5rem;
-    background: rgba(16, 185, 129, 0.9);
-    color: white;
+    background: var(--color-blue);
+    color: var(--color-white);
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;

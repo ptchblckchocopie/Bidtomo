@@ -60,23 +60,23 @@
 </script>
 
 <svelte:head>
-  <title>Login - Marketplace Platform</title>
+  <title>Login - BidMo.to</title>
 </svelte:head>
 
-<div class="login-page">
-  <div class="login-container">
-    <h1>Login</h1>
-    <p class="subtitle">Access your marketplace account</p>
+<div class="min-h-[calc(100vh-200px)] flex items-center justify-center p-8">
+  <div class="card-bh p-8 md:p-12 max-w-[450px] w-full">
+    <h1 class="headline-bh text-4xl mb-2 text-center">Login</h1>
+    <p class="text-bh-fg/60 text-center mb-8">Access your marketplace account</p>
 
     {#if error}
-      <div class="error-message">
+      <div class="bg-bh-red text-white border-4 border-bh-border p-4 mb-6 font-bold">
         {error}
       </div>
     {/if}
 
     <form onsubmit={handleLogin}>
-      <div class="form-group">
-        <label for="email">Email Address</label>
+      <div class="mb-6">
+        <label for="email" class="block mb-2 font-bold text-bh-fg">Email Address</label>
         <input
           id="email"
           type="email"
@@ -84,11 +84,12 @@
           placeholder="your@email.com"
           required
           disabled={submitting}
+          class="input-bh"
         />
       </div>
 
-      <div class="form-group">
-        <label for="password">Password</label>
+      <div class="mb-6">
+        <label for="password" class="block mb-2 font-bold text-bh-fg">Password</label>
         <input
           id="password"
           type="password"
@@ -96,122 +97,17 @@
           placeholder="Enter your password"
           required
           disabled={submitting}
+          class="input-bh"
         />
       </div>
 
-      <button type="submit" disabled={submitting}>
+      <button type="submit" disabled={submitting} class="btn-bh-red w-full text-lg py-3 mt-4">
         {submitting ? 'Logging in...' : 'Login'}
       </button>
     </form>
 
-    <div class="additional-info">
-      <p>Don't have an account? <a href="/register?redirect={encodeURIComponent(redirectUrl)}">Register here</a></p>
+    <div class="mt-8 text-center text-bh-fg/60">
+      <p>Don't have an account? <a href="/register?redirect={encodeURIComponent(redirectUrl)}" class="text-bh-blue font-bold hover:underline">Register here</a></p>
     </div>
   </div>
 </div>
-
-<style>
-  .login-page {
-    min-height: calc(100vh - 200px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-  }
-
-  .login-container {
-    max-width: 450px;
-    width: 100%;
-    background-color: white;
-    padding: 3rem;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-
-  h1 {
-    font-size: 2.5rem;
-    margin-bottom: 0.5rem;
-    text-align: center;
-  }
-
-  .subtitle {
-    color: #666;
-    text-align: center;
-    margin-bottom: 2rem;
-  }
-
-  .error-message {
-    background-color: #ef4444;
-    color: white;
-    padding: 1rem;
-    border-radius: 4px;
-    margin-bottom: 1.5rem;
-  }
-
-  .form-group {
-    margin-bottom: 1.5rem;
-  }
-
-  label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: bold;
-    color: #333;
-  }
-
-  input {
-    width: 100%;
-    padding: 0.75rem;
-    font-size: 1rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-family: inherit;
-  }
-
-  input:focus {
-    outline: none;
-    border-color: #0066cc;
-    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
-  }
-
-  input:disabled {
-    background-color: #f5f5f5;
-    cursor: not-allowed;
-  }
-
-  button {
-    width: 100%;
-    padding: 1rem;
-    font-size: 1.1rem;
-    background-color: #0066cc;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    margin-top: 1rem;
-  }
-
-  button:hover:not(:disabled) {
-    background-color: #0052a3;
-  }
-
-  button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-  }
-
-  .additional-info {
-    margin-top: 2rem;
-    text-align: center;
-    color: #666;
-  }
-
-  .additional-info a {
-    color: #0066cc;
-    text-decoration: none;
-  }
-
-  .additional-info a:hover {
-    text-decoration: underline;
-  }
-</style>

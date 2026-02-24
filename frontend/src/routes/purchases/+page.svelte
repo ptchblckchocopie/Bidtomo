@@ -8,15 +8,6 @@
   });
 </script>
 
-<div class="redirect-message">
+<div class="text-center py-16 text-lg text-bh-fg/60">
   <p>Redirecting to Dashboard...</p>
 </div>
-
-<style>
-  .redirect-message {
-    text-align: center;
-    padding: 4rem 2rem;
-    color: #666;
-    font-size: 1.2rem;
-  }
-</style>
