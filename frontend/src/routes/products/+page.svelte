@@ -29,11 +29,17 @@
   let newProductCount = $state(0);
 
   // Admin hide/show
+  let hiddenProductIds: Set<string | number> = $state(new Set());
+
   async function toggleProductVisibility(productId: string | number, currentlyActive: boolean) {
+    const action = currentlyActive ? 'hide' : 'unhide';
+    const confirmed = confirm(`Are you sure you want to ${action} this item?`);
+    if (!confirmed) return;
+
     const result = await updateProduct(String(productId), { active: !currentlyActive });
     if (result) {
-      // Remove the product from the current list so it disappears immediately
-      data.products = data.products.filter((p: any) => p.id !== productId);
+      hiddenProductIds.add(productId);
+      hiddenProductIds = new Set(hiddenProductIds);
     }
   }
 
@@ -111,6 +117,7 @@
   }
 
   function changeTab(status: string) {
+    hiddenProductIds = new Set();
     updateURL({
       status,
       page: '1', // Reset to page 1 on tab change
@@ -293,12 +300,16 @@
     }
   }
 
-  // Sort products to show ones with user bids first
-  let sortedProducts = $derived([...data.products].sort((a, b) => {
-    const aHasBid = userBids[a.id] ? 1 : 0;
-    const bHasBid = userBids[b.id] ? 1 : 0;
-    return bHasBid - aHasBid; // Products with bids first
-  }));
+  // Sort products to show ones with user bids first, filter out toggled items
+  let sortedProducts = $derived(
+    [...data.products]
+      .filter((p: any) => !hiddenProductIds.has(p.id))
+      .sort((a, b) => {
+        const aHasBid = userBids[a.id] ? 1 : 0;
+        const bHasBid = userBids[b.id] ? 1 : 0;
+        return bHasBid - aHasBid; // Products with bids first
+      })
+  );
 
   // Refetch bids when auth state changes
   $effect(() => {
