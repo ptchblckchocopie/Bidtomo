@@ -12,12 +12,8 @@
       "Bash(ls:*)",
       "Bash(node:*)",
       "Bash(echo Got token, testing void-requests...:*)",
-<<<<<<< HEAD
-      "Bash(grep:*)"
-=======
-      "Bash(cd \"C:/Svelte+Payload/bidmo.to\" && npx @railway/cli run --service cms -- bash -c \"cd cms && npx payload migrate\" 2>&1)",
-      "Bash(cd \"C:/Svelte+Payload/bidmo.to/cms\" && DATABASE_URI=\"postgresql://postgres:qwAoplAycJgjNVomMYlRdmymNTDrNKdJ@yamanote.proxy.rlwy.net:19952/railway\" PAYLOAD_SECRET=\"g/F8Q/AmscDGSRUZhL5VsP8fO5WJ3y4fcL3li4VtnFo=\" npx payload migrate 2>&1)"
->>>>>>> 545c29aabc00285405a881cf116896c1fa319765
+      "Bash(grep:*)",
+      "Bash(git add:*)"
     ]
   }
 }
