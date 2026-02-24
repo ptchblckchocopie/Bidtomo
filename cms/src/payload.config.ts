@@ -302,6 +302,31 @@ export default buildConfig({
               }
             }
 
+            // Publish new_product event to global SSE when a product is created
+            if (operation === 'create') {
+              const publishGlobal = (global as any).publishGlobalEvent;
+              if (publishGlobal) {
+                const sellerId = typeof doc.seller === 'object' && doc.seller ? (doc.seller as any).id : doc.seller;
+                const sellerName = typeof doc.seller === 'object' && doc.seller ? (doc.seller as any).name : undefined;
+                setImmediate(() => {
+                  publishGlobal({
+                    type: 'new_product',
+                    product: {
+                      id: doc.id,
+                      title: doc.title,
+                      startingPrice: doc.startingPrice,
+                      auctionEndDate: doc.auctionEndDate,
+                      status: doc.status,
+                      region: doc.region,
+                      city: doc.city,
+                      seller: { id: sellerId, name: sellerName },
+                      images: doc.images,
+                    },
+                  }).catch((err: Error) => console.error('Error publishing new_product event:', err));
+                });
+              }
+            }
+
             return doc;
           },
         ],

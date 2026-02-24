@@ -3,13 +3,14 @@ import cors from 'cors';
 import Redis from 'ioredis';
 
 const app = express();
-const PORT = parseInt(process.env.SSE_PORT || '3002', 10);
+const PORT = parseInt(process.env.PORT || process.env.SSE_PORT || '3002', 10);
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6380';
 const CORS_ORIGIN = process.env.SSE_CORS_ORIGIN || 'http://localhost:5173';
 
 // Connection managers
 const productConnections = new Map<string, Set<Response>>();
 const userConnections = new Map<string, Set<Response>>();
+const globalConnections = new Set<Response>();
 
 // Redis state
 let redis: Redis;
@@ -51,7 +52,12 @@ function initRedis(): Redis {
   return client;
 }
 
-// CORS configuration - allow local network IPs for development
+// CORS configuration - allow local network IPs and configured origins
+const ALLOWED_ORIGINS = (process.env.SSE_CORS_ORIGIN || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl)
@@ -65,8 +71,13 @@ app.use(cors({
       return callback(null, true);
     }
 
-    // Allow configured CORS_ORIGIN
-    if (origin === CORS_ORIGIN) return callback(null, true);
+    // Allow configured CORS origins (supports comma-separated list)
+    if (ALLOWED_ORIGINS.some(allowed => origin === allowed || origin.endsWith(allowed))) {
+      return callback(null, true);
+    }
+
+    // Allow Vercel preview deployments
+    if (origin.endsWith('.vercel.app')) return callback(null, true);
 
     callback(new Error('Not allowed by CORS'));
   },
@@ -79,6 +90,7 @@ app.get('/health', (req, res) => {
     status: redisConnected ? 'ok' : 'degraded',
     productConnections: productConnections.size,
     userConnections: userConnections.size,
+    globalConnections: globalConnections.size,
     redis: redisConnected ? 'connected' : 'disconnected',
     reconnectAttempts,
   });
@@ -106,6 +118,14 @@ function broadcastRedisStatus(connected: boolean) {
         // Connection already closed
       }
     });
+  });
+
+  globalConnections.forEach((res) => {
+    try {
+      res.write(message);
+    } catch (error) {
+      // Connection already closed
+    }
   });
 }
 
@@ -228,6 +248,75 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
   });
 });
 
+// SSE endpoint for global updates (new products, bid updates across all products)
+app.get('/events/global', (req: Request, res: Response) => {
+  const origin = req.headers.origin;
+
+  // Set CORS headers for SSE
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Content-Encoding', 'none');
+
+  res.flushHeaders();
+
+  // Send initial connection event
+  res.write(`data: ${JSON.stringify({
+    type: 'connected',
+    channel: 'global',
+    redis: redisConnected ? 'connected' : 'disconnected'
+  })}\n\n`);
+
+  globalConnections.add(res);
+  console.log(`[SSE] Global client connected. Total: ${globalConnections.size}`);
+
+  // Heartbeat every 30 seconds
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(`:heartbeat ${Date.now()}\n\n`);
+    } catch (error) {
+      clearInterval(heartbeat);
+    }
+  }, 30000);
+
+  // Cleanup on disconnect
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    globalConnections.delete(res);
+    console.log(`[SSE] Global client disconnected. Remaining: ${globalConnections.size}`);
+  });
+});
+
+// Broadcast to all global subscribers
+function broadcastToGlobal(data: object) {
+  if (globalConnections.size === 0) return;
+
+  const message = `data: ${JSON.stringify(data)}\n\n`;
+  let sent = 0;
+
+  globalConnections.forEach((res) => {
+    try {
+      res.write(message);
+      if (typeof (res as any).flush === 'function') {
+        (res as any).flush();
+      }
+      sent++;
+    } catch (error) {
+      console.error('[SSE] Error broadcasting to global client:', error);
+      globalConnections.delete(res);
+    }
+  });
+
+  console.log(`[SSE] Broadcast to global: ${sent} clients, type: ${(data as any).type}`);
+}
+
 // Broadcast to product subscribers
 function broadcastToProduct(productId: string, data: object) {
   const connections = productConnections.get(productId);
@@ -283,26 +372,36 @@ async function setupRedisSubscriber() {
   try {
     // Unsubscribe first to prevent duplicate subscriptions on reconnect
     try {
-      await redis.punsubscribe('sse:product:*', 'sse:user:*');
+      await redis.punsubscribe('sse:product:*', 'sse:user:*', 'sse:global');
     } catch {
       // Ignore errors if not previously subscribed
     }
 
-    // Subscribe to pattern channels
-    await redis.psubscribe('sse:product:*', 'sse:user:*');
+    // Subscribe to pattern channels + global channel
+    await redis.psubscribe('sse:product:*', 'sse:user:*', 'sse:global');
 
     // Remove existing handlers to prevent duplicates on Redis reconnect
     redis.removeAllListeners('pmessage');
 
-    redis.on('pmessage', (pattern, channel, message) => {
+    redis.on('pmessage', (_pattern, channel, message) => {
       console.log(`[SSE] Redis pmessage received on channel: ${channel}`);
       try {
         const data = JSON.parse(message);
 
-        if (channel.startsWith('sse:product:')) {
+        if (channel === 'sse:global') {
+          // Global events (new products, etc.)
+          console.log(`[SSE] Broadcasting global event, type: ${data.type}`);
+          broadcastToGlobal(data);
+        } else if (channel.startsWith('sse:product:')) {
           const productId = channel.replace('sse:product:', '');
           console.log(`[SSE] Broadcasting to product ${productId}, data type: ${data.type}`);
           broadcastToProduct(productId, data);
+
+          // Also forward bid and accepted events to global subscribers
+          // so the products grid updates in real-time
+          if (data.type === 'bid' || data.type === 'accepted') {
+            broadcastToGlobal({ ...data, productId: parseInt(productId, 10) });
+          }
         } else if (channel.startsWith('sse:user:')) {
           const userId = channel.replace('sse:user:', '');
           console.log(`[SSE] Broadcasting to user ${userId}, data type: ${data.type}, connected users: ${userConnections.has(userId) ? userConnections.get(userId)?.size : 0}`);
