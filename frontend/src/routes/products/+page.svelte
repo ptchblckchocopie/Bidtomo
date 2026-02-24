@@ -6,6 +6,7 @@
   import { authStore } from '$lib/stores/auth';
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
   import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type BidUpdateEvent } from '$lib/sse';
+  import { updateProduct } from '$lib/api';
 
   let { data, params }: { data: PageData; params?: any } = $props();
 
@@ -26,6 +27,15 @@
   // SSE state
   let sseUnsubscribe: (() => void) | null = $state(null);
   let newProductCount = $state(0);
+
+  // Admin hide/show
+  async function toggleProductVisibility(productId: string | number, currentlyActive: boolean) {
+    const result = await updateProduct(String(productId), { active: !currentlyActive });
+    if (result) {
+      const product = data.products.find((p: any) => p.id === productId);
+      if (product) product.active = !currentlyActive;
+    }
+  }
 
   // Items per page options
   const itemsPerPageOptions = [12, 24, 48, 96];
@@ -562,7 +572,7 @@
       <section class="auction-section">
         <div class="products-grid">
           {#each sortedProducts as product}
-            <a href="/products/{product.id}?from=browse" class="product-card" class:ended-card={data.status === 'ended'}>
+            <a href="/products/{product.id}?from=browse" class="product-card" class:ended-card={data.status === 'ended'} class:hidden-card={!product.active}>
               <div class="product-image">
                 {#if product.images && product.images.length > 0 && product.images[0].image}
                   <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" />
@@ -634,6 +644,14 @@
                     <span class="status status-{product.status}">{product.status}</span>
                     {#if $authStore.user && product.seller?.id === $authStore.user.id}
                       <span class="owner-badge">Your Listing</span>
+                    {/if}
+                    {#if $authStore.user?.role === 'admin'}
+                      <button
+                        class="admin-hide-btn"
+                        onclick={(e) => { e.preventDefault(); e.stopPropagation(); toggleProductVisibility(product.id, product.active); }}
+                      >
+                        {product.active ? 'Hide' : 'Show'}
+                      </button>
                     {/if}
                   </div>
                   {#if data.status === 'active' || data.status === 'my-bids'}
@@ -1182,6 +1200,28 @@
     color: white;
     box-shadow: var(--shadow-bh-sm);
     letter-spacing: 0.5px;
+  }
+
+  .hidden-card {
+    opacity: 0.5;
+  }
+
+  .admin-hide-btn {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: background 0.2s;
+  }
+
+  .admin-hide-btn:hover {
+    background: #b02a37;
   }
 
   .status-active {
