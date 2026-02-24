@@ -8,7 +8,17 @@ const config = {
   kit: {
     adapter: adapter({
       out: 'build'
-    })
+    }),
+
+    experimental: {
+      tracing: {
+        server: true
+      },
+
+      instrumentation: {
+        server: true
+      }
+    }
   }
 };
 

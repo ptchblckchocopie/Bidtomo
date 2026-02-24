@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "Bash(find:*)",
+      "Bash(lsof:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker stop:*)"
     ]
   }
 }
