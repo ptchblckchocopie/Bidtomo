@@ -113,12 +113,12 @@ async function initRedis(): Promise<void> {
 async function savePendingBidToDb(job: BidJob): Promise<void> {
   try {
     await pool.query(
-      `INSERT INTO pending_bids (product_id, bidder_id, amount, timestamp, censor_name, job_id, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      `INSERT INTO pending_bids (product_id, bidder_id, amount, timestamp, censor_name, job_id, job_type, seller_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
        ON CONFLICT (job_id) DO NOTHING`,
-      [job.productId, job.bidderId, job.amount, new Date(job.timestamp), job.censorName || false, job.jobId]
+      [job.productId, job.bidderId, job.amount, new Date(job.timestamp), job.censorName || false, job.jobId, job.type || 'bid', job.sellerId || null]
     );
-    console.log(`[WORKER] Saved pending bid to database: ${job.jobId}`);
+    console.log(`[WORKER] Saved pending ${job.type || 'bid'} to database: ${job.jobId}`);
   } catch (error) {
     console.error('[WORKER] Failed to save pending bid to database:', error);
   }
@@ -157,11 +157,21 @@ async function recoverPendingBids(): Promise<void> {
           censor_name BOOLEAN DEFAULT FALSE,
           job_id VARCHAR(50) UNIQUE NOT NULL,
           retry_count INTEGER DEFAULT 0,
+          job_type VARCHAR(20) DEFAULT 'bid',
+          seller_id INTEGER,
           created_at TIMESTAMP DEFAULT NOW()
         )
       `);
       console.log('[WORKER] Created pending_bids table');
       return;
+    }
+
+    // Ensure new columns exist for accept_bid crash recovery
+    try {
+      await pool.query(`ALTER TABLE pending_bids ADD COLUMN IF NOT EXISTS job_type VARCHAR(20) DEFAULT 'bid'`);
+      await pool.query(`ALTER TABLE pending_bids ADD COLUMN IF NOT EXISTS seller_id INTEGER`);
+    } catch (error) {
+      // Columns may already exist
     }
 
     const result = await pool.query(
@@ -173,6 +183,7 @@ async function recoverPendingBids(): Promise<void> {
 
       for (const row of result.rows) {
         const job: BidJob = {
+          type: row.job_type || 'bid',
           productId: row.product_id,
           bidderId: row.bidder_id,
           amount: parseFloat(row.amount),
@@ -180,6 +191,7 @@ async function recoverPendingBids(): Promise<void> {
           censorName: row.censor_name,
           retryCount: row.retry_count || 0,
           jobId: row.job_id,
+          sellerId: row.seller_id || undefined,
         };
 
         // Re-queue the job
@@ -365,6 +377,16 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
       [job.sellerId]
     );
     const seller = sellerResult.rows[0];
+
+    // Verify sellerId matches product owner (defense-in-depth)
+    const sellerCheck = await client.query(
+      `SELECT users_id FROM products_rels WHERE parent_id = $1 AND path = 'seller'`,
+      [job.productId]
+    );
+    if (sellerCheck.rows.length === 0 || sellerCheck.rows[0].users_id !== job.sellerId) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Seller does not own this product' };
+    }
 
     // Validate product is still available
     if (product.status !== 'available') {
@@ -642,9 +664,15 @@ async function runWorker() {
         // Process accept bid
         console.log(`[WORKER] Processing accept_bid: Product ${job.productId}, Job ${job.jobId}`);
 
+        // Save to database in case of crash
+        await savePendingBidToDb(job);
+
         const acceptResult = await processAcceptBid(job);
 
         if (acceptResult.success) {
+          // Remove from pending
+          await removePendingBidFromDb(job.jobId!);
+
           await publishAcceptResult(job.productId, {
             success: true,
             winnerId: job.bidderId,
@@ -652,11 +680,39 @@ async function runWorker() {
           });
           console.log(`[WORKER] Accept bid completed: Product ${job.productId}`);
         } else {
-          await publishAcceptResult(job.productId, {
-            success: false,
-            error: acceptResult.error,
-          });
-          console.log(`[WORKER] Accept bid failed: ${acceptResult.error}`);
+          // Check if it's a validation error (non-retriable)
+          const isValidationError = [
+            'Product not found',
+            'Product is already',
+            'Seller does not own',
+          ].some((msg) => acceptResult.error?.includes(msg));
+
+          if (isValidationError) {
+            await removePendingBidFromDb(job.jobId!);
+            await publishAcceptResult(job.productId, {
+              success: false,
+              error: acceptResult.error,
+            });
+            console.log(`[WORKER] Accept bid rejected: ${acceptResult.error}`);
+          } else {
+            // Transient error - retry
+            const retryCount = (job.retryCount || 0) + 1;
+
+            if (retryCount < MAX_RETRIES) {
+              job.retryCount = retryCount;
+              console.log(`[WORKER] Retrying accept_bid ${job.jobId} (attempt ${retryCount}/${MAX_RETRIES})`);
+              await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY * retryCount));
+              await redisQueue.rpush(QUEUE_KEY, JSON.stringify(job));
+            } else {
+              console.error(`[WORKER] Accept bid ${job.jobId} failed after ${MAX_RETRIES} retries`);
+              await moveToFailedQueue(job, acceptResult.error || 'Unknown error');
+              await removePendingBidFromDb(job.jobId!);
+              await publishAcceptResult(job.productId, {
+                success: false,
+                error: 'Accept bid processing failed. Please try again.',
+              });
+            }
+          }
         }
       } else {
         // Process regular bid

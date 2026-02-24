@@ -41,7 +41,8 @@ module.exports = {
       env: {
         PORT: 3002,
         REDIS_URL: 'redis://localhost:6379',
-        CMS_URL: 'http://localhost:3001'
+        CMS_URL: 'http://localhost:3001',
+        SSE_CORS_ORIGIN: 'https://www.bidmo.to'
       }
     },
     {

@@ -5,7 +5,13 @@
       "Bash(find:*)",
       "Bash(lsof:*)",
       "Bash(docker exec:*)",
-      "Bash(docker stop:*)"
+      "Bash(docker stop:*)",
+      "Bash(curl:*)",
+      "Bash(head:*)",
+      "Bash(PGPASSWORD=postgres psql:*)",
+      "Bash(ls:*)",
+      "Bash(node:*)",
+      "Bash(echo Got token, testing void-requests...:*)"
     ]
   }
 }

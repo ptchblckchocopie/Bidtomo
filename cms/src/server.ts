@@ -678,6 +678,31 @@ const start = async () => {
           data: { status: 'sold' },
         });
 
+        // Create congratulatory message from seller to buyer
+        await payload.create({
+          collection: 'messages',
+          data: {
+            product: Number(productId),
+            sender: sellerId,
+            receiver: highestBidderId,
+            message: `Congratulations! Your bid has been accepted for "${product.title}". Let's discuss the next steps for completing this transaction.`,
+            read: false,
+          },
+        });
+
+        // Create transaction record
+        await payload.create({
+          collection: 'transactions',
+          data: {
+            product: Number(productId),
+            seller: sellerId,
+            buyer: highestBidderId,
+            amount: highestBid.amount,
+            status: 'pending',
+            notes: `Transaction created for "${product.title}" with winning bid of ${highestBid.amount}`,
+          },
+        });
+
         publishProductUpdate(parseInt(productId, 10), {
           type: 'accepted',
           status: 'sold',
@@ -1442,6 +1467,24 @@ const start = async () => {
       }
 
       const { transactionId } = req.params;
+
+      // Verify user is a party to this transaction
+      const transaction: any = await payload.findByID({
+        collection: 'transactions',
+        id: parseInt(transactionId, 10),
+        depth: 1,
+      });
+
+      if (!transaction) {
+        return res.status(404).json({ error: 'Transaction not found' });
+      }
+
+      const buyerId = typeof transaction.buyer === 'object' ? transaction.buyer.id : transaction.buyer;
+      const sellerId = typeof transaction.seller === 'object' ? transaction.seller.id : transaction.seller;
+
+      if (userId !== buyerId && userId !== sellerId) {
+        return res.status(403).json({ error: 'You are not authorized to view this void request' });
+      }
 
       const voidRequests = await payload.find({
         collection: 'void-requests',
