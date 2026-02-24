@@ -374,36 +374,35 @@
   h1 {
     font-size: 2.5rem;
     margin-bottom: 0.5rem;
-    color: #111;
+    color: var(--color-fg);
   }
 
   .subtitle {
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
     font-size: 1.1rem;
   }
 
   .error-message {
-    background-color: #fee2e2;
-    color: #dc2626;
+    background-color: var(--color-muted);
+    color: var(--color-red);
     padding: 1rem;
-    border-radius: 8px;
     margin-bottom: 1.5rem;
-    border: 1px solid #fecaca;
+    border: var(--border-bh) solid var(--color-red);
   }
 
   .success-message {
-    background-color: #d1fae5;
-    color: #059669;
+    background-color: var(--color-muted);
+    color: var(--color-blue);
     padding: 1rem;
-    border-radius: 8px;
     margin-bottom: 1.5rem;
-    border: 1px solid #a7f3d0;
+    border: var(--border-bh) solid var(--color-blue);
   }
 
   .info-card {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     padding: 2rem;
     margin-bottom: 2rem;
   }
@@ -428,21 +427,21 @@
   h2 {
     font-size: 1.5rem;
     margin: 0;
-    color: #111;
+    color: var(--color-fg);
   }
 
   h3 {
     font-size: 1.25rem;
     margin: 0;
-    color: #111;
+    color: var(--color-fg);
   }
 
   .btn-edit {
     padding: 0.5rem 1rem;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
-    border: none;
-    border-radius: 6px;
+    background: var(--color-red);
+    color: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -450,7 +449,7 @@
 
   .btn-edit:hover {
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    box-shadow: var(--shadow-bh-md);
   }
 
   /* Edit Form Styles */
@@ -468,15 +467,14 @@
 
   .form-group label {
     font-weight: 600;
-    color: #333;
+    color: var(--color-fg);
     font-size: 0.9rem;
   }
 
   .form-group input,
   .form-group select {
     padding: 0.75rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 6px;
+    border: var(--border-bh) solid var(--color-border);
     font-size: 1rem;
     transition: border-color 0.2s;
   }
@@ -484,13 +482,13 @@
   .form-group input:focus,
   .form-group select:focus {
     outline: none;
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    border-color: var(--color-blue);
+    box-shadow: 0 0 0 2px var(--color-blue);
   }
 
   .form-group input:disabled,
   .form-group select:disabled {
-    background-color: #f5f5f5;
+    background-color: var(--color-muted);
     cursor: not-allowed;
   }
 
@@ -510,14 +508,15 @@
 
   .form-group.readonly .readonly-value {
     padding: 0.75rem;
-    background: #f3f4f6;
-    border-radius: 6px;
-    color: #666;
+    background: var(--color-muted);
+    color: var(--color-fg);
+    opacity: 0.6;
   }
 
   .readonly-hint {
     font-size: 0.8rem;
-    color: #9ca3af;
+    color: var(--color-fg);
+    opacity: 0.6;
   }
 
   .form-actions {
@@ -529,25 +528,26 @@
 
   .btn-cancel {
     padding: 0.75rem 1.5rem;
-    background: white;
-    color: #666;
-    border: 2px solid #e5e7eb;
-    border-radius: 6px;
+    background: var(--color-white);
+    color: var(--color-fg);
+    opacity: 0.6;
+    border: var(--border-bh) solid var(--color-border);
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .btn-cancel:hover:not(:disabled) {
-    background: #f3f4f6;
+    background: var(--color-muted);
+    opacity: 1;
   }
 
   .btn-save {
     padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
-    border: none;
-    border-radius: 6px;
+    background: var(--color-red);
+    color: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -555,7 +555,7 @@
 
   .btn-save:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .btn-save:disabled,
@@ -578,7 +578,8 @@
 
   .info-label {
     font-size: 0.875rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -586,7 +587,7 @@
 
   .info-value {
     font-size: 1.1rem;
-    color: #111;
+    color: var(--color-fg);
     font-weight: 500;
   }
 
@@ -598,14 +599,15 @@
   .error-state {
     text-align: center;
     padding: 3rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
   }
 
   .spinner {
     width: 40px;
     height: 40px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #dc2626;
+    border: 4px solid var(--color-muted);
+    border-top: 4px solid var(--color-red);
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin: 0 auto 1rem;
@@ -623,11 +625,12 @@
   .section-title {
     font-size: 2rem;
     margin-bottom: 0.5rem;
-    color: #111;
+    color: var(--color-fg);
   }
 
   .section-description {
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
     margin-bottom: 2rem;
   }
 
@@ -639,21 +642,21 @@
   }
 
   .limit-card {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     overflow: hidden;
     transition: transform 0.2s, box-shadow 0.2s;
   }
 
   .limit-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .limit-card .card-header {
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
+    background: var(--color-red);
+    color: var(--color-white);
     padding: 1.5rem;
     margin-bottom: 0;
     justify-content: flex-start;
@@ -661,7 +664,7 @@
   }
 
   .limit-card h3 {
-    color: white;
+    color: var(--color-white);
   }
 
   .limit-content {
@@ -684,13 +687,14 @@
   .stat-number {
     font-size: 3rem;
     font-weight: 900;
-    color: #dc2626;
+    color: var(--color-red);
     line-height: 1;
   }
 
   .stat-label {
     font-size: 1rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
     margin-top: 0.25rem;
   }
 
@@ -699,35 +703,36 @@
     flex-direction: column;
     align-items: center;
     padding: 1rem;
-    background: #f3f4f6;
-    border-radius: 8px;
+    background: var(--color-muted);
   }
 
   .stat-remaining.warning {
-    background: #fef3c7;
+    background: var(--color-yellow);
   }
 
   .stat-remaining.danger {
-    background: #fee2e2;
+    background: var(--color-muted);
+    border: var(--border-bh) solid var(--color-red);
   }
 
   .remaining-number {
     font-size: 2rem;
     font-weight: 700;
-    color: #059669;
+    color: var(--color-blue);
   }
 
   .stat-remaining.warning .remaining-number {
-    color: #d97706;
+    color: var(--color-fg);
   }
 
   .stat-remaining.danger .remaining-number {
-    color: #dc2626;
+    color: var(--color-red);
   }
 
   .remaining-label {
     font-size: 0.875rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -735,35 +740,34 @@
   .progress-bar {
     width: 100%;
     height: 12px;
-    background: #e5e7eb;
-    border-radius: 6px;
+    background: var(--color-border);
     overflow: hidden;
     margin-bottom: 1.5rem;
   }
 
   .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #dc2626 0%, #991b1b 100%);
-    border-radius: 6px;
+    background: var(--color-red);
     transition: width 0.3s ease;
   }
 
   .progress-fill.posts {
-    background: linear-gradient(90deg, #059669 0%, #047857 100%);
+    background: var(--color-blue);
   }
 
   .limit-description {
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
     line-height: 1.6;
     margin-bottom: 1.5rem;
   }
 
   .text-danger {
-    color: #dc2626;
+    color: var(--color-red);
   }
 
   .text-warning {
-    color: #d97706;
+    color: var(--color-yellow);
   }
 
   .card-footer {
@@ -776,7 +780,6 @@
   .btn-secondary,
   .btn-disabled {
     padding: 0.75rem 1.5rem;
-    border-radius: 6px;
     font-weight: 600;
     text-decoration: none;
     transition: all 0.2s;
@@ -786,36 +789,38 @@
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
+    background: var(--color-red);
+    color: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .btn-secondary {
-    background: white;
-    color: #dc2626;
-    border: 2px solid #dc2626;
+    background: var(--color-white);
+    color: var(--color-red);
+    border: var(--border-bh) solid var(--color-border);
   }
 
   .btn-secondary:hover {
-    background: #dc2626;
-    color: white;
+    background: var(--color-red);
+    color: var(--color-white);
   }
 
   .btn-disabled {
-    background: #e5e7eb;
-    color: #9ca3af;
+    background: var(--color-muted);
+    color: var(--color-fg);
+    opacity: 0.6;
     cursor: not-allowed;
   }
 
   .info-banner {
-    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-    border: 2px solid #3b82f6;
-    border-radius: 8px;
+    background: var(--color-muted);
+    border: 4px solid var(--color-blue);
     padding: 1.25rem;
     display: flex;
     align-items: flex-start;
@@ -828,7 +833,7 @@
   }
 
   .info-text {
-    color: #1e3a8a;
+    color: var(--color-fg);
     line-height: 1.6;
   }
 

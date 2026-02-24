@@ -90,20 +90,18 @@
     padding: 0;
     background: transparent;
     border: none;
-    border-radius: 6px;
     cursor: pointer;
-    color: #6b7280;
+    color: var(--color-fg);
     transition: all 0.2s;
   }
 
   .kebab-btn:hover {
-    background: #f3f4f6;
-    color: #374151;
+    background: var(--color-muted);
   }
 
   .kebab-btn:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+    box-shadow: 0 0 0 2px var(--color-blue);
   }
 
   .dropdown-menu {
@@ -112,10 +110,9 @@
     top: 100%;
     margin-top: 4px;
     min-width: 160px;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    border: 1px solid #e5e7eb;
+    background: var(--color-white);
+    box-shadow: var(--shadow-bh-sm);
+    border: var(--border-bh) solid var(--color-border);
     padding: 4px;
     z-index: 100;
     animation: fadeIn 0.15s ease-out;
@@ -140,24 +137,24 @@
     padding: 10px 12px;
     background: transparent;
     border: none;
-    border-radius: 6px;
     cursor: pointer;
     text-align: left;
     font-size: 14px;
-    color: #374151;
+    color: var(--color-fg);
     transition: all 0.15s;
+    font-weight: 500;
   }
 
   .menu-item:hover {
-    background: #f3f4f6;
+    background: var(--color-muted);
   }
 
   .menu-item.danger {
-    color: #dc2626;
+    color: var(--color-red);
   }
 
   .menu-item.danger:hover {
-    background: #fef2f2;
+    background: var(--color-muted);
   }
 
   .item-icon {

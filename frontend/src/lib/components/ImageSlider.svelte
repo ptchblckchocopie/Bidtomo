@@ -21,7 +21,7 @@
   let touchStartX = $state(0);
   let touchEndX = $state(0);
   let isSwiping = $state(false);
-  const minSwipeDistance = 50; // Minimum distance in pixels to trigger a swipe
+  const minSwipeDistance = 50;
 
   function nextSlide() {
     currentIndex = (currentIndex + 1) % images.length;
@@ -51,7 +51,6 @@
     nextSlide();
   }
 
-  // Autoplay effect with cleanup
   $effect(() => {
     if (images.length <= 1 || hasUserInteracted) {
       isAutoplayActive = false;
@@ -68,23 +67,21 @@
     };
   });
 
-  // Cleanup body overflow on unmount
   $effect(() => {
     return () => {
       document.body.style.overflow = '';
     };
   });
 
-  // Lightbox functions
   function openLightbox(index: number) {
     lightboxIndex = index;
     lightboxOpen = true;
-    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    document.body.style.overflow = 'hidden';
   }
 
   function closeLightbox() {
     lightboxOpen = false;
-    document.body.style.overflow = ''; // Restore scrolling
+    document.body.style.overflow = '';
   }
 
   function lightboxPrev() {
@@ -95,10 +92,8 @@
     lightboxIndex = (lightboxIndex + 1) % images.length;
   }
 
-  // Keyboard navigation
   function handleKeydown(event: KeyboardEvent) {
     if (lightboxOpen) {
-      // Keyboard controls for lightbox
       if (event.key === 'Escape') {
         closeLightbox();
       } else if (event.key === 'ArrowLeft') {
@@ -107,7 +102,6 @@
         lightboxNext();
       }
     } else {
-      // Keyboard controls for slider
       if (event.key === 'ArrowLeft') {
         handleUserInteraction();
         prevSlide();
@@ -118,7 +112,6 @@
     }
   }
 
-  // Touch/swipe handlers
   function handleTouchStart(event: TouchEvent) {
     touchStartX = event.touches[0].clientX;
     isSwiping = true;
@@ -138,17 +131,13 @@
 
     if (absDistance > minSwipeDistance) {
       handleUserInteraction();
-
       if (swipeDistance > 0) {
-        // Swiped left - go to next slide
         nextSlide();
       } else {
-        // Swiped right - go to previous slide
         prevSlide();
       }
     }
 
-    // Reset values
     touchStartX = 0;
     touchEndX = 0;
   }
@@ -158,7 +147,6 @@
 
 {#if images && images.length > 0}
   <div class="image-slider">
-    <!-- Main image display -->
     <div
       class="slider-main"
       ontouchstart={handleTouchStart}
@@ -181,7 +169,6 @@
         {/each}
       </div>
 
-      <!-- Navigation arrows (only show if more than 1 image) -->
       {#if images.length > 1}
         <button
           class="nav-arrow nav-prev"
@@ -198,14 +185,12 @@
           ›
         </button>
 
-        <!-- Slide counter -->
         <div class="slide-counter">
           {currentIndex + 1} / {images.length}
         </div>
       {/if}
     </div>
 
-    <!-- Thumbnail navigation (only show if more than 1 image) -->
     {#if images.length > 1}
       <div class="thumbnail-nav">
         {#each images as imageItem, index}
@@ -231,7 +216,6 @@
   </div>
 {/if}
 
-<!-- Lightbox Modal -->
 {#if lightboxOpen}
   <div class="lightbox-overlay" onclick={closeLightbox} role="button" tabindex="0">
     <button class="lightbox-close" onclick={closeLightbox} aria-label="Close lightbox">
@@ -279,10 +263,10 @@
     position: relative;
     width: 100%;
     aspect-ratio: 4 / 3;
-    background-color: #f5f5f5;
-    border-radius: 12px;
+    background-color: var(--color-muted);
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     touch-action: pan-y pinch-zoom;
     user-select: none;
     -webkit-user-select: none;
@@ -330,8 +314,8 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(0, 0, 0, 0.5);
-    color: white;
+    background: var(--color-fg);
+    color: var(--color-white);
     border: none;
     font-size: 3rem;
     width: 50px;
@@ -347,7 +331,7 @@
   }
 
   .nav-arrow:hover {
-    background: rgba(220, 38, 38, 0.9);
+    background: var(--color-red);
   }
 
   .nav-arrow:active {
@@ -356,25 +340,23 @@
 
   .nav-prev {
     left: 0;
-    border-radius: 0 8px 8px 0;
   }
 
   .nav-next {
     right: 0;
-    border-radius: 8px 0 0 8px;
   }
 
   .slide-counter {
     position: absolute;
     bottom: 1rem;
     right: 1rem;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
+    background: var(--color-fg);
+    color: var(--color-white);
     padding: 0.5rem 1rem;
-    border-radius: 20px;
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: 700;
     z-index: 10;
+    border: 2px solid var(--color-border);
   }
 
   .thumbnail-nav {
@@ -384,7 +366,7 @@
     overflow-x: auto;
     padding: 0.5rem 0;
     scrollbar-width: thin;
-    scrollbar-color: #dc2626 #f5f5f5;
+    scrollbar-color: var(--color-red) var(--color-muted);
   }
 
   .thumbnail-nav::-webkit-scrollbar {
@@ -392,41 +374,38 @@
   }
 
   .thumbnail-nav::-webkit-scrollbar-track {
-    background: #f5f5f5;
-    border-radius: 4px;
+    background: var(--color-muted);
   }
 
   .thumbnail-nav::-webkit-scrollbar-thumb {
-    background: #dc2626;
-    border-radius: 4px;
+    background: var(--color-red);
   }
 
   .thumbnail-nav::-webkit-scrollbar-thumb:hover {
-    background: #991b1b;
+    background: var(--color-fg);
   }
 
   .thumbnail {
     flex-shrink: 0;
     width: 80px;
     height: 80px;
-    border: 3px solid transparent;
-    border-radius: 8px;
+    border: var(--border-bh) solid transparent;
     overflow: hidden;
     cursor: pointer;
     transition: all 0.3s ease;
-    background: #f5f5f5;
+    background: var(--color-muted);
     padding: 0;
   }
 
   .thumbnail:hover {
-    border-color: #dc2626;
+    border-color: var(--color-red);
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .thumbnail.active {
-    border-color: #dc2626;
-    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .thumbnail img {
@@ -442,15 +421,15 @@
     justify-content: center;
     width: 100%;
     aspect-ratio: 4 / 3;
-    background-color: #f5f5f5;
-    border-radius: 12px;
-    color: #999;
+    background-color: var(--color-muted);
+    color: var(--color-fg);
+    opacity: 0.6;
     font-size: 1.2rem;
     font-weight: 600;
     margin-bottom: 2rem;
+    border: var(--border-bh) solid var(--color-border);
   }
 
-  /* Mobile responsive */
   @media (max-width: 768px) {
     .slider-main {
       aspect-ratio: 1;
@@ -496,25 +475,20 @@
   }
 
   @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   .lightbox-close {
     position: absolute;
     top: 20px;
     right: 20px;
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: var(--color-fg);
+    color: var(--color-white);
+    border: var(--border-bh) solid var(--color-white);
     font-size: 2.5rem;
     width: 60px;
     height: 60px;
-    border-radius: 50%;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -526,9 +500,8 @@
   }
 
   .lightbox-close:hover {
-    background: rgba(220, 38, 38, 0.9);
-    border-color: rgba(220, 38, 38, 1);
-    transform: rotate(90deg);
+    background: var(--color-red);
+    border-color: var(--color-red);
   }
 
   .lightbox-content {
@@ -547,21 +520,20 @@
     width: auto;
     height: auto;
     object-fit: contain;
-    border-radius: 8px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    border: var(--border-bh) solid var(--color-white);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .lightbox-arrow {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: var(--color-fg);
+    color: var(--color-white);
+    border: var(--border-bh) solid var(--color-white);
     font-size: 4rem;
     width: 70px;
     height: 70px;
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -573,8 +545,8 @@
   }
 
   .lightbox-arrow:hover {
-    background: rgba(220, 38, 38, 0.9);
-    border-color: rgba(220, 38, 38, 1);
+    background: var(--color-red);
+    border-color: var(--color-red);
     transform: translateY(-50%) scale(1.1);
   }
 
@@ -591,16 +563,14 @@
     bottom: -60px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
+    background: var(--color-fg);
+    color: var(--color-white);
     padding: 0.75rem 1.5rem;
-    border-radius: 30px;
     font-size: 1.1rem;
-    font-weight: 600;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    font-weight: 700;
+    border: 2px solid var(--color-white);
   }
 
-  /* Mobile lightbox styles */
   @media (max-width: 768px) {
     .lightbox-close {
       top: 10px;
@@ -616,13 +586,8 @@
       font-size: 2.5rem;
     }
 
-    .lightbox-prev {
-      left: 10px;
-    }
-
-    .lightbox-next {
-      right: 10px;
-    }
+    .lightbox-prev { left: 10px; }
+    .lightbox-next { right: 10px; }
 
     .lightbox-counter {
       bottom: -50px;

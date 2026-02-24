@@ -67,7 +67,6 @@
 
   // Initialize form on mount
   onMount(() => {
-    // Set default bid interval based on currency if not already set
     if (bidInterval === 0 || !bidInterval) {
       bidInterval = product?.bidInterval || (userCurrency === 'PHP' ? 50 : 1);
     }
@@ -82,15 +81,13 @@
       city = product.city || '';
       deliveryOptions = product.delivery_options || '';
 
-      // Format and set the auction end date
       const formattedDate = formatDateForInput(product.auctionEndDate);
       auctionEndDate = formattedDate;
-      prevAuctionEndDate = formattedDate; // Initialize to prevent reactive updates on mount
+      prevAuctionEndDate = formattedDate;
 
       active = product.active;
       hasBids = !!(product.currentBid && product.currentBid > 0);
 
-      // Load existing images
       existingImages = (product.images?.map((img: any, index: number) => ({
         id: `existing-${index}`,
         image: typeof img.image === 'object' ? img.image : { id: img.image, url: '', alt: '' }
@@ -99,7 +96,6 @@
       imageFiles = [];
       imagesToDelete = [];
 
-      // Calculate initial duration from the date
       const endDate = new Date(product.auctionEndDate);
       const now = new Date();
       if (!isNaN(endDate.getTime())) {
@@ -113,7 +109,6 @@
     } else if (mode === 'create' && !auctionEndDate) {
       auctionEndDate = getDefaultEndDate();
       prevAuctionEndDate = auctionEndDate;
-      // Calculate initial duration for the default date (24 hours = 1 day)
       customDays = 1;
       customHours = 0;
       prevCustomDays = 1;
@@ -121,7 +116,6 @@
     }
   });
 
-  // Date formatting helpers that handle local timezone properly
   function formatDateToLocalInput(date: Date): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -140,12 +134,10 @@
   function getMinimumEndDate(): string {
     const now = new Date();
 
-    // Check if we're editing an existing product
     if (mode === 'edit' && product?.createdAt) {
       const createdAt = new Date(product.createdAt);
       const hoursSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
 
-      // If product was created more than 1 hour ago, minimum is 1 minute from now
       if (hoursSinceCreation > 1) {
         const minDate = new Date(now);
         minDate.setMinutes(minDate.getMinutes() + 1);
@@ -153,7 +145,6 @@
       }
     }
 
-    // Default: minimum is 1 hour from now
     const minDate = new Date(now);
     minDate.setHours(minDate.getHours() + 1);
     return formatDateToLocalInput(minDate);
@@ -166,15 +157,12 @@
     return formatDateToLocalInput(date);
   }
 
-  // Make minEndDate reactive to mode and product changes
   let minEndDate = $derived(getMinimumEndDate());
 
-  // Store previous values to detect actual changes
   let prevAuctionEndDate = $state('');
   let prevCustomDays = $state(0);
   let prevCustomHours = $state(0);
 
-  // Function to update auction date from custom duration
   function updateDateFromDuration() {
     if (isUpdatingFromDate) return;
 
@@ -193,14 +181,12 @@
       if (error.includes('Duration')) {
         error = '';
       }
-      // Use setTimeout to reset flag after the reactive cycle
       setTimeout(() => {
         isUpdatingFromDuration = false;
       }, 0);
     }
   }
 
-  // Function to update custom duration from auction date
   function updateDurationFromDate() {
     if (isUpdatingFromDuration || !auctionEndDate) return;
 
@@ -223,13 +209,11 @@
       }
     }
 
-    // Use setTimeout to reset flag after the reactive cycle
     setTimeout(() => {
       isUpdatingFromDate = false;
     }, 0);
   }
 
-  // Apply custom duration automatically when values change
   $effect(() => {
     if ((customDays !== prevCustomDays || customHours !== prevCustomHours) && !isUpdatingFromDate) {
       prevCustomDays = customDays;
@@ -238,7 +222,6 @@
     }
   });
 
-  // Update custom duration when auction date changes
   $effect(() => {
     if (auctionEndDate && auctionEndDate !== prevAuctionEndDate && !isUpdatingFromDuration) {
       prevAuctionEndDate = auctionEndDate;
@@ -246,16 +229,11 @@
     }
   });
 
-  // Image handling for create mode
   function handleImageSelect(event: Event) {
     const input = event.target as HTMLInputElement;
     if (!input.files) return;
 
     const newFiles = Array.from(input.files);
-    const totalImages = mode === 'edit'
-      ? existingImages.length + imageFiles.length + newFiles.length
-      : imageFiles.length + newFiles.length;
-
     const remainingSlots = 5 - (mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length);
 
     if (newFiles.length > remainingSlots) {
@@ -263,7 +241,6 @@
       return;
     }
 
-    // Validate file types and sizes
     for (const file of newFiles) {
       if (!file.type.startsWith('image/')) {
         error = 'Only image files are allowed';
@@ -280,12 +257,10 @@
     input.value = '';
   }
 
-  // Remove image from selection
   function removeImage(index: number) {
     imageFiles = imageFiles.filter((_, i) => i !== index);
   }
 
-  // Remove existing image (edit mode)
   function removeExistingImage(imageId: string) {
     const img = existingImages.find(i => i.image.id === imageId);
     if (img) {
@@ -294,12 +269,10 @@
     }
   }
 
-  // Create preview URL for image
   function getImagePreview(file: File): string {
     return URL.createObjectURL(file);
   }
 
-  // Drag and drop for reordering images
   let draggedIndex: number | null = $state(null);
   let draggingExisting = $state(false);
 
@@ -322,8 +295,6 @@
     event.preventDefault();
 
     if (draggedIndex === null || draggedIndex === dropIndex) return;
-
-    // Only allow reordering within the same category (existing or new)
     if (draggingExisting !== isExistingDrop) return;
 
     if (draggingExisting) {
@@ -363,7 +334,6 @@
     success = false;
     submitting = true;
 
-    // Validation
     if (!title || !description || startingPrice <= 0 || !auctionEndDate) {
       showToastNotification('Please fill in all required fields', 'error');
       submitting = false;
@@ -383,26 +353,21 @@
       return;
     }
 
-    // Validate auction end date is in the future
     const endDate = new Date(auctionEndDate);
     const now = new Date();
-    const minFutureDate = new Date(now.getTime() + 60000); // At least 1 minute in the future
+    const minFutureDate = new Date(now.getTime() + 60000);
 
     if (endDate <= minFutureDate) {
       if (mode === 'create') {
         showToastNotification('Auction end date must be at least 1 minute in the future', 'error');
         submitting = false;
-        // Update the date to minimum valid date
         auctionEndDate = getMinimumEndDate();
         return;
       }
-      // For edit mode, allow dates in the past (for products that haven't ended yet)
-      // The backend will validate this properly
     }
 
     try {
       if (mode === 'edit' && product) {
-        // Edit mode: delete old images, upload new ones, update product
         loadingMessage = 'Preparing your changes...';
 
         if (imagesToDelete.length > 0) {
@@ -460,7 +425,6 @@
           showToastNotification('Failed to update product. Please try again.', 'error');
         }
       } else {
-        // Create mode: upload images and create product
         const uploadedImageIds: string[] = [];
 
         for (let i = 0; i < imageFiles.length; i++) {
@@ -504,18 +468,14 @@
         }
       }
     } catch (err) {
-      // Parse error message if it's a validation error
       let errorMessage = `An error occurred while ${mode === 'edit' ? 'updating' : 'creating'} the product. Please try again.`;
 
       if (err instanceof Error) {
         const errorText = err.message;
 
-        // Check if it's an auction date validation error
         if (errorText.includes('auctionEndDate') && errorText.includes('must be in the future')) {
           errorMessage = 'Auction end date must be in the future. Please select a date at least 1 minute from now.';
-          // Reset the date to a valid future date
           auctionEndDate = getMinimumEndDate();
-          // Recalculate the duration
           const endDate = new Date(auctionEndDate);
           const now = new Date();
           const diffMs = endDate.getTime() - now.getTime();
@@ -526,7 +486,6 @@
           prevCustomHours = customHours;
           prevAuctionEndDate = auctionEndDate;
         } else if (errorText.includes('ValidationError')) {
-          // Try to extract more specific error message
           try {
             const match = errorText.match(/"message":"([^"]+)"/);
             if (match && match[1]) {
@@ -557,6 +516,7 @@
       placeholder="Enter a descriptive title"
       required
       disabled={submitting}
+      class="input-bh"
     />
   </div>
 
@@ -569,6 +529,7 @@
       rows="6"
       required
       disabled={submitting}
+      class="input-bh"
     ></textarea>
   </div>
 
@@ -583,6 +544,7 @@
       id="region"
       bind:value={region}
       disabled={submitting}
+      class="input-bh"
     >
       <option value="">Select a region...</option>
       {#each regions as regionOption}
@@ -598,6 +560,7 @@
       id="city"
       bind:value={city}
       disabled={submitting || !region}
+      class="input-bh"
     >
       <option value="">Select a city...</option>
       {#each availableCities as cityOption}
@@ -619,6 +582,7 @@
       id="deliveryOptions"
       bind:value={deliveryOptions}
       disabled={submitting}
+      class="input-bh"
     >
       <option value="">Select an option...</option>
       <option value="delivery">Delivery</option>
@@ -641,7 +605,7 @@
             disabled={submitting}
             style="display: none;"
           />
-          <span class="upload-icon">📷</span>
+          <span class="upload-icon">+</span>
           <span>Add Images ({mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length}/5)</span>
         </label>
       {/if}
@@ -703,7 +667,7 @@
             </div>
           {/each}
         </div>
-        <p class="field-hint drag-hint">💡 Drag images to reorder them. The first image will be the main product photo.</p>
+        <p class="field-hint drag-hint">Drag images to reorder them. The first image will be the main product photo.</p>
       {/if}
     </div>
     <p class="field-hint">Upload 1-5 high-quality images of your product. Each image must be less than 10MB.</p>
@@ -727,6 +691,7 @@
         placeholder="100.00"
         required
         disabled={submitting}
+        class="input-bh"
       />
       <p class="field-hint">Minimum starting price: 100 {userCurrency}</p>
     </div>
@@ -743,6 +708,7 @@
       placeholder={userCurrency === 'PHP' ? '50' : '1'}
       required
       disabled={submitting}
+      class="input-bh"
     />
     <p class="field-hint">Minimum amount each bid must increase by (default: {userCurrency === 'PHP' ? '50' : '1'} {userCurrency})</p>
   </div>
@@ -758,6 +724,7 @@
         min={minEndDate}
         required
         disabled={submitting}
+        class="input-bh"
       />
       {#if mode === 'edit' && product?.createdAt}
         {@const hoursSinceCreation = (new Date().getTime() - new Date(product.createdAt).getTime()) / (1000 * 60 * 60)}
@@ -779,7 +746,7 @@
           type="number"
           min="0"
           placeholder="0"
-          class="duration-input"
+          class="duration-input input-bh"
           bind:value={customDays}
           disabled={submitting}
         />
@@ -790,7 +757,7 @@
           type="number"
           min="0"
           placeholder="0"
-          class="duration-input"
+          class="duration-input input-bh"
           bind:value={customHours}
           disabled={submitting}
         />
@@ -816,11 +783,11 @@
   {/if}
 
   <div class="form-actions">
-    <button type="submit" class="btn-primary" disabled={submitting}>
+    <button type="submit" class="btn-bh-red" disabled={submitting}>
       {submitting ? (mode === 'edit' ? 'Updating...' : 'Creating Listing...') : (mode === 'edit' ? 'Update Product' : 'Create Listing')}
     </button>
     {#if onCancel}
-      <button type="button" class="btn-secondary" onclick={onCancel} disabled={submitting}>
+      <button type="button" class="btn-bh-outline" onclick={onCancel} disabled={submitting}>
         Cancel
       </button>
     {/if}
@@ -843,7 +810,7 @@
   <div class="toast {toastType}" class:show={showToast}>
     <div class="toast-icon">
       {#if toastType === 'success'}
-        ✓
+        &#10003;
       {:else}
         ✕
       {/if}
@@ -857,30 +824,13 @@
     width: 100%;
   }
 
-  .success-message {
-    background-color: #10b981;
-    color: white;
-    padding: 1rem;
-    border-radius: 4px;
-    margin-bottom: 1.5rem;
-  }
-
-  .error-message {
-    background-color: #ef4444;
-    color: white;
-    padding: 1rem;
-    border-radius: 4px;
-    margin-bottom: 1.5rem;
-  }
-
   .form-group {
     margin-bottom: 1.5rem;
   }
 
   .form-info {
-    background-color: #f0f9ff;
-    border: 1px solid #bae6fd;
-    border-radius: 6px;
+    background-color: var(--color-muted);
+    border: var(--border-bh) solid var(--color-blue);
     padding: 1rem;
     margin-bottom: 1.5rem;
   }
@@ -891,7 +841,7 @@
 
   .form-info .note {
     font-size: 0.875rem;
-    color: #0369a1;
+    color: var(--color-blue);
     font-style: italic;
     margin-top: 0.75rem;
   }
@@ -899,8 +849,8 @@
   label {
     display: block;
     margin-bottom: 0.5rem;
-    font-weight: 600;
-    color: #333;
+    font-weight: 700;
+    color: var(--color-fg);
   }
 
   .checkbox-label {
@@ -915,81 +865,17 @@
     margin: 0;
   }
 
-  input,
-  textarea,
-  select {
-    width: 100%;
-    padding: 0.75rem;
-    font-size: 1rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-family: inherit;
-  }
-
-  input:focus,
-  textarea:focus,
-  select:focus {
-    outline: none;
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
-  }
-
-  input:disabled,
-  textarea:disabled,
-  select:disabled {
-    background-color: #f5f5f5;
-    cursor: not-allowed;
-  }
-
   .form-actions {
     display: flex;
     gap: 1rem;
     margin-top: 2rem;
   }
 
-  .btn-primary,
-  .btn-secondary {
-    padding: 0.75rem 2rem;
-    font-size: 1.1rem;
-    border-radius: 4px;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-block;
-    text-align: center;
-    border: none;
-    font-weight: 600;
-  }
-
-  .btn-primary {
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-  }
-
-  .btn-primary:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .btn-secondary {
-    background-color: #f0f0f0;
-    color: #333;
-    border: 1px solid #ccc;
-  }
-
-  .btn-secondary:hover:not(:disabled) {
-    background-color: #e0e0e0;
-  }
-
   .field-hint {
     margin: 0.5rem 0 0 0;
     font-size: 0.875rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
     font-style: italic;
   }
 
@@ -1009,14 +895,14 @@
   .duration-divider::after {
     content: '';
     flex: 1;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 2px solid var(--color-border);
   }
 
   .duration-divider span {
     padding: 0 1rem;
-    color: #666;
+    color: var(--color-fg);
     font-size: 0.875rem;
-    font-weight: 500;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -1035,24 +921,13 @@
   }
 
   .duration-input {
-    width: 80px;
-    padding: 0.625rem;
-    font-size: 1rem;
-    border: 2px solid #e5e7eb;
-    border-radius: 6px;
-    font-family: inherit;
-  }
-
-  .duration-input:focus {
-    outline: none;
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    width: 80px !important;
   }
 
   .duration-unit {
     font-size: 0.875rem;
-    color: #666;
-    font-weight: 500;
+    color: var(--color-fg);
+    font-weight: 700;
   }
 
   /* Image Upload Styles */
@@ -1067,19 +942,19 @@
     align-items: center;
     gap: 0.5rem;
     padding: 1rem 2rem;
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+    background: var(--color-red);
     color: white;
-    border-radius: 8px;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
-    border: none;
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     font-size: 1rem;
   }
 
   .image-upload-btn:hover:not(.disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+    transform: translateY(2px);
+    box-shadow: 1px 1px 0px var(--color-border);
   }
 
   .image-upload-btn.disabled {
@@ -1089,6 +964,7 @@
 
   .upload-icon {
     font-size: 1.5rem;
+    font-weight: 900;
   }
 
   .image-preview-grid {
@@ -1100,17 +976,16 @@
   .image-preview-item {
     position: relative;
     aspect-ratio: 1;
-    border-radius: 8px;
     overflow: hidden;
-    border: 2px solid #e5e7eb;
-    background: #f9fafb;
+    border: var(--border-bh) solid var(--color-border);
+    background: var(--color-muted);
     cursor: grab;
     transition: all 0.3s ease;
   }
 
   .image-preview-item:hover {
-    border-color: #dc2626;
-    box-shadow: 0 4px 8px rgba(220, 38, 38, 0.2);
+    border-color: var(--color-red);
+    box-shadow: var(--shadow-bh-sm);
   }
 
   .image-preview-item.dragging {
@@ -1131,10 +1006,9 @@
     bottom: 0.5rem;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
+    background: var(--color-fg);
+    color: var(--color-white);
     padding: 0.25rem 0.75rem;
-    border-radius: 12px;
     font-size: 1.25rem;
     font-weight: bold;
     letter-spacing: -2px;
@@ -1150,7 +1024,7 @@
   .drag-hint {
     margin-top: 0.75rem;
     font-size: 0.9rem;
-    color: #059669;
+    color: var(--color-blue);
     font-weight: 500;
   }
 
@@ -1160,10 +1034,9 @@
     right: 0.5rem;
     width: 32px;
     height: 32px;
-    background: rgba(220, 38, 38, 0.9);
-    color: white;
-    border: none;
-    border-radius: 50%;
+    background: var(--color-red);
+    color: var(--color-white);
+    border: 2px solid var(--color-border);
     font-size: 1.25rem;
     cursor: pointer;
     display: flex;
@@ -1175,7 +1048,7 @@
   }
 
   .remove-image-btn:hover:not(:disabled) {
-    background: #991b1b;
+    background: var(--color-fg);
     transform: scale(1.1);
   }
 
@@ -1188,25 +1061,24 @@
     position: absolute;
     bottom: 0.5rem;
     left: 0.5rem;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
+    background: var(--color-fg);
+    color: var(--color-white);
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 700;
   }
 
   .new-badge {
     position: absolute;
     top: 0.5rem;
     left: 0.5rem;
-    background: #059669;
-    color: white;
+    background: var(--color-blue);
+    color: var(--color-white);
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.5px;
+    border: 2px solid var(--color-border);
   }
 
   @media (max-width: 768px) {
@@ -1217,11 +1089,6 @@
     .form-actions {
       flex-direction: column;
     }
-
-    .btn-primary,
-    .btn-secondary {
-      width: 100%;
-    }
   }
 
   /* Fullscreen Loader */
@@ -1231,8 +1098,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.9);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1241,12 +1107,8 @@
   }
 
   @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   .loader-content {
@@ -1260,21 +1122,19 @@
     width: 64px;
     height: 64px;
     border: 6px solid rgba(255, 255, 255, 0.2);
-    border-top-color: #dc2626;
-    border-radius: 50%;
+    border-top-color: var(--color-red);
+    border-radius: 50% !important;
     animation: spin 1s linear infinite;
     margin: 0 auto 1.5rem;
   }
 
   @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
+    to { transform: rotate(360deg); }
   }
 
   .loader-message {
     font-size: 1.25rem;
-    font-weight: 600;
+    font-weight: 700;
     margin-bottom: 0.5rem;
     color: white;
   }
@@ -1294,8 +1154,8 @@
     align-items: center;
     gap: 12px;
     padding: 16px 24px;
-    border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-md);
     z-index: 10000;
     min-width: 300px;
     max-width: 500px;
@@ -1304,39 +1164,28 @@
   }
 
   @keyframes slideInRight {
-    from {
-      transform: translateX(100%);
-      opacity: 0;
-    }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
   }
 
   @keyframes fadeOut {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-    }
+    from { opacity: 1; }
+    to { opacity: 0; }
   }
 
   .toast.success {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: var(--color-blue);
     color: white;
   }
 
   .toast.error {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    background: var(--color-red);
     color: white;
   }
 
   .toast-icon {
     width: 28px;
     height: 28px;
-    border-radius: 50%;
     background: rgba(255, 255, 255, 0.2);
     display: flex;
     align-items: center;
