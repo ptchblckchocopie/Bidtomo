@@ -72,6 +72,77 @@ const start = async () => {
   // Import config directly
   const config = require('./payload.config').default;
 
+  // Track payload readiness for the admin guard middleware
+  let payloadReady = false;
+
+  // Access denied page for non-admin users
+  app.get('/admin/access-denied', (req, res) => {
+    res.clearCookie('payload-token');
+    res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Access Denied - Bidmo.to CMS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0f0f0f; color: #e0e0e0; }
+    .container { text-align: center; padding: 2.5rem; max-width: 440px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; }
+    .icon { font-size: 3rem; margin-bottom: 1rem; }
+    h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 0.75rem; }
+    p { font-size: 0.95rem; opacity: 0.65; line-height: 1.6; margin-bottom: 1.75rem; }
+    a { display: inline-block; padding: 0.7rem 2rem; background: #3b82f6; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 500; font-size: 0.95rem; transition: background 0.2s; }
+    a:hover { background: #2563eb; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">&#128274;</div>
+    <h1>Access Denied</h1>
+    <p>Only admin accounts can access the CMS panel.<br>Your session has been logged out.</p>
+    <a href="/admin">Back to Login</a>
+  </div>
+</body>
+</html>`);
+  });
+
+  // Guard: auto-logout non-admin users from admin panel
+  app.use('/admin', async (req, res, next) => {
+    if (!payloadReady) return next();
+
+    // Only check HTML page loads, skip assets and API calls
+    const accept = req.headers.accept || '';
+    if (!accept.includes('text/html')) return next();
+    if (req.path === '/access-denied') return next();
+
+    // Parse payload-token from cookie header
+    const cookies = req.headers.cookie || '';
+    const tokenMatch = cookies.match(/payload-token=([^;]+)/);
+    if (!tokenMatch) return next();
+
+    try {
+      const token = decodeURIComponent(tokenMatch[1]);
+      const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+
+      if (decoded?.id) {
+        const user = await payload.findByID({
+          collection: 'users',
+          id: decoded.id,
+        });
+
+        if (user && user.role !== 'admin') {
+          return res.redirect('/admin/access-denied');
+        }
+      }
+    } catch {
+      // Invalid or expired token — clear it
+      res.clearCookie('payload-token');
+      return res.redirect('/admin');
+    }
+
+    next();
+  });
+
   await payload.init({
     secret: process.env.PAYLOAD_SECRET!,
     express: app,
@@ -80,6 +151,8 @@ const start = async () => {
       payload.logger.info(`Payload Admin URL: ${payload.getAdminURL()}`);
     },
   });
+
+  payloadReady = true;
 
   // Root route - API info
   app.get('/', (req, res) => {
