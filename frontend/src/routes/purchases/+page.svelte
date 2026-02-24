@@ -1,5 +1,4 @@
 <script lang="ts">
-  export let params: any = undefined; // SvelteKit passes this automatically
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
 

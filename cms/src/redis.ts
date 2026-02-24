@@ -12,6 +12,10 @@ function getRedis(): Redis {
 
   redis = new Redis(REDIS_URL, {
     retryStrategy: (times) => {
+      if (times > 3) {
+        console.warn('[CMS] Redis unavailable, giving up. Bid queuing will use direct fallback.');
+        return null;
+      }
       const delay = Math.min(times * 500, 5000);
       console.log(`[CMS] Redis reconnecting in ${delay}ms (attempt ${times})`);
       return delay;

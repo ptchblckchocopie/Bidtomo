@@ -6,37 +6,38 @@
   import { authStore } from '$lib/stores/auth';
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
 
-  export let data: PageData;
-  export let params: any = undefined; // SvelteKit passes this automatically
+  let { data, params }: { data: PageData; params?: any } = $props();
 
-  let countdowns: { [key: string]: string } = {};
-  let countdownInterval: ReturnType<typeof setInterval> | null = null;
-  let userBids: { [productId: string]: number } = {}; // Maps product ID to user's bid amount
-  let userBidsByProduct: { [productId: string]: any[] } = {}; // All user bids per product
+  let countdowns: { [key: string]: string } = $state({});
+  let countdownInterval: ReturnType<typeof setInterval> | null = $state(null);
+  let userBids: { [productId: string]: number } = $state({}); // Maps product ID to user's bid amount
+  let userBidsByProduct: { [productId: string]: any[] } = $state({}); // All user bids per product
 
   // Local state for form inputs
-  let searchInput = data.search || '';
-  let regionInput = data.region || '';
-  let cityInput = data.city || '';
-  let searchTimeout: ReturnType<typeof setTimeout> | null = null;
-  let lastDataSearch = data.search || ''; // Track last known data.search value
-  let lastDataRegion = data.region || '';
-  let lastDataCity = data.city || '';
+  let searchInput = $state(data.search || '');
+  let regionInput = $state(data.region || '');
+  let cityInput = $state(data.city || '');
+  let searchTimeout: ReturnType<typeof setTimeout> | null = $state(null);
+  let lastDataSearch = $state(data.search || ''); // Track last known data.search value
+  let lastDataRegion = $state(data.region || '');
+  let lastDataCity = $state(data.city || '');
 
   // Items per page options
   const itemsPerPageOptions = [12, 24, 48, 96];
 
   // Get cities for selected region
-  $: availableCities = regionInput ? getCitiesByRegion(regionInput) : [];
+  let availableCities = $derived(regionInput ? getCitiesByRegion(regionInput) : []);
 
   // Reset city when region changes
-  $: if (regionInput && !availableCities.includes(cityInput)) {
-    // Don't auto-clear if we're loading from URL params
-    const urlCity = $page.url.searchParams.get('city') || '';
-    if (cityInput && cityInput !== urlCity) {
-      cityInput = '';
+  $effect(() => {
+    if (regionInput && !availableCities.includes(cityInput)) {
+      // Don't auto-clear if we're loading from URL params
+      const urlCity = $page.url.searchParams.get('city') || '';
+      if (cityInput && cityInput !== urlCity) {
+        cityInput = '';
+      }
     }
-  }
+  });
 
   function updateURL(params: Record<string, string | number>) {
     const url = new URL($page.url);
@@ -138,7 +139,7 @@
 
   // Update local search input when data changes (e.g., browser back/forward)
   // Only update if data.search has actually changed and is different from current input
-  $: {
+  $effect(() => {
     const currentDataSearch = data.search || '';
     if (currentDataSearch !== lastDataSearch) {
       // data.search changed - only update input if it's different from what user typed
@@ -147,10 +148,10 @@
       }
       lastDataSearch = currentDataSearch;
     }
-  }
+  });
 
   // Update local location inputs when data changes
-  $: {
+  $effect(() => {
     const currentDataRegion = data.region || '';
     if (currentDataRegion !== lastDataRegion) {
       if (currentDataRegion !== regionInput) {
@@ -158,9 +159,9 @@
       }
       lastDataRegion = currentDataRegion;
     }
-  }
+  });
 
-  $: {
+  $effect(() => {
     const currentDataCity = data.city || '';
     if (currentDataCity !== lastDataCity) {
       if (currentDataCity !== cityInput) {
@@ -168,7 +169,7 @@
       }
       lastDataCity = currentDataCity;
     }
-  }
+  });
 
   function formatPrice(price: number, currency: string = 'PHP'): string {
     return new Intl.NumberFormat('en-US', {
@@ -211,7 +212,6 @@
         countdowns[product.id] = `${minutes}m ${seconds}s`;
       }
     });
-    countdowns = { ...countdowns }; // Trigger reactivity
   }
 
   function getUrgencyClass(endDate: string): string {
@@ -279,16 +279,18 @@
   }
 
   // Sort products to show ones with user bids first
-  $: sortedProducts = [...data.products].sort((a, b) => {
+  let sortedProducts = $derived([...data.products].sort((a, b) => {
     const aHasBid = userBids[a.id] ? 1 : 0;
     const bHasBid = userBids[b.id] ? 1 : 0;
     return bHasBid - aHasBid; // Products with bids first
-  });
+  }));
 
   // Refetch bids when auth state changes
-  $: if ($authStore.isAuthenticated !== undefined) {
-    fetchUserBids();
-  }
+  $effect(() => {
+    if ($authStore.isAuthenticated !== undefined) {
+      fetchUserBids();
+    }
+  });
 
   onMount(() => {
     updateCountdowns();
@@ -413,19 +415,19 @@
         <input
           type="text"
           bind:value={searchInput}
-          on:input={handleSearchInput}
+          oninput={handleSearchInput}
           placeholder="Search by title, description, or keywords..."
           class="search-input"
         />
         {#if searchInput}
-          <button class="clear-search" on:click={() => { searchInput = ''; handleSearchInput(); }}>✕</button>
+          <button class="clear-search" onclick={() => { searchInput = ''; handleSearchInput(); }}>✕</button>
         {/if}
       </div>
 
       <div class="location-filters">
         <select
           bind:value={regionInput}
-          on:change={handleLocationInput}
+          onchange={handleLocationInput}
           class="location-select"
         >
           <option value="">All Regions</option>
@@ -435,7 +437,7 @@
         </select>
         <select
           bind:value={cityInput}
-          on:change={handleLocationInput}
+          onchange={handleLocationInput}
           class="location-select"
           disabled={!regionInput}
         >
@@ -445,7 +447,7 @@
           {/each}
         </select>
         {#if searchInput || regionInput || cityInput}
-          <button class="btn-clear-filters" on:click={clearFilters}>Clear All</button>
+          <button class="btn-clear-filters" onclick={clearFilters}>Clear All</button>
         {/if}
       </div>
     </div>
@@ -458,7 +460,7 @@
     <div class="controls-container">
       <div class="items-per-page">
         <label>Items per page:</label>
-        <select value={data.limit} on:change={(e) => changeItemsPerPage(parseInt(e.currentTarget.value))}>
+        <select value={data.limit} onchange={(e) => changeItemsPerPage(parseInt(e.currentTarget.value))}>
           {#each itemsPerPageOptions as option}
             <option value={option}>{option}</option>
           {/each}
@@ -473,7 +475,7 @@
       {#if data.search}<p class="filter-detail">Search: "{data.search}"</p>{/if}
       {#if data.region}<p class="filter-detail">Region: "{data.region}"</p>{/if}
       {#if data.city}<p class="filter-detail">City: "{data.city}"</p>{/if}
-      <button class="btn-clear-search" on:click={clearFilters}>Clear Filters</button>
+      <button class="btn-clear-search" onclick={clearFilters}>Clear Filters</button>
     </div>
   {/if}
 
@@ -482,21 +484,21 @@
     <button
       class="tab"
       class:active={data.status === 'active'}
-      on:click={() => changeTab('active')}
+      onclick={() => changeTab('active')}
     >
       Active Auctions
     </button>
     <button
       class="tab"
       class:active={data.status === 'ended'}
-      on:click={() => changeTab('ended')}
+      onclick={() => changeTab('ended')}
     >
       Ended Auctions
     </button>
     <button
       class="tab"
       class:active={data.status === 'my-bids'}
-      on:click={() => changeTab('my-bids')}
+      onclick={() => changeTab('my-bids')}
     >
       My Bids
     </button>
@@ -610,7 +612,7 @@
             <button
               class="pagination-btn"
               disabled={data.currentPage === 1}
-              on:click={() => goToPage(data.currentPage - 1)}
+              onclick={() => goToPage(data.currentPage - 1)}
             >
               ← Previous
             </button>
@@ -620,7 +622,7 @@
                 <button
                   class="pagination-number"
                   class:active={data.currentPage === i + 1}
-                  on:click={() => goToPage(i + 1)}
+                  onclick={() => goToPage(i + 1)}
                 >
                   {i + 1}
                 </button>
@@ -630,7 +632,7 @@
             <button
               class="pagination-btn"
               disabled={data.currentPage === data.totalPages}
-              on:click={() => goToPage(data.currentPage + 1)}
+              onclick={() => goToPage(data.currentPage + 1)}
             >
               Next →
             </button>

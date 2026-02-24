@@ -3,7 +3,7 @@
   import StarRating from '$lib/components/StarRating.svelte';
   import type { Rating } from '$lib/api';
 
-  export let data: PageData;
+  let { data } = $props<{ data: PageData }>();
 
   // Format date helper
   function formatDate(dateString: string): string {
@@ -71,11 +71,11 @@
   }
 
   // Active tab
-  let activeTab: 'listings' | 'reviews' = 'listings';
+  let activeTab: 'listings' | 'reviews' = $state('listings');
 
   // Separate ratings by role
-  $: ratingsAsSeller = data.ratings.filter(r => r.raterRole === 'buyer'); // Buyers rate sellers
-  $: ratingsAsBuyer = data.ratings.filter(r => r.raterRole === 'seller'); // Sellers rate buyers
+  let ratingsAsSeller = $derived(data.ratings.filter((r: Rating) => r.raterRole === 'buyer')); // Buyers rate sellers
+  let ratingsAsBuyer = $derived(data.ratings.filter((r: Rating) => r.raterRole === 'seller')); // Sellers rate buyers
 </script>
 
 <svelte:head>
@@ -128,14 +128,14 @@
       <button
         class="tab-btn"
         class:active={activeTab === 'listings'}
-        on:click={() => activeTab = 'listings'}
+        onclick={() => activeTab = 'listings'}
       >
         Listings
       </button>
       <button
         class="tab-btn"
         class:active={activeTab === 'reviews'}
-        on:click={() => activeTab = 'reviews'}
+        onclick={() => activeTab = 'reviews'}
       >
         Reviews ({data.ratings.length})
       </button>

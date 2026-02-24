@@ -1,23 +1,26 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  let {
+    images = [],
+    productTitle = '',
+    autoplayInterval = 3000
+  }: {
+    images?: Array<{ image: { url: string; alt?: string } }>;
+    productTitle?: string;
+    autoplayInterval?: number;
+  } = $props();
 
-  export let images: Array<{ image: { url: string; alt?: string } }> = [];
-  export let productTitle: string = '';
-  export let autoplayInterval: number = 3000; // ms between slides
-
-  let currentIndex = 0;
-  let autoplayTimer: number | null = null;
-  let isAutoplayActive = true;
-  let hasUserInteracted = false;
+  let currentIndex = $state(0);
+  let isAutoplayActive = $state(true);
+  let hasUserInteracted = $state(false);
 
   // Lightbox state
-  let lightboxOpen = false;
-  let lightboxIndex = 0;
+  let lightboxOpen = $state(false);
+  let lightboxIndex = $state(0);
 
   // Touch/swipe state
-  let touchStartX = 0;
-  let touchEndX = 0;
-  let isSwiping = false;
+  let touchStartX = $state(0);
+  let touchEndX = $state(0);
+  let isSwiping = $state(false);
   const minSwipeDistance = 50; // Minimum distance in pixels to trigger a swipe
 
   function nextSlide() {
@@ -30,30 +33,12 @@
 
   function goToSlide(index: number) {
     currentIndex = index;
-    stopAutoplay();
-  }
-
-  function startAutoplay() {
-    if (images.length <= 1 || hasUserInteracted) return;
-
-    stopAutoplay();
-    autoplayTimer = window.setInterval(() => {
-      nextSlide();
-    }, autoplayInterval);
-    isAutoplayActive = true;
-  }
-
-  function stopAutoplay() {
-    if (autoplayTimer) {
-      clearInterval(autoplayTimer);
-      autoplayTimer = null;
-    }
-    isAutoplayActive = false;
+    handleUserInteraction();
   }
 
   function handleUserInteraction() {
     hasUserInteracted = true;
-    stopAutoplay();
+    isAutoplayActive = false;
   }
 
   function handlePrevClick() {
@@ -65,6 +50,30 @@
     handleUserInteraction();
     nextSlide();
   }
+
+  // Autoplay effect with cleanup
+  $effect(() => {
+    if (images.length <= 1 || hasUserInteracted) {
+      isAutoplayActive = false;
+      return;
+    }
+
+    isAutoplayActive = true;
+    const timer = window.setInterval(() => {
+      nextSlide();
+    }, autoplayInterval);
+
+    return () => {
+      clearInterval(timer);
+    };
+  });
+
+  // Cleanup body overflow on unmount
+  $effect(() => {
+    return () => {
+      document.body.style.overflow = '';
+    };
+  });
 
   // Lightbox functions
   function openLightbox(index: number) {
@@ -143,34 +152,18 @@
     touchStartX = 0;
     touchEndX = 0;
   }
-
-  // Start autoplay on mount
-  onMount(() => {
-    startAutoplay();
-  });
-
-  // Clean up on destroy
-  onDestroy(() => {
-    stopAutoplay();
-    document.body.style.overflow = ''; // Restore scrolling
-  });
-
-  // Restart autoplay when images change
-  $: if (images.length > 1 && !hasUserInteracted) {
-    startAutoplay();
-  }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if images && images.length > 0}
   <div class="image-slider">
     <!-- Main image display -->
     <div
       class="slider-main"
-      on:touchstart={handleTouchStart}
-      on:touchmove={handleTouchMove}
-      on:touchend={handleTouchEnd}
+      ontouchstart={handleTouchStart}
+      ontouchmove={handleTouchMove}
+      ontouchend={handleTouchEnd}
     >
       <div class="slider-images">
         {#each images as imageItem, index}
@@ -179,7 +172,7 @@
               src={imageItem.image.url}
               alt={imageItem.image.alt || productTitle}
               loading={index === 0 ? 'eager' : 'lazy'}
-              on:click={() => openLightbox(index)}
+              onclick={() => openLightbox(index)}
               class="clickable-image"
               role="button"
               tabindex="0"
@@ -192,14 +185,14 @@
       {#if images.length > 1}
         <button
           class="nav-arrow nav-prev"
-          on:click={handlePrevClick}
+          onclick={handlePrevClick}
           aria-label="Previous image"
         >
           ‹
         </button>
         <button
           class="nav-arrow nav-next"
-          on:click={handleNextClick}
+          onclick={handleNextClick}
           aria-label="Next image"
         >
           ›
@@ -219,7 +212,7 @@
           <button
             class="thumbnail"
             class:active={index === currentIndex}
-            on:click={() => goToSlide(index)}
+            onclick={() => goToSlide(index)}
             aria-label={`Go to image ${index + 1}`}
           >
             <img
@@ -240,12 +233,12 @@
 
 <!-- Lightbox Modal -->
 {#if lightboxOpen}
-  <div class="lightbox-overlay" on:click={closeLightbox} role="button" tabindex="0">
-    <button class="lightbox-close" on:click={closeLightbox} aria-label="Close lightbox">
+  <div class="lightbox-overlay" onclick={closeLightbox} role="button" tabindex="0">
+    <button class="lightbox-close" onclick={closeLightbox} aria-label="Close lightbox">
       ✕
     </button>
 
-    <div class="lightbox-content" on:click|stopPropagation role="dialog">
+    <div class="lightbox-content" onclick={(e) => { e.stopPropagation(); }} role="dialog">
       <img
         src={images[lightboxIndex].image.url}
         alt={images[lightboxIndex].image.alt || productTitle}
@@ -255,14 +248,14 @@
       {#if images.length > 1}
         <button
           class="lightbox-arrow lightbox-prev"
-          on:click={lightboxPrev}
+          onclick={lightboxPrev}
           aria-label="Previous image"
         >
           ‹
         </button>
         <button
           class="lightbox-arrow lightbox-next"
-          on:click={lightboxNext}
+          onclick={lightboxNext}
           aria-label="Next image"
         >
           ›

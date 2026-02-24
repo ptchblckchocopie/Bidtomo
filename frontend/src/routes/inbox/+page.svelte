@@ -1,5 +1,4 @@
 <script lang="ts">
-  export let params: any = undefined; // SvelteKit passes this automatically
   import { onMount, onDestroy, tick } from 'svelte';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
@@ -199,73 +198,73 @@
     }
   }
 
-  let conversations: { product: Product; lastMessage: Message; unreadCount: number }[] = [];
-  let selectedProduct: Product | null = null;
-  let messages: Message[] = [];
-  let newMessage = '';
-  let loading = true;
-  let loadingConversation = false;
-  let sendingMessage = false;
-  let error = '';
-  let pollingInterval: ReturnType<typeof setInterval> | null = null;
-  let conversationListPollingInterval: ReturnType<typeof setInterval> | null = null;
-  let lastMessageTime: string | null = null;
-  let chatInputElement: HTMLInputElement;
-  let typingTimeout: ReturnType<typeof setTimeout> | null = null;
-  let productSseUnsubscribe: (() => void) | null = null;
-  let currentProductSseId: string | null = null;
-  let otherUserTyping = false;
-  let iAmTyping = false;
-  let activeTab: 'products' | 'purchases' = 'products';
-  let chatMessagesElement: HTMLElement | null = null;
-  let shouldAutoScroll = true;
-  let loadingOlderMessages = false;
-  let hasMoreMessages = true;
+  let conversations: { product: Product; lastMessage: Message; unreadCount: number }[] = $state([]);
+  let selectedProduct: Product | null = $state(null);
+  let messages: Message[] = $state([]);
+  let newMessage = $state('');
+  let loading = $state(true);
+  let loadingConversation = $state(false);
+  let sendingMessage = $state(false);
+  let error = $state('');
+  let pollingInterval: ReturnType<typeof setInterval> | null = $state(null);
+  let conversationListPollingInterval: ReturnType<typeof setInterval> | null = $state(null);
+  let lastMessageTime: string | null = $state(null);
+  let chatInputElement: HTMLInputElement = $state(undefined as any);
+  let typingTimeout: ReturnType<typeof setTimeout> | null = $state(null);
+  let productSseUnsubscribe: (() => void) | null = $state(null);
+  let currentProductSseId: string | null = $state(null);
+  let otherUserTyping = $state(false);
+  let iAmTyping = $state(false);
+  let activeTab: 'products' | 'purchases' = $state('products');
+  let chatMessagesElement: HTMLElement | null = $state(null);
+  let shouldAutoScroll = $state(true);
+  let loadingOlderMessages = $state(false);
+  let hasMoreMessages = $state(true);
   const MESSAGE_PAGE_SIZE = 10;
-  let canChat = true;
-  let chatBlockedReason = '';
-  let newMessageIds: Set<string> = new Set();
-  let conversationUpdateDebounce: ReturnType<typeof setTimeout> | null = null;
-  let sseConnected = false;
-  let sseStateUnsubscribe: (() => void) | null = null;
+  let canChat = $state(true);
+  let chatBlockedReason = $state('');
+  let newMessageIds: Set<string> = $state(new Set());
+  let conversationUpdateDebounce: ReturnType<typeof setTimeout> | null = $state(null);
+  let sseConnected = $state(false);
+  let sseStateUnsubscribe: (() => void) | null = $state(null);
 
   // Rating state
-  let transaction: Transaction | null = null;
-  let myRating: Rating | null = null;
-  let otherPartyRating: Rating | null = null;
-  let showRatingModal = false;
-  let ratingValue = 0;
-  let ratingComment = '';
-  let submittingRating = false;
-  let ratingError = '';
-  let buyerName: string | null = null;
-  let sellerName: string | null = null;
+  let transaction: Transaction | null = $state(null);
+  let myRating: Rating | null = $state(null);
+  let otherPartyRating: Rating | null = $state(null);
+  let showRatingModal = $state(false);
+  let ratingValue = $state(0);
+  let ratingComment = $state('');
+  let submittingRating = $state(false);
+  let ratingError = $state('');
+  let buyerName: string | null = $state(null);
+  let sellerName: string | null = $state(null);
 
   // Void request state
-  let voidRequest: VoidRequest | null = null;
-  let showVoidModal = false;
-  let showVoidApprovalModal = false;
-  let showSellerChoiceModal = false;
-  let showSecondBidderOfferModal = false;
-  let voidReason = '';
-  let voidRejectionReason = '';
-  let submittingVoid = false;
-  let voidError = '';
-  let pendingVoidRequest: VoidRequest | null = null;
+  let voidRequest: VoidRequest | null = $state(null);
+  let showVoidModal = $state(false);
+  let showVoidApprovalModal = $state(false);
+  let showSellerChoiceModal = $state(false);
+  let showSecondBidderOfferModal = $state(false);
+  let voidReason = $state('');
+  let voidRejectionReason = $state('');
+  let submittingVoid = $state(false);
+  let voidError = $state('');
+  let pendingVoidRequest: VoidRequest | null = $state(null);
 
   // Get product ID from query params if navigated from purchases page
-  $: productId = $page.url.searchParams.get('product');
+  let productId = $derived($page.url.searchParams.get('product'));
 
   // Filter and sort conversations
-  $: myProductsConversations = conversations
+  let myProductsConversations = $derived.by(() => conversations
     .filter(conv => conv.product.seller?.id === $authStore.user?.id)
-    .sort((a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime());
+    .sort((a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime()));
 
-  $: myPurchasesConversations = conversations
+  let myPurchasesConversations = $derived.by(() => conversations
     .filter(conv => conv.product.seller?.id !== $authStore.user?.id)
-    .sort((a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime());
+    .sort((a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime()));
 
-  $: displayedConversations = activeTab === 'products' ? myProductsConversations : myPurchasesConversations;
+  let displayedConversations = $derived(activeTab === 'products' ? myProductsConversations : myPurchasesConversations);
 
   // Currency symbols
   const currencySymbols: Record<string, string> = {
@@ -405,7 +404,7 @@
     }
 
     // For buyers, check product status
-    if (product.status === 'active') {
+    if ((product.status as string) === 'active') {
       return {
         allowed: false,
         reason: 'The bidding is still ongoing and you can only chat if you won the bid.',
@@ -927,7 +926,7 @@
       if (event.type === 'typing') {
         const typingEvent = event as TypingEvent;
         // Only update if it's from another user
-        if (typingEvent.userId !== $authStore.user?.id) {
+        if (String(typingEvent.userId) !== String($authStore.user?.id)) {
           // Clear any existing timeout
           if (typingClearTimeout) {
             clearTimeout(typingClearTimeout);
@@ -1042,6 +1041,26 @@
     }
   }
 
+  // Handle visibility change - stop polling when tab is not visible
+  function handleVisibilityChange() {
+    if (document.hidden) {
+      // Tab is hidden, stop all polling to save resources
+      stopPolling();
+      stopConversationListPolling();
+      // Note: SSE stays connected for typing, no need to disconnect
+    } else {
+      // Tab is visible again
+      if (selectedProduct) {
+        // Only start polling if SSE is not connected (startPolling checks this)
+        startPolling();
+        // Re-subscribe to product SSE for typing
+        subscribeToProductSSE(String(selectedProduct.id));
+      }
+      // Always restart conversation list polling (this is less frequent)
+      startConversationListPolling();
+    }
+  }
+
   onMount(async () => {
     if (!$authStore.isAuthenticated) {
       goto('/login?redirect=/inbox');
@@ -1133,40 +1152,18 @@
       (window as any).__sseUnsubscribe = unsubscribe;
     }
 
-    // Handle visibility change - stop polling when tab is not visible
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        // Tab is hidden, stop all polling to save resources
-        stopPolling();
-        stopConversationListPolling();
-        // Note: SSE stays connected for typing, no need to disconnect
-      } else {
-        // Tab is visible again
-        if (selectedProduct) {
-          // Only start polling if SSE is not connected (startPolling checks this)
-          startPolling();
-          // Re-subscribe to product SSE for typing
-          subscribeToProductSSE(String(selectedProduct.id));
-        }
-        // Always restart conversation list polling (this is less frequent)
-        startConversationListPolling();
-      }
-    };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // Cleanup visibility listener on destroy
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
   });
 
   // Auto-scroll when typing indicator appears (but not when I'm typing)
-  $: if (otherUserTyping && !iAmTyping && shouldAutoScroll) {
-    setTimeout(scrollToBottom, 50);
-  }
+  $effect(() => {
+    if (otherUserTyping && !iAmTyping && shouldAutoScroll) {
+      setTimeout(scrollToBottom, 50);
+    }
+  });
 
   onDestroy(() => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
     stopPolling();
     stopConversationListPolling();
     unsubscribeFromProductSSE();
@@ -1222,7 +1219,7 @@
           <button
             class="tab"
             class:active={activeTab === 'products'}
-            on:click={() => activeTab = 'products'}
+            onclick={() => activeTab = 'products'}
           >
             My Products
             {#if myProductsConversations.length > 0}
@@ -1232,7 +1229,7 @@
           <button
             class="tab"
             class:active={activeTab === 'purchases'}
-            on:click={() => activeTab = 'purchases'}
+            onclick={() => activeTab = 'purchases'}
           >
             My Purchases
             {#if myPurchasesConversations.length > 0}
@@ -1254,7 +1251,7 @@
             class="conversation-item"
             class:active={selectedProduct?.id === conv.product.id}
             class:loading={loadingConversation && selectedProduct?.id === conv.product.id}
-            on:click={() => selectConversation(conv.product)}
+            onclick={() => selectConversation(conv.product)}
             disabled={loadingConversation}
           >
             <div class="conversation-image">
@@ -1304,7 +1301,7 @@
       <main class="chat-area" class:show-on-mobile={selectedProduct}>
         {#if selectedProduct}
           <div class="chat-header">
-            <button class="back-btn" on:click={handleBackToList} disabled={loadingConversation}>
+            <button class="back-btn" onclick={handleBackToList} disabled={loadingConversation}>
               ← Back
             </button>
             <div class="product-summary">
@@ -1336,11 +1333,11 @@
                 { label: 'View Product', action: 'view_product', show: true, icon: '🔗' },
                 { label: 'Void Bid', action: 'void_bid', show: selectedProduct.status === 'sold' && !!transaction && (transaction.status === 'pending' || transaction.status === 'in_progress'), variant: 'danger', icon: '❌' }
               ]}
-              on:select={(e) => handleMenuAction(e.detail.action)}
+              onSelect={(detail) => handleMenuAction(detail.action)}
             />
           </div>
 
-          <div class="chat-messages" bind:this={chatMessagesElement} on:scroll={handleScroll}>
+          <div class="chat-messages" bind:this={chatMessagesElement} onscroll={handleScroll}>
             {#if loadingConversation}
               <div class="loading-conversation">
                 <div class="loading-spinner"></div>
@@ -1405,7 +1402,7 @@
                         rating={ratingValue}
                         interactive={true}
                         size="medium"
-                        on:change={(e) => ratingValue = e.detail.rating}
+                        onChange={(detail) => ratingValue = detail.rating}
                       />
                       {#if ratingValue > 0}
                         <span class="rating-value-text">{ratingValue}/5</span>
@@ -1421,7 +1418,7 @@
                         />
                         <button
                           class="inline-submit-btn"
-                          on:click={submitRating}
+                          onclick={submitRating}
                           disabled={submittingRating}
                         >
                           {submittingRating ? '...' : 'Submit'}
@@ -1469,12 +1466,12 @@
               </a>
             </div>
           {:else}
-            <form class="chat-input-form" on:submit|preventDefault={handleSendMessage}>
+            <form class="chat-input-form" onsubmit={(e) => { e.preventDefault(); handleSendMessage(); }}>
               <input
                 type="text"
                 bind:value={newMessage}
                 bind:this={chatInputElement}
-                on:input={handleTyping}
+                oninput={handleTyping}
                 placeholder="Type your message..."
                 class="chat-input"
                 disabled={sendingMessage}
@@ -1496,9 +1493,9 @@
 
 <!-- Rating Modal -->
 {#if showRatingModal && selectedProduct && transaction}
-  <div class="modal-overlay" on:click={() => showRatingModal = false} on:keydown={(e) => e.key === 'Escape' && (showRatingModal = false)} role="button" tabindex="0">
-    <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-modal="true">
-      <button class="modal-close" on:click={() => showRatingModal = false}>&times;</button>
+  <div class="modal-overlay" onclick={() => showRatingModal = false} onkeydown={(e) => e.key === 'Escape' && (showRatingModal = false)} role="button" tabindex="0">
+    <div class="modal-content" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+      <button class="modal-close" onclick={() => showRatingModal = false}>&times;</button>
       <h2>Rate Your {$authStore.user?.id === selectedProduct.seller.id ? 'Buyer' : 'Seller'}</h2>
       <p class="modal-subtitle">
         {#if $authStore.user?.id === selectedProduct.seller.id}
@@ -1513,7 +1510,7 @@
           rating={ratingValue}
           interactive={true}
           size="large"
-          on:change={(e) => ratingValue = e.detail.rating}
+          onChange={(detail) => ratingValue = detail.rating}
         />
         <span class="rating-value-display">{ratingValue > 0 ? `${ratingValue}/5` : 'Select rating'}</span>
       </div>
@@ -1533,10 +1530,10 @@
       {/if}
 
       <div class="modal-actions">
-        <button class="btn-cancel" on:click={() => showRatingModal = false}>Cancel</button>
+        <button class="btn-cancel" onclick={() => showRatingModal = false}>Cancel</button>
         <button
           class="btn-submit"
-          on:click={submitRating}
+          onclick={submitRating}
           disabled={submittingRating || ratingValue === 0}
         >
           {submittingRating ? 'Submitting...' : 'Submit Rating'}
@@ -1548,9 +1545,9 @@
 
 <!-- Void Request Modal -->
 {#if showVoidModal}
-  <div class="modal-overlay" on:click={closeVoidModal}>
-    <div class="modal void-modal" on:click|stopPropagation>
-      <button class="modal-close" on:click={closeVoidModal}>&times;</button>
+  <div class="modal-overlay" onclick={closeVoidModal}>
+    <div class="modal void-modal" onclick={(e) => e.stopPropagation()}>
+      <button class="modal-close" onclick={closeVoidModal}>&times;</button>
       <h2>Request Void</h2>
       <p class="void-description">
         You are requesting to void the transaction for <strong>{selectedProduct?.title}</strong>.
@@ -1572,10 +1569,10 @@
       {/if}
 
       <div class="modal-actions">
-        <button class="btn-cancel" on:click={closeVoidModal}>Cancel</button>
+        <button class="btn-cancel" onclick={closeVoidModal}>Cancel</button>
         <button
           class="btn-submit btn-danger"
-          on:click={handleSubmitVoidRequest}
+          onclick={handleSubmitVoidRequest}
           disabled={submittingVoid || !voidReason.trim()}
         >
           {submittingVoid ? 'Submitting...' : 'Submit Void Request'}
@@ -1587,9 +1584,9 @@
 
 <!-- Void Approval Modal -->
 {#if showVoidApprovalModal && pendingVoidRequest}
-  <div class="modal-overlay" on:click={closeVoidApprovalModal}>
-    <div class="modal void-modal" on:click|stopPropagation>
-      <button class="modal-close" on:click={closeVoidApprovalModal}>&times;</button>
+  <div class="modal-overlay" onclick={closeVoidApprovalModal}>
+    <div class="modal void-modal" onclick={(e) => e.stopPropagation()}>
+      <button class="modal-close" onclick={closeVoidApprovalModal}>&times;</button>
       <h2>Void Request</h2>
       <p class="void-description">
         <strong>{typeof pendingVoidRequest.initiator === 'object' ? pendingVoidRequest.initiator.name : 'User'}</strong>
@@ -1616,10 +1613,10 @@
       {/if}
 
       <div class="modal-actions three-buttons">
-        <button class="btn-cancel" on:click={closeVoidApprovalModal}>Cancel</button>
+        <button class="btn-cancel" onclick={closeVoidApprovalModal}>Cancel</button>
         <button
           class="btn-reject"
-          on:click={() => {
+          onclick={() => {
             const group = document.getElementById('rejectionReasonGroup');
             if (group && group.style.display === 'none') {
               group.style.display = 'block';
@@ -1633,7 +1630,7 @@
         </button>
         <button
           class="btn-submit btn-success"
-          on:click={() => handleRespondToVoid('approve')}
+          onclick={() => handleRespondToVoid('approve')}
           disabled={submittingVoid}
         >
           {submittingVoid ? 'Processing...' : 'Approve Void'}
@@ -1645,9 +1642,9 @@
 
 <!-- Seller Choice Modal -->
 {#if showSellerChoiceModal}
-  <div class="modal-overlay" on:click={() => showSellerChoiceModal = false}>
-    <div class="modal void-modal seller-choice-modal" on:click|stopPropagation>
-      <button class="modal-close" on:click={() => showSellerChoiceModal = false}>&times;</button>
+  <div class="modal-overlay" onclick={() => showSellerChoiceModal = false}>
+    <div class="modal void-modal seller-choice-modal" onclick={(e) => e.stopPropagation()}>
+      <button class="modal-close" onclick={() => showSellerChoiceModal = false}>&times;</button>
       <h2>Transaction Voided</h2>
       <p class="void-description">
         The void request for <strong>{selectedProduct?.title}</strong> has been approved.
@@ -1657,7 +1654,7 @@
       <div class="choice-options">
         <button
           class="choice-option"
-          on:click={() => handleSellerChoice('restart_bidding')}
+          onclick={() => handleSellerChoice('restart_bidding')}
           disabled={submittingVoid}
         >
           <div class="choice-icon">🔄</div>
@@ -1669,7 +1666,7 @@
 
         <button
           class="choice-option"
-          on:click={() => handleSellerChoice('offer_second_bidder')}
+          onclick={() => handleSellerChoice('offer_second_bidder')}
           disabled={submittingVoid}
         >
           <div class="choice-icon">🥈</div>
@@ -1689,9 +1686,9 @@
 
 <!-- Second Bidder Offer Modal -->
 {#if showSecondBidderOfferModal && pendingVoidRequest?.secondBidderOffer}
-  <div class="modal-overlay" on:click={() => showSecondBidderOfferModal = false}>
-    <div class="modal void-modal" on:click|stopPropagation>
-      <button class="modal-close" on:click={() => showSecondBidderOfferModal = false}>&times;</button>
+  <div class="modal-overlay" onclick={() => showSecondBidderOfferModal = false}>
+    <div class="modal void-modal" onclick={(e) => e.stopPropagation()}>
+      <button class="modal-close" onclick={() => showSecondBidderOfferModal = false}>&times;</button>
       <h2>Purchase Offer</h2>
       <p class="void-description">
         You have been offered the chance to purchase <strong>{selectedProduct?.title}</strong>
@@ -1715,14 +1712,14 @@
       <div class="modal-actions">
         <button
           class="btn-cancel"
-          on:click={() => handleSecondBidderResponse('decline')}
+          onclick={() => handleSecondBidderResponse('decline')}
           disabled={submittingVoid}
         >
           {submittingVoid ? 'Processing...' : 'Decline'}
         </button>
         <button
           class="btn-submit btn-success"
-          on:click={() => handleSecondBidderResponse('accept')}
+          onclick={() => handleSecondBidderResponse('accept')}
           disabled={submittingVoid}
         >
           {submittingVoid ? 'Processing...' : 'Accept Offer'}

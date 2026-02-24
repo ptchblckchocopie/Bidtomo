@@ -6,17 +6,17 @@
   import { logout as apiLogout, getUnreadMessageCount } from '$lib/api';
   import { onMount } from 'svelte';
   import { unreadCountStore } from '$lib/stores/inbox';
+  import type { Snippet } from 'svelte';
 
-  // SvelteKit passes params to all routes, but we don't need it here
-  export let params: any = undefined;
+  let { children }: { children: Snippet } = $props();
 
-  $: currentPath = $page.url.pathname;
+  let currentPath = $derived($page.url.pathname);
 
-  let mobileMenuOpen = false;
-  let userMenuOpen = false;
+  let mobileMenuOpen = $state(false);
+  let userMenuOpen = $state(false);
 
   // Subscribe to the shared unread count store
-  $: unreadCount = $unreadCountStore;
+  let unreadCount = $derived($unreadCountStore);
 
   function toggleMobileMenu() {
     mobileMenuOpen = !mobileMenuOpen;
@@ -64,14 +64,16 @@
   });
 
   // Refetch when auth state changes
-  $: if ($authStore.isAuthenticated) {
-    fetchUnreadCount();
-  } else {
-    unreadCountStore.reset();
-  }
+  $effect(() => {
+    if ($authStore.isAuthenticated) {
+      fetchUnreadCount();
+    } else {
+      unreadCountStore.reset();
+    }
+  });
 </script>
 
-<svelte:window on:click={handleClickOutside} />
+<svelte:window onclick={handleClickOutside} />
 
 <div class="min-h-screen flex flex-col">
   <!-- Header -->
@@ -79,7 +81,7 @@
     <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
         <!-- Logo -->
-        <a href="/" class="flex-shrink-0" on:click={closeMobileMenu}>
+        <a href="/" class="flex-shrink-0" onclick={closeMobileMenu}>
           <img src="/bidmo.to.png" alt="BidMo.to" class="h-10 w-auto" />
         </a>
 
@@ -128,7 +130,7 @@
             <!-- User Menu Dropdown -->
             <div class="user-menu-container relative">
               <button
-                on:click|stopPropagation={toggleUserMenu}
+                onclick={(e) => { e.stopPropagation(); toggleUserMenu(); }}
                 class="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-colors {userMenuOpen ? 'bg-white/10' : ''}"
               >
                 <span>Hi, {$authStore.user?.name || 'User'}!</span>
@@ -141,21 +143,21 @@
                 <div class="user-menu-dropdown absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 fade-down">
                   <a
                     href="/dashboard"
-                    on:click={closeUserMenu}
+                    onclick={closeUserMenu}
                     class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors {currentPath.startsWith('/dashboard') ? 'bg-gray-50 font-semibold' : ''}"
                   >
                     📦 Dashboard
                   </a>
                   <a
                     href="/profile"
-                    on:click={closeUserMenu}
+                    onclick={closeUserMenu}
                     class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors {currentPath === '/profile' ? 'bg-gray-50 font-semibold' : ''}"
                   >
                     👤 Profile
                   </a>
                   <div class="border-t border-gray-200 my-1"></div>
                   <button
-                    on:click={handleLogout}
+                    onclick={handleLogout}
                     class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium"
                   >
                     🚪 Logout
@@ -181,7 +183,7 @@
 
         <!-- Mobile menu button -->
         <button
-          on:click={toggleMobileMenu}
+          onclick={toggleMobileMenu}
           class="md:hidden inline-flex items-center justify-center p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
           aria-label="Toggle menu"
         >
@@ -200,14 +202,14 @@
         <div class="md:hidden pb-4 space-y-1">
           <a
             href="/products"
-            on:click={closeMobileMenu}
+            onclick={closeMobileMenu}
             class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 {currentPath.startsWith('/products') ? 'bg-white/20' : ''}"
           >
             Browse
           </a>
           <a
             href="/about-us"
-            on:click={closeMobileMenu}
+            onclick={closeMobileMenu}
             class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 {currentPath === '/about-us' ? 'bg-white/20' : ''}"
           >
             About Us
@@ -216,7 +218,7 @@
             <!-- Inbox Button -->
             <a
               href="/inbox"
-              on:click={closeMobileMenu}
+              onclick={closeMobileMenu}
               class="flex items-center gap-2 px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 mt-2 {currentPath === '/inbox' ? 'bg-white/20' : ''}"
             >
               <div class="relative">
@@ -234,7 +236,7 @@
 
             <a
               href="/sell"
-              on:click={closeMobileMenu}
+              onclick={closeMobileMenu}
               class="block px-3 py-2 bg-green-500 hover:bg-green-600 rounded-md text-base font-semibold mt-2 {currentPath === '/sell' ? 'ring-2 ring-white/50' : ''}"
             >
               + Sell
@@ -242,7 +244,7 @@
 
             <a
               href="/dashboard"
-              on:click={closeMobileMenu}
+              onclick={closeMobileMenu}
               class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 mt-2 {currentPath.startsWith('/dashboard') ? 'bg-white/20' : ''}"
             >
               📦 Dashboard
@@ -250,7 +252,7 @@
 
             <a
               href="/profile"
-              on:click={closeMobileMenu}
+              onclick={closeMobileMenu}
               class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 mt-2 {currentPath === '/profile' ? 'bg-white/20' : ''}"
             >
               👤 Profile
@@ -262,7 +264,7 @@
                 Hi, {$authStore.user?.name || 'User'}!
               </div>
               <button
-                on:click={handleLogout}
+                onclick={handleLogout}
                 class="w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-300 hover:bg-red-500/20 transition-colors"
               >
                 🚪 Logout
@@ -271,14 +273,14 @@
           {:else}
             <a
               href="/login"
-              on:click={closeMobileMenu}
+              onclick={closeMobileMenu}
               class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10"
             >
               Login
             </a>
             <a
               href="/register"
-              on:click={closeMobileMenu}
+              onclick={closeMobileMenu}
               class="block px-3 py-2 bg-white text-primary rounded-md text-base font-semibold mt-2"
             >
               Register
@@ -291,7 +293,7 @@
 
   <!-- Main Content -->
   <main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <slot />
+    {@render children()}
   </main>
 
   <!-- Footer -->

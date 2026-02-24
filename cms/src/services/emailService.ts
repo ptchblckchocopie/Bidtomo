@@ -53,6 +53,10 @@ function getRedis(): Redis {
 
   redis = new Redis(REDIS_URL, {
     retryStrategy: (times) => {
+      if (times > 3) {
+        console.warn('[EMAIL] Redis unavailable, giving up. Emails will be sent directly.');
+        return null;
+      }
       const delay = Math.min(times * 500, 5000);
       console.log(`[EMAIL] Redis reconnecting in ${delay}ms (attempt ${times})`);
       return delay;

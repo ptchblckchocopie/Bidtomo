@@ -10,17 +10,16 @@
   import ImageSlider from '$lib/components/ImageSlider.svelte';
   import ProductForm from '$lib/components/ProductForm.svelte';
 
-  export let data: PageData;
-  export let params: any = undefined; // SvelteKit passes this automatically
+  let { data } = $props<{ data: PageData }>();
 
   // Tab management
   type TabType = 'products' | 'purchases';
   let activeTab: TabType = 'products';
 
   // Separate products by status and visibility
-  $: activeProducts = data.activeProducts;
-  $: hiddenProducts = data.hiddenProducts;
-  $: endedProducts = data.endedProducts;
+  let activeProducts = $derived(data.activeProducts);
+  let hiddenProducts = $derived(data.hiddenProducts);
+  let endedProducts = $derived(data.endedProducts);
 
   // Purchases state
   let purchases: Product[] = [];
@@ -128,8 +127,8 @@
       // If active status changed, move product between arrays
       if (wasActive !== isActive) {
         // Remove from current array
-        data.activeProducts = data.activeProducts.filter(p => p.id !== productId);
-        data.hiddenProducts = data.hiddenProducts.filter(p => p.id !== productId);
+        data.activeProducts = data.activeProducts.filter((p: Product) => p.id !== productId);
+        data.hiddenProducts = data.hiddenProducts.filter((p: Product) => p.id !== productId);
 
         // Add to correct array
         if (isActive) {
@@ -244,7 +243,7 @@
     <button
       class="main-tab"
       class:active={activeTab === 'products'}
-      on:click={() => switchTab('products')}
+      onclick={() => switchTab('products')}
     >
       <span class="tab-icon">📦</span>
       <span class="tab-label">My Products</span>
@@ -252,7 +251,7 @@
     <button
       class="main-tab"
       class:active={activeTab === 'purchases'}
-      on:click={() => switchTab('purchases')}
+      onclick={() => switchTab('purchases')}
     >
       <span class="tab-icon">🛍️</span>
       <span class="tab-label">My Purchases</span>
@@ -269,21 +268,21 @@
           <button
             class="sub-tab"
             class:active={productTab === 'active'}
-            on:click={() => productTab = 'active'}
+            onclick={() => productTab = 'active'}
           >
             Active ({activeProducts.length})
           </button>
           <button
             class="sub-tab"
             class:active={productTab === 'hidden'}
-            on:click={() => productTab = 'hidden'}
+            onclick={() => productTab = 'hidden'}
           >
             Hidden ({hiddenProducts.length})
           </button>
           <button
             class="sub-tab"
             class:active={productTab === 'ended'}
-            on:click={() => productTab = 'ended'}
+            onclick={() => productTab = 'ended'}
           >
             Ended ({endedProducts.length})
           </button>
@@ -302,9 +301,9 @@
             <div class="products-grid">
               {#each activeProducts as product}
                 <div class="product-card">
-                  <div class="product-image" on:click={() => openViewModal(product)} role="button" tabindex="0">
+                  <div class="product-image" onclick={() => openViewModal(product)} role="button" tabindex="0">
                     {#if product.images && product.images.length > 0}
-                      {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
+                      {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
                       {#if validImages.length > 0}
                         {@const firstImage = validImages[0]}
                         <img src={firstImage.image.url} alt={product.title} />
@@ -343,10 +342,10 @@
                   </div>
 
                   <div class="product-actions">
-                    <button class="btn-edit" on:click={() => openEditModal(product)}>
+                    <button class="btn-edit" onclick={() => openEditModal(product)}>
                       ✏️ Edit
                     </button>
-                    <button class="btn-view" on:click={() => openViewModal(product)}>
+                    <button class="btn-view" onclick={() => openViewModal(product)}>
                       👁️ View
                     </button>
                   </div>
@@ -365,9 +364,9 @@
             <div class="products-grid">
               {#each hiddenProducts as product}
                 <div class="product-card">
-                  <div class="product-image" on:click={() => openViewModal(product)} role="button" tabindex="0">
+                  <div class="product-image" onclick={() => openViewModal(product)} role="button" tabindex="0">
                     {#if product.images && product.images.length > 0}
-                      {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
+                      {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
                       {#if validImages.length > 0}
                         {@const firstImage = validImages[0]}
                         <img src={firstImage.image.url} alt={product.title} />
@@ -404,10 +403,10 @@
                   </div>
 
                   <div class="product-actions">
-                    <button class="btn-edit" on:click={() => openEditModal(product)}>
+                    <button class="btn-edit" onclick={() => openEditModal(product)}>
                       ✏️ Edit
                     </button>
-                    <button class="btn-view" on:click={() => openViewModal(product)}>
+                    <button class="btn-view" onclick={() => openViewModal(product)}>
                       👁️ View
                     </button>
                   </div>
@@ -426,9 +425,9 @@
             <div class="products-grid">
               {#each endedProducts as product}
                 <div class="product-card">
-                  <div class="product-image" on:click={() => openViewModal(product)} role="button" tabindex="0">
+                  <div class="product-image" onclick={() => openViewModal(product)} role="button" tabindex="0">
                     {#if product.images && product.images.length > 0}
-                      {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
+                      {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
                       {#if validImages.length > 0}
                         {@const firstImage = validImages[0]}
                         <img src={firstImage.image.url} alt={product.title} />
@@ -459,7 +458,7 @@
                   </div>
 
                   <div class="product-actions">
-                    <button class="btn-view" on:click={() => openViewModal(product)}>
+                    <button class="btn-view" onclick={() => openViewModal(product)}>
                       👁️ View
                     </button>
                   </div>
@@ -487,7 +486,7 @@
           <div class="purchases-list">
             {#each purchases as product}
               <div class="purchase-card">
-                <div class="purchase-image" on:click={() => openProductModal(product)} role="button" tabindex="0">
+                <div class="purchase-image" onclick={() => openProductModal(product)} role="button" tabindex="0">
                   {#if product.images && product.images.length > 0}
                     {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
                     {#if validImages.length > 0}
@@ -506,7 +505,7 @@
                 </div>
 
                 <div class="purchase-content">
-                  <div class="purchase-info" on:click={() => openProductModal(product)} role="button" tabindex="0">
+                  <div class="purchase-info" onclick={() => openProductModal(product)} role="button" tabindex="0">
                     <h3>{product.title}</h3>
                     <div class="purchase-price-tag">
                       {formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}
@@ -545,9 +544,9 @@
 
 <!-- Edit Product Modal -->
 {#if showEditModal && editingProduct}
-  <div class="modal-overlay" on:keydown={(e) => e.key === 'Escape' && closeEditModal()} role="button" tabindex="-1">
-    <div class="modal-content" on:keydown|stopPropagation role="dialog" tabindex="-1">
-      <button class="modal-close" on:click={closeEditModal}>&times;</button>
+  <div class="modal-overlay" onkeydown={(e) => e.key === 'Escape' && closeEditModal()} role="button" tabindex="-1">
+    <div class="modal-content" onkeydown={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+      <button class="modal-close" onclick={closeEditModal}>&times;</button>
 
       <div class="modal-header">
         <h2>Edit Product</h2>
@@ -567,9 +566,9 @@
 
 <!-- Product View Modal -->
 {#if showViewModal && viewingProduct}
-  <div class="modal-overlay" on:click={closeViewModal} on:keydown={(e) => e.key === 'Escape' && closeViewModal()} role="button" tabindex="-1">
-    <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation role="dialog" tabindex="-1">
-      <button class="modal-close" on:click={closeViewModal}>&times;</button>
+  <div class="modal-overlay" onclick={closeViewModal} onkeydown={(e) => e.key === 'Escape' && closeViewModal()} role="button" tabindex="-1">
+    <div class="modal-content" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+      <button class="modal-close" onclick={closeViewModal}>&times;</button>
 
       <div class="modal-body">
         {#if viewingProduct.images && viewingProduct.images.length > 0}
@@ -625,9 +624,9 @@
 
 <!-- Purchase Product Modal -->
 {#if showProductModal && selectedProduct}
-  <div class="modal-overlay" on:click={closeProductModal} on:keydown={(e) => e.key === 'Escape' && closeProductModal()} role="button" tabindex="-1">
-    <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation role="dialog" tabindex="-1">
-      <button class="modal-close" on:click={closeProductModal}>&times;</button>
+  <div class="modal-overlay" onclick={closeProductModal} onkeydown={(e) => e.key === 'Escape' && closeProductModal()} role="button" tabindex="-1">
+    <div class="modal-content" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+      <button class="modal-close" onclick={closeProductModal}>&times;</button>
 
       <div class="modal-body">
         {#if selectedProduct.images && selectedProduct.images.length > 0}

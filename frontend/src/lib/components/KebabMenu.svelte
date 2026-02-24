@@ -1,16 +1,19 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  let {
+    items = [],
+    onSelect
+  }: {
+    items?: Array<{
+      label: string;
+      action: string;
+      show?: boolean;
+      variant?: 'default' | 'danger';
+      icon?: string;
+    }>;
+    onSelect?: (detail: { action: string }) => void;
+  } = $props();
 
-  export let items: Array<{
-    label: string;
-    action: string;
-    show?: boolean;
-    variant?: 'default' | 'danger';
-    icon?: string;
-  }> = [];
-
-  let isOpen = false;
-  const dispatch = createEventDispatcher();
+  let isOpen = $state(false);
 
   function toggle(event: MouseEvent) {
     event.stopPropagation();
@@ -26,7 +29,7 @@
 
   function handleItemClick(action: string) {
     isOpen = false;
-    dispatch('select', { action });
+    onSelect?.({ action });
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -35,15 +38,15 @@
     }
   }
 
-  $: visibleItems = items.filter(item => item.show !== false);
+  let visibleItems = $derived(items.filter(item => item.show !== false));
 </script>
 
-<svelte:window on:click={handleClickOutside} on:keydown={handleKeydown} />
+<svelte:window onclick={handleClickOutside} onkeydown={handleKeydown} />
 
 <div class="kebab-menu-container">
   <button
     class="kebab-btn"
-    on:click={toggle}
+    onclick={toggle}
     aria-label="More options"
     aria-expanded={isOpen}
   >
@@ -60,7 +63,7 @@
         <button
           class="menu-item"
           class:danger={item.variant === 'danger'}
-          on:click={() => handleItemClick(item.action)}
+          onclick={() => handleItemClick(item.action)}
         >
           {#if item.icon}
             <span class="item-icon">{item.icon}</span>

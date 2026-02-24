@@ -1,9 +1,15 @@
 <script lang="ts">
-  export let keywords: string[] = [];
-  export let disabled: boolean = false;
-  export let placeholder: string = "Type keywords and press comma...";
+  let {
+    keywords = $bindable([]),
+    disabled = false,
+    placeholder = "Type keywords and press comma..."
+  }: {
+    keywords?: string[];
+    disabled?: boolean;
+    placeholder?: string;
+  } = $props();
 
-  let inputValue = '';
+  let inputValue = $state('');
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === ',' || e.key === 'Enter') {
@@ -49,7 +55,7 @@
         <button
           type="button"
           class="remove-btn"
-          on:click={() => removeKeyword(index)}
+          onclick={() => removeKeyword(index)}
           disabled={disabled}
           aria-label="Remove keyword"
         >
@@ -60,8 +66,8 @@
     <input
       type="text"
       bind:value={inputValue}
-      on:keydown={handleKeydown}
-      on:blur={handleBlur}
+      onkeydown={handleKeydown}
+      onblur={handleBlur}
       {placeholder}
       {disabled}
       class="keyword-input"
