@@ -58,7 +58,6 @@ export default buildConfig({
     user: 'users',
     bundler: webpackBundler(),
     disable: process.env.VERCEL === '1', // Disable admin UI on Vercel serverless
-    css: path.resolve(__dirname, './admin.css'),
     webpack: (config) => {
       // Provide browser-compatible fallbacks for Node.js built-in modules
       config.resolve = {
