@@ -254,6 +254,37 @@ export async function publishTypingStatus(
   }
 }
 
+// Publish global event for SSE (new products, system-wide updates)
+export async function publishGlobalEvent(
+  data: {
+    type: string;
+    [key: string]: any;
+  }
+): Promise<boolean> {
+  try {
+    const client = getRedis();
+
+    if (!redisConnected) {
+      console.warn('[CMS] Redis not connected, cannot publish global event');
+      return false;
+    }
+
+    const channel = 'sse:global';
+    const message = JSON.stringify({
+      ...data,
+      timestamp: Date.now(),
+    });
+
+    await client.publish(channel, message);
+    console.log(`[CMS] Published global event: ${data.type}`);
+
+    return true;
+  } catch (error) {
+    console.error('[CMS] Failed to publish global event:', error);
+    return false;
+  }
+}
+
 // Graceful shutdown
 export async function closeRedis(): Promise<void> {
   if (redis) {
