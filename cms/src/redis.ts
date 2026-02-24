@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6380';
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const BID_QUEUE_KEY = 'bids:pending';
 
 let redis: Redis | null = null;
