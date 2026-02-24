@@ -77,7 +77,7 @@
 
 <div class="min-h-screen flex flex-col">
   <!-- Header -->
-  <header class="bg-gradient-to-br from-primary to-primary-dark text-white shadow-lg sticky top-0 z-50">
+  <header class="bg-bh-red text-white border-b-4 border-bh-border shadow-bh-sm sticky top-0 z-50">
     <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
         <!-- Logo -->
@@ -89,13 +89,13 @@
         <div class="hidden md:flex md:space-x-6">
           <a
             href="/products"
-            class="px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-colors {currentPath.startsWith('/products') ? 'bg-white/20' : ''}"
+            class="px-3 py-2 text-sm font-bold hover:bg-white/10 transition-colors {currentPath.startsWith('/products') ? 'bg-bh-yellow text-bh-fg' : ''}"
           >
             Browse
           </a>
           <a
             href="/about-us"
-            class="px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-colors {currentPath === '/about-us' ? 'bg-white/20' : ''}"
+            class="px-3 py-2 text-sm font-bold hover:bg-white/10 transition-colors {currentPath === '/about-us' ? 'bg-bh-yellow text-bh-fg' : ''}"
           >
             About Us
           </a>
@@ -107,14 +107,14 @@
             <!-- Inbox Button -->
             <a
               href="/inbox"
-              class="relative px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-all {currentPath === '/inbox' ? 'bg-white/20' : ''}"
+              class="relative px-3 py-2 text-sm font-bold hover:bg-white/10 transition-all {currentPath === '/inbox' ? 'bg-bh-yellow text-bh-fg' : ''}"
               title="Inbox"
             >
               <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               {#if unreadCount > 0}
-                <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                <span class="absolute -top-1 -right-1 bg-bh-yellow text-bh-fg text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               {/if}
@@ -122,7 +122,7 @@
 
             <a
               href="/sell"
-              class="px-4 py-2 bg-green-500 hover:bg-green-600 rounded-md text-sm font-semibold transition-all hover:-translate-y-0.5 shadow-md {currentPath === '/sell' ? 'ring-2 ring-white/50' : ''}"
+              class="btn-bh-yellow text-sm {currentPath === '/sell' ? 'ring-2 ring-white/50' : ''}"
             >
               + Sell
             </a>
@@ -131,7 +131,7 @@
             <div class="user-menu-container relative">
               <button
                 onclick={(e) => { e.stopPropagation(); toggleUserMenu(); }}
-                class="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-colors {userMenuOpen ? 'bg-white/10' : ''}"
+                class="flex items-center gap-2 px-4 py-2 text-sm font-bold hover:bg-white/10 transition-colors {userMenuOpen ? 'bg-white/10' : ''}"
               >
                 <span>Hi, {$authStore.user?.name || 'User'}!</span>
                 <svg class="w-4 h-4 transition-transform {userMenuOpen ? 'rotate-180' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -140,27 +140,27 @@
               </button>
 
               {#if userMenuOpen}
-                <div class="user-menu-dropdown absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 fade-down">
+                <div class="card-bh absolute right-0 mt-2 w-48 py-1 z-50">
                   <a
                     href="/dashboard"
                     onclick={closeUserMenu}
-                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors {currentPath.startsWith('/dashboard') ? 'bg-gray-50 font-semibold' : ''}"
+                    class="block px-4 py-2 text-sm text-bh-fg hover:bg-bh-muted transition-colors font-medium {currentPath.startsWith('/dashboard') ? 'bg-bh-muted font-bold' : ''}"
                   >
-                    📦 Dashboard
+                    Dashboard
                   </a>
                   <a
                     href="/profile"
                     onclick={closeUserMenu}
-                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors {currentPath === '/profile' ? 'bg-gray-50 font-semibold' : ''}"
+                    class="block px-4 py-2 text-sm text-bh-fg hover:bg-bh-muted transition-colors font-medium {currentPath === '/profile' ? 'bg-bh-muted font-bold' : ''}"
                   >
-                    👤 Profile
+                    Profile
                   </a>
-                  <div class="border-t border-gray-200 my-1"></div>
+                  <div class="border-t-2 border-bh-border my-1"></div>
                   <button
                     onclick={handleLogout}
-                    class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium"
+                    class="w-full text-left px-4 py-2 text-sm text-bh-red hover:bg-bh-muted transition-colors font-bold"
                   >
-                    🚪 Logout
+                    Logout
                   </button>
                 </div>
               {/if}
@@ -168,13 +168,13 @@
           {:else}
             <a
               href="/login"
-              class="px-3 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition-colors"
+              class="px-3 py-2 text-sm font-bold hover:bg-white/10 transition-colors"
             >
               Login
             </a>
             <a
               href="/register"
-              class="px-4 py-2 bg-white text-primary rounded-md text-sm font-semibold hover:shadow-lg hover:-translate-y-0.5 transition-all"
+              class="btn-bh-yellow text-sm"
             >
               Register
             </a>
@@ -184,7 +184,7 @@
         <!-- Mobile menu button -->
         <button
           onclick={toggleMobileMenu}
-          class="md:hidden inline-flex items-center justify-center p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+          class="md:hidden inline-flex items-center justify-center p-2 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
           aria-label="Toggle menu"
         >
           <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -203,14 +203,14 @@
           <a
             href="/products"
             onclick={closeMobileMenu}
-            class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 {currentPath.startsWith('/products') ? 'bg-white/20' : ''}"
+            class="block px-3 py-2 text-base font-bold hover:bg-white/10 {currentPath.startsWith('/products') ? 'bg-bh-yellow text-bh-fg' : ''}"
           >
             Browse
           </a>
           <a
             href="/about-us"
             onclick={closeMobileMenu}
-            class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 {currentPath === '/about-us' ? 'bg-white/20' : ''}"
+            class="block px-3 py-2 text-base font-bold hover:bg-white/10 {currentPath === '/about-us' ? 'bg-bh-yellow text-bh-fg' : ''}"
           >
             About Us
           </a>
@@ -219,14 +219,14 @@
             <a
               href="/inbox"
               onclick={closeMobileMenu}
-              class="flex items-center gap-2 px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 mt-2 {currentPath === '/inbox' ? 'bg-white/20' : ''}"
+              class="flex items-center gap-2 px-3 py-2 text-base font-bold hover:bg-white/10 mt-2 {currentPath === '/inbox' ? 'bg-bh-yellow text-bh-fg' : ''}"
             >
               <div class="relative">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
                 {#if unreadCount > 0}
-                  <span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                  <span class="absolute -top-2 -right-2 bg-bh-yellow text-bh-fg text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 {/if}
@@ -237,7 +237,7 @@
             <a
               href="/sell"
               onclick={closeMobileMenu}
-              class="block px-3 py-2 bg-green-500 hover:bg-green-600 rounded-md text-base font-semibold mt-2 {currentPath === '/sell' ? 'ring-2 ring-white/50' : ''}"
+              class="block px-3 py-2 bg-bh-yellow text-bh-fg text-base font-bold mt-2 border-2 border-bh-border {currentPath === '/sell' ? 'ring-2 ring-white/50' : ''}"
             >
               + Sell
             </a>
@@ -245,43 +245,43 @@
             <a
               href="/dashboard"
               onclick={closeMobileMenu}
-              class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 mt-2 {currentPath.startsWith('/dashboard') ? 'bg-white/20' : ''}"
+              class="block px-3 py-2 text-base font-bold hover:bg-white/10 mt-2 {currentPath.startsWith('/dashboard') ? 'bg-bh-yellow text-bh-fg' : ''}"
             >
-              📦 Dashboard
+              Dashboard
             </a>
 
             <a
               href="/profile"
               onclick={closeMobileMenu}
-              class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10 mt-2 {currentPath === '/profile' ? 'bg-white/20' : ''}"
+              class="block px-3 py-2 text-base font-bold hover:bg-white/10 mt-2 {currentPath === '/profile' ? 'bg-bh-yellow text-bh-fg' : ''}"
             >
-              👤 Profile
+              Profile
             </a>
 
             <!-- Mobile User Info -->
-            <div class="pt-2 border-t border-white/20 mt-2">
+            <div class="pt-2 border-t-2 border-white/20 mt-2">
               <div class="px-3 py-2 text-sm text-white/80">
                 Hi, {$authStore.user?.name || 'User'}!
               </div>
               <button
                 onclick={handleLogout}
-                class="w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-300 hover:bg-red-500/20 transition-colors"
+                class="w-full text-left px-3 py-2 text-base font-bold text-bh-yellow hover:bg-white/10 transition-colors"
               >
-                🚪 Logout
+                Logout
               </button>
             </div>
           {:else}
             <a
               href="/login"
               onclick={closeMobileMenu}
-              class="block px-3 py-2 rounded-md text-base font-medium hover:bg-white/10"
+              class="block px-3 py-2 text-base font-bold hover:bg-white/10"
             >
               Login
             </a>
             <a
               href="/register"
               onclick={closeMobileMenu}
-              class="block px-3 py-2 bg-white text-primary rounded-md text-base font-semibold mt-2"
+              class="block px-3 py-2 bg-bh-yellow text-bh-fg text-base font-bold mt-2 border-2 border-bh-border"
             >
               Register
             </a>
@@ -297,7 +297,7 @@
   </main>
 
   <!-- Footer -->
-  <footer class="bg-gray-100 py-4 text-center text-gray-600 text-sm">
+  <footer class="bg-bh-fg text-white border-t-4 border-bh-border py-4 text-center text-sm">
     <p>&copy; 2025 BidMo.to - Bid mo 'to!</p>
   </footer>
 </div>

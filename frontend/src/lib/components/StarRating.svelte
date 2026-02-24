@@ -119,20 +119,20 @@
   }
 
   .star svg {
-    fill: #e0e0e0;
-    stroke: #ccc;
+    fill: var(--color-muted);
+    stroke: var(--color-muted);
     stroke-width: 1;
     transition: fill 0.15s ease, stroke 0.15s ease;
   }
 
   .star.filled svg {
-    fill: #fbbf24;
-    stroke: #f59e0b;
+    fill: var(--color-yellow);
+    stroke: var(--color-yellow);
   }
 
   .star.half-filled svg {
     fill: url(#half-fill);
-    stroke: #f59e0b;
+    stroke: var(--color-yellow);
   }
 
   /* Size variants */
@@ -154,7 +154,7 @@
   .rating-value {
     margin-left: 0.5rem;
     font-weight: 600;
-    color: #666;
+    color: var(--color-fg);
   }
 
   .size-small .rating-value {
@@ -175,8 +175,7 @@
   }
 
   .star-rating.interactive .star:focus-visible {
-    outline: 2px solid #f59e0b;
+    outline: 2px solid var(--color-yellow);
     outline-offset: 2px;
-    border-radius: 2px;
   }
 </style>

@@ -387,9 +387,9 @@
   }
 
   .profile-container {
-    background: white;
-    border-radius: 16px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     overflow: hidden;
   }
 
@@ -398,15 +398,15 @@
     display: flex;
     gap: 1.5rem;
     padding: 2rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: var(--color-blue);
+    color: var(--color-white);
   }
 
   .profile-avatar {
     width: 100px;
     height: 100px;
     background: rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
+    border: var(--border-bh) solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -469,7 +469,7 @@
   /* Tabs */
   .profile-tabs {
     display: flex;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: var(--border-bh) solid var(--color-border);
   }
 
   .tab-btn {
@@ -479,20 +479,23 @@
     border: none;
     font-size: 1rem;
     font-weight: 500;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
     cursor: pointer;
     border-bottom: 3px solid transparent;
     transition: all 0.2s ease;
   }
 
   .tab-btn:hover {
-    color: #333;
-    background: #f8f9fa;
+    color: var(--color-fg);
+    opacity: 1;
+    background: var(--color-muted);
   }
 
   .tab-btn.active {
-    color: #667eea;
-    border-bottom-color: #667eea;
+    color: var(--color-blue);
+    opacity: 1;
+    border-bottom-color: var(--color-blue);
   }
 
   /* Tab Content */
@@ -508,7 +511,7 @@
   .listings-section h2 {
     margin: 0 0 1rem 0;
     font-size: 1.25rem;
-    color: #333;
+    color: var(--color-fg);
   }
 
   .products-grid {
@@ -518,8 +521,9 @@
   }
 
   .product-card {
-    background: #f8f9fa;
-    border-radius: 12px;
+    background: var(--color-muted);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     overflow: hidden;
     text-decoration: none;
     color: inherit;
@@ -528,7 +532,7 @@
 
   .product-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-bh-md);
   }
 
   .product-card.sold {
@@ -538,7 +542,7 @@
   .product-image {
     position: relative;
     aspect-ratio: 4/3;
-    background: #e9ecef;
+    background: var(--color-border);
   }
 
   .product-image img {
@@ -552,7 +556,8 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: #999;
+    color: var(--color-fg);
+    opacity: 0.5;
     font-size: 0.9rem;
   }
 
@@ -561,20 +566,21 @@
     top: 0.5rem;
     right: 0.5rem;
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
+    border: var(--border-bh) solid var(--color-border);
   }
 
   .status-badge.available {
-    background: #10b981;
-    color: white;
+    background: var(--color-blue);
+    color: var(--color-white);
   }
 
   .status-badge.sold {
-    background: #6b7280;
-    color: white;
+    background: var(--color-fg);
+    color: var(--color-white);
+    opacity: 0.7;
   }
 
   .product-info {
@@ -585,7 +591,7 @@
     margin: 0 0 0.5rem 0;
     font-size: 0.9rem;
     font-weight: 600;
-    color: #333;
+    color: var(--color-fg);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -599,12 +605,13 @@
 
   .current-bid, .starting-price, .sold-price {
     font-weight: 600;
-    color: #333;
+    color: var(--color-fg);
   }
 
   .bid-label {
     font-size: 0.75rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
   }
 
   /* Reviews */
@@ -618,21 +625,21 @@
     gap: 0.75rem;
     margin-bottom: 1rem;
     padding-bottom: 0.75rem;
-    border-bottom: 2px solid #e9ecef;
+    border-bottom: var(--border-bh) solid var(--color-border);
   }
 
   .reviews-section-header h2 {
     margin: 0;
     font-size: 1.25rem;
-    color: #333;
+    color: var(--color-fg);
   }
 
   .reviews-count {
     font-size: 0.85rem;
-    color: #666;
-    background: #e9ecef;
+    color: var(--color-fg);
+    opacity: 0.6;
+    background: var(--color-muted);
     padding: 0.25rem 0.5rem;
-    border-radius: 12px;
   }
 
   .reviews-list {
@@ -644,8 +651,9 @@
   .review-card {
     display: flex;
     gap: 1rem;
-    background: #f8f9fa;
-    border-radius: 12px;
+    background: var(--color-muted);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     padding: 1rem;
     align-items: flex-start;
   }
@@ -654,9 +662,8 @@
   .review-product-image {
     width: 100px;
     height: 100px;
-    border-radius: 8px;
     overflow: hidden;
-    background: #e9ecef;
+    background: var(--color-border);
     flex-shrink: 0;
     display: block;
   }
@@ -680,7 +687,8 @@
 
   .no-image-thumb {
     font-size: 2rem;
-    color: #999;
+    color: var(--color-fg);
+    opacity: 0.5;
   }
 
   /* Review Details (Right) */
@@ -696,27 +704,27 @@
     gap: 0.5rem;
     margin-bottom: 0.75rem;
     padding-bottom: 0.75rem;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--color-border);
   }
 
   .product-title-link {
     font-weight: 600;
-    color: #333;
+    color: var(--color-fg);
     font-size: 0.95rem;
     text-decoration: none;
     transition: color 0.2s;
   }
 
   .product-title-link:hover {
-    color: #667eea;
+    color: var(--color-blue);
   }
 
   .transaction-role {
     font-size: 0.75rem;
-    color: #666;
-    background: #e9ecef;
+    color: var(--color-fg);
+    opacity: 0.6;
+    background: var(--color-muted);
     padding: 0.125rem 0.5rem;
-    border-radius: 4px;
   }
 
   .chat-link {
@@ -724,17 +732,18 @@
     align-items: center;
     gap: 0.25rem;
     padding: 0.25rem 0.5rem;
-    background: #667eea;
-    color: white;
-    border-radius: 4px;
+    background: var(--color-blue);
+    color: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
     text-decoration: none;
     font-size: 0.75rem;
-    transition: background 0.2s;
+    transition: opacity 0.2s;
     margin-left: auto;
   }
 
   .chat-link:hover {
-    background: #5a6fd6;
+    opacity: 0.85;
   }
 
   .review-header {
@@ -752,21 +761,22 @@
 
   .reviewer-name {
     font-weight: 600;
-    color: #333;
+    color: var(--color-fg);
   }
 
   .reviewer-role {
     font-size: 0.75rem;
-    color: #666;
-    background: #e9ecef;
+    color: var(--color-fg);
+    opacity: 0.6;
+    background: var(--color-muted);
     padding: 0.125rem 0.375rem;
-    border-radius: 4px;
     width: fit-content;
   }
 
   .review-date {
     font-size: 0.8rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
   }
 
   .review-rating {
@@ -778,20 +788,21 @@
 
   .rating-score {
     font-weight: 600;
-    color: #333;
+    color: var(--color-fg);
   }
 
   .review-comment {
     margin: 0;
     font-style: italic;
-    color: #555;
+    color: var(--color-fg);
+    opacity: 0.8;
     line-height: 1.5;
   }
 
   .follow-up-review {
     margin-top: 1rem;
     padding-top: 1rem;
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid var(--color-border);
   }
 
   .follow-up-header {
@@ -803,20 +814,22 @@
 
   .follow-up-label {
     font-weight: 600;
-    color: #667eea;
+    color: var(--color-blue);
     font-size: 0.85rem;
   }
 
   .follow-up-date {
     font-size: 0.75rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
   }
 
   /* Empty State */
   .empty-state {
     text-align: center;
     padding: 3rem 1rem;
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
   }
 
   /* Responsive */
