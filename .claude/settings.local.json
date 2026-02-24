@@ -13,7 +13,25 @@
       "Bash(node:*)",
       "Bash(echo Got token, testing void-requests...:*)",
       "Bash(grep:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(sudo systemctl:*)",
+      "Bash(which redis-server:*)",
+      "Bash(systemctl is-active:*)",
+      "Bash(cd /home/veent-ojt/Downloads/Bidtomo/frontend && npm run dev 2>&1)",
+      "Bash(cd /home/veent-ojt/Downloads/Bidtomo/services/sse-service && npx ts-node src/index.ts 2>&1)",
+      "Bash(npx ts-node:*)",
+      "WebSearch",
+      "mcp__vercel__list_teams",
+      "mcp__vercel__list_projects",
+      "mcp__vercel__list_deployments",
+      "mcp__vercel__get_project",
+      "mcp__vercel__get_runtime_logs",
+      "WebFetch(domain:docs.railway.com)",
+      "Bash(npm install:*)",
+      "Bash(sudo npm:*)",
+      "Bash(claude mcp:*)",
+      "Bash(echo \"https://cms-production-d0f7.up.railway.app\" | vercel env add CMS_URL production --yes 2>&1)",
+      "Bash(npx playwriter@latest:*)"
     ]
   }
 }

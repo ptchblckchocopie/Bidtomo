@@ -3,7 +3,7 @@ import payload from 'payload';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
-import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, isRedisConnected } from './redis';
+import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 
 dotenv.config();
@@ -393,6 +393,9 @@ const start = async () => {
 
   // Expose Redis message notification globally for hooks (avoid webpack bundling issues)
   (global as any).publishMessageNotification = publishMessageNotification;
+
+  // Expose global event publisher for hooks (new products, etc.)
+  (global as any).publishGlobalEvent = publishGlobalEvent;
 
   // Sync endpoint to update product currentBid with highest bid
   app.post('/api/sync-bids', async (req, res) => {

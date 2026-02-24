@@ -467,9 +467,10 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
     console.log(`[WORKER] Accept bid processed: Product ${job.productId} marked as sold`);
     console.log(`[WORKER] Auto-created congratulation message (ID: ${messageId}) and transaction (ID: ${transactionId})`);
 
-    // Publish message notification to buyer via SSE
+    // Publish message notification to buyer via SSE (with full message data)
     if (redisConnected) {
       try {
+        const now = new Date().toISOString();
         const channel = `sse:user:${job.bidderId}`;
         const notification = JSON.stringify({
           type: 'new_message',
@@ -478,6 +479,16 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
           senderId: job.sellerId,
           preview: congratsMessage.substring(0, 50),
           timestamp: Date.now(),
+          message: {
+            id: messageId,
+            message: congratsMessage,
+            sender: { id: job.sellerId, name: seller?.name, email: seller?.email },
+            receiver: { id: job.bidderId },
+            product: { id: job.productId },
+            read: false,
+            createdAt: now,
+            updatedAt: now,
+          },
         });
         await redisPub.publish(channel, notification);
         console.log(`[WORKER] Published message notification to buyer ${job.bidderId}`);
