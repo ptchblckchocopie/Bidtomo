@@ -90,7 +90,33 @@ export interface TypingEvent {
   timestamp: number;
 }
 
-export type SSEEvent = BidEvent | MessageEvent | RedisStatusEvent | ConnectedEvent | AcceptedEvent | TypingEvent;
+export interface NewProductEvent {
+  type: 'new_product';
+  product: {
+    id: string | number;
+    title: string;
+    startingPrice: number;
+    auctionEndDate: string;
+    status: string;
+    region?: string;
+    city?: string;
+    seller: { id: string | number; name?: string };
+    images?: any[];
+  };
+  timestamp: number;
+}
+
+export interface BidUpdateEvent {
+  type: 'bid';
+  productId: number;
+  success: boolean;
+  amount?: number;
+  bidderId?: number;
+  bidderName?: string;
+  timestamp: number;
+}
+
+export type SSEEvent = BidEvent | MessageEvent | RedisStatusEvent | ConnectedEvent | AcceptedEvent | TypingEvent | NewProductEvent | BidUpdateEvent;
 
 // Product SSE client
 class ProductSSEClient {
@@ -342,9 +368,95 @@ class UserSSEClient {
   }
 }
 
+// Global SSE client for dashboard updates (new products, bid updates across all products)
+class GlobalSSEClient {
+  private eventSource: EventSource | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 10;
+  private reconnectDelay = 1000;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private listeners: Set<(event: SSEEvent) => void> = new Set();
+
+  public state: Writable<SSEConnectionState> = writable('disconnected');
+
+  connect(): void {
+    if (!browser) return;
+    if (this.eventSource) return;
+
+    this.state.set('connecting');
+
+    try {
+      this.eventSource = new EventSource(`${SSE_URL}/events/global`);
+
+      this.eventSource.onopen = () => {
+        this.state.set('connected');
+        this.reconnectAttempts = 0;
+      };
+
+      this.eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as SSEEvent;
+          this.listeners.forEach((listener) => listener(data));
+        } catch {
+          // Silently ignore parse errors
+        }
+      };
+
+      this.eventSource.onerror = () => {
+        this.state.set('error');
+        this.handleReconnect();
+      };
+    } catch {
+      this.state.set('error');
+    }
+  }
+
+  private handleReconnect(): void {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      return;
+    }
+
+    this.eventSource?.close();
+    this.eventSource = null;
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
+    this.reconnectAttempts++;
+
+    this.reconnectTimer = setTimeout(() => {
+      this.connect();
+    }, delay);
+  }
+
+  subscribe(callback: (event: SSEEvent) => void): () => void {
+    this.listeners.add(callback);
+    return () => this.listeners.delete(callback);
+  }
+
+  disconnect(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+
+    this.state.set('disconnected');
+    this.listeners.clear();
+  }
+}
+
 // Singleton managers for SSE connections
 const productClients = new Map<string, ProductSSEClient>();
 const userClients = new Map<string, UserSSEClient>();
+let globalClient: GlobalSSEClient | null = null;
 
 export function getProductSSE(productId: string): ProductSSEClient {
   if (!productClients.has(productId)) {
@@ -376,11 +488,26 @@ export function disconnectUserSSE(userId: string): void {
   }
 }
 
+export function getGlobalSSE(): GlobalSSEClient {
+  if (!globalClient) {
+    globalClient = new GlobalSSEClient();
+  }
+  return globalClient;
+}
+
+export function disconnectGlobalSSE(): void {
+  if (globalClient) {
+    globalClient.disconnect();
+    globalClient = null;
+  }
+}
+
 export function disconnectAll(): void {
   productClients.forEach((client) => client.disconnect());
   productClients.clear();
   userClients.forEach((client) => client.disconnect());
   userClients.clear();
+  disconnectGlobalSSE();
 }
 
 // Queue bid helper

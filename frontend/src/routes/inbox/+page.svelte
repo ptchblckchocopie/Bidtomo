@@ -674,13 +674,19 @@
     }
   }
 
-  // Start polling conversation list
+  // Start polling conversation list (only as fallback when SSE is disconnected)
   function startConversationListPolling() {
     if (conversationListPollingInterval) {
       clearInterval(conversationListPollingInterval);
     }
 
-    // Poll every 30 seconds as fallback (SSE handles real-time updates)
+    // Only poll if SSE is not connected — SSE handler already triggers
+    // pollConversationList() on new_message events with 500ms debounce
+    if (sseConnected) {
+      return;
+    }
+
+    // Poll every 30 seconds as fallback when SSE is not available
     conversationListPollingInterval = setInterval(pollConversationList, 30000);
   }
 
@@ -1080,11 +1086,15 @@
         sseConnected = state === 'connected';
 
         if (sseConnected && !wasConnected) {
-          // SSE just connected - stop polling
+          // SSE just connected - stop all polling (SSE handles updates)
           stopPolling();
-        } else if (!sseConnected && wasConnected && selectedProduct) {
-          // SSE just disconnected - start polling if we have a selected conversation
-          startPolling();
+          stopConversationListPolling();
+        } else if (!sseConnected && wasConnected) {
+          // SSE just disconnected - start polling as fallback
+          if (selectedProduct) {
+            startPolling();
+          }
+          startConversationListPolling();
         }
       });
 

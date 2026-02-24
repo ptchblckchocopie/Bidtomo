@@ -5,6 +5,7 @@
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
+  import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type NewProductEvent, type BidUpdateEvent } from '$lib/sse';
 
   let { data, params }: { data: PageData; params?: any } = $props();
 
@@ -21,6 +22,10 @@
   let lastDataSearch = $state(data.search || ''); // Track last known data.search value
   let lastDataRegion = $state(data.region || '');
   let lastDataCity = $state(data.city || '');
+
+  // SSE state
+  let sseUnsubscribe: (() => void) | null = $state(null);
+  let newProductCount = $state(0);
 
   // Items per page options
   const itemsPerPageOptions = [12, 24, 48, 96];
@@ -297,8 +302,47 @@
     countdownInterval = setInterval(updateCountdowns, 1000);
     fetchUserBids();
 
+    // Connect to global SSE for live bid updates and new product notifications
+    const globalSSE = getGlobalSSE();
+    globalSSE.connect();
+
+    sseUnsubscribe = globalSSE.subscribe((event: SSEEvent) => {
+      if (event.type === 'bid' && 'productId' in event) {
+        // Live bid update — update the product card in place
+        const bidEvent = event as BidUpdateEvent;
+        if (bidEvent.success && bidEvent.amount) {
+          const productIndex = data.products.findIndex(
+            (p) => String(p.id) === String(bidEvent.productId)
+          );
+          if (productIndex !== -1) {
+            data.products[productIndex] = {
+              ...data.products[productIndex],
+              currentBid: bidEvent.amount,
+            };
+          }
+        }
+      } else if (event.type === 'accepted' && 'productId' in event) {
+        // Product sold — update status in place
+        const acceptedEvent = event as any;
+        const productIndex = data.products.findIndex(
+          (p) => String(p.id) === String(acceptedEvent.productId)
+        );
+        if (productIndex !== -1) {
+          data.products[productIndex] = {
+            ...data.products[productIndex],
+            status: 'sold',
+            currentBid: acceptedEvent.amount || data.products[productIndex].currentBid,
+          };
+        }
+      } else if (event.type === 'new_product') {
+        // New product listed — show notification banner
+        if (data.status === 'active') {
+          newProductCount++;
+        }
+      }
+    });
+
     // Scroll to products section if there's a status query parameter
-    // (useful when navigating from another page or using back/forward buttons)
     if (data.status && window.location.search.includes('status=')) {
       setTimeout(() => {
         const productsSection = document.getElementById('products-section');
@@ -311,13 +355,11 @@
     // Handle visibility change - stop countdown when tab is not visible
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // Tab is hidden, stop countdown to save resources
         if (countdownInterval) clearInterval(countdownInterval);
         countdownInterval = null;
       } else {
-        // Tab is visible again, restart countdown
         if (!countdownInterval) {
-          updateCountdowns(); // Immediate update when returning
+          updateCountdowns();
           countdownInterval = setInterval(updateCountdowns, 1000);
         }
       }
@@ -325,7 +367,6 @@
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Cleanup visibility listener on destroy
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
@@ -333,6 +374,8 @@
 
   onDestroy(() => {
     if (countdownInterval) clearInterval(countdownInterval);
+    if (sseUnsubscribe) sseUnsubscribe();
+    disconnectGlobalSSE();
   });
 </script>
 
@@ -503,6 +546,16 @@
       My Bids
     </button>
   </div>
+
+  <!-- New Products Notification Banner -->
+  {#if newProductCount > 0}
+    <button
+      class="new-products-banner"
+      onclick={() => { newProductCount = 0; window.location.reload(); }}
+    >
+      {newProductCount} new {newProductCount === 1 ? 'product' : 'products'} listed — click to refresh
+    </button>
+  {/if}
 
   <!-- Products Grid -->
   {#if sortedProducts.length > 0}
@@ -1296,5 +1349,36 @@
     background-color: var(--color-red);
     border-color: var(--color-red);
     color: white;
+  }
+
+  .new-products-banner {
+    width: 100%;
+    padding: 0.75rem 1.5rem;
+    background: var(--color-blue);
+    color: white;
+    border: 2px solid var(--color-border);
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    text-align: center;
+    margin-bottom: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+    animation: slideDown 0.3s ease-out;
+  }
+
+  .new-products-banner:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-bh-md);
+  }
+
+  @keyframes slideDown {
+    from {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
   }
 </style>
