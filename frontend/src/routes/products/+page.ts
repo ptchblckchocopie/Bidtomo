@@ -19,6 +19,17 @@ export const load: PageLoad = async ({ url, fetch }) => {
       search: search || undefined,
       customFetch: fetch
     });
+  } else if (status === 'hidden') {
+    // Fetch hidden products (admin only)
+    data = await fetchProducts({
+      page,
+      limit,
+      search: search || undefined,
+      status: 'hidden',
+      region: region || undefined,
+      city: city || undefined,
+      customFetch: fetch
+    });
   } else {
     // Fetch all products with status filter
     data = await fetchProducts({

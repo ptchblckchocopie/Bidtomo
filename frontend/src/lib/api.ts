@@ -210,6 +210,10 @@ export async function fetchProducts(params?: {
       queryParams.append(`where[and][${andIndex}][or][0][status][equals]`, 'ended');
       queryParams.append(`where[and][${andIndex}][or][1][status][equals]`, 'sold');
       andIndex++;
+    } else if (params?.status === 'hidden') {
+      // Hidden items - active=false (admin only)
+      queryParams.append(`where[and][${andIndex}][active][equals]`, 'false');
+      andIndex++;
     }
 
     // Filter by location

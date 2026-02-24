@@ -32,8 +32,8 @@
   async function toggleProductVisibility(productId: string | number, currentlyActive: boolean) {
     const result = await updateProduct(String(productId), { active: !currentlyActive });
     if (result) {
-      const product = data.products.find((p: any) => p.id === productId);
-      if (product) product.active = !currentlyActive;
+      // Remove the product from the current list so it disappears immediately
+      data.products = data.products.filter((p: any) => p.id !== productId);
     }
   }
 
@@ -555,6 +555,15 @@
     >
       My Bids
     </button>
+    {#if $authStore.user?.role === 'admin'}
+      <button
+        class="tab tab-admin"
+        class:active={data.status === 'hidden'}
+        onclick={() => changeTab('hidden')}
+      >
+        Hidden Items
+      </button>
+    {/if}
   </div>
 
   <!-- New Products Notification Banner -->
@@ -645,12 +654,20 @@
                     {#if $authStore.user && product.seller?.id === $authStore.user.id}
                       <span class="owner-badge">Your Listing</span>
                     {/if}
-                    {#if $authStore.user?.role === 'admin'}
+                    {#if $authStore.user?.role === 'admin' && data.status !== 'hidden'}
                       <button
                         class="admin-hide-btn"
                         onclick={(e) => { e.preventDefault(); e.stopPropagation(); toggleProductVisibility(product.id, product.active); }}
                       >
-                        {product.active ? 'Hide' : 'Show'}
+                        Hide
+                      </button>
+                    {/if}
+                    {#if data.status === 'hidden'}
+                      <button
+                        class="admin-show-btn"
+                        onclick={(e) => { e.preventDefault(); e.stopPropagation(); toggleProductVisibility(product.id, product.active); }}
+                      >
+                        Unhide
                       </button>
                     {/if}
                   </div>
@@ -1222,6 +1239,33 @@
 
   .admin-hide-btn:hover {
     background: #b02a37;
+  }
+
+  .admin-show-btn {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: #198754;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: background 0.2s;
+  }
+
+  .admin-show-btn:hover {
+    background: #146c43;
+  }
+
+  .tab-admin {
+    color: #dc3545;
+  }
+
+  .tab-admin.active {
+    border-color: #dc3545;
+    color: #dc3545;
   }
 
   .status-active {
