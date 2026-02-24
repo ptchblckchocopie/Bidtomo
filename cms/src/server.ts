@@ -1512,7 +1512,21 @@ const start = async () => {
   app.post('/api/typing', async (req, res) => {
     try {
       const { product, isTyping } = req.body;
-      const userId = (req as any).user?.id;
+      let userId: number | null = (req as any).user?.id || null;
+
+      // JWT fallback for typing endpoint
+      if (!userId) {
+        const authHeader = req.headers.authorization;
+        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
+          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+          try {
+            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            if (decoded.id) userId = decoded.id;
+          } catch (jwtError) {
+            // Token invalid
+          }
+        }
+      }
 
       if (!userId || !product) {
         return res.status(400).json({ error: 'Missing required fields' });

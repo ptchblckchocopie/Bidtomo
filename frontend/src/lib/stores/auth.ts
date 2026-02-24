@@ -33,9 +33,16 @@ function createAuthStore() {
     if (token && userStr) {
       try {
         const user = JSON.parse(userStr);
-        initialState.isAuthenticated = true;
-        initialState.user = user;
-        initialState.token = token;
+        // Validate parsed user has required fields before trusting it
+        if (user && typeof user.id !== 'undefined' && typeof user.email === 'string') {
+          initialState.isAuthenticated = true;
+          initialState.user = user;
+          initialState.token = token;
+        } else {
+          // Invalid user data structure, clear it
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('user_data');
+        }
       } catch (e) {
         // Invalid data, clear it
         localStorage.removeItem('auth_token');
