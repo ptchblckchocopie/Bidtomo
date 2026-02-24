@@ -29,6 +29,7 @@ const allowedOrigins: string[] = [
   'http://bidmo.to',
   'http://www.bidmo.to',
   'http://app.bidmo.to',
+  'https://cms-production-d0f7.up.railway.app',
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
 ];
 
@@ -39,6 +40,11 @@ app.use(cors({
 
     // Allow any local network IP (192.168.x.x) for development
     if (origin.match(/^http:\/\/192\.168\.\d+\.\d+:\d+$/)) {
+      return callback(null, true);
+    }
+
+    // Allow Railway deployment URLs
+    if (origin.endsWith('.up.railway.app')) {
       return callback(null, true);
     }
 

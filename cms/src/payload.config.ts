@@ -31,7 +31,7 @@ const adapter = s3Adapter({
 const isProduction = process.env.NODE_ENV === 'production';
 
 export default buildConfig({
-  serverURL: process.env.SERVER_URL || (isProduction ? 'https://app.bidmo.to' : ''),
+  serverURL: process.env.SERVER_URL || '',
   cors: [
     'http://localhost:5173',
     'http://localhost:3001',
@@ -40,6 +40,7 @@ export default buildConfig({
     'https://www.bidmo.to',
     'https://bidmo.to',
     'https://app.bidmo.to',
+    'https://cms-production-d0f7.up.railway.app',
     ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
   ],
   csrf: [
@@ -50,6 +51,7 @@ export default buildConfig({
     'https://www.bidmo.to',
     'https://bidmo.to',
     'https://app.bidmo.to',
+    'https://cms-production-d0f7.up.railway.app',
     ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
   ],
   admin: {
