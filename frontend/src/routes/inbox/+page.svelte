@@ -1210,7 +1210,7 @@
 </svelte:head>
 
 <div class="inbox-page">
-  <h1>Inbox</h1>
+  <h1 class:hide-on-mobile-chat={selectedProduct}>Inbox</h1>
 
   {#if loading}
     <div class="loading">Loading conversations...</div>
@@ -2364,6 +2364,10 @@
       margin-bottom: 1rem;
     }
 
+    h1.hide-on-mobile-chat {
+      display: none;
+    }
+
     .inbox-container {
       grid-template-columns: 1fr;
       gap: 0;
@@ -2390,17 +2394,27 @@
 
     .chat-header {
       flex-wrap: wrap;
-      gap: 0.75rem;
+      gap: 0.5rem;
+      padding: 0.75rem;
     }
 
     .product-summary {
       flex: 1;
-      min-width: 100%;
+      min-width: 0;
       order: 2;
+    }
+
+    .product-summary h3 {
+      font-size: 1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .back-btn {
       order: 1;
+      padding: 0.375rem 0.75rem;
+      font-size: 0.85rem;
     }
 
     .view-product-link {
@@ -2410,7 +2424,7 @@
     }
 
     .message-content {
-      max-width: 80%;
+      max-width: 85%;
     }
 
     .tabs {

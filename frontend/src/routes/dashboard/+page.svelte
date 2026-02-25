@@ -1351,6 +1351,15 @@
 
     .products-grid {
       grid-template-columns: 1fr;
+      padding: 0 4px 4px 0;
+    }
+
+    .product-card {
+      box-shadow: 2px 2px 0px var(--color-border);
+    }
+
+    .product-card:hover {
+      transform: none;
     }
 
     .purchase-card {
