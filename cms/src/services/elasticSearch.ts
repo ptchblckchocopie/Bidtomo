@@ -13,6 +13,11 @@ export function getElasticClient(): Client | null {
       node: ELASTICSEARCH_URL,
       requestTimeout: 5000,
       maxRetries: 2,
+      // Override v9 client compatibility headers for v7/v8 ES servers
+      headers: {
+        'accept': 'application/json',
+        'content-type': 'application/json',
+      },
     });
   }
   return client;
