@@ -26,7 +26,7 @@ export const GET: RequestHandler = async ({ params, url, request }) => {
     const user = await response.json();
 
     // Return only public information (exclude email, phone, etc.)
-    const publicProfile = {
+    const publicProfile: Record<string, any> = {
       id: user.id,
       name: user.censorName ? censorUserName(user.name) : user.name,
       censorName: user.censorName || false,
@@ -34,6 +34,13 @@ export const GET: RequestHandler = async ({ params, url, request }) => {
       currency: user.currency,
       createdAt: user.createdAt,
     };
+
+    // Include profile picture if it exists
+    if (user.profilePicture) {
+      publicProfile.profilePicture = typeof user.profilePicture === 'object'
+        ? { id: user.profilePicture.id, url: user.profilePicture.url, filename: user.profilePicture.filename }
+        : user.profilePicture;
+    }
 
     return jsonResponse(publicProfile);
   } catch (error: any) {
