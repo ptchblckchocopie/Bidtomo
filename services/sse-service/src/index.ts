@@ -70,6 +70,8 @@ app.use(cors({
       return callback(null, true);
     }
     if (origin.endsWith('.vercel.app')) return callback(null, true);
+    if (origin.endsWith('.up.railway.app')) return callback(null, true);
+    if (origin === 'https://bidmo.to' || origin === 'https://www.bidmo.to') return callback(null, true);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -126,6 +128,8 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
   res.setHeader('Content-Encoding', 'none');
   res.flushHeaders();
 
+  // Tell browser to reconnect after 2s if connection drops
+  res.write(`retry: 2000\n\n`);
   res.write(`data: ${JSON.stringify({
     type: 'connected',
     productId,
@@ -141,7 +145,7 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
 
   const heartbeat = setInterval(() => {
     try { res.write(`:heartbeat ${Date.now()}\n\n`); } catch { clearInterval(heartbeat); }
-  }, 30000);
+  }, 15000);
 
   req.on('close', () => {
     clearInterval(heartbeat);
@@ -171,6 +175,7 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
   res.setHeader('Content-Encoding', 'none');
   res.flushHeaders();
 
+  res.write(`retry: 2000\n\n`);
   res.write(`data: ${JSON.stringify({
     type: 'connected',
     userId,
@@ -185,7 +190,7 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
 
   const heartbeat = setInterval(() => {
     try { res.write(`:heartbeat ${Date.now()}\n\n`); } catch { clearInterval(heartbeat); }
-  }, 30000);
+  }, 15000);
 
   req.on('close', () => {
     clearInterval(heartbeat);
@@ -214,6 +219,7 @@ app.get('/events/global', (req: Request, res: Response) => {
   res.setHeader('Content-Encoding', 'none');
   res.flushHeaders();
 
+  res.write(`retry: 2000\n\n`);
   res.write(`data: ${JSON.stringify({
     type: 'connected',
     channel: 'global',
@@ -225,7 +231,7 @@ app.get('/events/global', (req: Request, res: Response) => {
 
   const heartbeat = setInterval(() => {
     try { res.write(`:heartbeat ${Date.now()}\n\n`); } catch { clearInterval(heartbeat); }
-  }, 30000);
+  }, 15000);
 
   req.on('close', () => {
     clearInterval(heartbeat);

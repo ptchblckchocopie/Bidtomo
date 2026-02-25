@@ -439,9 +439,17 @@
             const newAmount = bidEvent.amount;
             const previousBid = data.product.currentBid || data.product.startingPrice;
 
-            if (newAmount > previousBid) {
-              // Trigger price animation
-              priceChanged = true;
+            // Check if this confirms one of our optimistic bids
+            const isOwnOptimisticConfirmation = bidEvent.bidderId && data.bids.some((b: any) =>
+              String(b.id).startsWith('optimistic-') && b.amount === newAmount &&
+              String(bidEvent.bidderId) === String(b.bidder?.id)
+            );
+
+            if (newAmount > previousBid || isOwnOptimisticConfirmation) {
+
+              if (!isOwnOptimisticConfirmation) {
+                priceChanged = true;
+              }
               data.product.currentBid = newAmount;
 
               // Create new bid object from SSE data (no need to fetch!)
@@ -459,9 +467,20 @@
                   product: data.product.id,
                 };
 
-                // Add to beginning of bids array
-                newBidIds = new Set([String(bidEvent.bidId)]);
-                data.bids = [newBid as any, ...data.bids];
+                // Remove any optimistic bid with the same amount from the same user
+                const filteredBids = data.bids.filter((b: any) => {
+                  if (!String(b.id).startsWith('optimistic-')) return true;
+                  // Remove optimistic bid if this real bid matches (same user + same amount)
+                  return !(String(bidEvent.bidderId) === String(b.bidder?.id) && bidEvent.amount === b.amount);
+                });
+
+                // Only add if not already present (by real id)
+                if (!filteredBids.some((b: any) => b.id === String(bidEvent.bidId))) {
+                  newBidIds = new Set([String(bidEvent.bidId)]);
+                  data.bids = [newBid as any, ...filteredBids];
+                } else {
+                  data.bids = filteredBids;
+                }
               }
 
               // Update bid amount if it's below the new minimum
@@ -642,43 +661,69 @@
     bidError = '';
     bidSuccess = false;
 
+    const submittedAmount = bidAmount;
+    const currentUser = $authStore.user;
+
+    // Save state before optimistic update so we can restore on failure
+    const previousCurrentBid = data.product.currentBid;
+    const previousBids = [...data.bids];
+    const previousBidAmount = bidAmount;
+
+    // Optimistic update: show the bid immediately in the UI
+    const optimisticBidId = `optimistic-${Date.now()}`;
+    let optimisticBid: any = null;
+    if (currentUser) {
+      optimisticBid = {
+        id: optimisticBidId,
+        amount: submittedAmount,
+        bidTime: new Date().toISOString(),
+        censorName: censorMyName,
+        bidder: {
+          id: String(currentUser.id),
+          name: currentUser.name || currentUser.email || 'You',
+          email: currentUser.email || '',
+        },
+        product: data.product.id,
+      };
+
+      // Update UI immediately
+      data.product.currentBid = submittedAmount;
+      newBidIds = new Set([optimisticBidId]);
+      data.bids = [optimisticBid, ...data.bids];
+      priceChanged = true;
+      showConfetti = true;
+      bidSuccess = true;
+
+      // Advance bid amount to next minimum
+      bidAmount = submittedAmount + bidInterval;
+
+      // Trigger reactivity
+      data = { ...data };
+    }
+
     try {
-      // Try queue-based bidding first (Redis + SSE)
-      const queueResult = await queueBidToRedis(data.product.id, bidAmount, censorMyName);
+      // Fire the actual request
+      const queueResult = await queueBidToRedis(data.product.id, submittedAmount, censorMyName);
 
       if (queueResult.success) {
-        bidSuccess = true;
         bidError = '';
 
-        // If bid was processed directly (fallback), update immediately
+        // If bid was processed directly (fallback), replace optimistic bid with real data
         if (queueResult.fallback || queueResult.bidId) {
-          // Trigger price animation immediately
-          priceChanged = true;
-          showConfetti = true;
-
-          // Reload bids
           const updatedBids = await fetchProductBids(data.product.id);
-
-          // Mark the new bid for animation
-          const previousBidIds = new Set(data.bids.map((b: any) => b.id));
+          const previousBidIdSet = new Set(data.bids.filter((b: any) => b.id !== optimisticBidId).map((b: any) => b.id));
           newBidIds = new Set(
             updatedBids
-              .filter((b: any) => !previousBidIds.has(b.id))
+              .filter((b: any) => !previousBidIdSet.has(b.id))
               .map((b: any) => b.id)
           );
-
           data.bids = updatedBids;
-
-          // Update product current bid
           if (data.product) {
-            data.product.currentBid = bidAmount;
+            data.product.currentBid = submittedAmount;
           }
-        } else {
-          // Bid was queued - show pending state
         }
-
-        // Reset bid amount to new minimum
-        bidAmount = bidAmount + bidInterval;
+        // else: bid was queued — SSE will deliver the real bid and the
+        // onmessage handler will replace/supplement the optimistic entry
 
         // Clear animations after delay
         setTimeout(() => {
@@ -693,20 +738,35 @@
           newBidIds = new Set();
         }, 3000);
 
-        // Force immediate update check to get latest data
-        setTimeout(() => {
-          forceUpdateCheck();
-        }, 500);
-
         // Auto-close success message after 5 seconds
         setTimeout(() => {
           bidSuccess = false;
         }, 5000);
       } else {
+        // Bid failed — roll back to saved state
+        if (optimisticBid && data.product) {
+          data.bids = previousBids;
+          data.product.currentBid = previousCurrentBid;
+          priceChanged = false;
+          showConfetti = false;
+          bidSuccess = false;
+          bidAmount = previousBidAmount;
+          data = { ...data };
+        }
         bidError = queueResult.error || 'Failed to place bid. Please try again.';
       }
     } catch (error) {
       console.error('Error in confirmPlaceBid:', error);
+      // Roll back to saved state
+      if (optimisticBid && data.product) {
+        data.bids = previousBids;
+        data.product.currentBid = previousCurrentBid;
+        priceChanged = false;
+        showConfetti = false;
+        bidSuccess = false;
+        bidAmount = previousBidAmount;
+        data = { ...data };
+      }
       bidError = 'An error occurred while placing your bid.';
     } finally {
       bidding = false;
