@@ -87,7 +87,11 @@
     <!-- Profile Header -->
     <div class="profile-header">
       <div class="profile-avatar">
-        {data.user.name?.charAt(0)?.toUpperCase() || '?'}
+        {#if data.user.profilePicture && typeof data.user.profilePicture === 'object' && data.user.profilePicture.url}
+          <img src={data.user.profilePicture.url} alt={data.user.name} class="profile-avatar-img" />
+        {:else}
+          {data.user.name?.charAt(0)?.toUpperCase() || '?'}
+        {/if}
       </div>
       <div class="profile-info">
         <h1 class="profile-name">{data.user.name}</h1>
@@ -413,6 +417,14 @@
     font-size: 2.5rem;
     font-weight: 600;
     flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .profile-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 
   .profile-info {

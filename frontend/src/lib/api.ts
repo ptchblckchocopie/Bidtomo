@@ -167,6 +167,11 @@ export interface PublicUserProfile {
   role: 'admin' | 'seller' | 'buyer';
   currency: 'PHP' | 'USD' | 'EUR' | 'GBP' | 'JPY';
   createdAt: string;
+  profilePicture?: {
+    id: string;
+    url: string;
+    filename: string;
+  } | string | null;
 }
 
 export interface UserRatingStats {

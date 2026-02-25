@@ -1036,7 +1036,11 @@
           <div class="seller-card">
             <div class="seller-header">
               <div class="seller-avatar">
-                {data.product.seller?.name?.charAt(0)?.toUpperCase() || '?'}
+                {#if data.product.seller?.profilePicture && typeof data.product.seller.profilePicture === 'object' && data.product.seller.profilePicture.url}
+                  <img src={data.product.seller.profilePicture.url} alt={data.product.seller.name} class="seller-avatar-img" />
+                {:else}
+                  {data.product.seller?.name?.charAt(0)?.toUpperCase() || '?'}
+                {/if}
               </div>
               <div class="seller-details">
                 <a href="/users/{data.product.seller?.id}" class="seller-name">
@@ -2845,6 +2849,15 @@
     font-weight: 600;
     font-size: 1.25rem;
     border: 2px solid var(--color-border);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .seller-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 
   .seller-details {
