@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore, getAuthToken } from '$lib/stores/auth';
-  import { getUserLimits, type UserLimits } from '$lib/api';
+  import { getUserLimits, getCurrentUser, type UserLimits } from '$lib/api';
 
   let userLimits: UserLimits | null = null;
   let loading = true;
@@ -12,6 +12,10 @@
   let saving = false;
   let error = '';
   let success = '';
+
+  // Profile picture state
+  let uploadingPicture = false;
+  let fileInput: HTMLInputElement;
 
   // Form fields
   let editName = '';
@@ -46,6 +50,15 @@
     if (!$authStore.isAuthenticated) {
       goto('/login?redirect=/profile');
       return;
+    }
+
+    // Refresh user data from server to get latest fields (including profilePicture)
+    const freshUser = await getCurrentUser();
+    if (freshUser) {
+      authStore.set({
+        ...$authStore,
+        user: { ...$authStore.user!, ...freshUser },
+      });
     }
 
     // Initialize edit fields with current user data
@@ -138,6 +151,136 @@
   function getProgressPercent(current: number, max: number): number {
     return (current / max) * 100;
   }
+
+  function getProfilePictureUrl(): string | null {
+    const pp = $authStore.user?.profilePicture;
+    if (!pp) return null;
+    if (typeof pp === 'object' && pp.url) return pp.url;
+    return null;
+  }
+
+  function triggerFileSelect() {
+    fileInput?.click();
+  }
+
+  async function handleFileSelect(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      error = 'Please select an image file (JPG, PNG, GIF, WebP)';
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      error = 'Image must be under 5MB';
+      return;
+    }
+
+    error = '';
+    success = '';
+    uploadingPicture = true;
+
+    try {
+      const token = getAuthToken();
+
+      // Step 1: Upload image to /api/bridge/media
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const uploadResponse = await fetch('/api/bridge/media', {
+        method: 'POST',
+        headers: {
+          'Authorization': `JWT ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload image');
+      }
+
+      const mediaDoc = await uploadResponse.json();
+      const mediaId = mediaDoc.doc?.id || mediaDoc.id;
+
+      if (!mediaId) {
+        throw new Error('Upload succeeded but no media ID returned');
+      }
+
+      // Step 2: Set as profile picture (CMS handles old image deletion)
+      const setResponse = await fetch('/api/bridge/users/profile-picture', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `JWT ${token}`,
+        },
+        body: JSON.stringify({ mediaId }),
+      });
+
+      if (!setResponse.ok) {
+        throw new Error('Failed to set profile picture');
+      }
+
+      const result = await setResponse.json();
+
+      // Update auth store with new profile picture data
+      const updatedPP = result.user?.profilePicture;
+      authStore.set({
+        ...$authStore,
+        user: {
+          ...$authStore.user!,
+          profilePicture: typeof updatedPP === 'object' ? updatedPP : { id: mediaId, url: mediaDoc.doc?.url || mediaDoc.url, filename: file.name },
+        },
+      });
+
+      success = 'Profile picture updated!';
+    } catch (err: any) {
+      error = err.message || 'Failed to upload profile picture';
+    } finally {
+      uploadingPicture = false;
+      // Reset file input
+      if (fileInput) fileInput.value = '';
+    }
+  }
+
+  async function removeProfilePicture() {
+    error = '';
+    success = '';
+    uploadingPicture = true;
+
+    try {
+      const token = getAuthToken();
+
+      const response = await fetch('/api/bridge/users/profile-picture', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `JWT ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove profile picture');
+      }
+
+      // Update auth store
+      authStore.set({
+        ...$authStore,
+        user: {
+          ...$authStore.user!,
+          profilePicture: null,
+        },
+      });
+
+      success = 'Profile picture removed!';
+    } catch (err: any) {
+      error = err.message || 'Failed to remove profile picture';
+    } finally {
+      uploadingPicture = false;
+    }
+  }
 </script>
 
 <svelte:head>
@@ -146,8 +289,47 @@
 
 <div class="profile-page">
   <div class="profile-header">
-    <h1>My Profile</h1>
-    <p class="subtitle">View and edit your account information</p>
+    <div class="profile-avatar-section">
+      <div class="avatar-container">
+        {#if getProfilePictureUrl()}
+          <img src={getProfilePictureUrl()} alt="Profile picture" class="avatar-image" />
+        {:else}
+          <div class="avatar-placeholder">
+            {($authStore.user?.name || 'U').charAt(0).toUpperCase()}
+          </div>
+        {/if}
+
+        {#if uploadingPicture}
+          <div class="avatar-loading">
+            <div class="spinner-small"></div>
+          </div>
+        {/if}
+      </div>
+
+      <div class="avatar-actions">
+        <button class="btn-upload" onclick={triggerFileSelect} disabled={uploadingPicture}>
+          {getProfilePictureUrl() ? 'Change Photo' : 'Upload Photo'}
+        </button>
+        {#if getProfilePictureUrl()}
+          <button class="btn-remove-photo" onclick={removeProfilePicture} disabled={uploadingPicture}>
+            Remove
+          </button>
+        {/if}
+      </div>
+
+      <input
+        bind:this={fileInput}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        onchange={handleFileSelect}
+        class="file-input-hidden"
+      />
+    </div>
+
+    <div class="header-text">
+      <h1>{$authStore.user?.name || 'My Profile'}</h1>
+      <p class="subtitle">{$authStore.user?.email || 'View and edit your account information'}</p>
+    </div>
   </div>
 
   {#if error}
@@ -368,7 +550,120 @@
   }
 
   .profile-header {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
     margin-bottom: 2rem;
+  }
+
+  .profile-avatar-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .avatar-container {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
+    overflow: hidden;
+    background: var(--color-muted);
+  }
+
+  .avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--color-white);
+    background: var(--color-red);
+  }
+
+  .avatar-loading {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .spinner-small {
+    width: 30px;
+    height: 30px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top: 3px solid var(--color-white);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  .avatar-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .btn-upload {
+    padding: 0.4rem 0.75rem;
+    background: var(--color-blue);
+    color: var(--color-white);
+    border: 2px solid var(--color-border);
+    font-weight: 600;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-upload:hover:not(:disabled) {
+    opacity: 0.85;
+  }
+
+  .btn-upload:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-remove-photo {
+    padding: 0.4rem 0.75rem;
+    background: var(--color-white);
+    color: var(--color-red);
+    border: 2px solid var(--color-border);
+    font-weight: 600;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-remove-photo:hover:not(:disabled) {
+    background: var(--color-red);
+    color: var(--color-white);
+  }
+
+  .btn-remove-photo:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .file-input-hidden {
+    display: none;
+  }
+
+  .header-text {
+    flex: 1;
+    min-width: 0;
   }
 
   h1 {
@@ -381,6 +676,8 @@
     color: var(--color-fg);
     opacity: 0.6;
     font-size: 1.1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .error-message {
@@ -847,7 +1144,25 @@
     }
 
     .profile-header {
+      flex-direction: column;
+      text-align: center;
+      gap: 1rem;
       margin-bottom: 1rem;
+    }
+
+    .avatar-container {
+      width: 100px;
+      height: 100px;
+      border-width: 2px;
+      box-shadow: 2px 2px 0px var(--color-border);
+    }
+
+    .avatar-placeholder {
+      font-size: 2.5rem;
+    }
+
+    .header-text {
+      text-align: center;
     }
 
     h1 {

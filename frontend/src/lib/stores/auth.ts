@@ -9,6 +9,11 @@ export interface User {
   currency?: string;
   countryCode?: string;
   phoneNumber?: string;
+  profilePicture?: {
+    id: string;
+    url: string;
+    filename: string;
+  } | string | null;
 }
 
 export interface AuthState {

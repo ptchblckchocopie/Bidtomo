@@ -1796,6 +1796,149 @@ const start = async () => {
     }
   });
 
+  // POST /api/users/profile-picture — Upload profile picture and delete the old one
+  app.post('/api/users/profile-picture', async (req, res) => {
+    try {
+      let currentUserId: number | string | null = (req as any).user?.id || null;
+
+      // JWT fallback
+      if (!currentUserId) {
+        const authHeader = req.headers.authorization;
+        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
+          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+          try {
+            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            if (decoded.id) {
+              currentUserId = decoded.id;
+            }
+          } catch (jwtError) {
+            // Token invalid/expired
+          }
+        }
+      }
+
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Get the current user to find old profile picture
+      const currentUser = await payload.findByID({
+        collection: 'users',
+        id: currentUserId as string,
+      });
+
+      const oldProfilePictureId = currentUser?.profilePicture
+        ? (typeof currentUser.profilePicture === 'object'
+          ? (currentUser.profilePicture as any).id
+          : currentUser.profilePicture)
+        : null;
+
+      // The request body contains the new media ID (uploaded via /api/media first)
+      const { mediaId } = req.body;
+
+      if (!mediaId) {
+        return res.status(400).json({ error: 'mediaId is required' });
+      }
+
+      // Update user with new profile picture
+      const updatedUser = await payload.update({
+        collection: 'users',
+        id: currentUserId as string,
+        data: {
+          profilePicture: mediaId,
+        },
+      });
+
+      // Delete old profile picture from media collection (which also deletes from Supabase)
+      if (oldProfilePictureId && String(oldProfilePictureId) !== String(mediaId)) {
+        try {
+          await payload.delete({
+            collection: 'media',
+            id: String(oldProfilePictureId),
+          });
+          console.log(`Deleted old profile picture: ${oldProfilePictureId}`);
+        } catch (deleteErr) {
+          console.error('Failed to delete old profile picture:', deleteErr);
+          // Non-fatal: the new picture is already set
+        }
+      }
+
+      res.json({
+        success: true,
+        user: updatedUser,
+      });
+    } catch (error: any) {
+      console.error('Error updating profile picture:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DELETE /api/users/profile-picture — Remove profile picture
+  app.delete('/api/users/profile-picture', async (req, res) => {
+    try {
+      let currentUserId: number | string | null = (req as any).user?.id || null;
+
+      // JWT fallback
+      if (!currentUserId) {
+        const authHeader = req.headers.authorization;
+        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
+          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+          try {
+            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            if (decoded.id) {
+              currentUserId = decoded.id;
+            }
+          } catch (jwtError) {
+            // Token invalid/expired
+          }
+        }
+      }
+
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Get the current user to find the profile picture
+      const currentUser = await payload.findByID({
+        collection: 'users',
+        id: currentUserId as string,
+      });
+
+      const profilePictureId = currentUser?.profilePicture
+        ? (typeof currentUser.profilePicture === 'object'
+          ? (currentUser.profilePicture as any).id
+          : currentUser.profilePicture)
+        : null;
+
+      // Clear the profile picture field
+      await payload.update({
+        collection: 'users',
+        id: currentUserId as string,
+        data: {
+          profilePicture: null as any,
+        },
+      });
+
+      // Delete the media record
+      if (profilePictureId) {
+        try {
+          await payload.delete({
+            collection: 'media',
+            id: String(profilePictureId),
+          });
+          console.log(`Deleted profile picture: ${profilePictureId}`);
+        } catch (deleteErr) {
+          console.error('Failed to delete profile picture media:', deleteErr);
+        }
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error removing profile picture:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Only start server if not in serverless environment
   if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     app.listen(PORT, '0.0.0.0', () => {

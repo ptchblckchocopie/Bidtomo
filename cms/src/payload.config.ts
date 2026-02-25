@@ -180,6 +180,14 @@ export default buildConfig({
             description: 'Hide your real name on public profile (shows as "User ***")',
           },
         },
+        {
+          name: 'profilePicture',
+          type: 'upload',
+          relationTo: 'media',
+          admin: {
+            description: 'Your profile picture',
+          },
+        },
       ],
     },
     {
