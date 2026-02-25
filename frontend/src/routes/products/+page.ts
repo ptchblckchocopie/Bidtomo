@@ -1,4 +1,4 @@
-import { fetchProducts, fetchMyBidsProducts } from '$lib/api';
+import { fetchProducts, fetchMyBidsProducts, searchUsers } from '$lib/api';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ url, fetch }) => {
@@ -8,11 +8,36 @@ export const load: PageLoad = async ({ url, fetch }) => {
   const status = url.searchParams.get('status') || 'active';
   const region = url.searchParams.get('region') || '';
   const city = url.searchParams.get('city') || '';
+  const searchType = url.searchParams.get('searchType') || 'products';
 
+  // User search mode
+  if (searchType === 'users') {
+    const userData = await searchUsers({
+      search: search || undefined,
+      page,
+      limit,
+      customFetch: fetch,
+    });
+
+    return {
+      products: [],
+      users: userData.docs,
+      totalDocs: userData.totalDocs,
+      totalPages: userData.totalPages,
+      currentPage: userData.page,
+      limit: userData.limit,
+      search,
+      status,
+      region,
+      city,
+      searchType,
+    };
+  }
+
+  // Product search mode (default)
   let data;
 
   if (status === 'my-bids') {
-    // Fetch products where the user has placed bids
     data = await fetchMyBidsProducts({
       page,
       limit,
@@ -20,7 +45,6 @@ export const load: PageLoad = async ({ url, fetch }) => {
       customFetch: fetch
     });
   } else if (status === 'hidden') {
-    // Fetch hidden products (admin only)
     data = await fetchProducts({
       page,
       limit,
@@ -31,7 +55,6 @@ export const load: PageLoad = async ({ url, fetch }) => {
       customFetch: fetch
     });
   } else {
-    // Fetch all products with status filter
     data = await fetchProducts({
       page,
       limit,
@@ -45,6 +68,7 @@ export const load: PageLoad = async ({ url, fetch }) => {
 
   return {
     products: data.docs,
+    users: [],
     totalDocs: data.totalDocs,
     totalPages: data.totalPages,
     currentPage: data.page,
@@ -52,6 +76,7 @@ export const load: PageLoad = async ({ url, fetch }) => {
     search,
     status,
     region,
-    city
+    city,
+    searchType,
   };
 };

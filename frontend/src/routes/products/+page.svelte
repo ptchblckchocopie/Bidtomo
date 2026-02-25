@@ -19,6 +19,7 @@
   let searchInput = $state(data.search || '');
   let regionInput = $state(data.region || '');
   let cityInput = $state(data.city || '');
+  let searchTypeInput = $state(data.searchType || 'products');
   let searchTimeout: ReturnType<typeof setTimeout> | null = $state(null);
   let lastDataSearch = $state(data.search || ''); // Track last known data.search value
   let lastDataRegion = $state(data.region || '');
@@ -96,31 +97,49 @@
   function handleSearchInput() {
     if (searchTimeout) clearTimeout(searchTimeout);
 
+    loading = true;
     searchTimeout = setTimeout(() => {
       updateURL({
         search: searchInput,
-        region: regionInput,
-        city: cityInput,
-        page: '1', // Reset to page 1 on new search
+        searchType: searchTypeInput,
+        region: searchTypeInput === 'products' ? regionInput : '',
+        city: searchTypeInput === 'products' ? cityInput : '',
+        page: '1',
         status: data.status,
         limit: data.limit.toString()
       });
-    }, 300); // Debounce for 300ms
+    }, 300);
+  }
+
+  function handleSearchTypeChange(type: string) {
+    searchTypeInput = type;
+    loading = true;
+    updateURL({
+      searchType: type,
+      search: searchInput,
+      region: type === 'products' ? regionInput : '',
+      city: type === 'products' ? cityInput : '',
+      page: '1',
+      status: data.status,
+      limit: data.limit.toString()
+    });
   }
 
   function handleLocationInput() {
     if (searchTimeout) clearTimeout(searchTimeout);
 
+    loading = true;
     searchTimeout = setTimeout(() => {
       updateURL({
         search: searchInput,
+        searchType: searchTypeInput,
         region: regionInput,
         city: cityInput,
-        page: '1', // Reset to page 1 on location change
+        page: '1',
         status: data.status,
         limit: data.limit.toString()
       });
-    }, 300); // Debounce for 300ms
+    }, 300);
   }
 
   function clearFilters() {
@@ -129,6 +148,7 @@
     cityInput = '';
     updateURL({
       search: '',
+      searchType: searchTypeInput,
       region: '',
       city: '',
       page: '1',
@@ -142,8 +162,9 @@
     loading = true;
     updateURL({
       status,
-      page: '1', // Reset to page 1 on tab change
+      page: '1',
       search: searchInput,
+      searchType: searchTypeInput,
       region: regionInput,
       city: cityInput,
       limit: data.limit.toString()
@@ -155,6 +176,7 @@
       page: page.toString(),
       status: data.status,
       search: searchInput,
+      searchType: searchTypeInput,
       region: regionInput,
       city: cityInput,
       limit: data.limit.toString()
@@ -165,9 +187,10 @@
   function changeItemsPerPage(limit: number) {
     updateURL({
       limit: limit.toString(),
-      page: '1', // Reset to page 1 when changing items per page
+      page: '1',
       status: data.status,
       search: searchInput,
+      searchType: searchTypeInput,
       region: regionInput,
       city: cityInput
     });
@@ -204,6 +227,14 @@
         cityInput = currentDataCity;
       }
       lastDataCity = currentDataCity;
+    }
+  });
+
+  // Sync searchType from URL on back/forward navigation
+  $effect(() => {
+    const currentSearchType = data.searchType || 'products';
+    if (currentSearchType !== searchTypeInput) {
+      searchTypeInput = currentSearchType;
     }
   });
 
@@ -513,12 +544,29 @@
 
     <!-- Search and Filters -->
     <div class="search-filter-container">
+      <div class="search-type-toggle">
+        <button
+          class="search-type-btn"
+          class:active={searchTypeInput === 'products'}
+          onclick={() => handleSearchTypeChange('products')}
+        >
+          Products
+        </button>
+        <button
+          class="search-type-btn"
+          class:active={searchTypeInput === 'users'}
+          onclick={() => handleSearchTypeChange('users')}
+        >
+          Users
+        </button>
+      </div>
+
       <div class="search-container">
         <input
           type="text"
           bind:value={searchInput}
           oninput={handleSearchInput}
-          placeholder="Search by title, description, or keywords..."
+          placeholder={searchTypeInput === 'users' ? 'Search users by name...' : 'Search by title, description, or keywords...'}
           class="search-input input-bh"
         />
         {#if searchInput}
@@ -526,32 +574,34 @@
         {/if}
       </div>
 
-      <div class="location-filters">
-        <select
-          bind:value={regionInput}
-          onchange={handleLocationInput}
-          class="location-select"
-        >
-          <option value="">All Regions</option>
-          {#each regions as region}
-            <option value={region}>{region}</option>
-          {/each}
-        </select>
-        <select
-          bind:value={cityInput}
-          onchange={handleLocationInput}
-          class="location-select"
-          disabled={!regionInput}
-        >
-          <option value="">All Cities</option>
-          {#each availableCities as city}
-            <option value={city}>{city}</option>
-          {/each}
-        </select>
-        {#if searchInput || regionInput || cityInput}
-          <button class="btn-clear-filters" onclick={clearFilters}>Clear All</button>
-        {/if}
-      </div>
+      {#if searchTypeInput === 'products'}
+        <div class="location-filters">
+          <select
+            bind:value={regionInput}
+            onchange={handleLocationInput}
+            class="location-select"
+          >
+            <option value="">All Regions</option>
+            {#each regions as region}
+              <option value={region}>{region}</option>
+            {/each}
+          </select>
+          <select
+            bind:value={cityInput}
+            onchange={handleLocationInput}
+            class="location-select"
+            disabled={!regionInput}
+          >
+            <option value="">All Cities</option>
+            {#each availableCities as city}
+              <option value={city}>{city}</option>
+            {/each}
+          </select>
+          {#if searchInput || regionInput || cityInput}
+            <button class="btn-clear-filters" onclick={clearFilters}>Clear All</button>
+          {/if}
+        </div>
+      {/if}
     </div>
 
     {#if (data.search || data.region || data.city) && data.totalDocs > 0}
@@ -571,18 +621,100 @@
     </div>
   </div>
 
-  {#if (data.search || data.region || data.city) && data.totalDocs === 0}
-    <div class="empty-state">
-      <p>No products found matching your filters</p>
-      {#if data.search}<p class="filter-detail">Search: "{data.search}"</p>{/if}
-      {#if data.region}<p class="filter-detail">Region: "{data.region}"</p>{/if}
-      {#if data.city}<p class="filter-detail">City: "{data.city}"</p>{/if}
-      <button class="btn-clear-search" onclick={clearFilters}>Clear Filters</button>
-    </div>
-  {/if}
+  {#if searchTypeInput === 'users'}
+    <!-- User Search Results -->
+    {#if loading}
+      <section class="auction-section">
+        <div class="users-grid">
+          {#each Array(data.limit || 12) as _}
+            <div class="user-card skeleton-card">
+              <div class="user-card-avatar skeleton-pulse"></div>
+              <div class="user-card-info">
+                <div class="skeleton-line skeleton-title skeleton-pulse"></div>
+                <div class="skeleton-line skeleton-desc-short skeleton-pulse"></div>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </section>
+    {:else if !data.search}
+      <div class="empty-state">
+        <p>Type a name to search for users</p>
+      </div>
+    {:else if data.users && data.users.length > 0}
+      <section class="auction-section">
+        <div class="users-grid">
+          {#each data.users as user}
+            <a href="/users/{user.id}" class="user-card">
+              <div class="user-card-avatar">
+                {#if user.profilePicture && typeof user.profilePicture === 'object' && user.profilePicture.url}
+                  <img src={user.profilePicture.url} alt={user.name} />
+                {:else}
+                  <span class="user-card-initial">{user.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                {/if}
+              </div>
+              <div class="user-card-info">
+                <h3>{user.name}</h3>
+                <span class="user-card-role role-{user.role}">{user.role}</span>
+              </div>
+              <div class="user-card-meta">
+                <span class="user-card-date">Joined {new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
+              </div>
+            </a>
+          {/each}
+        </div>
 
-  <!-- Tabs - Always visible -->
-  <div class="tabs-container" id="products-section">
+        <!-- Pagination -->
+        {#if data.totalPages > 1}
+          <div class="pagination">
+            <button
+              class="pagination-btn"
+              disabled={data.currentPage === 1}
+              onclick={() => goToPage(data.currentPage - 1)}
+            >
+              ← Previous
+            </button>
+            <div class="pagination-numbers">
+              {#each Array(data.totalPages) as _, i}
+                <button
+                  class="pagination-number"
+                  class:active={data.currentPage === i + 1}
+                  onclick={() => goToPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
+              {/each}
+            </div>
+            <button
+              class="pagination-btn"
+              disabled={data.currentPage === data.totalPages}
+              onclick={() => goToPage(data.currentPage + 1)}
+            >
+              Next →
+            </button>
+          </div>
+        {/if}
+      </section>
+    {:else}
+      <div class="empty-state">
+        <p>No users found matching "{data.search}"</p>
+        <button class="btn-clear-search" onclick={clearFilters}>Clear Search</button>
+      </div>
+    {/if}
+  {:else}
+    <!-- Product Search Mode -->
+    {#if (data.search || data.region || data.city) && data.totalDocs === 0}
+      <div class="empty-state">
+        <p>No products found matching your filters</p>
+        {#if data.search}<p class="filter-detail">Search: "{data.search}"</p>{/if}
+        {#if data.region}<p class="filter-detail">Region: "{data.region}"</p>{/if}
+        {#if data.city}<p class="filter-detail">City: "{data.city}"</p>{/if}
+        <button class="btn-clear-search" onclick={clearFilters}>Clear Filters</button>
+      </div>
+    {/if}
+
+    <!-- Tabs - Always visible -->
+    <div class="tabs-container" id="products-section">
     <button
       class="tab"
       class:active={data.status === 'active'}
@@ -811,6 +943,7 @@
         <p><a href="/sell">Be the first to list a product!</a></p>
       {/if}
     </div>
+  {/if}
   {/if}
 </div>
 
@@ -2030,6 +2163,195 @@
   @media (max-width: 480px) {
     .skeleton-card .product-image {
       height: 170px;
+    }
+  }
+
+  /* Search type toggle */
+  .search-type-toggle {
+    display: flex;
+    gap: 0;
+    margin-bottom: 0.75rem;
+    max-width: 600px;
+  }
+
+  .search-type-btn {
+    flex: 1;
+    padding: 0.625rem 1rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: 2px solid var(--color-border);
+    background: var(--color-white);
+    color: #666;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .search-type-btn:first-child {
+    border-right: 1px solid var(--color-border);
+  }
+
+  .search-type-btn:last-child {
+    border-left: 1px solid var(--color-border);
+  }
+
+  .search-type-btn.active {
+    background: var(--color-fg);
+    border-color: var(--color-fg);
+    color: white;
+  }
+
+  .search-type-btn:hover:not(.active) {
+    background: var(--color-muted);
+  }
+
+  /* User cards */
+  .users-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .user-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .user-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-bh-md);
+  }
+
+  .user-card-avatar {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    background: var(--color-muted);
+    border: 2px solid var(--color-border);
+    border-radius: 9999px !important;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .user-card-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .user-card-initial {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--color-fg);
+  }
+
+  .user-card-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .user-card-info h3 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .user-card-role {
+    display: inline-block;
+    padding: 0.125rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 2px solid var(--color-border);
+  }
+
+  .role-seller {
+    background: var(--color-yellow);
+    color: var(--color-fg);
+  }
+
+  .role-buyer {
+    background: var(--color-blue);
+    color: white;
+  }
+
+  .user-card-meta {
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .user-card-date {
+    font-size: 0.8rem;
+    color: #888;
+    white-space: nowrap;
+  }
+
+  /* User skeleton */
+  .user-card.skeleton-card .user-card-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 9999px !important;
+  }
+
+  .user-card.skeleton-card .user-card-info {
+    flex: 1;
+  }
+
+  .user-card.skeleton-card .skeleton-title {
+    width: 60%;
+    margin-bottom: 0.5rem;
+  }
+
+  .user-card.skeleton-card .skeleton-desc-short {
+    width: 35%;
+    height: 1.25rem;
+    margin-bottom: 0;
+  }
+
+  @media (max-width: 768px) {
+    .search-type-toggle {
+      max-width: 100%;
+    }
+
+    .search-type-btn {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    .users-grid {
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+
+    .user-card {
+      padding: 1rem;
+    }
+
+    .user-card:hover {
+      transform: none;
+    }
+
+    .user-card-avatar {
+      width: 48px;
+      height: 48px;
+    }
+
+    .user-card.skeleton-card .user-card-avatar {
+      width: 48px;
+      height: 48px;
     }
   }
 </style>
