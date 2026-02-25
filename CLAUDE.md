@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bidmo.to is a full-stack auction marketplace with real-time bidding. It consists of independently managed services (not a monorepo — no shared workspace tooling):
 
-- **`frontend/`** — SvelteKit 2 + Svelte 5, Tailwind CSS 3, adapter-node
+- **`frontend/`** — SvelteKit 2 + Svelte 5, Tailwind CSS 3, adapter-vercel (both adapter-vercel and adapter-node are installed; currently using adapter-vercel for Vercel deployment)
 - **`cms/`** — Payload CMS 2 on Express, PostgreSQL (via `@payloadcms/db-postgres`), Webpack bundler
 - **`services/sse-service/`** — Standalone SSE server for real-time product updates
 - **`services/bid-worker/`** — Background Redis queue consumer for bid processing
@@ -59,6 +59,7 @@ The `serverURL` in `payload.config.ts` is set to `process.env.SERVER_URL || ''` 
 npm run dev          # Vite dev server on :5173
 npm run build        # Production build (outputs to build/)
 npm run check        # svelte-kit sync + svelte-check (type checking)
+npm run check:watch  # Type checking in watch mode
 ```
 
 ### CMS Backend (`cms/`)
@@ -74,9 +75,10 @@ npm run generate:types  # Regenerate payload-types.ts from collections
 
 ### Full Stack (from repo root)
 ```bash
-./start.sh           # Start both frontend and backend locally
 ./start-docker.sh    # Docker Compose: Postgres + Redis + all services
+./stop-docker.sh     # Stop Docker Compose services
 ./setup-db.sh        # Initialize PostgreSQL database
+./deploy.sh          # Blue/green production deployment with migrations
 ```
 
 ## Architecture
@@ -116,6 +118,8 @@ Bids are queued via Redis (POST `/api/bid/queue`) and processed by the bid-worke
 - `/events/users/:userId` — user message notifications
 - `/events/global` — dashboard/browse page updates
 
+**SSE client:** `frontend/src/lib/sse.ts` — handles SSE connections, reconnection logic, and event dispatching in the frontend.
+
 ### Payload CMS Structure
 - Collections defined inline in `cms/src/payload.config.ts` (~1,000 lines): `users`, `products`, `bids`, `messages`, `transactions`, `void-requests`, `ratings`, `media`. `EmailTemplates` is in `cms/src/collections/EmailTemplates.ts`.
 - `cms/src/server.ts` (~1,750 lines) — All custom Express endpoints (20+). Main business logic file.
@@ -137,11 +141,14 @@ Image uploads go to **Supabase Storage** (S3-compatible) via `@payloadcms/plugin
 - Tailwind extended with `bh-*` tokens: colors (`bh-red`, `bh-blue`, `bh-yellow`, `bh-bg`, `bh-fg`), shadows (`shadow-bh-sm`, `shadow-bh-md`), borders (`border-bh`, `border-bh-lg`).
 - Utility classes in `app.css`: `.btn-bh`, `.btn-bh-red`, `.btn-bh-blue`, `.card-bh`, `.input-bh`, `.headline-bh`.
 
+### Error Tracking
+Frontend uses `@sentry/sveltekit` for error tracking. SvelteKit config enables experimental `tracing` and `instrumentation` for server-side tracing.
+
 ## Key Configuration
 
 - **Database:** PostgreSQL 14+. Migrations live in `cms/migrations/`. Schema push is disabled (`PUSH: false`).
 - **CMS config:** `cms/src/payload.config.ts`
-- **Frontend config:** `frontend/svelte.config.js` (adapter-node), `frontend/vite.config.ts`
+- **Frontend config:** `frontend/svelte.config.js` (adapter-vercel), `frontend/vite.config.ts`
 - **Docker:** `docker-compose.yml` orchestrates Postgres (:5433), Redis (:6379), CMS (:3001), Frontend (:5173), SSE (:3002), bid-worker
 - **Production (VPS):** PM2 via `ecosystem.config.js`
 - **Production (Railway):** `cms/railway.toml`, `services/sse-service/railway.toml`, `services/bid-worker/railway.toml`
