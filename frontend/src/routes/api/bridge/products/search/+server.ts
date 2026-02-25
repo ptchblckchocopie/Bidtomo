@@ -12,7 +12,7 @@ export const GET: RequestHandler = async ({ url, request }) => {
       queryParams.append(key, value);
     }
 
-    const endpoint = `/api/products/search?${queryParams.toString()}`;
+    const endpoint = `/api/search/products?${queryParams.toString()}`;
     const response = await cmsRequest(endpoint, {
       token: token || undefined,
     });
