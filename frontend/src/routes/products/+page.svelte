@@ -78,7 +78,7 @@
         url.searchParams.delete(key);
       }
     });
-    goto(url.toString(), { keepFocus: true, noScroll: false });
+    goto(url.toString(), { keepFocus: true, noScroll: true });
   }
 
   function handleSearchInput() {
@@ -135,14 +135,6 @@
       city: cityInput,
       limit: data.limit.toString()
     });
-
-    // Scroll to products section after a small delay to allow URL update
-    setTimeout(() => {
-      const productsSection = document.getElementById('products-section');
-      if (productsSection) {
-        productsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 100);
   }
 
   function goToPage(page: number) {
