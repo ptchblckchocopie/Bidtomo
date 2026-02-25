@@ -158,6 +158,37 @@ const start = async () => {
 
   payloadReady = true;
 
+  // Auto-migrate: create users_rels table if it doesn't exist (needed for profilePicture upload field)
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URI });
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "users_rels" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "order" integer,
+        "parent_id" integer NOT NULL,
+        "path" varchar NOT NULL,
+        "media_id" integer
+      );
+      DO $$ BEGIN
+        ALTER TABLE "users_rels" ADD CONSTRAINT "users_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+      DO $$ BEGIN
+        ALTER TABLE "users_rels" ADD CONSTRAINT "users_rels_media_fk" FOREIGN KEY ("media_id") REFERENCES "public"."media"("id") ON DELETE cascade ON UPDATE no action;
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+      CREATE INDEX IF NOT EXISTS "users_rels_order_idx" ON "users_rels" USING btree ("order");
+      CREATE INDEX IF NOT EXISTS "users_rels_parent_idx" ON "users_rels" USING btree ("parent_id");
+      CREATE INDEX IF NOT EXISTS "users_rels_path_idx" ON "users_rels" USING btree ("path");
+      CREATE INDEX IF NOT EXISTS "users_rels_media_id_idx" ON "users_rels" USING btree ("media_id");
+    `);
+    await pool.end();
+    payload.logger.info('users_rels table verified/created');
+  } catch (migrationErr: any) {
+    payload.logger.error('Failed to create users_rels table: ' + migrationErr.message);
+  }
+
   // Root route - API info
   app.get('/', (req, res) => {
     res.json({
