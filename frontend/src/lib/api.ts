@@ -1255,6 +1255,34 @@ export function calculateUserRatingStats(ratings: Rating[]): UserRatingStats {
   };
 }
 
+// Search users by name (excludes admins)
+export async function searchUsers(params?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+  customFetch?: typeof fetch;
+}): Promise<{ docs: PublicUserProfile[]; totalDocs: number; totalPages: number; page: number; limit: number }> {
+  const empty = { docs: [], totalDocs: 0, totalPages: 0, page: 1, limit: params?.limit || 12 };
+  try {
+    const fetchFn = params?.customFetch || fetch;
+    const queryParams = new URLSearchParams();
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.page) queryParams.append('page', String(params.page));
+    if (params?.limit) queryParams.append('limit', String(params.limit));
+
+    const response = await fetchFn(`${BRIDGE_URL}/api/bridge/users/search?${queryParams.toString()}`, {
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+
+    if (!response.ok) return empty;
+    return await response.json();
+  } catch (error) {
+    console.error('Error searching users:', error);
+    return empty;
+  }
+}
+
 // Fetch public user profile
 export async function fetchUserProfile(userId: string): Promise<PublicUserProfile | null> {
   try {
