@@ -2,7 +2,8 @@
 // All requests go through /api/bridge/* to avoid exposing PayloadCMS structure
 
 import { browser } from '$app/environment';
-import { getAuthToken } from './stores/auth';
+import { getAuthToken, authStore } from './stores/auth';
+import { goto } from '$app/navigation';
 
 // Bridge API base URL - uses relative paths in browser, absolute for SSR
 function getBridgeUrl(): string {
@@ -29,6 +30,17 @@ function getAuthHeaders(): HeadersInit {
   }
 
   return headers;
+}
+
+// Handle expired/invalid token: auto-logout and redirect to login
+let isLoggingOut = false;
+function handleExpiredToken() {
+  if (!browser || isLoggingOut) return;
+  isLoggingOut = true;
+  authStore.logout();
+  goto('/login');
+  // Reset flag after a short delay to prevent re-triggering during redirect
+  setTimeout(() => { isLoggingOut = false; }, 2000);
 }
 
 export interface Product {
@@ -664,6 +676,9 @@ export async function getCurrentUser(customFetch?: typeof fetch): Promise<User |
     });
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        handleExpiredToken();
+      }
       return null;
     }
 
@@ -873,6 +888,10 @@ export async function fetchConversations(): Promise<{ product: Product; lastMess
     });
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        handleExpiredToken();
+        return [];
+      }
       throw new Error('Failed to fetch conversations');
     }
 
