@@ -1677,9 +1677,14 @@
 
   @media (max-width: 768px) {
     .product-detail {
-      padding: 0.5rem;
+      padding: 0.75rem 0;
       border: none !important;
       box-shadow: none !important;
+      max-width: none;
+      margin-left: -1rem;
+      margin-right: -1rem;
+      padding-left: 1rem;
+      padding-right: 1rem;
     }
 
     .product-header {
