@@ -1676,7 +1676,23 @@ const start = async () => {
   // Get user limits (bidding and posting)
   app.get('/api/users/limits', async (req, res) => {
     try {
-      const currentUserId = (req as any).user?.id;
+      let currentUserId: number | string | null = (req as any).user?.id || null;
+
+      // JWT fallback for when Payload middleware doesn't set req.user
+      if (!currentUserId) {
+        const authHeader = req.headers.authorization;
+        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
+          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+          try {
+            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            if (decoded.id) {
+              currentUserId = decoded.id;
+            }
+          } catch (jwtError) {
+            // Token invalid/expired
+          }
+        }
+      }
 
       if (!currentUserId) {
         return res.status(401).json({ error: 'Unauthorized' });
