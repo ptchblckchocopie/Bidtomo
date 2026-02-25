@@ -441,7 +441,7 @@
 
             // Check if this confirms one of our optimistic bids
             const isOwnOptimisticConfirmation = bidEvent.bidderId && data.bids.some((b: any) =>
-              b.id.startsWith('optimistic-') && b.amount === newAmount &&
+              String(b.id).startsWith('optimistic-') && b.amount === newAmount &&
               String(bidEvent.bidderId) === String(b.bidder?.id)
             );
 
@@ -469,7 +469,7 @@
 
                 // Remove any optimistic bid with the same amount from the same user
                 const filteredBids = data.bids.filter((b: any) => {
-                  if (!b.id.startsWith('optimistic-')) return true;
+                  if (!String(b.id).startsWith('optimistic-')) return true;
                   // Remove optimistic bid if this real bid matches (same user + same amount)
                   return !(String(bidEvent.bidderId) === String(b.bidder?.id) && bidEvent.amount === b.amount);
                 });
