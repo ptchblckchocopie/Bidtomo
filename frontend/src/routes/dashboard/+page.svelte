@@ -14,7 +14,7 @@
 
   // Tab management
   type TabType = 'products' | 'purchases';
-  let activeTab: TabType = 'products';
+  let activeTab: TabType = $state('products');
 
   // Separate products by status and visibility
   let activeProducts = $derived(data.activeProducts);
@@ -22,20 +22,20 @@
   let endedProducts = $derived(data.endedProducts);
 
   // Purchases state
-  let purchases: Product[] = [];
-  let purchasesLoading = false;
-  let purchasesError = '';
+  let purchases: Product[] = $state([]);
+  let purchasesLoading = $state(false);
+  let purchasesError = $state('');
 
   // Modal states
-  let showEditModal = false;
-  let showViewModal = false;
-  let editingProduct: Product | null = null;
-  let viewingProduct: Product | null = null;
-  let showProductModal = false;
-  let selectedProduct: Product | null = null;
+  let showEditModal = $state(false);
+  let showViewModal = $state(false);
+  let editingProduct: Product | null = $state(null);
+  let viewingProduct: Product | null = $state(null);
+  let showProductModal = $state(false);
+  let selectedProduct: Product | null = $state(null);
 
   // Product view state
-  let productTab: 'active' | 'hidden' | 'ended' = 'active';
+  let productTab: 'active' | 'hidden' | 'ended' = $state('active');
 
   // Currency symbols
   const currencySymbols: Record<string, string> = {
