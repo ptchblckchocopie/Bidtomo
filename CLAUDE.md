@@ -191,6 +191,25 @@ These are recurring issues discovered during development. Check these when debug
 - **Bid-worker fallback paths** — When Redis is down, the CMS `/api/bid/accept` fallback in `cms/src/server.ts` must replicate everything the bid-worker does (message creation, transaction record, SSE publish).
 - **`product.seller` can be null** — Always use optional chaining (`product.seller?.id`) in frontend templates. Seller is a relationship field that may not be populated.
 - **No test suite exists** — Zero test files in the entire project. Validate changes manually or by reading code carefully.
+- **Svelte 5 runes mode reactivity** — Any `.svelte` file using `$props()`, `$state()`, or `$derived()` is in runes mode. In runes mode, plain `let` variables are **NOT reactive**. All interactive state must use `$state()` to trigger UI updates. This has caused buttons/tabs to appear non-functional.
+- **Adding relationship fields requires DB migration** — Adding an `upload` or `relationship` field to a Payload collection creates a `{collection}_rels` junction table. If the table doesn't exist, ALL queries on that collection fail with `relation "X_rels" does not exist`. The CMS startup migration in `server.ts` handles known cases (`users_rels`, `transactions_rels.void_requests_id`).
+- **Expired JWT tokens cause 403 loops** — Frontend has `handleExpiredToken()` in `api.ts` that auto-logouts and redirects to `/login` on 401/403 responses.
+- **Mobile edge-to-edge pattern** — The layout `<main>` has `px-4` padding. Page components must use `margin-left: -1rem; margin-right: -1rem; padding-left: 1rem; padding-right: 1rem;` in mobile media queries to go edge-to-edge and prevent Bauhaus box-shadows from causing visual right-shift.
+
+### Profile Picture Feature
+- Users can upload a profile picture on `/profile`. Images stored in Supabase via the `media` collection.
+- `profilePicture` field on users collection (`type: 'upload', relationTo: 'media'`).
+- CMS endpoints: `POST /api/users/profile-picture` (set new, delete old) and `DELETE /api/users/profile-picture` (remove).
+- Bridge: `POST/DELETE /api/bridge/users/profile-picture`.
+- Old profile pictures are automatically deleted from Supabase when replaced (storage efficiency).
+- Profile pictures are shown on: profile page, product detail seller card, public user profile page (`/users/[id]`).
+- The `PublicUserProfile` type and bridge endpoint `/api/bridge/users/[id]` include `profilePicture` in the response.
+
+### Startup Database Migrations
+The CMS `server.ts` runs auto-migrations on startup (after `payload.init`) using a direct `pg` Pool connection:
+- Creates `users_rels` table (needed for `profilePicture` upload field)
+- Adds `void_requests_id` column to `transactions_rels` (needed for `voidRequest` relationship)
+- Uses `IF NOT EXISTS` / `EXCEPTION WHEN duplicate_*` so it's safe to run repeatedly.
 
 ## Technical Debt
 
