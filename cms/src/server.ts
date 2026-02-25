@@ -183,10 +183,23 @@ const start = async () => {
       CREATE INDEX IF NOT EXISTS "users_rels_path_idx" ON "users_rels" USING btree ("path");
       CREATE INDEX IF NOT EXISTS "users_rels_media_id_idx" ON "users_rels" USING btree ("media_id");
     `);
+    // Add void_requests_id column to transactions_rels if missing
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE "transactions_rels" ADD COLUMN "void_requests_id" integer;
+      EXCEPTION WHEN duplicate_column THEN null;
+      END $$;
+      DO $$ BEGIN
+        ALTER TABLE "transactions_rels" ADD CONSTRAINT "transactions_rels_void_requests_fk" FOREIGN KEY ("void_requests_id") REFERENCES "public"."void_requests"("id") ON DELETE cascade ON UPDATE no action;
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+      CREATE INDEX IF NOT EXISTS "transactions_rels_void_requests_id_idx" ON "transactions_rels" USING btree ("void_requests_id");
+    `);
+
     await pool.end();
-    payload.logger.info('users_rels table verified/created');
+    payload.logger.info('Database schema verified/migrated');
   } catch (migrationErr: any) {
-    payload.logger.error('Failed to create users_rels table: ' + migrationErr.message);
+    payload.logger.error('Failed to run startup migration: ' + migrationErr.message);
   }
 
   // Root route - API info
