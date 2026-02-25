@@ -2360,12 +2360,15 @@
   /* Mobile Responsive */
   @media (max-width: 768px) {
     .inbox-page {
-      padding: 1rem 0;
+      padding: 0;
+      margin-left: -1rem;
+      margin-right: -1rem;
     }
 
     h1 {
-      font-size: 1.8rem;
+      font-size: 1.5rem;
       margin-bottom: 1rem;
+      padding: 0 1rem;
     }
 
     h1.desktop-only-heading {
@@ -2375,12 +2378,18 @@
     .inbox-container {
       grid-template-columns: 1fr;
       gap: 0;
-      height: calc(100vh - 140px);
+      height: calc(100vh - 80px);
+      min-height: 0;
     }
 
     /* Hide conversations list when chat is selected on mobile */
     .conversations-list.hide-on-mobile {
       display: none;
+    }
+
+    .conversations-list {
+      border: none;
+      box-shadow: none;
     }
 
     .chat-area {
@@ -2389,6 +2398,8 @@
 
     .chat-area.show-on-mobile {
       display: flex;
+      border: none;
+      box-shadow: none;
     }
 
     /* Show back button on mobile */
@@ -2442,6 +2453,27 @@
 
     .message-content {
       max-width: 85%;
+    }
+
+    .chat-input-form {
+      padding: 0.75rem;
+      gap: 0.5rem;
+      border-top-width: 2px;
+    }
+
+    .chat-input {
+      padding: 0.6rem 0.75rem;
+      font-size: 0.9rem;
+      border-width: 2px;
+      min-width: 0;
+    }
+
+    .send-btn {
+      padding: 0.6rem 1rem;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      border-width: 2px;
+      box-shadow: none;
     }
 
     .tabs {
