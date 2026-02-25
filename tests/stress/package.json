@@ -1,0 +1,24 @@
+{
+  "name": "bidmo-stress-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stress testing suite for Bidmo.to using k6",
+  "scripts": {
+    "seed": "node seed-data.js",
+    "seed:cleanup": "node seed-data.js --cleanup",
+    "report": "node generate-report.js",
+    "smoke": "k6 run --env CMS_URL=http://localhost:3001 --env SSE_URL=http://localhost:3002 scenarios/smoke.js",
+    "test:bid-storm": "k6 run --env CMS_URL=http://localhost:3001 --out json=results/bid-storm.json scenarios/bid-storm.js",
+    "test:browse": "k6 run --env CMS_URL=http://localhost:3001 --out json=results/browse.json scenarios/browse-journey.js",
+    "test:auth": "k6 run --env CMS_URL=http://localhost:3001 --out json=results/auth.json scenarios/auth-flow.js",
+    "test:full": "k6 run --env CMS_URL=http://localhost:3001 --env SSE_URL=http://localhost:3002 --out json=results/full.json scenarios/full-journey.js",
+    "test:sse": "k6 run --env SSE_URL=http://localhost:3002 --out json=results/sse.json scenarios/sse-connections.js",
+    "test:dangerous": "k6 run --env CMS_URL=http://localhost:3001 --out json=results/dangerous.json scenarios/dangerous-endpoints.js",
+    "test:search": "k6 run --env CMS_URL=http://localhost:3001 --out json=results/search.json scenarios/search.js",
+    "test:all": "k6 run --env CMS_URL=http://localhost:3001 --env SSE_URL=http://localhost:3002 --out json=results/all.json run.js",
+    "sse-load": "node sse-load.js"
+  },
+  "dependencies": {
+    "eventsource": "^2.0.2"
+  }
+}

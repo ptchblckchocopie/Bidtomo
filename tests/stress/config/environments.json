@@ -1,0 +1,12 @@
+{
+  "local": {
+    "CMS_URL": "http://localhost:3001",
+    "FRONTEND_URL": "http://localhost:5173",
+    "SSE_URL": "http://localhost:3002"
+  },
+  "docker": {
+    "CMS_URL": "http://backend:3001",
+    "FRONTEND_URL": "http://frontend:5173",
+    "SSE_URL": "http://sse-service:3002"
+  }
+}
