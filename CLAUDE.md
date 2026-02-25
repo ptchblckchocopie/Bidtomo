@@ -44,7 +44,10 @@ npx @railway/cli logs --build --lines 50  # View build logs
 - Auto-deploys from GitHub `main` branch
 
 ### Important: CMS Admin Webpack Build
-Do NOT add `admin.css` to the Payload config. The `css` property in `admin: { css: ... }` triggers a Sass `@import '~payload-user-css'` during `payload build` that fails in the Nixpacks build environment. If you need to customize admin styles, use Payload's `components` API instead.
+Do NOT add `admin.css` to the Payload config. The `css` property in `admin: { css: ... }` triggers a Sass `@import '~payload-user-css'` during `payload build` that fails in the Nixpacks build environment. If you need to customize admin styles, use Payload's `components` API or webpack aliases instead.
+
+### Important: Custom Admin React Components
+TSX files in `cms/src/components/` are used only by Payload's webpack admin bundle (browser-side), NOT by the server-side `tsc` build. They are excluded from `tsconfig.json` via `"exclude": ["src/components/**/*.tsx"]`. To override a built-in Payload view, add a webpack alias in `payload.config.ts` (see `UnauthorizedView.tsx` as an example).
 
 ### Important: CMS `serverURL`
 The `serverURL` in `payload.config.ts` is set to `process.env.SERVER_URL || ''` (empty string). Do NOT hardcode a domain — empty string makes Payload use relative URLs, which works from any domain (Railway, custom domain, localhost).
@@ -94,7 +97,8 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 
 ### Admin Features
 - Only `admin` role users can access the Payload CMS admin panel (`access.admin` in users collection)
-- Non-admin users who try to log into the CMS are auto-redirected to `/admin/access-denied` (frog video page) via Express middleware in `cms/src/server.ts`
+- Non-admin users who try to log into the CMS see a custom Unauthorized page (frog video + auto-redirect to login). This is implemented via a webpack alias in `payload.config.ts` that replaces Payload's built-in `Unauthorized` view with `cms/src/components/UnauthorizedView.tsx`
+- Express middleware in `cms/src/server.ts` also redirects non-admin users to `/admin/access-denied` (server-side HTML page with frog video)
 - Admin users see a **Hide/Unhide** button on product cards and detail pages in the frontend
 - **Hidden Items** tab (admin-only) in the products browse page at `?status=hidden`
 - Products use the existing `active` field (boolean) to control visibility
@@ -112,8 +116,13 @@ Bids are queued via Redis (POST `/api/bid/queue`) and processed by the bid-worke
 - `/events/users/:userId` — user message notifications
 - `/events/global` — dashboard/browse page updates
 
-### Payload CMS Collections
-Defined in `cms/src/payload.config.ts` (inline) and `cms/src/collections/`: `users`, `products`, `bids`, `messages`, `transactions`, `void-requests`, `ratings`, `media`, `EmailTemplates`. Custom Express endpoints are registered in `cms/src/server.ts`.
+### Payload CMS Structure
+- Collections defined inline in `cms/src/payload.config.ts` (~1,000 lines): `users`, `products`, `bids`, `messages`, `transactions`, `void-requests`, `ratings`, `media`. `EmailTemplates` is in `cms/src/collections/EmailTemplates.ts`.
+- `cms/src/server.ts` (~1,750 lines) — All custom Express endpoints (20+). Main business logic file.
+- `cms/src/redis.ts` — Redis client, queue helpers (`queueBid`, `queueAcceptBid`), pub/sub publishers.
+- `cms/src/auth-helpers.ts` — `authenticateJWT()` helper for custom endpoints.
+- `cms/src/services/emailService.ts` — Resend-based transactional email service.
+- Payload hooks (`beforeChange`, `afterChange`) are inline in collections and use `(global as any).publishProductUpdate` etc. for Redis pub/sub to avoid Webpack bundling issues.
 
 ### Storage
 Image uploads go to **Supabase Storage** (S3-compatible) via `@payloadcms/plugin-cloud-storage`.
@@ -121,6 +130,12 @@ Image uploads go to **Supabase Storage** (S3-compatible) via `@payloadcms/plugin
 - Bucket: `bidmo-media`
 - Prefix: `bidmoto/`
 - Public URL pattern: `https://htcdkqplcmdbyjlvzono.supabase.co/storage/v1/object/public/bidmo-media/bidmoto/{filename}`
+
+### Frontend Rendering & Design
+- SSR is disabled globally (`export const ssr = false` in `+layout.ts`) — the app is a client-side SPA.
+- **Bauhaus design system**: sharp corners (`* { border-radius: 0 !important }` in `app.css`, only `.rounded-full` exempted), bold borders, Outfit font.
+- Tailwind extended with `bh-*` tokens: colors (`bh-red`, `bh-blue`, `bh-yellow`, `bh-bg`, `bh-fg`), shadows (`shadow-bh-sm`, `shadow-bh-md`), borders (`border-bh`, `border-bh-lg`).
+- Utility classes in `app.css`: `.btn-bh`, `.btn-bh-red`, `.btn-bh-blue`, `.card-bh`, `.input-bh`, `.headline-bh`.
 
 ## Key Configuration
 
