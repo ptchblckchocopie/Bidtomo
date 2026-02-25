@@ -347,6 +347,29 @@ export default buildConfig({
               }
             }
 
+            // Index/update product in Elasticsearch
+            const esIndex = (global as any).indexProduct;
+            const esUpdate = (global as any).updateProductIndex;
+            if (operation === 'create' && esIndex) {
+              setImmediate(() => {
+                esIndex(doc).catch((err: Error) => console.error('ES index error:', err));
+              });
+            } else if (operation === 'update' && esUpdate) {
+              setImmediate(() => {
+                esUpdate(doc.id, {
+                  title: doc.title,
+                  description: doc.description,
+                  keywords: (doc.keywords || []).map((k: any) => k.keyword || k).filter(Boolean).join(' '),
+                  currentBid: doc.currentBid || 0,
+                  status: doc.status || 'available',
+                  active: doc.active !== false,
+                  region: doc.region || '',
+                  city: doc.city || '',
+                  updatedAt: doc.updatedAt,
+                }).catch((err: Error) => console.error('ES update error:', err));
+              });
+            }
+
             return doc;
           },
         ],
