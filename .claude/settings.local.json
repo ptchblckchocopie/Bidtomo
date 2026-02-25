@@ -31,7 +31,23 @@
       "Bash(sudo npm:*)",
       "Bash(claude mcp:*)",
       "Bash(echo \"https://cms-production-d0f7.up.railway.app\" | vercel env add CMS_URL production --yes 2>&1)",
-      "Bash(npx playwriter@latest:*)"
+      "Bash(npx playwriter@latest:*)",
+      "mcp__Railway__list-variables",
+      "Bash(git push:*)",
+      "Bash(npx:*)",
+      "mcp__vercel__deploy_to_vercel",
+      "Bash(cd:*)",
+      "mcp__Railway__get-logs",
+      "Bash(git diff:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(wc:*)",
+      "Bash(git status:*)",
+      "Bash(git stash:*)",
+      "mcp__playwriter__execute",
+      "Bash(git pull:*)",
+      "Bash(python3:*)",
+      "mcp__Railway__list-services"
     ]
   }
 }

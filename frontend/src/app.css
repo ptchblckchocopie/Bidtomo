@@ -47,7 +47,10 @@
   .btn-bh {
     @apply inline-flex items-center justify-center px-5 py-2.5 font-bold text-sm
            border-bh border-bh-border bg-bh-muted text-bh-fg
-           shadow-bh-sm transition-all cursor-pointer;
+           shadow-bh-sm cursor-pointer;
+    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+                background-color 0.15s ease;
   }
   .btn-bh:hover {
     @apply translate-y-0.5;
@@ -56,6 +59,7 @@
   .btn-bh:active {
     @apply translate-y-1;
     box-shadow: none;
+    transition-duration: 0.05s;
   }
   .btn-bh:disabled {
     @apply opacity-50 cursor-not-allowed translate-y-0;
@@ -81,15 +85,19 @@
   /* ── Card ── */
   .card-bh {
     @apply bg-white border-bh border-bh-border shadow-bh-sm;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   /* ── Input ── */
   .input-bh {
     @apply w-full px-3 py-2.5 text-base font-outfit
            border-bh border-bh-border bg-white text-bh-fg;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
   }
   .input-bh:focus {
     @apply outline-none ring-2 ring-bh-blue ring-offset-1;
+    border-color: var(--color-blue);
   }
   .input-bh:disabled {
     @apply bg-bh-muted cursor-not-allowed;
@@ -104,4 +112,34 @@
   .divider-bh {
     @apply w-full h-1 bg-bh-fg my-8;
   }
+}
+
+/* ── Global Micro-Interactions ── */
+
+/* Smooth focus-visible outlines for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+  transition: outline-offset 0.1s ease;
+}
+
+/* Subtle active state for all interactive elements */
+a:active,
+button:active {
+  transition-duration: 0.05s;
+}
+
+/* Image loading fade-in */
+img {
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+img[loading="lazy"] {
+  opacity: 0;
+}
+
+img[loading="lazy"].loaded,
+img[loading="lazy"][complete] {
+  opacity: 1;
 }
