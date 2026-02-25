@@ -1762,7 +1762,7 @@
     .products-grid {
       grid-template-columns: 1fr;
       gap: 1rem;
-      padding: 0 4px 4px 0;
+      padding: 0;
     }
 
     .product-card {
