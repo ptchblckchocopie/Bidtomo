@@ -5,6 +5,7 @@ import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
+import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
 
 dotenv.config();
 
@@ -201,6 +202,23 @@ const start = async () => {
   } catch (migrationErr: any) {
     payload.logger.error('Failed to run startup migration: ' + migrationErr.message);
   }
+
+  // Elasticsearch: ensure index exists on startup
+  try {
+    const esAvailable = await isElasticAvailable();
+    if (esAvailable) {
+      await ensureProductIndex();
+      payload.logger.info('Elasticsearch connected and index ready');
+    } else {
+      payload.logger.info('Elasticsearch not available — product search will fall back to database');
+    }
+  } catch (esErr: any) {
+    payload.logger.error('Elasticsearch init error: ' + esErr.message);
+  }
+
+  // Expose ES index/update functions globally so Payload hooks can call them
+  (global as any).indexProduct = indexProduct;
+  (global as any).updateProductIndex = updateProductIndex;
 
   // Root route - API info
   app.get('/', (req, res) => {
@@ -860,12 +878,121 @@ const start = async () => {
   });
 
   // Health check endpoint for Redis status
-  app.get('/api/health', (req, res) => {
+  app.get('/api/health', async (req, res) => {
+    const esAvailable = await isElasticAvailable();
     res.json({
       status: 'ok',
       redis: isRedisConnected() ? 'connected' : 'disconnected',
+      elasticsearch: esAvailable ? 'connected' : 'disconnected',
       timestamp: Date.now(),
     });
+  });
+
+  // Elasticsearch: search products
+  app.get('/api/products/search', async (req, res) => {
+    try {
+      const query = req.query.q as string || '';
+      const status = req.query.status as string || 'available';
+      const region = req.query.region as string || '';
+      const city = req.query.city as string || '';
+      const page = parseInt(req.query.page as string || '1', 10);
+      const limit = parseInt(req.query.limit as string || '12', 10);
+
+      const esAvailable = await isElasticAvailable();
+
+      if (!esAvailable || !query.trim()) {
+        // Fall back to Payload's built-in search
+        return res.status(200).json({ fallback: true });
+      }
+
+      // Determine active filter based on status
+      let esStatus: string | undefined;
+      let esActive: boolean | undefined;
+      if (status === 'hidden') {
+        esActive = false;
+      } else if (status === 'active') {
+        esStatus = 'available';
+        esActive = true;
+      } else if (status === 'ended') {
+        esStatus = 'ended';
+      }
+
+      const esResult = await searchProducts({
+        query,
+        status: esStatus,
+        active: esActive,
+        region: region || undefined,
+        city: city || undefined,
+        page,
+        limit,
+      });
+
+      if (esResult.ids.length === 0) {
+        return res.json({
+          docs: [],
+          totalDocs: esResult.total,
+          totalPages: Math.ceil(esResult.total / limit),
+          page,
+          limit,
+        });
+      }
+
+      // Fetch full product docs from Payload by IDs (preserving ES sort order)
+      const products = await payload.find({
+        collection: 'products',
+        where: { id: { in: esResult.ids.map(String) } },
+        limit: esResult.ids.length,
+        depth: 1,
+      });
+
+      // Preserve ES relevance ordering
+      const productMap = new Map(products.docs.map((p: any) => [p.id, p]));
+      const orderedDocs = esResult.ids
+        .map(id => productMap.get(id))
+        .filter(Boolean);
+
+      res.json({
+        docs: orderedDocs,
+        totalDocs: esResult.total,
+        totalPages: Math.ceil(esResult.total / limit),
+        page,
+        limit,
+      });
+    } catch (error: any) {
+      console.error('Elasticsearch search error:', error);
+      res.status(200).json({ fallback: true });
+    }
+  });
+
+  // Elasticsearch: bulk sync all products (admin utility)
+  app.post('/api/elasticsearch/sync', async (req, res) => {
+    try {
+      // Auth check
+      let userId: number | null = null;
+      const authHeader = req.headers.authorization;
+      if (authHeader) {
+        const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        if (token) {
+          const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET || '') as any;
+          userId = decoded.id;
+        }
+      }
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const user = await payload.findByID({ collection: 'users', id: userId });
+      if ((user as any).role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+
+      const esAvailable = await isElasticAvailable();
+      if (!esAvailable) return res.status(503).json({ error: 'Elasticsearch not available' });
+
+      await ensureProductIndex();
+      const result = await bulkSyncProducts(payload);
+
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      console.error('Elasticsearch sync error:', error);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // ============================================

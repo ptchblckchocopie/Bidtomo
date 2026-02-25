@@ -210,7 +210,46 @@ export async function fetchProducts(params?: {
   city?: string;
   customFetch?: typeof fetch;
 }): Promise<{ docs: Product[]; totalDocs: number; totalPages: number; page: number; limit: number }> {
+  const empty = { docs: [], totalDocs: 0, totalPages: 0, page: 1, limit: params?.limit || 10 };
+
   try {
+    const fetchFn = params?.customFetch || fetch;
+
+    // Try Elasticsearch first when there's a search query
+    if (params?.search && params.search.trim()) {
+      try {
+        const esParams = new URLSearchParams();
+        esParams.append('q', params.search.trim());
+        if (params.status) esParams.append('status', params.status);
+        if (params.region) esParams.append('region', params.region);
+        if (params.city) esParams.append('city', params.city);
+        if (params.page) esParams.append('page', params.page.toString());
+        if (params.limit) esParams.append('limit', params.limit.toString());
+
+        const esResponse = await fetchFn(`${BRIDGE_URL}/api/bridge/products/search?${esParams.toString()}`, {
+          headers: getAuthHeaders(),
+          credentials: 'include',
+        });
+
+        if (esResponse.ok) {
+          const esData = await esResponse.json();
+          // If ES returned results (not a fallback signal), use them
+          if (!esData.fallback) {
+            return {
+              docs: esData.docs || [],
+              totalDocs: esData.totalDocs || 0,
+              totalPages: esData.totalPages || 0,
+              page: esData.page || 1,
+              limit: esData.limit || 10,
+            };
+          }
+        }
+      } catch {
+        // ES failed — fall through to Payload search
+      }
+    }
+
+    // Fallback: Payload CMS query
     const queryParams = new URLSearchParams();
 
     // Pagination
@@ -222,18 +261,15 @@ export async function fetchProducts(params?: {
 
     // Filter by status
     if (params?.status === 'active') {
-      // Active auctions - status is 'available' AND active=true
       queryParams.append(`where[and][${andIndex}][status][equals]`, 'available');
       andIndex++;
       queryParams.append(`where[and][${andIndex}][active][equals]`, 'true');
       andIndex++;
     } else if (params?.status === 'ended') {
-      // Ended auctions - status is 'ended' or 'sold'
       queryParams.append(`where[and][${andIndex}][or][0][status][equals]`, 'ended');
       queryParams.append(`where[and][${andIndex}][or][1][status][equals]`, 'sold');
       andIndex++;
     } else if (params?.status === 'hidden') {
-      // Hidden items - active=false (admin only)
       queryParams.append(`where[and][${andIndex}][active][equals]`, 'false');
       andIndex++;
     }
@@ -262,7 +298,6 @@ export async function fetchProducts(params?: {
     // Sort by creation date (newest first)
     queryParams.append('sort', '-createdAt');
 
-    const fetchFn = params?.customFetch || fetch;
     const response = await fetchFn(`${BRIDGE_URL}/api/bridge/products?${queryParams.toString()}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
@@ -282,13 +317,7 @@ export async function fetchProducts(params?: {
     };
   } catch (error) {
     console.error('Error fetching products:', error);
-    return {
-      docs: [],
-      totalDocs: 0,
-      totalPages: 0,
-      page: 1,
-      limit: 10
-    };
+    return empty;
   }
 }
 
