@@ -838,45 +838,196 @@
   }
 
   @media (max-width: 768px) {
-    h1 {
-      font-size: 2rem;
+    .profile-page {
+      margin-left: -1rem;
+      margin-right: -1rem;
+      padding-left: 1rem;
+      padding-right: 1rem;
+      padding-top: 0.5rem;
     }
 
-    .limits-grid {
-      grid-template-columns: 1fr;
+    .profile-header {
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+    }
+
+    .info-card {
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+      border-width: 2px;
+      box-shadow: 2px 2px 0px var(--color-border);
+    }
+
+    .card-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .icon {
+      font-size: 1.5rem;
+    }
+
+    h2 {
+      font-size: 1.2rem;
+    }
+
+    .btn-edit {
+      width: 100%;
+      text-align: center;
     }
 
     .info-grid {
       grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+
+    .info-label {
+      font-size: 0.8rem;
+    }
+
+    .info-value {
+      font-size: 1rem;
+    }
+
+    .edit-form {
+      gap: 1rem;
+    }
+
+    .phone-input-group {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .country-code-select {
+      width: 100%;
+    }
+
+    .form-actions {
+      flex-direction: column-reverse;
+      gap: 0.5rem;
+    }
+
+    .btn-cancel,
+    .btn-save {
+      width: 100%;
+      text-align: center;
+    }
+
+    .error-message,
+    .success-message {
+      font-size: 0.9rem;
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+      border-width: 2px;
+    }
+
+    .limits-section {
+      margin-top: 1.25rem;
+    }
+
+    .section-title {
+      font-size: 1.3rem;
+    }
+
+    .section-description {
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+
+    .limits-grid {
+      grid-template-columns: 1fr;
+      gap: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .limit-card {
+      border-width: 2px;
+      box-shadow: 2px 2px 0px var(--color-border);
+    }
+
+    .limit-card:hover {
+      transform: none;
+    }
+
+    .limit-card .card-header {
+      padding: 1rem;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    h3 {
+      font-size: 1.1rem;
+    }
+
+    .limit-content {
+      padding: 1.25rem;
+    }
+
+    .limit-stats {
+      margin-bottom: 1rem;
+    }
+
+    .stat-number {
+      font-size: 2.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.85rem;
+    }
+
+    .stat-remaining {
+      padding: 0.75rem;
+    }
+
+    .remaining-number {
+      font-size: 1.5rem;
+    }
+
+    .progress-bar {
+      height: 10px;
+      margin-bottom: 1rem;
+    }
+
+    .limit-description {
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
     }
 
     .card-footer {
       flex-direction: column;
+      gap: 0.5rem;
     }
 
     .btn-primary,
     .btn-secondary,
     .btn-disabled {
       width: 100%;
+      padding: 0.7rem 1rem;
+      font-size: 0.9rem;
     }
 
-    .form-actions {
-      flex-direction: column-reverse;
+    .info-banner {
+      padding: 1rem;
+      gap: 0.75rem;
+      border-width: 2px;
     }
 
-    .btn-cancel,
-    .btn-save {
-      width: 100%;
+    .info-icon {
+      font-size: 1.25rem;
     }
 
-    .card-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 1rem;
-    }
-
-    .btn-edit {
-      width: 100%;
+    .info-text {
+      font-size: 0.875rem;
     }
   }
 </style>
