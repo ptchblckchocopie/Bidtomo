@@ -325,12 +325,12 @@
                       <div class="product-price">
                         <div class="price-row">
                           <span class="price-label">Starting:</span>
-                          <span class="price-value">{formatPrice(product.startingPrice, product.seller.currency)}</span>
+                          <span class="price-value">{formatPrice(product.startingPrice, product.seller?.currency)}</span>
                         </div>
                         {#if product.currentBid}
                           <div class="price-row current-bid">
                             <span class="price-label">Current Bid:</span>
-                            <span class="price-value">{formatPrice(product.currentBid, product.seller.currency)}</span>
+                            <span class="price-value">{formatPrice(product.currentBid, product.seller?.currency)}</span>
                           </div>
                         {/if}
                       </div>
@@ -390,12 +390,12 @@
                       <div class="product-price">
                         <div class="price-row">
                           <span class="price-label">Starting:</span>
-                          <span class="price-value">{formatPrice(product.startingPrice, product.seller.currency)}</span>
+                          <span class="price-value">{formatPrice(product.startingPrice, product.seller?.currency)}</span>
                         </div>
                         {#if product.currentBid}
                           <div class="price-row current-bid">
                             <span class="price-label">Current Bid:</span>
-                            <span class="price-value">{formatPrice(product.currentBid, product.seller.currency)}</span>
+                            <span class="price-value">{formatPrice(product.currentBid, product.seller?.currency)}</span>
                           </div>
                         {/if}
                       </div>
@@ -453,7 +453,7 @@
                       <div class="product-price">
                         <div class="price-row">
                           <span class="price-label">{product.status === 'sold' ? 'Sold for:' : 'Final bid:'}</span>
-                          <span class="price-value sold">{formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}</span>
+                          <span class="price-value sold">{formatPrice(product.currentBid || product.startingPrice, product.seller?.currency)}</span>
                         </div>
                       </div>
                       <div class="product-meta">
@@ -515,7 +515,7 @@
                     <div class="purchase-info">
                       <h3>{product.title}</h3>
                       <div class="purchase-price-tag">
-                        {formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}
+                        {formatPrice(product.currentBid || product.startingPrice, product.seller?.currency)}
                       </div>
                       <div class="purchase-meta-row">
                         <span class="purchase-date">📅 {formatDate(product.updatedAt)}</span>
@@ -603,12 +603,12 @@
           <div class="info-grid">
             <div class="info-item">
               <span class="info-label">Starting Price:</span>
-              <span class="info-value">{formatPrice(viewingProduct.startingPrice, viewingProduct.seller.currency)}</span>
+              <span class="info-value">{formatPrice(viewingProduct.startingPrice, viewingProduct.seller?.currency)}</span>
             </div>
             {#if viewingProduct.currentBid}
               <div class="info-item">
                 <span class="info-label">Current Bid:</span>
-                <span class="info-value">{formatPrice(viewingProduct.currentBid, viewingProduct.seller.currency)}</span>
+                <span class="info-value">{formatPrice(viewingProduct.currentBid, viewingProduct.seller?.currency)}</span>
               </div>
             {/if}
             <div class="info-item">
@@ -661,7 +661,7 @@
           <div class="info-grid">
             <div class="info-item">
               <span class="info-label">Won For:</span>
-              <span class="info-value won">{formatPrice(selectedProduct.currentBid || selectedProduct.startingPrice, selectedProduct.seller.currency)}</span>
+              <span class="info-value won">{formatPrice(selectedProduct.currentBid || selectedProduct.startingPrice, selectedProduct.seller?.currency)}</span>
             </div>
             <div class="info-item">
               <span class="info-label">Purchase Date:</span>
@@ -1383,7 +1383,7 @@
 
     .products-grid {
       grid-template-columns: 1fr;
-      padding: 0 4px 4px 0;
+      padding: 0;
     }
 
     .product-card {
