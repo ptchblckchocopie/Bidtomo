@@ -62,6 +62,12 @@ export default buildConfig({
       // Provide browser-compatible fallbacks for Node.js built-in modules
       config.resolve = {
         ...config.resolve,
+        alias: {
+          ...config.resolve?.alias,
+          // Override Payload's built-in Unauthorized view with custom redirect version
+          [path.resolve(__dirname, '../node_modules/payload/dist/admin/components/views/Unauthorized/index')]:
+            path.resolve(__dirname, '../src/components/UnauthorizedView.tsx'),
+        },
         fallback: {
           ...config.resolve?.fallback,
           fs: false,
