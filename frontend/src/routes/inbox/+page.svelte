@@ -1210,7 +1210,11 @@
 </svelte:head>
 
 <div class="inbox-page">
-  <h1 class:hide-on-mobile-chat={selectedProduct}>Inbox</h1>
+  {#if !selectedProduct}
+    <h1>Inbox</h1>
+  {:else}
+    <h1 class="desktop-only-heading">Inbox</h1>
+  {/if}
 
   {#if loading}
     <div class="loading">Loading conversations...</div>
@@ -2364,14 +2368,14 @@
       margin-bottom: 1rem;
     }
 
-    h1.hide-on-mobile-chat {
-      display: none;
+    h1.desktop-only-heading {
+      display: none !important;
     }
 
     .inbox-container {
       grid-template-columns: 1fr;
       gap: 0;
-      height: calc(100vh - 180px);
+      height: calc(100vh - 140px);
     }
 
     /* Hide conversations list when chat is selected on mobile */
@@ -2390,12 +2394,21 @@
     /* Show back button on mobile */
     .back-btn {
       display: block;
+      order: 0;
+      padding: 0.375rem 0.75rem;
+      font-size: 0.85rem;
     }
 
     .chat-header {
       flex-wrap: wrap;
       gap: 0.5rem;
       padding: 0.75rem;
+    }
+
+    /* Push kebab menu to end of first row */
+    .chat-header :global(.kebab-menu-container) {
+      order: 1;
+      margin-left: auto;
     }
 
     .product-summary {
@@ -2405,20 +2418,20 @@
     }
 
     .product-summary h3 {
-      font-size: 1rem;
+      font-size: 0.95rem;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .product-price {
-      font-size: 0.85rem;
+      font-size: 0.8rem;
     }
 
-    .back-btn {
-      order: 1;
-      padding: 0.375rem 0.75rem;
-      font-size: 0.85rem;
+    .transaction-parties {
+      font-size: 0.8rem;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
     }
 
     .view-product-link {

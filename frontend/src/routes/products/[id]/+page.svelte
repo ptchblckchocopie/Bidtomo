@@ -1677,34 +1677,46 @@
 
   @media (max-width: 768px) {
     .product-detail {
-      padding: 0.75rem;
-      border: none;
-      box-shadow: none;
+      padding: 0.5rem;
+      border: none !important;
+      box-shadow: none !important;
     }
 
     .product-header {
-      margin-bottom: 0.75rem;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 0.4rem;
+    }
+
+    .back-link {
+      font-size: 0.95rem;
     }
 
     .edit-product-btn,
     .admin-hide-btn {
-      padding: 0.5rem 1rem;
-      font-size: 0.85rem;
-      width: auto;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.8rem;
+      width: 100%;
+      text-align: center;
+      box-shadow: 2px 2px 0px var(--color-border);
     }
 
     .product-content {
       grid-template-columns: 1fr;
-      gap: 1.5rem;
-      margin-bottom: 1.5rem;
+      gap: 1rem;
+      margin-bottom: 1rem;
     }
 
     .title-container {
       flex-wrap: wrap;
       gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .title-container h1 {
+      font-size: 1.3rem;
     }
 
     /* Make modals scrollable on mobile */
@@ -1855,7 +1867,7 @@
 
     /* Mobile typography adjustments */
     .product-gallery h1 {
-      font-size: 1.75rem;
+      font-size: 1.3rem;
     }
 
     .product-description h2 {
@@ -1870,8 +1882,25 @@
 
     /* Ensure price-info container is responsive */
     .price-info {
-      padding: 1.25rem;
-      min-height: 180px;
+      padding: 1rem;
+      min-height: auto;
+    }
+
+    .status-badge {
+      padding: 0.3rem 0.75rem;
+      font-size: 0.8rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .description-section,
+    .seller-info {
+      margin-bottom: 1rem;
+    }
+
+    .description-section h3,
+    .seller-info h3 {
+      margin-bottom: 0.5rem;
+      font-size: 1rem;
     }
   }
 
