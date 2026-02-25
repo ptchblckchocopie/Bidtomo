@@ -28,6 +28,18 @@
   let sseUnsubscribe: (() => void) | null = $state(null);
   let newProductCount = $state(0);
 
+  // Loading state for tab/filter transitions
+  let loading = $state(false);
+  let lastStatus = $state(data.status);
+
+  // Clear loading when data changes (new results arrived)
+  $effect(() => {
+    const _products = data.products;
+    const _status = data.status;
+    loading = false;
+    lastStatus = _status;
+  });
+
   // Admin hide/show
   let removedProductIds: (string | number)[] = $state([]);
   let adminModalProduct: { id: string | number; title: string; active: boolean } | null = $state(null);
@@ -127,6 +139,7 @@
 
   function changeTab(status: string) {
     removedProductIds = [];
+    loading = true;
     updateURL({
       status,
       page: '1', // Reset to page 1 on tab change
@@ -613,7 +626,29 @@
   {/if}
 
   <!-- Products Grid -->
-  {#if sortedProducts.length > 0}
+  {#if loading}
+    <section class="auction-section">
+      <div class="products-grid">
+        {#each Array(data.limit || 12) as _}
+          <div class="product-card skeleton-card">
+            <div class="product-image skeleton-pulse"></div>
+            <div class="product-info">
+              <div class="skeleton-line skeleton-title skeleton-pulse"></div>
+              <div class="skeleton-line skeleton-desc skeleton-pulse"></div>
+              <div class="skeleton-line skeleton-desc-short skeleton-pulse"></div>
+              <div class="skeleton-spacing"></div>
+              <div class="skeleton-line skeleton-label skeleton-pulse"></div>
+              <div class="skeleton-line skeleton-price skeleton-pulse"></div>
+              <div class="skeleton-footer">
+                <div class="skeleton-badge skeleton-pulse"></div>
+                <div class="skeleton-badge skeleton-timer skeleton-pulse"></div>
+              </div>
+            </div>
+          </div>
+        {/each}
+      </div>
+    </section>
+  {:else if sortedProducts.length > 0}
       <section class="auction-section">
         <div class="products-grid">
           {#each sortedProducts as product}
@@ -1905,6 +1940,96 @@
       min-width: 1.75rem;
       padding: 0.375rem 0.375rem;
       font-size: 0.8rem;
+    }
+  }
+
+  /* Skeleton loading */
+  .skeleton-card {
+    pointer-events: none;
+  }
+
+  .skeleton-pulse {
+    background: linear-gradient(90deg, var(--color-muted) 25%, #e8e8e8 50%, var(--color-muted) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  }
+
+  .skeleton-card .product-image {
+    height: 200px;
+  }
+
+  .skeleton-line {
+    border-radius: 0;
+  }
+
+  .skeleton-title {
+    height: 1.25rem;
+    width: 75%;
+    margin-bottom: 0.75rem;
+  }
+
+  .skeleton-desc {
+    height: 0.875rem;
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+
+  .skeleton-desc-short {
+    height: 0.875rem;
+    width: 60%;
+    margin-bottom: 0.75rem;
+  }
+
+  .skeleton-spacing {
+    height: 1rem;
+  }
+
+  .skeleton-label {
+    height: 0.625rem;
+    width: 30%;
+    margin-bottom: 0.5rem;
+  }
+
+  .skeleton-price {
+    height: 1.4rem;
+    width: 45%;
+    margin-bottom: 1rem;
+  }
+
+  .skeleton-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+  }
+
+  .skeleton-badge {
+    height: 1.75rem;
+    width: 5rem;
+  }
+
+  .skeleton-timer {
+    width: 7rem;
+  }
+
+  @keyframes skeleton-shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .skeleton-card .product-image {
+      height: 200px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .skeleton-card .product-image {
+      height: 170px;
     }
   }
 </style>
