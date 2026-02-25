@@ -123,8 +123,9 @@ class ProductSSEClient {
   private eventSource: EventSource | null = null;
   private productId: string;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
-  private reconnectDelay = 1000;
+  private maxReconnectAttempts = 20;
+  private reconnectDelay = 500;
+  private maxReconnectDelay = 10000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private listeners: Set<(event: SSEEvent) => void> = new Set();
   private fallbackPolling = false;
@@ -202,12 +203,20 @@ class ProductSSEClient {
     this.eventSource?.close();
     this.eventSource = null;
 
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
+    // Clear any existing reconnect timer to prevent race conditions
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts), this.maxReconnectDelay);
+    // Add jitter (0-25% of delay) to prevent thundering herd
+    const jitter = Math.random() * delay * 0.25;
     this.reconnectAttempts++;
 
     this.reconnectTimer = setTimeout(() => {
       this.connect();
-    }, delay);
+    }, delay + jitter);
   }
 
   private startFallbackPolling(): void {
@@ -270,8 +279,9 @@ class UserSSEClient {
   private eventSource: EventSource | null = null;
   private userId: string;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
-  private reconnectDelay = 1000;
+  private maxReconnectAttempts = 20;
+  private reconnectDelay = 500;
+  private maxReconnectDelay = 10000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private listeners: Set<(event: SSEEvent) => void> = new Set();
 
@@ -335,12 +345,13 @@ class UserSSEClient {
       this.reconnectTimer = null;
     }
 
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
+    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts), this.maxReconnectDelay);
+    const jitter = Math.random() * delay * 0.25;
     this.reconnectAttempts++;
 
     this.reconnectTimer = setTimeout(() => {
       this.connect();
-    }, delay);
+    }, delay + jitter);
   }
 
   subscribe(callback: (event: SSEEvent) => void): () => void {
@@ -372,8 +383,9 @@ class UserSSEClient {
 class GlobalSSEClient {
   private eventSource: EventSource | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
-  private reconnectDelay = 1000;
+  private maxReconnectAttempts = 20;
+  private reconnectDelay = 500;
+  private maxReconnectDelay = 10000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private listeners: Set<(event: SSEEvent) => void> = new Set();
 
@@ -424,12 +436,13 @@ class GlobalSSEClient {
       this.reconnectTimer = null;
     }
 
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
+    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts), this.maxReconnectDelay);
+    const jitter = Math.random() * delay * 0.25;
     this.reconnectAttempts++;
 
     this.reconnectTimer = setTimeout(() => {
       this.connect();
-    }, delay);
+    }, delay + jitter);
   }
 
   subscribe(callback: (event: SSEEvent) => void): () => void {

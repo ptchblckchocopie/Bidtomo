@@ -11,6 +11,44 @@ Bidmo.to is a full-stack auction marketplace with real-time bidding. It consists
 - **`services/sse-service/`** — Standalone SSE server for real-time product updates
 - **`services/bid-worker/`** — Background Redis queue consumer for bid processing
 
+## Deployment
+
+### Production Infrastructure
+- **Frontend** — Deployed on **Vercel** (auto-deploys from `main` branch via GitHub integration)
+- **CMS** — Deployed on **Railway** (project: `accomplished-perception`, service: `cms`). Deploy manually via `npx @railway/cli up` from `cms/` directory. NOT auto-deploy — requires `railway up` each time.
+- **SSE Service** — Railway service `sse-service`
+- **Bid Worker** — Railway service `bid-worker`
+- **Database** — Railway PostgreSQL service
+- **Redis** — Railway Redis service
+- **Storage** — Supabase Storage (S3-compatible), bucket: `bidmo-media`, prefix: `bidmoto/`
+
+### Deploying CMS to Railway
+```bash
+cd cms
+npx @railway/cli up --detach    # Upload and deploy
+npx @railway/cli deployment list --json --limit 1  # Check status
+npx @railway/cli logs --lines 50  # View deploy logs
+npx @railway/cli logs --build --lines 50  # View build logs
+```
+
+### Railway Project IDs
+- Project: `d5441340-2ee1-4ecf-be7f-62325c9ea414` (accomplished-perception)
+- CMS service: `3aee625c-eb29-4833-9e1f-7513cf5a718a`
+- Bid worker service: `d6c2ca56-140b-4ad8-9284-ae96c8323293`
+- SSE service: `f9a804a8-cfd6-4405-8e7e-6ac978458372`
+- Environment: `production` (`a2ef8422-b3b9-4c28-9fb5-649aa4799877`)
+
+### Vercel Project
+- Team: `team_xP9PApyY2co0Lt9dlBg4XaPp` (ptchblckchocopie's projects)
+- Project: `prj_xtn99uGJzihF1jyk5WKQloVoKg0E` (bidtomo)
+- Auto-deploys from GitHub `main` branch
+
+### Important: CMS Admin Webpack Build
+Do NOT add `admin.css` to the Payload config. The `css` property in `admin: { css: ... }` triggers a Sass `@import '~payload-user-css'` during `payload build` that fails in the Nixpacks build environment. If you need to customize admin styles, use Payload's `components` API instead.
+
+### Important: CMS `serverURL`
+The `serverURL` in `payload.config.ts` is set to `process.env.SERVER_URL || ''` (empty string). Do NOT hardcode a domain — empty string makes Payload use relative URLs, which works from any domain (Railway, custom domain, localhost).
+
 ## Development Commands
 
 ### Frontend (`frontend/`)
@@ -25,6 +63,7 @@ npm run check        # svelte-kit sync + svelte-check (type checking)
 npm run dev          # nodemon with PAYLOAD_CONFIG_PATH=src/payload.config.ts on :3001
 npm run build        # tsc + payload build
 npm run start        # Production server from dist/
+npm run serve        # Same as start (used by Railway)
 npm run migrate      # Run Payload database migrations
 npm run migrate:up   # Apply pending migrations
 npm run generate:types  # Regenerate payload-types.ts from collections
@@ -53,14 +92,35 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 - Token format in headers: `Authorization: JWT {token}` (also accepts `Bearer`)
 - User roles: `admin`, `seller`, `buyer` (default)
 
+### Admin Features
+- Only `admin` role users can access the Payload CMS admin panel (`access.admin` in users collection)
+- Non-admin users who try to log into the CMS are auto-redirected to `/admin/access-denied` (frog video page) via Express middleware in `cms/src/server.ts`
+- Admin users see a **Hide/Unhide** button on product cards and detail pages in the frontend
+- **Hidden Items** tab (admin-only) in the products browse page at `?status=hidden`
+- Products use the existing `active` field (boolean) to control visibility
+
 ### Real-Time Bidding
 Bids are queued via Redis (POST `/api/bid/queue`) and processed by the bid-worker service to prevent race conditions. Product pages receive live updates via SSE through the sse-service. Redis pub/sub powers notifications and typing indicators.
 
+**Redis channels:**
+- `sse:product:{id}` — bid updates, accepted events, typing indicators
+- `sse:user:{id}` — message notifications
+- `sse:global` — new product listings, cross-product bid updates
+
+**SSE endpoints:**
+- `/events/products/:productId` — product-specific updates
+- `/events/users/:userId` — user message notifications
+- `/events/global` — dashboard/browse page updates
+
 ### Payload CMS Collections
-Defined in `cms/src/collections/`: `users`, `products`, `bids`, `messages`, `transactions`, `void-requests`, `ratings`, `media`, `EmailTemplates`. Custom Express endpoints are registered in `cms/src/server.ts`.
+Defined in `cms/src/payload.config.ts` (inline) and `cms/src/collections/`: `users`, `products`, `bids`, `messages`, `transactions`, `void-requests`, `ratings`, `media`, `EmailTemplates`. Custom Express endpoints are registered in `cms/src/server.ts`.
 
 ### Storage
-Image uploads go to DigitalOcean Spaces (S3-compatible) via `@payloadcms/plugin-cloud-storage`.
+Image uploads go to **Supabase Storage** (S3-compatible) via `@payloadcms/plugin-cloud-storage`.
+- Supabase URL: `https://htcdkqplcmdbyjlvzono.supabase.co`
+- Bucket: `bidmo-media`
+- Prefix: `bidmoto/`
+- Public URL pattern: `https://htcdkqplcmdbyjlvzono.supabase.co/storage/v1/object/public/bidmo-media/bidmoto/{filename}`
 
 ## Key Configuration
 
@@ -68,13 +128,29 @@ Image uploads go to DigitalOcean Spaces (S3-compatible) via `@payloadcms/plugin-
 - **CMS config:** `cms/src/payload.config.ts`
 - **Frontend config:** `frontend/svelte.config.js` (adapter-node), `frontend/vite.config.ts`
 - **Docker:** `docker-compose.yml` orchestrates Postgres (:5433), Redis (:6379), CMS (:3001), Frontend (:5173), SSE (:3002), bid-worker
-- **Production:** PM2 via `ecosystem.config.js`, Railway via `railway.toml`
+- **Production (VPS):** PM2 via `ecosystem.config.js`
+- **Production (Railway):** `cms/railway.toml`, `services/sse-service/railway.toml`, `services/bid-worker/railway.toml`
+- **Redis default:** `redis://localhost:6379` — all services must use port 6379 (not 6380)
 
 ## Environment Variables
 
-Backend (cms/.env): `DATABASE_URI`, `PAYLOAD_SECRET`, `S3_BUCKET`/`S3_REGION`/`S3_ACCESS_KEY`/`S3_SECRET_KEY`, `RESEND_API_KEY`, `PORT` (default 3001)
+Backend (cms/.env): `DATABASE_URI`, `PAYLOAD_SECRET`, `S3_BUCKET`/`S3_REGION`/`S3_ACCESS_KEY`/`S3_SECRET_KEY`, `SUPABASE_URL`, `RESEND_API_KEY`, `REDIS_URL`, `PORT` (default 3001), `SERVER_URL`, `FRONTEND_URL`
 
-Frontend: `PUBLIC_API_URL` / `VITE_API_URL` pointing to the CMS backend URL
+Frontend: `PUBLIC_API_URL` / `VITE_API_URL` / `CMS_URL` pointing to the CMS backend URL, `PUBLIC_SSE_URL` pointing to the SSE service
+
+SSE Service: `REDIS_URL`, `PORT`/`SSE_PORT`, `SSE_CORS_ORIGIN`
+
+Bid Worker: `REDIS_URL`, `DATABASE_URL`
+
+## CORS Configuration
+
+CORS is configured in two places:
+1. `cms/src/payload.config.ts` — Payload's `cors` and `csrf` arrays
+2. `cms/src/server.ts` — Express CORS middleware with dynamic origin checking
+
+Allowed origins include: localhost variants, `bidmo.to`, `www.bidmo.to`, `app.bidmo.to`, `*.up.railway.app` (dynamic), `*.vercel.app`, private network IPs (`192.168.x.x`, `10.x.x.x`).
+
+When adding a new deployment domain, add it to BOTH the Payload config and the Express CORS allowedOrigins list.
 
 ## Payload CMS Column Naming Convention
 
@@ -87,91 +163,28 @@ This was discovered by reading `@payloadcms/db-postgres/schema/traverseFields.js
 
 ---
 
-## Bugs Fixed (Session: 2026-02-24)
+## Known Pitfalls
 
-### Round 1 — Plan-Based Bug Fixes
+These are recurring issues discovered during development. Check these when debugging:
 
-1. **Accept-bid fallback missing message/transaction** (`cms/src/server.ts:671-718`)
-   - When Redis is down, the fallback path for `/api/bid/accept` now creates the congratulatory message and transaction record, matching what the bid-worker does.
+- **`typeof x === 'object'` is true for `null`** — Always guard with `x && typeof x === 'object'` when checking Payload relationship fields (e.g., `originalDoc?.seller`).
+- **Payload select/enum column naming** — See "Column Naming Convention" above. Raw SQL for select fields must use quoted camelCase (`"raterRole"`), not snake_case. This has caused migration failures.
+- **SvelteKit `$env/static/public` fails if var is missing** — Use `$env/dynamic/public` for optional env vars (e.g., `PUBLIC_SSE_URL`).
+- **SSE Redis reconnect duplicates** — Must call `punsubscribe` + `removeAllListeners('pmessage')` before re-subscribing on Redis reconnect, or handlers stack up.
+- **CMS custom endpoints lack auth** — Custom Express routes in `cms/src/server.ts` don't get Payload's auth middleware automatically. Each endpoint copy-pastes a ~15-line JWT extraction block. When adding new endpoints, copy this pattern.
+- **Redis port must be 6379** — All services (CMS, SSE, bid-worker) must use the same Redis instance. The CMS default was previously wrong (6380).
+- **Bid-worker fallback paths** — When Redis is down, the CMS `/api/bid/accept` fallback in `cms/src/server.ts` must replicate everything the bid-worker does (message creation, transaction record, SSE publish).
+- **`product.seller` can be null** — Always use optional chaining (`product.seller?.id`) in frontend templates. Seller is a relationship field that may not be populated.
+- **No test suite exists** — Zero test files in the entire project. Validate changes manually or by reading code carefully.
 
-2. **SSE duplicate pmessage handlers on reconnect** (`services/sse-service/src/index.ts:282-288`)
-   - Added `redis.removeAllListeners('pmessage')` before re-registering the handler.
+## Technical Debt
 
-3. **Bid-worker sellerId verification** (`services/bid-worker/src/index.ts:381-389`)
-   - Added defense-in-depth check verifying `job.sellerId` matches the product's actual seller in the `products_rels` table.
-
-4. **Accept_bid crash recovery** (`services/bid-worker/src/index.ts:662-714`)
-   - Added `pending_bids` save and retry logic for `accept_bid` jobs, matching regular bid recovery.
-
-5. **Void-request auth check** (`cms/src/server.ts:1471-1487`)
-   - GET `/api/void-request/:transactionId` now verifies the user is buyer or seller before returning results.
-
-6. **SSE_CORS_ORIGIN in PM2 config** (`ecosystem.config.js`)
-   - Added `SSE_CORS_ORIGIN: 'https://www.bidmo.to'` to the SSE service PM2 config.
-
-### Round 2 — Runtime Error Fixes
-
-7. **Products table missing columns** — Added `region`, `city`, `delivery_options` columns and `enum_products_delivery_options` enum via ALTER TABLE.
-
-8. **PUBLIC_SSE_URL import error** (`frontend/src/lib/sse.ts`)
-   - Changed from `$env/static/public` to `$env/dynamic/public` to gracefully handle missing env var.
-
-9. **Ratings table missing** — Created `ratings` and `ratings_rels` tables. Fixed column naming: select fields use camelCase (`"raterRole"`) not snake_case.
-
-10. **Void-requests table column naming** — Renamed columns to match Payload's expected naming convention.
-
-### Round 3 — Comprehensive Bug Audit Fixes
-
-11. **CMS `/api/typing` missing JWT fallback** (`cms/src/server.ts:1512`)
-    - Added JWT token extraction matching other authenticated endpoints.
-
-12. **SSE service missing punsubscribe** (`services/sse-service/src/index.ts:282`)
-    - Added `punsubscribe` before `psubscribe` on Redis reconnect to prevent duplicate subscriptions.
-
-13. **Frontend SSE reconnect race condition** (`frontend/src/lib/sse.ts:298`)
-    - `UserSSEClient.handleReconnect()` now clears existing timer before setting a new one.
-
-14. **Auth store silent token corruption** (`frontend/src/lib/stores/auth.ts:34`)
-    - Validates parsed user data has `id` and `email` before trusting it from localStorage.
-
-15. **Unsafe null access `product.seller.id`** (`frontend/src/routes/products/+page.svelte:582`)
-    - Changed to `product.seller?.id` with optional chaining.
-
-16. **Unsafe null access `selectedProduct.seller.id`** (`frontend/src/routes/inbox/+page.svelte:978`)
-    - Changed to `selectedProduct.seller?.id === $authStore.user?.id`.
-
-17. **Bid-worker NaN validation gap** (`services/bid-worker/src/index.ts:248`)
-    - Added explicit `isNaN(job.amount)` and `job.amount <= 0` check before bid processing.
-
-18. **Bid-worker incomplete validation error matching** (`services/bid-worker/src/index.ts:739`)
-    - Changed `'Product is sold'`/`'Product is ended'` to prefix `'Product is '` to catch all status variants.
-
-19. **Payload config null pointer** (`cms/src/payload.config.ts:204`)
-    - Fixed `typeof originalDoc?.seller === 'object'` (true for `null`) to `originalDoc?.seller && typeof originalDoc.seller === 'object'`.
-
----
-
-## Recommended Improvements (Not Yet Implemented)
-
-### Critical
-- **Rotate exposed secrets** — `ecosystem.config.js` and `docker-compose.yml` have hardcoded S3 keys, DB passwords, PAYLOAD_SECRET in git history. Rotate all credentials.
-- **Add rate limiting** — No rate limiting on any endpoint. Use `express-rate-limit`.
-- **Add tests** — Zero test files exist. Priority: bid-worker unit tests, CMS endpoint integration tests.
-
-### High
-- **Extract JWT auth middleware** — Same 15-line JWT extraction block is copy-pasted 10+ times in `cms/src/server.ts`.
-- **Add database indexes** — Missing composite indexes: `bids(product_id, amount DESC)`, `products(status, active)`, `messages(product_id, read)`, `products(auction_end_date)`.
-- **Fix N+1 queries** — `/api/create-conversations` and `fetchMyPurchases` make per-item queries in loops.
-- **Input validation** — No schema validation on POST bodies. Add Zod or Joi.
-- **SSE connection limits** — No max connections per product/user in SSE service.
-
-### Medium
-- **Structured logging** — Replace 120+ `console.log` calls with Pino/Winston.
-- **Fix type safety** — 40+ `any` casts in `cms/src/server.ts`. Remove `(global as any)` pattern.
-- **Frontend performance** — Pagination renders all page buttons; `fetchUserBids` pulls 1000 records; countdown intervals update every second for all products.
-- **Redis TTLs** — Queue keys have no expiration. In-memory `typingStatus` Map grows unbounded.
-- **API documentation** — No OpenAPI/Swagger spec exists.
-- **`.env.example` for services** — `bid-worker/` and `sse-service/` lack `.env.example` files.
+- **JWT auth duplication** — Same 15-line JWT extraction block is copy-pasted 10+ times in `cms/src/server.ts`. Should be extracted to middleware.
+- **Missing database indexes** — `bids(product_id, amount DESC)`, `products(status, active)`, `messages(product_id, read)`, `products(auction_end_date)`.
+- **No input validation** — No schema validation (Zod/Joi) on POST bodies in custom CMS endpoints.
+- **40+ `any` casts** in `cms/src/server.ts` and `(global as any)` pattern throughout.
+- **N+1 queries** in `/api/create-conversations` and `fetchMyPurchases`.
+- **No rate limiting** on any endpoint.
 
 ### Environment Variables — Do NOT Commit
 Never push `.env` files to GitHub. Use platform dashboards instead:

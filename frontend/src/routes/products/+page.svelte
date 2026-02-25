@@ -93,7 +93,7 @@
         status: data.status,
         limit: data.limit.toString()
       });
-    }, 500); // Debounce for 500ms
+    }, 300); // Debounce for 300ms
   }
 
   function handleLocationInput() {
@@ -108,7 +108,7 @@
         status: data.status,
         limit: data.limit.toString()
       });
-    }, 500); // Debounce for 500ms
+    }, 300); // Debounce for 300ms
   }
 
   function clearFilters() {
@@ -219,15 +219,31 @@
     });
   }
 
+  // Cache end timestamps to avoid repeated Date parsing
+  let endTimestamps: { [key: string]: number } = {};
+  // Track ended products to skip them in future ticks
+  let endedProducts = new Set<string>();
+
   function updateCountdowns() {
-    data.products.forEach(product => {
-      const now = new Date().getTime();
-      const end = new Date(product.auctionEndDate).getTime();
-      const diff = end - now;
+    const now = Date.now();
+
+    for (const product of data.products) {
+      const key = String(product.id);
+
+      // Skip already-ended products
+      if (endedProducts.has(key)) continue;
+
+      // Cache parsed end timestamp
+      if (!endTimestamps[key]) {
+        endTimestamps[key] = new Date(product.auctionEndDate).getTime();
+      }
+
+      const diff = endTimestamps[key] - now;
 
       if (diff <= 0) {
         countdowns[product.id] = 'Ended';
-        return;
+        endedProducts.add(key);
+        continue;
       }
 
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -242,8 +258,16 @@
       } else {
         countdowns[product.id] = `${minutes}m ${seconds}s`;
       }
-    });
+    }
   }
+
+  // Reset caches when product list changes (pagination, search)
+  $effect(() => {
+    // Read data.products to track the dependency
+    const _products = data.products;
+    endTimestamps = {};
+    endedProducts = new Set();
+  });
 
   function getUrgencyClass(endDate: string): string {
     const now = new Date().getTime();
