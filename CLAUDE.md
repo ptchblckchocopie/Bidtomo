@@ -225,3 +225,154 @@ Never push `.env` files to GitHub. Use platform dashboards instead:
 - **Railway**: Project > Service > Variables tab (or `railway variables set KEY=VALUE`)
 - **Vercel**: Project > Settings > Environment Variables (or `vercel env add KEY`)
 - Only commit `.env.example` files with empty values as templates.
+
+---
+
+## Stress Testing Plan
+
+A k6-based load testing suite is planned under `load-tests/`. No tests exist yet — this documents the plan for implementation.
+
+### Tool: k6
+- JS-based, native SSE support via `xk6-sse` extension, built-in ramping VU profiles and JSON export.
+- Install: `choco install k6` (Windows) or download from https://github.com/grafana/k6/releases
+- SSE tests require: `xk6 build --with github.com/phymbert/xk6-sse`
+
+### Directory Structure
+```
+load-tests/
+  fixtures/
+    seed-data.json              # Pre-seeded product IDs, user JWTs
+    generate-tokens.js          # Node script: logs into staging CMS, saves JWTs
+  helpers/
+    auth.js                     # getAuthHeader(), randomUser()
+    products.js                 # randomProduct(), getActiveProducts()
+    metrics.js                  # Custom k6 Counter/Trend/Rate definitions
+  scenarios/
+    01-browse-products.js       # GET /products + /users/limits (baseline)
+    02-product-detail.js        # GET /products/{id} + /status polling
+    03-bid-flow.js              # POST /bid/queue (realistic pace, random products)
+    04-bid-storm.js             # POST /bid/queue (all VUs → 1 product, find saturation)
+    05-sse-connections.js       # Ramp SSE connections to fd/memory limit
+    06-user-limits-hammer.js    # Isolated /users/limits stress
+    07-messaging.js             # POST + GET /messages
+    08-dos-unauth.js            # POST /create-conversations + /sync-bids (no auth!)
+    09-full-user-journey.js     # Composite: browse → bid → SSE → message (endurance)
+    10-db-pool-exhaustion.js    # Synthetic: find exact VU threshold for pool saturation
+  reports/
+    .gitkeep
+```
+
+### Prerequisites: Staging Environment
+1. Duplicate Railway environment (`staging` from `production`)
+2. Seed staging DB: 50 test users (25 buyers, 5 sellers, 20 bidders), 20 active products with auction ends 2+ hours out
+3. Run `node fixtures/generate-tokens.js` to capture valid JWTs into `seed-data.json`
+4. Add temporary instrumentation to CMS and SSE service (staging deploys only, never production)
+
+### Known Bottlenecks to Test Against
+| Component | Bottleneck | Default Limit |
+|-----------|-----------|---------------|
+| CMS PostgreSQL pool | `postgresAdapter` has no explicit pool config | max 10 connections |
+| Bid worker PostgreSQL pool | `new Pool()` with no options | max 10 connections |
+| SSE connections | No limit — unlimited open HTTP sockets | Node.js process memory + OS fd limit (~1024) |
+| `/api/users/limits` | 2-3 Payload queries fetching up to 1000 docs each, called every page load | No caching |
+| `/api/bid/queue` | 1 `payload.findByID` + Redis RPUSH per request | Redis queue depth |
+| Bid worker throughput | Single-threaded BLPOP loop, one job at a time | ~1 bid/100-200ms |
+| Bridge layer (Vercel) | Stateless `fetch()`, no pooling or circuit breaking | Vercel function concurrency |
+| `/api/create-conversations` | No auth guard, N+1 queries over all sold products | Unprotected DoS vector |
+| Redis CMS client | `retryStrategy` gives up after 3 attempts, stops permanently | Needs process restart |
+
+### Scenario Summary
+
+**Day 1 — Baselines:**
+1. Smoke test (Scenario 01 at 1 VU, 2 min — validate fixtures)
+2. Scenario 07 (Messaging) — lowest complexity baseline
+3. Scenario 02 (Product Detail) — read baseline
+4. Scenario 01 (Browse + Limits) — find `/users/limits` degradation point
+5. Scenario 10 (DB Pool Exhaustion) — find exact VU ceiling for PG pool
+
+**Day 2 — Attack Vectors & Bid Pipeline:**
+6. Scenario 08 (Unauth DoS) — start at 1 VU, increment to 5, stop when system goes unresponsive
+7. Scenario 03 (Bid Flow, Realistic) — bid pipeline baseline
+8. Scenario 04 (Bid Storm) — find Redis queue saturation and worker dedup limits
+
+**Day 3 — Connections & Endurance:**
+9. Scenario 05 (SSE Connections) — ramp to 1000, find fd/memory limit
+10. Scenario 06 (`/users/limits` Hammer) — confirm PG pool finding
+11. Scenario 09 (Full User Journey) — 45-minute endurance run, watch for memory leaks
+
+### Logging During Tests
+
+**k6 output** (all scenarios):
+```bash
+k6 run --out json=reports/scenario-XX-$(date +%s).jsonl scenarios/XX-name.js 2>&1 | tee reports/XX-summary.txt
+```
+
+**Railway log collection** (during tests):
+```bash
+npx @railway/cli logs --lines 10000 --service cms > reports/cms-$(date +%s).log
+npx @railway/cli logs --lines 10000 --service bid-worker > reports/worker-$(date +%s).log
+npx @railway/cli logs --lines 10000 --service sse-service > reports/sse-$(date +%s).log
+```
+
+**CMS temp instrumentation** (staging only — add to `server.ts` after startup pool init):
+```javascript
+setInterval(async () => {
+  const result = await pool.query(
+    "SELECT count(*) as waiting FROM pg_stat_activity WHERE wait_event_type = 'Lock'"
+  );
+  console.log(JSON.stringify({
+    ts: Date.now(), type: 'pool_metric',
+    waiting_locks: result.rows[0].waiting,
+    heap_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+  }));
+}, 5000);
+```
+
+**SSE service temp `/metrics` endpoint** (staging only — add to `index.ts`):
+```javascript
+app.get('/metrics', (req, res) => {
+  const mem = process.memoryUsage();
+  res.json({
+    ts: Date.now(),
+    heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024),
+    rss_mb: Math.round(mem.rss / 1024 / 1024),
+    product_connections: productConnections.size,
+    user_connections: userConnections.size,
+    global_connections: globalConnections.size,
+    total_connections:
+      [...productConnections.values()].reduce((a, s) => a + s.size, 0) +
+      [...userConnections.values()].reduce((a, s) => a + s.size, 0) +
+      globalConnections.size,
+  });
+});
+```
+
+**PostgreSQL monitoring** (during tests):
+```sql
+SELECT count(*), state, wait_event_type FROM pg_stat_activity GROUP BY state, wait_event_type;
+SELECT * FROM pg_locks WHERE NOT granted;
+```
+
+**Redis monitoring** (during tests):
+```bash
+watch -n 2 'redis-cli LLEN bids:pending'
+redis-cli INFO clients
+```
+
+### Expected Findings (Hypothesis)
+| Finding | Expected Threshold |
+|---|---|
+| PG pool exhaustion | ~12-15 concurrent authenticated VUs |
+| `/users/limits` bottleneck | Degrades at ~8 concurrent calls |
+| Unauth DoS (`/create-conversations`) | 1-3 callers disables entire system |
+| SSE fd limit | ~900-1000 connections |
+| Redis CMS client permanent failure | After 3 reconnect failures |
+| Bid-worker dedup | Works — queue stays bounded during storm |
+
+### Custom k6 Metrics to Implement (in `helpers/metrics.js`)
+- `bid_queue_depth` (Trend) — Redis queue length from `/api/health`
+- `bid_accepted_count` / `bid_fallback_count` / `bid_rejected_count` (Counter)
+- `sse_connected_count` / `sse_heartbeat_received` (Counter)
+- `sse_bid_event_latency` (Trend) — time from bid POST to SSE event receipt
+- `limits_query_time` (Trend) — isolated `/api/users/limits` latency
+- `user_journey_success_rate` (Rate)
