@@ -462,8 +462,12 @@ export default buildConfig({
             tomorrow.setHours(tomorrow.getHours() + 24);
             return tomorrow.toISOString();
           },
-          validate: (value: string) => {
+          validate: (value: string, { operation }: any) => {
             if (!value) return true; // Allow empty for now, required will catch it
+
+            // Only enforce future date on create, not on updates
+            // (admins need to unhide products with past auction dates)
+            if (operation === 'update') return true;
 
             const auctionEnd = new Date(value);
             const now = new Date();
