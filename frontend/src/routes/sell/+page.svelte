@@ -24,15 +24,15 @@
   <title>Sell Your Product - BidMo.to</title>
 </svelte:head>
 
-<div class="max-w-[800px] mx-auto py-8">
-  <h1 class="headline-bh text-4xl mb-2">List Your Product</h1>
-  <p class="text-bh-fg/60 mb-8 text-lg">Create a new auction listing for your product</p>
+<div class="max-w-[800px] mx-auto py-4 sm:py-8">
+  <h1 class="headline-bh text-2xl sm:text-4xl mb-2">List Your Product</h1>
+  <p class="text-bh-fg/60 mb-4 sm:mb-8 text-base sm:text-lg">Create a new auction listing for your product</p>
 
-  <div class="card-bh p-8 mb-8">
+  <div class="card-bh p-4 sm:p-8 mb-4 sm:mb-8">
     <ProductForm mode="create" onSuccess={handleSuccess} />
   </div>
 
-  <div class="bg-bh-yellow border-4 border-bh-border shadow-bh-sm p-6">
+  <div class="bg-bh-yellow border-4 border-bh-border shadow-bh-sm p-4 sm:p-6">
     <h3 class="font-bold text-lg text-bh-fg mb-2">Before You List</h3>
     <ul class="list-disc pl-6 text-bh-fg space-y-2">
       <li>You must be logged in to create a listing</li>

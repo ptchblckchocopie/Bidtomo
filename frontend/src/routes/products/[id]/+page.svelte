@@ -1676,8 +1676,20 @@
   }
 
   @media (max-width: 768px) {
+    .product-detail {
+      padding: 1rem;
+    }
+
+    .product-header {
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
     .product-content {
       grid-template-columns: 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
     }
 
     /* Make modals scrollable on mobile */

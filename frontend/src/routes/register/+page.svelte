@@ -140,9 +140,9 @@
   <title>Register - BidMo.to</title>
 </svelte:head>
 
-<div class="min-h-[calc(100vh-200px)] flex items-center justify-center p-8 bg-bh-blue">
-  <div class="card-bh p-8 md:p-12 max-w-[500px] w-full">
-    <h1 class="headline-bh text-4xl mb-2 text-center">Create Account</h1>
+<div class="min-h-[calc(100vh-200px)] flex items-center justify-center p-4 sm:p-8 bg-bh-blue">
+  <div class="card-bh p-5 sm:p-8 md:p-12 max-w-[500px] w-full">
+    <h1 class="headline-bh text-2xl sm:text-4xl mb-2 text-center">Create Account</h1>
     <p class="text-bh-fg/60 text-center mb-8">Join our marketplace to buy and sell products</p>
 
     {#if success}
