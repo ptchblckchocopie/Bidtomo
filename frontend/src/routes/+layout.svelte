@@ -114,7 +114,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               {#if unreadCount > 0}
-                <span class="absolute -top-1 -right-1 bg-bh-yellow text-bh-fg text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                <span class="absolute -top-1 -right-1 bg-bh-yellow text-bh-fg text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center unread-badge-pulse">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               {/if}
@@ -140,7 +140,7 @@
               </button>
 
               {#if userMenuOpen}
-                <div class="card-bh absolute right-0 mt-2 w-48 py-1 z-50">
+                <div class="user-dropdown card-bh absolute right-0 mt-2 w-48 py-1 z-50">
                   <a
                     href="/dashboard"
                     onclick={closeUserMenu}
@@ -199,7 +199,7 @@
 
       <!-- Mobile Navigation -->
       {#if mobileMenuOpen}
-        <div class="md:hidden pb-4 space-y-1">
+        <div class="mobile-menu md:hidden pb-4 space-y-1">
           <a
             href="/products"
             onclick={closeMobileMenu}
@@ -301,3 +301,49 @@
     <p>&copy; 2025 BidMo.to - Bid mo 'to!</p>
   </footer>
 </div>
+
+<style>
+  /* User dropdown slide-in */
+  .user-dropdown {
+    animation: dropdownIn 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: top right;
+  }
+
+  @keyframes dropdownIn {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* Mobile menu slide-down */
+  .mobile-menu {
+    animation: mobileMenuIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+  }
+
+  @keyframes mobileMenuIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Unread badge pulse */
+  .unread-badge-pulse {
+    animation: badgePulse 2s ease-in-out infinite;
+  }
+
+  @keyframes badgePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+</style>
