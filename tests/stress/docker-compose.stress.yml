@@ -1,0 +1,70 @@
+version: '3.8'
+
+# Extends the main docker-compose.yml — adds k6, InfluxDB, and Grafana for stress testing.
+# Usage:
+#   docker compose -f ../../docker-compose.yml -f docker-compose.stress.yml up -d influxdb grafana
+#   docker compose -f ../../docker-compose.yml -f docker-compose.stress.yml run k6 run /scripts/scenarios/smoke.js
+
+services:
+  influxdb:
+    image: influxdb:1.8
+    container_name: stress-influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      INFLUXDB_DB: k6
+    networks:
+      - marketplace-network
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: stress-grafana
+    ports:
+      - "3030:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/k6-dashboard.json
+    depends_on:
+      - influxdb
+    networks:
+      - marketplace-network
+
+  k6:
+    image: grafana/k6:latest
+    container_name: stress-k6
+    volumes:
+      - ./:/scripts
+    environment:
+      K6_OUT: influxdb=http://influxdb:8086/k6
+      CMS_URL: http://backend:3001
+      FRONTEND_URL: http://frontend:5173
+      SSE_URL: http://sse-service:3002
+    depends_on:
+      - influxdb
+    networks:
+      - marketplace-network
+    entrypoint: ["k6"]
+
+  sse-load:
+    image: node:18-alpine
+    container_name: stress-sse-load
+    working_dir: /app
+    volumes:
+      - ./:/app
+    environment:
+      SSE_URL: http://sse-service:3002
+      CONNECTIONS: "100"
+      DURATION_S: "120"
+    command: ["node", "sse-load.js"]
+    depends_on:
+      - influxdb
+    networks:
+      - marketplace-network
+    profiles:
+      - sse
+
+networks:
+  marketplace-network:
+    external: true
+    name: bidmoto_default

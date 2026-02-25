@@ -67,3 +67,5 @@ Use these project commands to load detailed context on-demand:
 - `/project:frontend-guide` — Frontend architecture, API bridge, auth, stores, SSE, design system
 - `/project:env-vars` — All environment variables, CORS config, .env rules
 - `/project:tech-debt` — Known technical debt items
+- `/project:stress-test` — k6 stress testing guide, scenarios, report interpretation
+- `/project:staging` — Staging environment setup, URLs, deploy commands

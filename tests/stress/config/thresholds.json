@@ -1,0 +1,36 @@
+{
+  "global": {
+    "http_req_duration": ["p(95)<500", "p(99)<1500"],
+    "http_req_failed": ["rate<0.05"]
+  },
+  "endpoints": {
+    "bid_queue": {
+      "http_req_duration": ["p(95)<300", "p(99)<800"],
+      "http_req_failed": ["rate<0.03"]
+    },
+    "product_list": {
+      "http_req_duration": ["p(95)<400", "p(99)<1000"],
+      "http_req_failed": ["rate<0.01"]
+    },
+    "product_detail": {
+      "http_req_duration": ["p(95)<300", "p(99)<700"],
+      "http_req_failed": ["rate<0.01"]
+    },
+    "login": {
+      "http_req_duration": ["p(95)<600", "p(99)<1200"],
+      "http_req_failed": ["rate<0.01"]
+    },
+    "user_limits": {
+      "http_req_duration": ["p(95)<800", "p(99)<2000"],
+      "http_req_failed": ["rate<0.02"]
+    },
+    "search": {
+      "http_req_duration": ["p(95)<500", "p(99)<1500"],
+      "http_req_failed": ["rate<0.02"]
+    },
+    "sse_connect": {
+      "http_req_duration": ["p(95)<200"],
+      "http_req_failed": ["rate<0.05"]
+    }
+  }
+}
