@@ -301,53 +301,55 @@
             <div class="products-grid">
               {#each activeProducts as product}
                 <div class="product-card">
-                  <div class="product-image" onclick={() => openViewModal(product)} role="button" tabindex="0">
-                    {#if product.images && product.images.length > 0}
-                      {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
-                      {#if validImages.length > 0}
-                        {@const firstImage = validImages[0]}
-                        <img src={firstImage.image.url} alt={product.title} />
+                  <a href="/products/{product.id}" class="card-link">
+                    <div class="product-image">
+                      {#if product.images && product.images.length > 0}
+                        {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
+                        {#if validImages.length > 0}
+                          {@const firstImage = validImages[0]}
+                          <img src={firstImage.image.url} alt={product.title} />
+                        {:else}
+                          <div class="placeholder-image">
+                            <span class="placeholder-icon">📦</span>
+                          </div>
+                        {/if}
                       {:else}
                         <div class="placeholder-image">
                           <span class="placeholder-icon">📦</span>
                         </div>
                       {/if}
-                    {:else}
-                      <div class="placeholder-image">
-                        <span class="placeholder-icon">📦</span>
-                      </div>
-                    {/if}
-                  </div>
+                    </div>
 
-                  <div class="product-details">
-                    <h3>{product.title}</h3>
-                    <div class="product-price">
-                      <div class="price-row">
-                        <span class="price-label">Starting:</span>
-                        <span class="price-value">{formatPrice(product.startingPrice, product.seller.currency)}</span>
-                      </div>
-                      {#if product.currentBid}
-                        <div class="price-row current-bid">
-                          <span class="price-label">Current Bid:</span>
-                          <span class="price-value">{formatPrice(product.currentBid, product.seller.currency)}</span>
+                    <div class="product-details">
+                      <h3>{product.title}</h3>
+                      <div class="product-price">
+                        <div class="price-row">
+                          <span class="price-label">Starting:</span>
+                          <span class="price-value">{formatPrice(product.startingPrice, product.seller.currency)}</span>
                         </div>
-                      {/if}
+                        {#if product.currentBid}
+                          <div class="price-row current-bid">
+                            <span class="price-label">Current Bid:</span>
+                            <span class="price-value">{formatPrice(product.currentBid, product.seller.currency)}</span>
+                          </div>
+                        {/if}
+                      </div>
+                      <div class="product-meta">
+                        <span class="meta-item">📅 Ends: {formatDate(product.auctionEndDate)}</span>
+                        <span class="status-badge {getStatusBadgeClass(product.status)}">
+                          {getStatusText(product.status)}
+                        </span>
+                      </div>
                     </div>
-                    <div class="product-meta">
-                      <span class="meta-item">📅 Ends: {formatDate(product.auctionEndDate)}</span>
-                      <span class="status-badge {getStatusBadgeClass(product.status)}">
-                        {getStatusText(product.status)}
-                      </span>
-                    </div>
-                  </div>
+                  </a>
 
                   <div class="product-actions">
                     <button class="btn-edit" onclick={() => openEditModal(product)}>
                       ✏️ Edit
                     </button>
-                    <button class="btn-view" onclick={() => openViewModal(product)}>
+                    <a href="/products/{product.id}" class="btn-view">
                       👁️ View
-                    </button>
+                    </a>
                   </div>
                 </div>
               {/each}
@@ -364,51 +366,53 @@
             <div class="products-grid">
               {#each hiddenProducts as product}
                 <div class="product-card">
-                  <div class="product-image" onclick={() => openViewModal(product)} role="button" tabindex="0">
-                    {#if product.images && product.images.length > 0}
-                      {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
-                      {#if validImages.length > 0}
-                        {@const firstImage = validImages[0]}
-                        <img src={firstImage.image.url} alt={product.title} />
+                  <a href="/products/{product.id}" class="card-link">
+                    <div class="product-image">
+                      {#if product.images && product.images.length > 0}
+                        {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
+                        {#if validImages.length > 0}
+                          {@const firstImage = validImages[0]}
+                          <img src={firstImage.image.url} alt={product.title} />
+                        {:else}
+                          <div class="placeholder-image">
+                            <span class="placeholder-icon">📦</span>
+                          </div>
+                        {/if}
                       {:else}
                         <div class="placeholder-image">
                           <span class="placeholder-icon">📦</span>
                         </div>
                       {/if}
-                    {:else}
-                      <div class="placeholder-image">
-                        <span class="placeholder-icon">📦</span>
-                      </div>
-                    {/if}
-                  </div>
+                    </div>
 
-                  <div class="product-details">
-                    <h3>{product.title}</h3>
-                    <div class="product-price">
-                      <div class="price-row">
-                        <span class="price-label">Starting:</span>
-                        <span class="price-value">{formatPrice(product.startingPrice, product.seller.currency)}</span>
-                      </div>
-                      {#if product.currentBid}
-                        <div class="price-row current-bid">
-                          <span class="price-label">Current Bid:</span>
-                          <span class="price-value">{formatPrice(product.currentBid, product.seller.currency)}</span>
+                    <div class="product-details">
+                      <h3>{product.title}</h3>
+                      <div class="product-price">
+                        <div class="price-row">
+                          <span class="price-label">Starting:</span>
+                          <span class="price-value">{formatPrice(product.startingPrice, product.seller.currency)}</span>
                         </div>
-                      {/if}
+                        {#if product.currentBid}
+                          <div class="price-row current-bid">
+                            <span class="price-label">Current Bid:</span>
+                            <span class="price-value">{formatPrice(product.currentBid, product.seller.currency)}</span>
+                          </div>
+                        {/if}
+                      </div>
+                      <div class="product-meta">
+                        <span class="meta-item">📅 Ends: {formatDate(product.auctionEndDate)}</span>
+                        <span class="status-badge status-hidden">Hidden</span>
+                      </div>
                     </div>
-                    <div class="product-meta">
-                      <span class="meta-item">📅 Ends: {formatDate(product.auctionEndDate)}</span>
-                      <span class="status-badge status-hidden">Hidden</span>
-                    </div>
-                  </div>
+                  </a>
 
                   <div class="product-actions">
                     <button class="btn-edit" onclick={() => openEditModal(product)}>
                       ✏️ Edit
                     </button>
-                    <button class="btn-view" onclick={() => openViewModal(product)}>
+                    <a href="/products/{product.id}" class="btn-view">
                       👁️ View
-                    </button>
+                    </a>
                   </div>
                 </div>
               {/each}
@@ -425,42 +429,44 @@
             <div class="products-grid">
               {#each endedProducts as product}
                 <div class="product-card">
-                  <div class="product-image" onclick={() => openViewModal(product)} role="button" tabindex="0">
-                    {#if product.images && product.images.length > 0}
-                      {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
-                      {#if validImages.length > 0}
-                        {@const firstImage = validImages[0]}
-                        <img src={firstImage.image.url} alt={product.title} />
+                  <a href="/products/{product.id}" class="card-link">
+                    <div class="product-image">
+                      {#if product.images && product.images.length > 0}
+                        {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
+                        {#if validImages.length > 0}
+                          {@const firstImage = validImages[0]}
+                          <img src={firstImage.image.url} alt={product.title} />
+                        {:else}
+                          <div class="placeholder-image">
+                            <span class="placeholder-icon">📦</span>
+                          </div>
+                        {/if}
                       {:else}
                         <div class="placeholder-image">
                           <span class="placeholder-icon">📦</span>
                         </div>
                       {/if}
-                    {:else}
-                      <div class="placeholder-image">
-                        <span class="placeholder-icon">📦</span>
-                      </div>
-                    {/if}
-                  </div>
+                    </div>
 
-                  <div class="product-details">
-                    <h3>{product.title}</h3>
-                    <div class="product-price">
-                      <div class="price-row">
-                        <span class="price-label">{product.status === 'sold' ? 'Sold for:' : 'Final bid:'}</span>
-                        <span class="price-value sold">{formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}</span>
+                    <div class="product-details">
+                      <h3>{product.title}</h3>
+                      <div class="product-price">
+                        <div class="price-row">
+                          <span class="price-label">{product.status === 'sold' ? 'Sold for:' : 'Final bid:'}</span>
+                          <span class="price-value sold">{formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}</span>
+                        </div>
+                      </div>
+                      <div class="product-meta">
+                        <span class="meta-item">📅 Ended: {formatDate(product.auctionEndDate)}</span>
+                        <span class="status-badge {getStatusBadgeClass(product.status)}">{getStatusText(product.status)}</span>
                       </div>
                     </div>
-                    <div class="product-meta">
-                      <span class="meta-item">📅 Ended: {formatDate(product.auctionEndDate)}</span>
-                      <span class="status-badge {getStatusBadgeClass(product.status)}">{getStatusText(product.status)}</span>
-                    </div>
-                  </div>
+                  </a>
 
                   <div class="product-actions">
-                    <button class="btn-view" onclick={() => openViewModal(product)}>
+                    <a href="/products/{product.id}" class="btn-view">
                       👁️ View
-                    </button>
+                    </a>
                   </div>
                 </div>
               {/each}
@@ -486,52 +492,54 @@
           <div class="purchases-list">
             {#each purchases as product}
               <div class="purchase-card">
-                <div class="purchase-image" onclick={() => openProductModal(product)} role="button" tabindex="0">
-                  {#if product.images && product.images.length > 0}
-                    {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
-                    {#if validImages.length > 0}
-                      {@const firstImage = validImages[0]}
-                      <img src={firstImage.image.url} alt={product.title} />
+                <a href="/products/{product.id}" class="purchase-link">
+                  <div class="purchase-image">
+                    {#if product.images && product.images.length > 0}
+                      {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
+                      {#if validImages.length > 0}
+                        {@const firstImage = validImages[0]}
+                        <img src={firstImage.image.url} alt={product.title} />
+                      {:else}
+                        <div class="placeholder-image">
+                          <span class="placeholder-icon">📦</span>
+                        </div>
+                      {/if}
                     {:else}
                       <div class="placeholder-image">
                         <span class="placeholder-icon">📦</span>
                       </div>
                     {/if}
-                  {:else}
-                    <div class="placeholder-image">
-                      <span class="placeholder-icon">📦</span>
-                    </div>
-                  {/if}
-                </div>
-
-                <div class="purchase-content">
-                  <div class="purchase-info" onclick={() => openProductModal(product)} role="button" tabindex="0">
-                    <h3>{product.title}</h3>
-                    <div class="purchase-price-tag">
-                      {formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}
-                    </div>
-                    <div class="purchase-meta-row">
-                      <span class="purchase-date">📅 {formatDate(product.updatedAt)}</span>
-                      <span class="status-badge {getStatusBadgeClass(product.status)}">
-                        {getStatusText(product.status)}
-                      </span>
-                    </div>
-                    <div class="purchase-seller">
-                      Seller: {product.seller?.name || 'Unknown'}
-                    </div>
                   </div>
 
-                  <div class="purchase-actions">
-                    <a href="/inbox?product={product.id}" class="btn-message">
-                      <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                      </svg>
-                      Message Seller
-                    </a>
-                    <a href="/products/{product.id}" class="btn-view-product">
-                      View Details
-                    </a>
+                  <div class="purchase-content">
+                    <div class="purchase-info">
+                      <h3>{product.title}</h3>
+                      <div class="purchase-price-tag">
+                        {formatPrice(product.currentBid || product.startingPrice, product.seller.currency)}
+                      </div>
+                      <div class="purchase-meta-row">
+                        <span class="purchase-date">📅 {formatDate(product.updatedAt)}</span>
+                        <span class="status-badge {getStatusBadgeClass(product.status)}">
+                          {getStatusText(product.status)}
+                        </span>
+                      </div>
+                      <div class="purchase-seller">
+                        Seller: {product.seller?.name || 'Unknown'}
+                      </div>
+                    </div>
                   </div>
+                </a>
+
+                <div class="purchase-actions-bar">
+                  <a href="/inbox?product={product.id}" class="btn-message">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    Message Seller
+                  </a>
+                  <a href="/products/{product.id}" class="btn-view-product">
+                    View Details
+                  </a>
                 </div>
               </div>
             {/each}
@@ -807,11 +815,22 @@
     transform: translateY(-4px);
   }
 
+  .card-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .card-link:hover .product-image img {
+    transform: scale(1.03);
+    transition: transform 0.3s ease;
+  }
+
   .product-image {
     width: 100%;
     height: 200px;
     overflow: hidden;
-    cursor: pointer;
     background: var(--color-muted);
   }
 
@@ -946,6 +965,11 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
+    text-decoration: none;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .btn-edit {
@@ -973,7 +997,6 @@
   }
 
   .purchase-card {
-    display: flex;
     background: var(--color-white);
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
@@ -986,13 +1009,23 @@
     transform: translateY(-2px);
   }
 
+  .purchase-link {
+    display: flex;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .purchase-link:hover .purchase-image img {
+    transform: scale(1.05);
+  }
+
   .purchase-image {
     width: 200px;
     height: 200px;
     flex-shrink: 0;
     overflow: hidden;
     background: var(--color-muted);
-    cursor: pointer;
     position: relative;
   }
 
@@ -1060,12 +1093,11 @@
     margin-bottom: 1rem;
   }
 
-  .purchase-actions {
+  .purchase-actions-bar {
     display: flex;
     gap: 0.75rem;
-    padding-top: 1rem;
+    padding: 1rem 1.5rem;
     border-top: 1px solid var(--color-border);
-    margin-top: auto;
   }
 
   .btn-message {
@@ -1124,7 +1156,7 @@
       padding: 1.25rem;
     }
 
-    .purchase-actions {
+    .purchase-actions-bar {
       flex-direction: column;
       gap: 0.5rem;
     }
@@ -1362,10 +1394,6 @@
       transform: none;
     }
 
-    .purchase-card {
-      flex-direction: column;
-    }
-
     .purchase-image {
       width: 100%;
       height: 180px;
@@ -1383,9 +1411,14 @@
       font-size: 1.25rem;
     }
 
-    .purchase-actions {
+    .purchase-link {
+      flex-direction: column;
+    }
+
+    .purchase-actions-bar {
       flex-direction: column;
       gap: 0.5rem;
+      padding: 1rem 1.25rem;
     }
 
     .btn-message,
