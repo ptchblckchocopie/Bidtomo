@@ -431,30 +431,41 @@
   }
 
   @media (max-width: 768px) {
+    .image-slider {
+      margin-bottom: 1rem;
+    }
+
     .slider-main {
-      aspect-ratio: 1;
+      aspect-ratio: 4 / 3;
+      border-width: 2px;
+      box-shadow: 2px 2px 0px var(--color-border);
+    }
+
+    .slide img {
+      object-fit: cover;
     }
 
     .nav-arrow {
-      width: 40px;
-      height: 40px;
-      font-size: 2rem;
+      width: 36px;
+      height: 36px;
+      font-size: 1.8rem;
     }
 
     .slide-counter {
-      font-size: 0.8rem;
-      padding: 0.4rem 0.8rem;
+      font-size: 0.75rem;
+      padding: 0.3rem 0.6rem;
       bottom: 0.5rem;
       right: 0.5rem;
     }
 
     .thumbnail {
-      width: 60px;
-      height: 60px;
+      width: 50px;
+      height: 50px;
     }
 
     .thumbnail-nav {
       gap: 0.5rem;
+      margin-top: 0.5rem;
     }
   }
 
