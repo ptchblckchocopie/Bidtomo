@@ -2400,7 +2400,7 @@
 
     .product-summary {
       flex: 1;
-      min-width: 0;
+      min-width: 100%;
       order: 2;
     }
 
@@ -2409,6 +2409,10 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .product-price {
+      font-size: 0.85rem;
     }
 
     .back-btn {
