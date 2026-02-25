@@ -81,6 +81,11 @@ export interface User {
   name: string;
   role: 'admin' | 'seller' | 'buyer';
   currency: 'PHP' | 'USD' | 'EUR' | 'GBP' | 'JPY';
+  profilePicture?: {
+    id: string;
+    url: string;
+    filename: string;
+  } | string | null;
 }
 
 export interface Bid {
