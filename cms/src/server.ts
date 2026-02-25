@@ -888,8 +888,8 @@ const start = async () => {
     });
   });
 
-  // Elasticsearch: search products
-  app.get('/api/products/search', async (req, res) => {
+  // Elasticsearch: search products (path avoids Payload's /api/products/:id route)
+  app.get('/api/search/products', async (req, res) => {
     try {
       const query = req.query.q as string || '';
       const status = req.query.status as string || 'available';
