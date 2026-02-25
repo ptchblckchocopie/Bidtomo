@@ -641,6 +641,132 @@ async function moveToFailedQueue(job: BidJob, error: string): Promise<void> {
   }
 }
 
+// Fast pre-check: reject bids that are obviously stale without acquiring a row lock.
+// Uses a plain SELECT (no FOR UPDATE) so it doesn't block other transactions.
+async function fastRejectCheck(job: BidJob): Promise<{ reject: boolean; error?: string }> {
+  try {
+    const result = await pool.query(
+      `SELECT current_bid, starting_price, bid_interval, status, active,
+              auction_end_date FROM products WHERE id = $1`,
+      [job.productId]
+    );
+
+    if (result.rows.length === 0) {
+      return { reject: true, error: 'Product not found' };
+    }
+
+    const row = result.rows[0];
+
+    if (row.status !== 'available') {
+      return { reject: true, error: `Product is ${row.status}` };
+    }
+
+    if (!row.active) {
+      return { reject: true, error: 'Product is not active' };
+    }
+
+    if (new Date(row.auction_end_date) <= new Date()) {
+      return { reject: true, error: 'Auction has ended' };
+    }
+
+    const currentBid = Number(row.current_bid) || 0;
+    const bidInterval = Number(row.bid_interval) || 1;
+    const startingPrice = Number(row.starting_price) || 0;
+    const minimumBid = currentBid > 0 ? currentBid + bidInterval : startingPrice;
+
+    if (job.amount < minimumBid) {
+      return { reject: true, error: `Bid must be at least ${minimumBid}` };
+    }
+
+    return { reject: false };
+  } catch {
+    // On error, let the full processBid() handle it (don't reject prematurely)
+    return { reject: false };
+  }
+}
+
+// Drain and deduplicate: when queue is deep, pull all pending bids for the same
+// product, keep only the highest, and fast-reject the rest in bulk.
+async function drainAndDeduplicateQueue(firstJob: BidJob): Promise<BidJob[]> {
+  // Check queue depth
+  const queueLen = await redisQueue.llen(QUEUE_KEY);
+  if (queueLen < 5) {
+    return [firstJob]; // Queue is short, just process normally
+  }
+
+  // Pull up to 200 additional jobs from the queue (non-blocking LPOP)
+  const jobs: BidJob[] = [firstJob];
+  const maxDrain = Math.min(queueLen, 200);
+
+  for (let i = 0; i < maxDrain; i++) {
+    const raw = await redisQueue.lpop(QUEUE_KEY);
+    if (!raw) break;
+    try {
+      const job: BidJob = JSON.parse(raw);
+      if (!job.jobId) job.jobId = generateJobId();
+      jobs.push(job);
+    } catch {
+      // Skip malformed jobs
+    }
+  }
+
+  if (jobs.length <= 1) return jobs;
+
+  console.log(`[WORKER] Drained ${jobs.length} jobs from queue for batch processing`);
+
+  // Group by productId — for each product, keep only the highest bid
+  const byProduct = new Map<number, BidJob[]>();
+  const nonBidJobs: BidJob[] = []; // accept_bid jobs pass through untouched
+
+  for (const job of jobs) {
+    if (job.type === 'accept_bid') {
+      nonBidJobs.push(job);
+      continue;
+    }
+    const group = byProduct.get(job.productId) || [];
+    group.push(job);
+    byProduct.set(job.productId, group);
+  }
+
+  const survivors: BidJob[] = [...nonBidJobs];
+  let rejected = 0;
+
+  for (const [productId, group] of byProduct) {
+    if (group.length <= 1) {
+      survivors.push(...group);
+      continue;
+    }
+
+    // Sort descending by amount — highest bid first
+    group.sort((a, b) => b.amount - a.amount);
+    survivors.push(group[0]); // Keep the highest
+
+    // Fast-reject the rest
+    for (let i = 1; i < group.length; i++) {
+      const loser = group[i];
+      rejected++;
+      await publishBidResult(productId, {
+        success: false,
+        error: `Outbid — a higher bid of ${group[0].amount} is being processed`,
+        amount: loser.amount,
+        bidderId: loser.bidderId,
+      });
+    }
+  }
+
+  if (rejected > 0) {
+    console.log(`[WORKER] Batch-rejected ${rejected} lower bids, ${survivors.length} remain`);
+  }
+
+  // Re-queue survivors that aren't the first job (they'll be picked up next iteration)
+  // Process them in order: accept_bid jobs first, then bids by descending amount
+  for (let i = survivors.length - 1; i >= 1; i--) {
+    await redisQueue.lpush(QUEUE_KEY, JSON.stringify(survivors[i]));
+  }
+
+  return [survivors[0]];
+}
+
 // Main worker loop
 async function runWorker() {
   console.log('[WORKER] Bid worker starting...');
@@ -736,21 +862,63 @@ async function runWorker() {
         // Process regular bid
         console.log(`[WORKER] Processing bid: Product ${job.productId}, Amount ${job.amount}, Job ${job.jobId}`);
 
-        // Save to database in case of crash
-        await savePendingBidToDb(job);
+        // --- Optimization 1: Timestamp check ---
+        // If the bid was submitted after the auction end date, reject immediately
+        // without touching the database at all.
+        if (job.timestamp) {
+          const productCheck = await pool.query(
+            `SELECT auction_end_date FROM products WHERE id = $1`,
+            [job.productId]
+          );
+          if (productCheck.rows.length > 0) {
+            const auctionEnd = new Date(productCheck.rows[0].auction_end_date).getTime();
+            if (job.timestamp > auctionEnd) {
+              console.log(`[WORKER] Bid ${job.jobId} submitted after auction end, rejecting`);
+              await publishBidResult(job.productId, {
+                success: false,
+                error: 'Auction has ended',
+                amount: job.amount,
+                bidderId: job.bidderId,
+              });
+              continue;
+            }
+          }
+        }
 
-        const bidResult = await processBid(job);
+        // --- Optimization 2: Batch dedup ---
+        // If queue is deep, drain it and reject lower bids for the same product.
+        const [jobToProcess] = await drainAndDeduplicateQueue(job);
+
+        // --- Optimization 3: Fast reject ---
+        // Quick check without row lock — skips the expensive FOR UPDATE transaction
+        // for bids that are already outbid.
+        const preCheck = await fastRejectCheck(jobToProcess);
+        if (preCheck.reject) {
+          console.log(`[WORKER] Fast-rejected bid ${jobToProcess.jobId}: ${preCheck.error}`);
+          await publishBidResult(jobToProcess.productId, {
+            success: false,
+            error: preCheck.error,
+            amount: jobToProcess.amount,
+            bidderId: jobToProcess.bidderId,
+          });
+          continue;
+        }
+
+        // Save to database in case of crash
+        await savePendingBidToDb(jobToProcess);
+
+        const bidResult = await processBid(jobToProcess);
 
         if (bidResult.success) {
           // Remove from pending bids
-          await removePendingBidFromDb(job.jobId);
+          await removePendingBidFromDb(jobToProcess.jobId!);
 
           // Publish result to SSE with full bid data
-          await publishBidResult(job.productId, {
+          await publishBidResult(jobToProcess.productId, {
             ...bidResult,
-            amount: job.amount,
-            bidderId: job.bidderId,
-            censorName: job.censorName,
+            amount: jobToProcess.amount,
+            bidderId: jobToProcess.bidderId,
+            censorName: jobToProcess.censorName,
           });
         } else {
           // Check if it's a transient error (not a validation error)
@@ -765,31 +933,31 @@ async function runWorker() {
 
           if (isValidationError) {
             // Remove from pending - it's a valid rejection
-            await removePendingBidFromDb(job.jobId);
-            await publishBidResult(job.productId, {
+            await removePendingBidFromDb(jobToProcess.jobId!);
+            await publishBidResult(jobToProcess.productId, {
               ...bidResult,
-              amount: job.amount,
-              bidderId: job.bidderId,
+              amount: jobToProcess.amount,
+              bidderId: jobToProcess.bidderId,
             });
             console.log(`[WORKER] Bid rejected: ${bidResult.error}`);
           } else {
             // Transient error - retry
-            const retryCount = (job.retryCount || 0) + 1;
+            const retryCount = (jobToProcess.retryCount || 0) + 1;
 
             if (retryCount < MAX_RETRIES) {
-              job.retryCount = retryCount;
-              console.log(`[WORKER] Retrying bid ${job.jobId} (attempt ${retryCount}/${MAX_RETRIES})`);
+              jobToProcess.retryCount = retryCount;
+              console.log(`[WORKER] Retrying bid ${jobToProcess.jobId} (attempt ${retryCount}/${MAX_RETRIES})`);
               await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY * retryCount));
-              await redisQueue.rpush(QUEUE_KEY, JSON.stringify(job));
+              await redisQueue.rpush(QUEUE_KEY, JSON.stringify(jobToProcess));
             } else {
-              console.error(`[WORKER] Bid ${job.jobId} failed after ${MAX_RETRIES} retries`);
-              await moveToFailedQueue(job, bidResult.error || 'Unknown error');
-              await removePendingBidFromDb(job.jobId);
-              await publishBidResult(job.productId, {
+              console.error(`[WORKER] Bid ${jobToProcess.jobId} failed after ${MAX_RETRIES} retries`);
+              await moveToFailedQueue(jobToProcess, bidResult.error || 'Unknown error');
+              await removePendingBidFromDb(jobToProcess.jobId!);
+              await publishBidResult(jobToProcess.productId, {
                 success: false,
                 error: 'Bid processing failed. Please try again.',
-                amount: job.amount,
-                bidderId: job.bidderId,
+                amount: jobToProcess.amount,
+                bidderId: jobToProcess.bidderId,
               });
             }
           }

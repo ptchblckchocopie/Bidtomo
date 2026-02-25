@@ -686,8 +686,8 @@
       return;
     }
 
-    // Poll every 30 seconds as fallback when SSE is not available
-    conversationListPollingInterval = setInterval(pollConversationList, 30000);
+    // Poll every 10 seconds as fallback when SSE is not available
+    conversationListPollingInterval = setInterval(pollConversationList, 10000);
   }
 
   // Stop polling conversation list
@@ -873,8 +873,8 @@
       clearInterval(pollingInterval);
     }
 
-    // Poll every 10 seconds as fallback when SSE is not available
-    pollingInterval = setInterval(pollNewMessages, 10000);
+    // Poll every 5 seconds as fallback when SSE is not available
+    pollingInterval = setInterval(pollNewMessages, 5000);
   }
 
   // Stop polling
