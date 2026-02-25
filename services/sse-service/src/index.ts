@@ -70,6 +70,8 @@ app.use(cors({
       return callback(null, true);
     }
     if (origin.endsWith('.vercel.app')) return callback(null, true);
+    if (origin.endsWith('.up.railway.app')) return callback(null, true);
+    if (origin === 'https://bidmo.to' || origin === 'https://www.bidmo.to') return callback(null, true);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,

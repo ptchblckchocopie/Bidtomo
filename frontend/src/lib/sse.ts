@@ -6,7 +6,7 @@ import { env } from '$env/dynamic/public';
 function getSseUrl(): string {
   // Use SvelteKit's dynamic public env (gracefully handles missing variable)
   if (env.PUBLIC_SSE_URL) {
-    return env.PUBLIC_SSE_URL;
+    return env.PUBLIC_SSE_URL.replace(/\/+$/, ''); // Strip trailing slashes
   }
   // Fallback for development
   if (browser && typeof window !== 'undefined') {
