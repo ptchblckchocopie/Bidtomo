@@ -967,14 +967,21 @@ const start = async () => {
   // Elasticsearch: bulk sync all products (admin utility)
   app.post('/api/elasticsearch/sync', async (req, res) => {
     try {
-      // Auth check
-      let userId: number | null = null;
-      const authHeader = req.headers.authorization;
-      if (authHeader) {
-        const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
-        if (token) {
-          const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET || '') as any;
-          userId = decoded.id;
+      // Auth check — try Payload middleware first, then JWT fallback
+      let userId: number | string | null = (req as any).user?.id || null;
+
+      if (!userId) {
+        const authHeader = req.headers.authorization;
+        if (authHeader) {
+          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+          if (token) {
+            try {
+              const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET || '') as any;
+              userId = decoded.id;
+            } catch (jwtError) {
+              // Token invalid/expired
+            }
+          }
         }
       }
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
