@@ -1364,33 +1364,130 @@
 
   /* Responsive */
   @media (max-width: 768px) {
+    .dashboard-page {
+      margin-left: -1rem;
+      margin-right: -1rem;
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+
+    .page-header {
+      margin-bottom: 1rem;
+    }
+
+    .page-header h1 {
+      font-size: 1.5rem;
+    }
+
+    .subtitle {
+      font-size: 0.95rem;
+    }
+
     .main-tabs {
-      flex-direction: column;
+      display: flex;
+      flex-direction: row;
       gap: 0;
+      margin-bottom: 1rem;
+      margin-left: -1rem;
+      margin-right: -1rem;
+      border-bottom: 2px solid var(--color-border);
     }
 
     .main-tab {
-      border-bottom: 1px solid var(--color-border);
-      border-left: 3px solid transparent;
-      margin-bottom: 0;
-      margin-left: -2px;
+      flex: 1;
+      padding: 0.75rem 0.5rem;
+      font-size: 0.95rem;
+      justify-content: center;
+      border-bottom: 3px solid transparent;
+      border-left: none;
+      margin-bottom: -2px;
+      margin-left: 0;
     }
 
     .main-tab.active {
-      border-left-color: var(--color-red);
-      border-bottom-color: var(--color-border);
+      border-bottom-color: var(--color-red);
+      border-left-color: transparent;
+    }
+
+    .tab-icon {
+      font-size: 1.2rem;
+    }
+
+    .sub-tabs {
+      margin-left: -1rem;
+      margin-right: -1rem;
+      padding-left: 1rem;
+      gap: 0;
+      margin-bottom: 1rem;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .sub-tab {
+      padding: 0.6rem 1rem;
+      font-size: 0.875rem;
+      white-space: nowrap;
     }
 
     .products-grid {
       grid-template-columns: 1fr;
+      gap: 1rem;
       padding: 0;
     }
 
     .product-card {
+      border-width: 2px;
       box-shadow: 2px 2px 0px var(--color-border);
     }
 
     .product-card:hover {
+      transform: none;
+    }
+
+    .product-image {
+      height: 180px;
+    }
+
+    .product-details {
+      padding: 1rem;
+    }
+
+    .product-details h3 {
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .price-value {
+      font-size: 1rem;
+    }
+
+    .product-meta {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding-top: 0.5rem;
+    }
+
+    .meta-item {
+      font-size: 0.8rem;
+    }
+
+    .product-actions {
+      padding: 0.75rem 1rem;
+    }
+
+    .btn-edit,
+    .btn-view {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+    }
+
+    .purchase-card {
+      border-width: 2px;
+      box-shadow: 2px 2px 0px var(--color-border);
+    }
+
+    .purchase-card:hover {
       transform: none;
     }
 
@@ -1400,7 +1497,7 @@
     }
 
     .purchase-content {
-      padding: 1.25rem;
+      padding: 1rem;
     }
 
     .purchase-info h3 {
@@ -1418,17 +1515,74 @@
     .purchase-actions-bar {
       flex-direction: column;
       gap: 0.5rem;
-      padding: 1rem 1.25rem;
+      padding: 0.75rem 1rem;
     }
 
     .btn-message,
     .btn-view-product {
       width: 100%;
-      padding: 0.875rem 1rem;
+      padding: 0.75rem 1rem;
+      font-size: 0.85rem;
+    }
+
+    .empty-state {
+      padding: 2rem 1rem;
+    }
+
+    .empty-icon {
+      font-size: 3.5rem;
+    }
+
+    .empty-state h2 {
+      font-size: 1.25rem;
+    }
+
+    .empty-state p {
+      font-size: 0.95rem;
+    }
+
+    .modal-content {
+      max-width: 100%;
+      max-height: 100vh;
+      width: 100%;
+      height: 100%;
+      border: none;
+      box-shadow: none;
+    }
+
+    .modal-header {
+      padding: 1.25rem 1rem 0.75rem;
+    }
+
+    .modal-header h2 {
+      font-size: 1.25rem;
+    }
+
+    .modal-body {
+      padding: 1rem;
+    }
+
+    .modal-close {
+      top: 0.75rem;
+      right: 0.75rem;
+      width: 36px;
+      height: 36px;
+      font-size: 1.25rem;
     }
 
     .info-grid {
       grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+
+    .modal-info h2 {
+      font-size: 1.25rem;
+    }
+
+    .btn-view-full {
+      width: 100%;
+      text-align: center;
+      display: block;
     }
   }
 </style>
