@@ -25,6 +25,12 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 - **Hidden Items** tab (admin-only) in the products browse page at `?status=hidden`
 - Products use the existing `active` field (boolean) to control visibility
 
+## Search
+- Bridge route: `GET /api/bridge/products/search?q=...&status=...&region=...&city=...&page=...&limit=...`
+- Proxies to CMS `GET /api/search/products` (Elasticsearch-powered with Payload fallback)
+- Bridge route file: `frontend/src/routes/api/bridge/products/search/+server.ts`
+- Sync trigger (admin): `POST /api/bridge/elasticsearch/sync`
+
 ## Real-Time (SSE)
 - `frontend/src/lib/sse.ts` — SSE client: connections, reconnection logic, event dispatching
 - **Redis channels:** `sse:product:{id}` (bids), `sse:user:{id}` (messages), `sse:global` (new listings)

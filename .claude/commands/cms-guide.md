@@ -32,6 +32,16 @@ Image uploads go to **Supabase Storage** (S3-compatible) via `@payloadcms/plugin
 - Prefix: `bidmoto/`
 - Public URL pattern: `https://htcdkqplcmdbyjlvzono.supabase.co/storage/v1/object/public/bidmo-media/bidmoto/{filename}`
 
+## Elasticsearch Integration
+- `cms/src/services/elasticSearch.ts` — Client, indexing, search, bulk sync functions.
+- **Index name:** `products` — mappings for title, description, keywords, status, region, city, etc.
+- **Search endpoint:** `GET /api/search/products?q=...&status=...&region=...&city=...&page=...&limit=...` (in `server.ts`). **NOT** `/api/products/search` — that path conflicts with Payload's built-in `GET /api/products/:id` route.
+- **Sync endpoint:** `POST /api/elasticsearch/sync` (admin-only) — bulk indexes all products from Payload into ES.
+- **Auto-indexing:** Payload `afterChange` hooks on the `products` collection call `indexProduct()` / `updateProductIndex()` / `removeProductFromIndex()` via `(global as any)` pattern.
+- **ES v9 client compatibility:** The `@elastic/elasticsearch` v9 client sends `compatible-with=9` vendored headers that v7/v8 servers reject. The client in `elasticSearch.ts` overrides these with plain `application/json` headers.
+- **Fallback:** If ES is unavailable, search falls back to Payload's built-in `find()` with regex-based text matching (slower but functional).
+- **Env var:** `ELASTICSEARCH_URL` — on Railway, uses reference syntax `http://${{Elasticsearch.RAILWAY_PRIVATE_DOMAIN}}:9200` for proper service linking.
+
 ## Profile Picture Feature
 - `profilePicture` field on users collection (`type: 'upload', relationTo: 'media'`).
 - CMS endpoints: `POST /api/users/profile-picture` (set new, delete old) and `DELETE /api/users/profile-picture` (remove).

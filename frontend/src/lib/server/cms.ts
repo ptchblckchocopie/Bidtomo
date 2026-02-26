@@ -41,12 +41,21 @@ export async function cmsRequest(
 }
 
 export function getTokenFromRequest(request: Request): string | null {
+  // Check Authorization header first
   const authHeader = request.headers.get('Authorization');
   if (authHeader?.startsWith('JWT ') || authHeader?.startsWith('Bearer ')) {
     return authHeader.startsWith('JWT ')
       ? authHeader.substring(4)
       : authHeader.substring(7);
   }
+
+  // Fall back to httpOnly cookie
+  const cookieHeader = request.headers.get('Cookie');
+  if (cookieHeader) {
+    const match = cookieHeader.match(/(?:^|;\s*)auth_token=([^;]+)/);
+    if (match) return match[1];
+  }
+
   return null;
 }
 

@@ -47,7 +47,24 @@
       "mcp__playwriter__execute",
       "Bash(git pull:*)",
       "Bash(python3:*)",
-      "mcp__Railway__list-services"
+      "mcp__Railway__list-services",
+      "Bash(gh api:*)",
+      "Bash(git checkout:*)",
+      "mcp__vercel__search_vercel_documentation",
+      "mcp__Railway__create-environment",
+      "Bash(npx @railway/cli service cms 2>&1 && DATABASE_URI=\"postgresql://postgres:rrJsKPPcenrvzziGAsscoyGHITxeAJEp@trolley.proxy.rlwy.net:47463/railway\" npx payload migrate 2>&1)",
+      "Bash(DATABASE_URI=\"postgresql://postgres:rrJsKPPcenrvzziGAsscoyGHITxeAJEp@trolley.proxy.rlwy.net:47463/railway\" npx payload:*)",
+      "Bash(PGPASSWORD=rrJsKPPcenrvzziGAsscoyGHITxeAJEp psql:*)",
+      "mcp__Railway__check-railway-status",
+      "Bash(cd /home/veent-ojt/Downloads/Bidtomo/cms && DATABASE_URI=\"postgresql://postgres:SAudxRxIxVxtsPnDBpzuZikyCBrDAhdm@turntable.proxy.rlwy.net:51903/railway\" PAYLOAD_CONFIG_PATH=src/payload.config.ts npx payload migrate 2>&1)",
+      "Bash(DATABASE_URI=\"postgresql://postgres:SAudxRxIxVxtsPnDBpzuZikyCBrDAhdm@turntable.proxy.rlwy.net:51903/railway\" PAYLOAD_CONFIG_PATH=src/payload.config.ts DB_PUSH=true npx payload:*)",
+      "Bash(PGPASSWORD=\"SAudxRxIxVxtsPnDBpzuZikyCBrDAhdm\" psql:*)",
+      "Bash(DATABASE_URI=\"postgresql://postgres:SAudxRxIxVxtsPnDBpzuZikyCBrDAhdm@turntable.proxy.rlwy.net:51903/railway\" DB_PUSH=true PAYLOAD_SECRET=staging-test-secret PAYLOAD_CONFIG_PATH=src/payload.config.ts node:*)",
+      "Bash(DATABASE_URI=\"postgresql://postgres:SAudxRxIxVxtsPnDBpzuZikyCBrDAhdm@turntable.proxy.rlwy.net:51903/railway\" DB_PUSH=true PAYLOAD_SECRET=staging-temp-secret SERVER_URL=\"\" REDIS_URL=\"\" ELASTICSEARCH_URL=\"\" timeout 45 npm run:*)",
+      "Bash(chmod +x:*)",
+      "Bash(git merge:*)",
+      "Bash(git:*)",
+      "Bash(do echo:*)"
     ]
   }
 }

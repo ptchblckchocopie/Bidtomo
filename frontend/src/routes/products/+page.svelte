@@ -5,7 +5,7 @@
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
-  import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type BidUpdateEvent } from '$lib/sse';
+  import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type BidUpdateEvent, type ProductVisibilityEvent } from '$lib/sse';
   import { updateProduct } from '$lib/api';
 
   let { data, params }: { data: PageData; params?: any } = $props();
@@ -428,6 +428,16 @@
         // New product listed — show notification banner
         if (data.status === 'active') {
           newProductCount++;
+        }
+      } else if (event.type === 'product_visibility') {
+        // Product hidden/unhidden by admin — remove from browse list if hidden
+        const visEvent = event as ProductVisibilityEvent;
+        const pid = String(visEvent.productId);
+        if (!visEvent.active) {
+          // Hidden — remove from visible products
+          data.products = data.products.filter(p => String(p.id) !== pid);
+          // Also remove from admin's removed list so it doesn't linger
+          removedProductIds = [...removedProductIds, visEvent.productId];
         }
       }
     });
@@ -977,6 +987,7 @@
             disabled={adminModalLoading}
           >
             {#if adminModalLoading}
+              <span class="modal-spinner"></span>
               Processing...
             {:else}
               {adminModalProduct.active ? 'Hide Item' : 'Unhide Item'}
@@ -1730,6 +1741,22 @@
     opacity: 0.6;
     cursor: not-allowed;
     transform: none;
+  }
+
+  .modal-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: modalSpin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 0.4rem;
+  }
+
+  @keyframes modalSpin {
+    to { transform: rotate(360deg); }
   }
 
   .status-active {

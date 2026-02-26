@@ -18,7 +18,6 @@ export async function authenticateJWT(req: any): Promise<any | null> {
 
     // Verify and decode JWT
     const decoded: any = jwt.verify(token, secret);
-    console.log('JWT verified, user ID:', decoded.id);
 
     // Fetch user from database
     if (decoded.id) {
@@ -29,11 +28,10 @@ export async function authenticateJWT(req: any): Promise<any | null> {
 
       // Set req.user so hooks can access it
       req.user = user as any;
-      console.log('JWT auth successful for user:', user.email);
       return user;
     }
   } catch (error: any) {
-    console.error('JWT verification failed:', error.message);
+    // Don't log error details — could contain token fragments
   }
 
   return null;

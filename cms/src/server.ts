@@ -3,14 +3,17 @@ import payload from 'payload';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
 import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
+import { authenticateJWT } from './auth-helpers';
 
 dotenv.config();
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Configure CORS to allow requests from the frontend (including production URLs)
 const allowedOrigins: string[] = [
@@ -36,17 +39,17 @@ const allowedOrigins: string[] = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    // Allow any local network IP (192.168.x.x) for development
-    if (origin.match(/^http:\/\/192\.168\.\d+\.\d+:\d+$/)) {
-      return callback(null, true);
+    // In production, reject requests with no origin (prevents CORS bypass via curl/file:// URIs)
+    // In development, allow for tools like Postman
+    if (!origin) {
+      return callback(null, !isProduction);
     }
 
-    // Allow Railway deployment URLs
-    if (origin.endsWith('.up.railway.app')) {
-      return callback(null, true);
+    // Allow local network IPs for development only
+    if (!isProduction) {
+      if (origin.match(/^http:\/\/192\.168\.\d+\.\d+:\d+$/)) {
+        return callback(null, true);
+      }
     }
 
     if (allowedOrigins.includes(origin)) {
@@ -66,8 +69,41 @@ app.use(cors({
 // Explicitly handle OPTIONS requests for preflight
 app.options('*', cors());
 
-// Parse JSON body
-app.use(express.json());
+// Parse JSON body with explicit size limit
+app.use(express.json({ limit: '1mb' }));
+
+// Rate limiters
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per window
+  message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 registrations per hour per IP
+  message: { error: 'Too many registration attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const bidLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 bids per minute
+  message: { error: 'Too many bid attempts. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiters to Payload's built-in auth endpoints
+app.use('/api/users/login', loginLimiter);
+app.use('/api/users', (req, res, next) => {
+  // Only rate limit POST (registration), not GET (list users)
+  if (req.method === 'POST') return registrationLimiter(req, res, next);
+  next();
+});
 
 const start = async () => {
   // Import config directly
@@ -239,6 +275,12 @@ const start = async () => {
   // Create conversations for sold products
   app.post('/api/create-conversations', async (req, res) => {
     try {
+      // Admin-only maintenance endpoint
+      const user = await authenticateJWT(req);
+      if (!user || (user as any).role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
       console.log('Starting conversation creation for sold products...');
 
       // Find all sold products
@@ -366,7 +408,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error creating conversations:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -383,6 +425,15 @@ const start = async () => {
 
       if (!product) {
         return res.status(404).json({ error: 'Product not found' });
+      }
+
+      // Block hidden product status for non-admins (unless they're the seller)
+      if (!product.active) {
+        const user = await authenticateJWT(req);
+        const sellerId = typeof product.seller === 'object' ? (product.seller as any).id : product.seller;
+        if (!user || ((user as any).role !== 'admin' && (user as any).id !== sellerId)) {
+          return res.status(404).json({ error: 'Product not found' });
+        }
       }
 
       // Get the latest bid timestamp
@@ -410,7 +461,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error fetching product status:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -542,9 +593,17 @@ const start = async () => {
   // Expose global event publisher for hooks (new products, etc.)
   (global as any).publishGlobalEvent = publishGlobalEvent;
 
-  // Sync endpoint to update product currentBid with highest bid
+  // Expose product update publisher for hooks (visibility changes, etc.)
+  (global as any).publishProductUpdate = publishProductUpdate;
+
+  // Sync endpoint to update product currentBid with highest bid (admin only)
   app.post('/api/sync-bids', async (req, res) => {
     try {
+      const user = await authenticateJWT(req);
+      if (!user || (user as any).role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
       // Fetch all bids
       const bids = await payload.find({
         collection: 'bids',
@@ -588,13 +647,13 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error syncing bids:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
   // Queue bid endpoint - queues bid to Redis for processing by bid worker
   // This prevents race conditions by processing bids sequentially
-  app.post('/api/bid/queue', async (req, res) => {
+  app.post('/api/bid/queue', bidLimiter, async (req, res) => {
     try {
       // Authenticate via JWT token
       let userId: number | null = null;
@@ -624,8 +683,13 @@ const start = async () => {
 
       const { productId, amount, censorName } = req.body;
 
-      if (!productId || !amount) {
-        return res.status(400).json({ error: 'Missing productId or amount' });
+      if (!productId) {
+        return res.status(400).json({ error: 'Missing productId' });
+      }
+
+      // Strict bid amount validation — reject negative, zero, NaN, non-number
+      if (typeof amount !== 'number' || !isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ error: 'Bid amount must be a positive number' });
       }
 
       // Basic validation - get product to check status
@@ -647,9 +711,14 @@ const start = async () => {
         return res.status(400).json({ error: 'Product is not active' });
       }
 
-      // Check auction end date
-      if (new Date(product.auctionEndDate) <= new Date()) {
+      // Check auction end date (with 2-second buffer to account for queue processing delay)
+      const auctionEnd = new Date(product.auctionEndDate).getTime();
+      const now = Date.now();
+      if (auctionEnd <= now) {
         return res.status(400).json({ error: 'Auction has ended' });
+      }
+      if (auctionEnd - now < 2000) {
+        return res.status(400).json({ error: 'Auction is ending, bid cannot be processed in time' });
       }
 
       // Validate bid amount
@@ -681,8 +750,28 @@ const start = async () => {
       );
 
       if (!result.success) {
-        // If Redis is down, fall back to direct bid creation
+        // If Redis is down, fall back to direct bid creation with full validation
         console.warn('[CMS] Redis queue failed, falling back to direct bid creation');
+
+        // Validate bid amount is a valid positive number
+        if (typeof amount !== 'number' || !isFinite(amount) || amount <= 0) {
+          return res.status(400).json({ error: 'Invalid bid amount' });
+        }
+
+        // Check auction end date
+        if (product.auctionEndDate && new Date(product.auctionEndDate) <= new Date()) {
+          return res.status(400).json({ error: 'Auction has ended' });
+        }
+
+        // Validate minimum bid
+        const currentBid = Number(product.currentBid) || 0;
+        const bidInterval = Number(product.bidInterval) || 1;
+        const startingPrice = Number(product.startingPrice) || 0;
+        const minimumBid = currentBid > 0 ? currentBid + bidInterval : startingPrice;
+
+        if (amount < minimumBid) {
+          return res.status(400).json({ error: `Bid must be at least ${minimumBid}` });
+        }
 
         const bidTime = new Date().toISOString();
         const bid = await payload.create({
@@ -737,12 +826,12 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error queuing bid:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
   // Accept bid endpoint - queues accept action to Redis to prevent race conditions
-  app.post('/api/bid/accept', async (req, res) => {
+  app.post('/api/bid/accept', bidLimiter, async (req, res) => {
     try {
       // Authenticate via JWT token
       let userId: number | null = null;
@@ -821,6 +910,16 @@ const start = async () => {
         // Fallback to direct update if Redis is down
         console.warn('[CMS] Redis queue failed, falling back to direct accept');
 
+        // Re-fetch product to check status atomically (prevent double-acceptance race condition)
+        const freshProduct = await payload.findByID({
+          collection: 'products',
+          id: productId,
+        });
+
+        if (freshProduct.status !== 'available') {
+          return res.status(400).json({ error: `Product is already ${freshProduct.status}` });
+        }
+
         await payload.update({
           collection: 'products',
           id: productId,
@@ -874,7 +973,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error accepting bid:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -893,11 +992,19 @@ const start = async () => {
   app.get('/api/search/products', async (req, res) => {
     try {
       const query = req.query.q as string || '';
-      const status = req.query.status as string || 'available';
+      let status = req.query.status as string || 'available';
       const region = req.query.region as string || '';
       const city = req.query.city as string || '';
       const page = parseInt(req.query.page as string || '1', 10);
       const limit = parseInt(req.query.limit as string || '12', 10);
+
+      // Only admins can search hidden products
+      if (status === 'hidden') {
+        const user = await authenticateJWT(req);
+        if (!user || (user as any).role !== 'admin') {
+          status = 'available'; // Silently fall back to available
+        }
+      }
 
       const esAvailable = await isElasticAvailable();
 
@@ -999,7 +1106,7 @@ const start = async () => {
       res.json({ success: true, ...result });
     } catch (error: any) {
       console.error('Elasticsearch sync error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1062,6 +1169,15 @@ const start = async () => {
         return res.status(400).json({ error: `Cannot void transaction with status: ${transaction.status}` });
       }
 
+      // Cooldown: reject void requests on transactions created less than 1 hour ago
+      const transactionCreatedAt = new Date(transaction.createdAt).getTime();
+      const oneHourMs = 60 * 60 * 1000;
+      if (Date.now() - transactionCreatedAt < oneHourMs) {
+        return res.status(400).json({
+          error: 'Void requests can only be submitted at least 1 hour after the transaction was created',
+        });
+      }
+
       // Check if there's already a pending void request
       const existingRequests = await payload.find({
         collection: 'void-requests',
@@ -1074,6 +1190,21 @@ const start = async () => {
 
       if (existingRequests.docs.length > 0) {
         return res.status(400).json({ error: 'There is already a pending void request for this transaction' });
+      }
+
+      // Rate limit: prevent spam by checking total void requests from this user in the last 24 hours
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const recentUserRequests = await payload.find({
+        collection: 'void-requests',
+        where: {
+          initiator: { equals: userId },
+          createdAt: { greater_than: oneDayAgo },
+        },
+        limit: 0,
+      });
+
+      if (recentUserRequests.totalDocs >= 5) {
+        return res.status(429).json({ error: 'Too many void requests. Please try again later.' });
       }
 
       const initiatorRole = userId === sellerId ? 'seller' : 'buyer';
@@ -1126,7 +1257,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error creating void request:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1289,7 +1420,7 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('Error responding to void request:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1499,7 +1630,7 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('Error processing seller choice:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1629,26 +1760,28 @@ const start = async () => {
 
         // Send emails
         if (buyer?.email) {
+          const escH = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           await queueEmail({
             to: buyer.email,
             subject: `Congratulations! You've secured "${product.title}"`,
             html: `
               <h2>Congratulations!</h2>
-              <p>Your offer for <strong>${product.title}</strong> has been accepted.</p>
-              <p>Amount: ${voidRequest.secondBidderOffer.offerAmount}</p>
+              <p>Your offer for <strong>${escH(product.title)}</strong> has been accepted.</p>
+              <p>Amount: ${escH(String(voidRequest.secondBidderOffer.offerAmount))}</p>
               <p>Please check your inbox to coordinate with the seller.</p>
             `,
           });
         }
 
         if (seller?.email) {
+          const escH = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           await queueEmail({
             to: seller.email,
-            subject: `${buyer.name} accepted your offer for "${product.title}"`,
+            subject: `Offer accepted for "${product.title}"`,
             html: `
               <h2>Offer Accepted!</h2>
-              <p><strong>${buyer.name}</strong> has accepted your offer for <strong>${product.title}</strong>.</p>
-              <p>Amount: ${voidRequest.secondBidderOffer.offerAmount}</p>
+              <p><strong>${escH(buyer.name)}</strong> has accepted your offer for <strong>${escH(product.title)}</strong>.</p>
+              <p>Amount: ${escH(String(voidRequest.secondBidderOffer.offerAmount))}</p>
               <p>Please check your inbox to coordinate the transaction.</p>
             `,
           });
@@ -1684,12 +1817,13 @@ const start = async () => {
 
         // Email seller
         if (seller?.email) {
+          const escH = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           await queueEmail({
             to: seller.email,
             subject: `Offer declined for "${product.title}"`,
             html: `
               <h2>Offer Declined</h2>
-              <p><strong>${buyer.name}</strong> has declined your offer for <strong>${product.title}</strong>.</p>
+              <p><strong>${escH(buyer.name)}</strong> has declined your offer for <strong>${escH(product.title)}</strong>.</p>
               <p>You may want to restart the bidding to find another buyer.</p>
             `,
           });
@@ -1703,7 +1837,7 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('Error processing second bidder response:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1764,7 +1898,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error fetching void request:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1814,7 +1948,7 @@ const start = async () => {
       res.json({ success: true });
     } catch (error: any) {
       console.error('Error setting typing status:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1848,7 +1982,7 @@ const start = async () => {
       res.json({ typing: typingUsers.length > 0, users: typingUsers });
     } catch (error: any) {
       console.error('Error getting typing status:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1971,7 +2105,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error fetching user limits:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -2048,7 +2182,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error updating profile picture:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -2114,7 +2248,7 @@ const start = async () => {
       res.json({ success: true });
     } catch (error: any) {
       console.error('Error removing profile picture:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 

@@ -11,7 +11,11 @@ export const GET: RequestHandler = async ({ url, request }) => {
       params.append(key, value);
     });
 
-    const response = await cmsRequest(`/api/products?${params.toString()}`);
+    // Forward auth token so CMS can evaluate access control (admins see hidden products)
+    const token = getTokenFromRequest(request);
+    const response = await cmsRequest(`/api/products?${params.toString()}`, {
+      token: token || undefined,
+    });
     const data = await response.json();
 
     return jsonResponse(data, response.status);
