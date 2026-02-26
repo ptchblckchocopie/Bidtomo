@@ -1,14 +1,22 @@
-import { fetchProducts, fetchMyBidsProducts, searchUsers } from '$lib/api';
+import { fetchProducts, fetchMyBidsProducts, searchUsers, getCurrentUser } from '$lib/api';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ url, fetch }) => {
   const page = parseInt(url.searchParams.get('page') || '1');
   const limit = parseInt(url.searchParams.get('limit') || '12');
   const search = url.searchParams.get('search') || '';
-  const status = url.searchParams.get('status') || 'active';
+  let status = url.searchParams.get('status') || 'active';
   const region = url.searchParams.get('region') || '';
   const city = url.searchParams.get('city') || '';
   const searchType = url.searchParams.get('searchType') || 'products';
+
+  // Only admins can view hidden products — silently fall back to active
+  if (status === 'hidden') {
+    const currentUser = await getCurrentUser(fetch);
+    if (!currentUser || currentUser.role !== 'admin') {
+      status = 'active';
+    }
+  }
 
   // User search mode
   if (searchType === 'users') {
