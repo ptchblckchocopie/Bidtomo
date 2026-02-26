@@ -47,11 +47,6 @@
   ];
 
   onMount(async () => {
-    if (!$authStore.isAuthenticated) {
-      goto('/login?redirect=/profile');
-      return;
-    }
-
     // Refresh user data from server to get latest fields (including profilePicture)
     const freshUser = await getCurrentUser();
     if (freshUser) {
