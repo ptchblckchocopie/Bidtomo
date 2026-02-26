@@ -593,6 +593,9 @@ const start = async () => {
   // Expose global event publisher for hooks (new products, etc.)
   (global as any).publishGlobalEvent = publishGlobalEvent;
 
+  // Expose product update publisher for hooks (visibility changes, etc.)
+  (global as any).publishProductUpdate = publishProductUpdate;
+
   // Sync endpoint to update product currentBid with highest bid (admin only)
   app.post('/api/sync-bids', async (req, res) => {
     try {

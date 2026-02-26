@@ -8,7 +8,7 @@
   import ImageSlider from '$lib/components/ImageSlider.svelte';
   import StarRating from '$lib/components/StarRating.svelte';
   import type { Product } from '$lib/api';
-  import { getProductSSE, disconnectProductSSE, queueBid as queueBidToRedis, type SSEEvent, type BidEvent } from '$lib/sse';
+  import { getProductSSE, disconnectProductSSE, queueBid as queueBidToRedis, type SSEEvent, type BidEvent, type ProductVisibilityEvent } from '$lib/sse';
   import { onMount, onDestroy } from 'svelte';
 
   let { data } = $props<{ data: PageData }>();
@@ -539,6 +539,12 @@
             setTimeout(() => {
               acceptSuccess = false;
             }, 3000);
+          }
+        } else if (event.type === 'product_visibility') {
+          const visEvent = event as ProductVisibilityEvent;
+          if (data.product) {
+            data.product.active = visEvent.active;
+            data = { ...data };
           }
         }
       });
