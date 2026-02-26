@@ -76,4 +76,5 @@ Use these project commands to load detailed context on-demand:
 - `/project:tech-debt` — Known technical debt items
 - `/project:stress-test` — k6 stress testing guide, scenarios, report interpretation
 - `/project:staging` — Staging environment setup, URLs, deploy commands
-- `/project:evaluate-repository` — Full repository evaluation prompt (security, architecture, financial integrity, real-time reliability)
+- `/project:push-staging` — Pre-push review and deploy to staging
+- `/project:evaluate-repository` — Full repository evaluation (security, architecture, financial integrity, real-time reliability). Supports scoped mode: `security`, `code-quality`, `docs`, `functionality`, `testing`, `devops`, `hygiene`, `claude-code`, `financial`, `realtime`
