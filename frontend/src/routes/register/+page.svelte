@@ -39,8 +39,9 @@
     { code: '+974', country: 'Qatar', flag: '🇶🇦' },
   ];
 
-  // Get redirect URL from query params
-  const redirectUrl = $page.url.searchParams.get('redirect') || '/';
+  // Get redirect URL from query params — only allow safe relative paths
+  const rawRedirect = $page.url.searchParams.get('redirect') || '/';
+  const redirectUrl = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/';
 
   async function handleRegister(e: Event) {
     e.preventDefault();
