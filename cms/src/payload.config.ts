@@ -196,7 +196,25 @@ export default buildConfig({
         useAsTitle: 'title',
       },
       access: {
-        read: () => true,
+        read: (({ req }: any) => {
+          // Admins see everything
+          if (req.user?.role === 'admin') return true;
+
+          // Authenticated non-admins see active products + their own listings
+          if (req.user) {
+            return {
+              or: [
+                { active: { equals: true } },
+                { seller: { equals: req.user.id } },
+              ],
+            };
+          }
+
+          // Unauthenticated users see only active products
+          return {
+            active: { equals: true },
+          };
+        }) as any,
         create: ({ req }) => !!req.user,
         update: ({ req, id }) => {
           // Admins can update any product

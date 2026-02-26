@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
+import { authenticateJWT } from './auth-helpers';
 
 dotenv.config();
 
@@ -385,6 +386,15 @@ const start = async () => {
         return res.status(404).json({ error: 'Product not found' });
       }
 
+      // Block hidden product status for non-admins (unless they're the seller)
+      if (!product.active) {
+        const user = await authenticateJWT(req);
+        const sellerId = typeof product.seller === 'object' ? (product.seller as any).id : product.seller;
+        if (!user || ((user as any).role !== 'admin' && (user as any).id !== sellerId)) {
+          return res.status(404).json({ error: 'Product not found' });
+        }
+      }
+
       // Get the latest bid timestamp
       const latestBid = await payload.find({
         collection: 'bids',
@@ -542,9 +552,14 @@ const start = async () => {
   // Expose global event publisher for hooks (new products, etc.)
   (global as any).publishGlobalEvent = publishGlobalEvent;
 
-  // Sync endpoint to update product currentBid with highest bid
+  // Sync endpoint to update product currentBid with highest bid (admin only)
   app.post('/api/sync-bids', async (req, res) => {
     try {
+      const user = await authenticateJWT(req);
+      if (!user || (user as any).role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
       // Fetch all bids
       const bids = await payload.find({
         collection: 'bids',
@@ -893,11 +908,19 @@ const start = async () => {
   app.get('/api/search/products', async (req, res) => {
     try {
       const query = req.query.q as string || '';
-      const status = req.query.status as string || 'available';
+      let status = req.query.status as string || 'available';
       const region = req.query.region as string || '';
       const city = req.query.city as string || '';
       const page = parseInt(req.query.page as string || '1', 10);
       const limit = parseInt(req.query.limit as string || '12', 10);
+
+      // Only admins can search hidden products
+      if (status === 'hidden') {
+        const user = await authenticateJWT(req);
+        if (!user || (user as any).role !== 'admin') {
+          status = 'available'; // Silently fall back to available
+        }
+      }
 
       const esAvailable = await isElasticAvailable();
 

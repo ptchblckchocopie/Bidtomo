@@ -1,16 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
-  import { onMount } from 'svelte';
   import ProductForm from '$lib/components/ProductForm.svelte';
   import type { Product } from '$lib/api';
-
-  // Check authentication on mount
-  onMount(() => {
-    if (!$authStore.isAuthenticated) {
-      goto('/login?redirect=/sell');
-    }
-  });
 
   function handleSuccess(product: Product) {
     // Redirect to product page after successful creation
