@@ -1,11 +1,12 @@
 <script lang="ts">
   import type { PageData } from './$types';
-  import { type Product } from '$lib/api';
+  import { type Product, fetchProduct } from '$lib/api';
   import { fetchMyPurchases } from '$lib/api';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { browser } from '$app/environment';
+  import { getUserSSE, disconnectUserSSE, type ProductVisibilityEvent } from '$lib/sse';
 
   import ImageSlider from '$lib/components/ImageSlider.svelte';
   import ProductForm from '$lib/components/ProductForm.svelte';
@@ -16,10 +17,10 @@
   type TabType = 'products' | 'purchases';
   let activeTab: TabType = $state('products');
 
-  // Separate products by status and visibility
-  let activeProducts = $derived(data.activeProducts);
-  let hiddenProducts = $derived(data.hiddenProducts);
-  let endedProducts = $derived(data.endedProducts);
+  // Separate products by status and visibility (local state for instant UI updates)
+  let activeProducts: Product[] = $state(data.activeProducts);
+  let hiddenProducts: Product[] = $state(data.hiddenProducts);
+  let endedProducts: Product[] = $state(data.endedProducts);
 
   // Purchases state
   let purchases: Product[] = $state([]);
@@ -36,6 +37,14 @@
 
   // Product view state
   let productTab: 'active' | 'hidden' | 'ended' = $state('active');
+
+  // SSE cleanup
+  let unsubscribeSSE: (() => void) | null = null;
+
+  onDestroy(() => {
+    if (unsubscribeSSE) unsubscribeSSE();
+    if (data.user?.id) disconnectUserSSE(String(data.user.id));
+  });
 
   // Currency symbols
   const currencySymbols: Record<string, string> = {
@@ -92,51 +101,33 @@
   }
 
   function handleEditSuccess(updatedProduct: Product) {
-    // Update the product in the correct array and trigger reactivity
-    const updateInArray = (arr: Product[]) => {
-      const index = arr.findIndex(p => p.id === editingProduct!.id);
-      if (index !== -1) {
-        arr[index] = {
-          ...updatedProduct,
-          seller: editingProduct!.seller
-        };
-        return true;
+    if (!editingProduct) return;
+
+    const productId = editingProduct.id;
+    const wasActive = editingProduct.active;
+    const isActive = updatedProduct.active;
+    const merged = { ...updatedProduct, seller: editingProduct.seller };
+
+    // If active status changed, move product between arrays
+    if (wasActive !== isActive) {
+      activeProducts = activeProducts.filter(p => p.id !== productId);
+      hiddenProducts = hiddenProducts.filter(p => p.id !== productId);
+
+      if (isActive) {
+        activeProducts = [...activeProducts, merged];
+      } else {
+        hiddenProducts = [...hiddenProducts, merged];
       }
-      return false;
-    };
-
-    // Try to find and update in each array
-    let found = false;
-    if (updateInArray(data.activeProducts)) {
-      data.activeProducts = [...data.activeProducts]; // Trigger reactivity
-      found = true;
-    } else if (updateInArray(data.hiddenProducts)) {
-      data.hiddenProducts = [...data.hiddenProducts]; // Trigger reactivity
-      found = true;
-    } else if (updateInArray(data.endedProducts)) {
-      data.endedProducts = [...data.endedProducts]; // Trigger reactivity
-      found = true;
-    }
-
-    // Check if product moved between categories (e.g., active changed)
-    if (found && editingProduct) {
-      const productId = editingProduct.id;
-      const wasActive = editingProduct.active;
-      const isActive = updatedProduct.active;
-
-      // If active status changed, move product between arrays
-      if (wasActive !== isActive) {
-        // Remove from current array
-        data.activeProducts = data.activeProducts.filter((p: Product) => p.id !== productId);
-        data.hiddenProducts = data.hiddenProducts.filter((p: Product) => p.id !== productId);
-
-        // Add to correct array
-        if (isActive) {
-          data.activeProducts = [...data.activeProducts, { ...updatedProduct, seller: editingProduct.seller }];
-        } else {
-          data.hiddenProducts = [...data.hiddenProducts, { ...updatedProduct, seller: editingProduct.seller }];
-        }
-      }
+    } else {
+      // Same category — update in place
+      const update = (arr: Product[]) => {
+        const idx = arr.findIndex(p => p.id === productId);
+        if (idx !== -1) return [...arr.slice(0, idx), merged, ...arr.slice(idx + 1)];
+        return arr;
+      };
+      activeProducts = update(activeProducts);
+      hiddenProducts = update(hiddenProducts);
+      endedProducts = update(endedProducts);
     }
 
     setTimeout(() => {
@@ -224,6 +215,33 @@
     // Load purchases if on purchases tab
     if (activeTab === 'purchases') {
       loadPurchases();
+    }
+
+    // Subscribe to user SSE for real-time product visibility changes (e.g. admin hides a product)
+    if (data.user?.id) {
+      const userSSE = getUserSSE(String(data.user.id));
+      userSSE.connect();
+      unsubscribeSSE = userSSE.subscribe(async (event) => {
+        if (event.type === 'product_visibility') {
+          const { productId, active } = event as ProductVisibilityEvent;
+          const pid = String(productId);
+          if (active) {
+            // Product was unhidden — move from hidden to active
+            const product = hiddenProducts.find(p => String(p.id) === pid);
+            if (product) {
+              hiddenProducts = hiddenProducts.filter(p => String(p.id) !== pid);
+              activeProducts = [...activeProducts, { ...product, active: true }];
+            }
+          } else {
+            // Product was hidden — move from active to hidden
+            const product = activeProducts.find(p => String(p.id) === pid);
+            if (product) {
+              activeProducts = activeProducts.filter(p => String(p.id) !== pid);
+              hiddenProducts = [...hiddenProducts, { ...product, active: false }];
+            }
+          }
+        }
+      });
     }
   });
 </script>

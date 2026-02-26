@@ -1068,11 +1068,6 @@
   }
 
   onMount(async () => {
-    if (!$authStore.isAuthenticated) {
-      goto('/login?redirect=/inbox');
-      return;
-    }
-
     await loadConversations();
 
     // Connect to SSE for real-time message notifications

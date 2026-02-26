@@ -2,6 +2,11 @@ import { Resend } from 'resend';
 import Redis from 'ioredis';
 import type { Payload } from 'payload';
 
+/** Escape HTML special characters to prevent injection in email templates */
+function escHtml(s: string | number | undefined | null): string {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6380';
 const EMAIL_QUEUE_KEY = 'email:queue';
 const EMAIL_PROCESSING_KEY = 'email:processing';
@@ -268,13 +273,13 @@ async function sendSupportAlert(failedEmail: QueuedEmail): Promise<void> {
       subject: `[ALERT] Email Failed After Multiple Attempts`,
       html: `
         <h2>Email Sending Failed</h2>
-        <p><strong>Email ID:</strong> ${failedEmail.id}</p>
-        <p><strong>Recipient:</strong> ${JSON.stringify(failedEmail.to)}</p>
-        <p><strong>Subject:</strong> ${failedEmail.subject}</p>
-        <p><strong>Attempts:</strong> ${failedEmail.attempts}</p>
-        <p><strong>Last Error:</strong> ${failedEmail.lastError}</p>
-        <p><strong>Queued At:</strong> ${new Date(failedEmail.queuedAt).toISOString()}</p>
-        ${failedEmail.metadata ? `<p><strong>Metadata:</strong> ${JSON.stringify(failedEmail.metadata)}</p>` : ''}
+        <p><strong>Email ID:</strong> ${escHtml(failedEmail.id)}</p>
+        <p><strong>Recipient:</strong> ${escHtml(JSON.stringify(failedEmail.to))}</p>
+        <p><strong>Subject:</strong> ${escHtml(failedEmail.subject)}</p>
+        <p><strong>Attempts:</strong> ${escHtml(failedEmail.attempts)}</p>
+        <p><strong>Last Error:</strong> ${escHtml(failedEmail.lastError)}</p>
+        <p><strong>Queued At:</strong> ${escHtml(new Date(failedEmail.queuedAt).toISOString())}</p>
+        ${failedEmail.metadata ? `<p><strong>Metadata:</strong> ${escHtml(JSON.stringify(failedEmail.metadata))}</p>` : ''}
       `,
       metadata: { type: 'support_alert' },
     });
@@ -360,14 +365,14 @@ export async function sendVoidRequestEmail(params: {
   const html = isInitiator
     ? `
       <h2>Void Request Submitted</h2>
-      <p>Your void request for <strong>${productTitle}</strong> has been submitted.</p>
-      <p><strong>Reason:</strong> ${reason}</p>
+      <p>Your void request for <strong>${escHtml(productTitle)}</strong> has been submitted.</p>
+      <p><strong>Reason:</strong> ${escHtml(reason)}</p>
       <p>Please wait for the other party to review and respond to your request.</p>
     `
     : `
       <h2>Void Request Received</h2>
-      <p><strong>${initiatorName}</strong> has requested to void the transaction for <strong>${productTitle}</strong>.</p>
-      <p><strong>Reason:</strong> ${reason}</p>
+      <p><strong>${escHtml(initiatorName)}</strong> has requested to void the transaction for <strong>${escHtml(productTitle)}</strong>.</p>
+      <p><strong>Reason:</strong> ${escHtml(reason)}</p>
       <p>Please review this request and respond in your inbox.</p>
     `;
 
@@ -403,13 +408,13 @@ export async function sendVoidResponseEmail(params: {
   const html = approved
     ? `
       <h2>Void Request Approved</h2>
-      <p>The void request for <strong>${productTitle}</strong> has been approved by the other party.</p>
+      <p>The void request for <strong>${escHtml(productTitle)}</strong> has been approved by the other party.</p>
       <p>The transaction has been voided. Please check your inbox for next steps.</p>
     `
     : `
       <h2>Void Request Rejected</h2>
-      <p>The void request for <strong>${productTitle}</strong> has been rejected.</p>
-      ${rejectionReason ? `<p><strong>Reason:</strong> ${rejectionReason}</p>` : ''}
+      <p>The void request for <strong>${escHtml(productTitle)}</strong> has been rejected.</p>
+      ${rejectionReason ? `<p><strong>Reason:</strong> ${escHtml(rejectionReason)}</p>` : ''}
       <p>The transaction remains active.</p>
     `;
 
@@ -441,9 +446,9 @@ export async function sendAuctionRestartedEmail(params: {
     subject: `Bidding has reopened for "${productTitle}"!`,
     html: `
       <h2>Auction Reopened!</h2>
-      <p>Good news! Bidding has been reopened for <strong>${productTitle}</strong>.</p>
+      <p>Good news! Bidding has been reopened for <strong>${escHtml(productTitle)}</strong>.</p>
       <p>The previous transaction was voided, and you now have another chance to place your bid.</p>
-      <p><strong>New auction end date:</strong> ${new Date(newEndDate).toLocaleString()}</p>
+      <p><strong>New auction end date:</strong> ${escHtml(new Date(newEndDate).toLocaleString())}</p>
       <p>Don't miss out - place your bid now!</p>
     `,
     metadata: {
@@ -480,8 +485,8 @@ export async function sendSecondBidderOfferEmail(params: {
     subject: `You have an offer to purchase "${productTitle}"!`,
     html: `
       <h2>Special Offer!</h2>
-      <p>The original transaction for <strong>${productTitle}</strong> was voided, and the seller has offered the item to you!</p>
-      <p><strong>Your bid amount:</strong> ${symbol}${offerAmount.toLocaleString()}</p>
+      <p>The original transaction for <strong>${escHtml(productTitle)}</strong> was voided, and the seller has offered the item to you!</p>
+      <p><strong>Your bid amount:</strong> ${escHtml(symbol)}${escHtml(offerAmount.toLocaleString())}</p>
       <p>Please check your inbox to accept or decline this offer.</p>
     `,
     metadata: {
@@ -534,10 +539,10 @@ export function renderTemplate(template: string, variables: EmailTemplateVariabl
     ...variables,
   };
 
-  // Replace all {{variable}} patterns
+  // Replace all {{variable}} patterns (HTML-escaped to prevent injection)
   for (const [key, value] of Object.entries(allVariables)) {
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-    result = result.replace(regex, String(value ?? ''));
+    result = result.replace(regex, escHtml(value));
   }
 
   return result;
@@ -659,10 +664,10 @@ export async function sendBidWonBuyerEmail(
     fallback: {
       subject: `Congratulations! You won the bid for "${productTitle}"`,
       html: `
-        <h2>Congratulations ${buyerName}!</h2>
-        <p>Your bid has been accepted for <strong>${productTitle}</strong>.</p>
-        <p><strong>Winning Bid:</strong> ${currencySymbol}${bidAmount.toLocaleString()}</p>
-        <p><strong>Seller:</strong> ${sellerName}</p>
+        <h2>Congratulations ${escHtml(buyerName)}!</h2>
+        <p>Your bid has been accepted for <strong>${escHtml(productTitle)}</strong>.</p>
+        <p><strong>Winning Bid:</strong> ${escHtml(currencySymbol)}${escHtml(bidAmount.toLocaleString())}</p>
+        <p><strong>Seller:</strong> ${escHtml(sellerName)}</p>
         <p>The seller will contact you shortly to arrange the transaction.</p>
       `,
     },
@@ -708,10 +713,10 @@ export async function sendBidWonSellerEmail(
     fallback: {
       subject: `Your item "${productTitle}" has been sold!`,
       html: `
-        <h2>Congratulations ${sellerName}!</h2>
-        <p>Your item <strong>${productTitle}</strong> has been sold.</p>
-        <p><strong>Winning Bid:</strong> ${currencySymbol}${bidAmount.toLocaleString()}</p>
-        <p><strong>Buyer:</strong> ${buyerName} (${buyerEmail})</p>
+        <h2>Congratulations ${escHtml(sellerName)}!</h2>
+        <p>Your item <strong>${escHtml(productTitle)}</strong> has been sold.</p>
+        <p><strong>Winning Bid:</strong> ${escHtml(currencySymbol)}${escHtml(bidAmount.toLocaleString())}</p>
+        <p><strong>Buyer:</strong> ${escHtml(buyerName)} (${escHtml(buyerEmail)})</p>
         <p>Please reach out to the buyer to arrange payment and delivery.</p>
       `,
     },
@@ -750,9 +755,9 @@ export async function sendAuctionRestartedTemplateEmail(
       subject: `Bidding has reopened for "${productTitle}"!`,
       html: `
         <h2>Auction Reopened!</h2>
-        <p>Hi ${buyerName},</p>
-        <p>Good news! Bidding has been reopened for <strong>${productTitle}</strong>.</p>
-        <p><strong>New auction end date:</strong> ${new Date(auctionEndDate).toLocaleString()}</p>
+        <p>Hi ${escHtml(buyerName)},</p>
+        <p>Good news! Bidding has been reopened for <strong>${escHtml(productTitle)}</strong>.</p>
+        <p><strong>New auction end date:</strong> ${escHtml(new Date(auctionEndDate).toLocaleString())}</p>
         <p>Don't miss out - place your bid now!</p>
       `,
     },

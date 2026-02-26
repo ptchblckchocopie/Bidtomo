@@ -2,11 +2,13 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import Redis from 'ioredis';
+import jwt from 'jsonwebtoken';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || process.env.SSE_PORT || '3002', 10);
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const CORS_ORIGIN = process.env.SSE_CORS_ORIGIN || 'http://localhost:5173';
+const JWT_SECRET = process.env.PAYLOAD_SECRET || '';
 
 // Connection managers
 const productConnections = new Map<string, Set<Response>>();
@@ -59,19 +61,30 @@ const ALLOWED_ORIGINS = (process.env.SSE_CORS_ORIGIN || '')
   .map(o => o.trim())
   .filter(Boolean);
 
+// Per-IP SSE connection limit to prevent DoS
+const connectionCountByIp = new Map<string, number>();
+const MAX_CONNECTIONS_PER_IP = 20;
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (origin.includes('localhost')) return callback(null, true);
+    // Reject requests with no origin in production (browser requests always have one)
+    if (!origin) {
+      const isProduction = process.env.NODE_ENV === 'production';
+      return callback(null, !isProduction); // allow in dev, reject in prod
+    }
+    // Exact match for localhost dev ports
+    if (origin === 'http://localhost:5173' || origin === 'http://localhost:3001' || origin === 'http://localhost:3000') {
+      return callback(null, true);
+    }
     if (origin.match(/^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/)) {
       return callback(null, true);
     }
-    if (ALLOWED_ORIGINS.some(allowed => origin === allowed || origin.endsWith(allowed))) {
+    if (ALLOWED_ORIGINS.some(allowed => origin === allowed)) {
       return callback(null, true);
     }
-    if (origin.endsWith('.vercel.app')) return callback(null, true);
-    if (origin.endsWith('.up.railway.app')) return callback(null, true);
-    if (origin === 'https://bidmo.to' || origin === 'https://www.bidmo.to') return callback(null, true);
+    if (origin === 'https://bidmo.to' || origin === 'https://www.bidmo.to' || origin === 'https://app.bidmo.to') {
+      return callback(null, true);
+    }
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -85,7 +98,6 @@ app.get('/health', (req, res) => {
     userConnections: userConnections.size,
     globalConnections: globalConnections.size,
     redis: redisConnected ? 'connected' : 'disconnected',
-    redisUrl: REDIS_URL,
     reconnectAttempts,
   });
 });
@@ -114,13 +126,17 @@ function broadcastRedisStatus(connected: boolean) {
 // SSE endpoint for product updates (bids)
 app.get('/events/products/:productId', (req: Request, res: Response) => {
   const { productId } = req.params;
-  const origin = req.headers.origin;
 
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  // Enforce per-IP connection limit
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+  const currentCount = connectionCountByIp.get(clientIp) || 0;
+  if (currentCount >= MAX_CONNECTIONS_PER_IP) {
+    res.status(429).json({ error: 'Too many SSE connections' });
+    return;
   }
+  connectionCountByIp.set(clientIp, currentCount + 1);
 
+  // CORS is handled by middleware — do not manually reflect origin
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
@@ -155,19 +171,45 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
       if (connections.size === 0) productConnections.delete(productId);
       console.log(`[SSE] Product ${productId} disconnected. Remaining: ${connections.size}`);
     }
+    // Decrement IP connection count
+    const count = connectionCountByIp.get(clientIp) || 1;
+    if (count <= 1) connectionCountByIp.delete(clientIp);
+    else connectionCountByIp.set(clientIp, count - 1);
   });
 });
 
-// SSE endpoint for user updates (messages)
+// SSE endpoint for user updates (messages) — requires token auth
 app.get('/events/users/:userId', (req: Request, res: Response) => {
   const { userId } = req.params;
-  const origin = req.headers.origin;
+  const token = req.query.token as string;
 
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  // Validate JWT token — user can only subscribe to their own events
+  if (!token || !JWT_SECRET) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
   }
 
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    if (String(decoded.id) !== String(userId)) {
+      res.status(403).json({ error: 'Cannot subscribe to another user\'s events' });
+      return;
+    }
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+    return;
+  }
+
+  // Enforce per-IP connection limit
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+  const currentCount = connectionCountByIp.get(clientIp) || 0;
+  if (currentCount >= MAX_CONNECTIONS_PER_IP) {
+    res.status(429).json({ error: 'Too many SSE connections' });
+    return;
+  }
+  connectionCountByIp.set(clientIp, currentCount + 1);
+
+  // CORS is handled by middleware — do not manually reflect origin
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
@@ -200,18 +242,25 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
       if (connections.size === 0) userConnections.delete(userId);
       console.log(`[SSE] User ${userId} disconnected. Remaining: ${connections.size}`);
     }
+    // Decrement IP connection count
+    const count = connectionCountByIp.get(clientIp) || 1;
+    if (count <= 1) connectionCountByIp.delete(clientIp);
+    else connectionCountByIp.set(clientIp, count - 1);
   });
 });
 
 // SSE endpoint for global updates (new products, bid updates across all products)
 app.get('/events/global', (req: Request, res: Response) => {
-  const origin = req.headers.origin;
-
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  // Enforce per-IP connection limit
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+  const currentCount = connectionCountByIp.get(clientIp) || 0;
+  if (currentCount >= MAX_CONNECTIONS_PER_IP) {
+    res.status(429).json({ error: 'Too many SSE connections' });
+    return;
   }
+  connectionCountByIp.set(clientIp, currentCount + 1);
 
+  // CORS is handled by middleware — do not manually reflect origin
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
@@ -237,6 +286,10 @@ app.get('/events/global', (req: Request, res: Response) => {
     clearInterval(heartbeat);
     globalConnections.delete(res);
     console.log(`[SSE] Global client disconnected. Remaining: ${globalConnections.size}`);
+    // Decrement IP connection count
+    const count = connectionCountByIp.get(clientIp) || 1;
+    if (count <= 1) connectionCountByIp.delete(clientIp);
+    else connectionCountByIp.set(clientIp, count - 1);
   });
 });
 
