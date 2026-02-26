@@ -79,8 +79,8 @@ export async function queueBid(
     const client = getRedis();
 
     if (!redisConnected) {
-      // Wait a bit for connection
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Brief wait for connection — fall back quickly to direct bid path
+      await new Promise((resolve) => setTimeout(resolve, 100));
       if (!redisConnected) {
         return { success: false, error: 'Redis not connected' };
       }
@@ -116,7 +116,8 @@ export async function queueAcceptBid(
     const client = getRedis();
 
     if (!redisConnected) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Brief wait for connection — fall back quickly to direct path
+      await new Promise((resolve) => setTimeout(resolve, 100));
       if (!redisConnected) {
         return { success: false, error: 'Redis not connected' };
       }
