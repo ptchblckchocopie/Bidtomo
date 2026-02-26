@@ -14,6 +14,7 @@ Bidmo.to is a full-stack auction marketplace with real-time bidding. It consists
 ## Development Commands
 
 ### Frontend (`frontend/`)
+
 ```bash
 npm run dev          # Vite dev server on :5173
 npm run build        # Production build
@@ -22,6 +23,7 @@ npm run check:watch  # Type checking in watch mode
 ```
 
 ### CMS Backend (`cms/`)
+
 ```bash
 npm run dev          # nodemon with PAYLOAD_CONFIG_PATH=src/payload.config.ts on :3001
 npm run build        # tsc + payload build
@@ -31,6 +33,7 @@ npm run generate:types  # Regenerate payload-types.ts from collections
 ```
 
 ### Full Stack (from repo root)
+
 ```bash
 ./start-docker.sh    # Docker Compose: Postgres + Redis + all services
 ./stop-docker.sh     # Stop Docker Compose services
@@ -49,6 +52,7 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 **Search:** Elasticsearch indexes products for full-text search with fuzzy matching. CMS search endpoint at `GET /api/search/products`. Bridge at `GET /api/bridge/products/search`. See `/project:cms-guide` for details.
 
 **Key files:**
+
 - `frontend/src/lib/api.ts` — Typed API client (JWT auth from `localStorage.auth_token`)
 - `cms/src/payload.config.ts` — Collections: users, products, bids, messages, transactions, void-requests, ratings, media
 - `cms/src/server.ts` — All custom Express endpoints (20+), main business logic
