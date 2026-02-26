@@ -30,19 +30,21 @@ function createAuthStore() {
     token: null,
   };
 
-  // Check localStorage for existing token
+  // Check localStorage for existing user data
+  // Note: JWT token is stored in httpOnly cookie (not accessible to JS)
+  // We keep user data in localStorage for UI state only
   if (browser) {
     const token = localStorage.getItem('auth_token');
     const userStr = localStorage.getItem('user_data');
 
-    if (token && userStr) {
+    if (userStr) {
       try {
         const user = JSON.parse(userStr);
         // Validate parsed user has required fields before trusting it
         if (user && typeof user.id !== 'undefined' && typeof user.email === 'string') {
           initialState.isAuthenticated = true;
           initialState.user = user;
-          initialState.token = token;
+          initialState.token = token; // May be null if already migrated to httpOnly cookie
         } else {
           // Invalid user data structure, clear it
           localStorage.removeItem('auth_token');
@@ -53,6 +55,9 @@ function createAuthStore() {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('user_data');
       }
+    } else if (token) {
+      // Token exists but no user data — stale state, clean up
+      localStorage.removeItem('auth_token');
     }
   }
 
@@ -63,10 +68,15 @@ function createAuthStore() {
     set: (state: AuthState) => {
       // Persist to localStorage
       if (browser) {
-        if (state.isAuthenticated && state.token) {
-          localStorage.setItem('auth_token', state.token);
+        if (state.isAuthenticated) {
+          // Store user data for UI state
           if (state.user) {
             localStorage.setItem('user_data', JSON.stringify(state.user));
+          }
+          // Store token in localStorage as fallback (for SSE connections that need it)
+          // Primary auth uses httpOnly cookie set by the bridge
+          if (state.token) {
+            localStorage.setItem('auth_token', state.token);
           }
         } else {
           localStorage.removeItem('auth_token');
@@ -80,6 +90,8 @@ function createAuthStore() {
       if (browser) {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('user_data');
+        // Also call the bridge to clear the httpOnly cookie
+        fetch('/api/bridge/users/logout', { method: 'POST' }).catch(() => {});
       }
       set({
         isAuthenticated: false,
@@ -92,7 +104,7 @@ function createAuthStore() {
 
 export const authStore = createAuthStore();
 
-// Helper function to get auth token
+// Helper function to get auth token (from localStorage, for SSE connections)
 export function getAuthToken(): string | null {
   if (browser) {
     return localStorage.getItem('auth_token');
@@ -102,5 +114,8 @@ export function getAuthToken(): string | null {
 
 // Helper function to check if user is authenticated
 export function isAuthenticated(): boolean {
-  return !!getAuthToken();
+  if (browser) {
+    return !!localStorage.getItem('user_data');
+  }
+  return false;
 }

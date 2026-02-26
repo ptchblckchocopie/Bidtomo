@@ -3,6 +3,7 @@ import payload from 'payload';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
 import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
@@ -69,6 +70,39 @@ app.options('*', cors());
 
 // Parse JSON body
 app.use(express.json());
+
+// Rate limiters
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per window
+  message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 registrations per hour per IP
+  message: { error: 'Too many registration attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const bidLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 bids per minute
+  message: { error: 'Too many bid attempts. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiters to Payload's built-in auth endpoints
+app.use('/api/users/login', loginLimiter);
+app.use('/api/users', (req, res, next) => {
+  // Only rate limit POST (registration), not GET (list users)
+  if (req.method === 'POST') return registrationLimiter(req, res, next);
+  next();
+});
 
 const start = async () => {
   // Import config directly
@@ -615,7 +649,7 @@ const start = async () => {
 
   // Queue bid endpoint - queues bid to Redis for processing by bid worker
   // This prevents race conditions by processing bids sequentially
-  app.post('/api/bid/queue', async (req, res) => {
+  app.post('/api/bid/queue', bidLimiter, async (req, res) => {
     try {
       // Authenticate via JWT token
       let userId: number | null = null;
@@ -783,7 +817,7 @@ const start = async () => {
   });
 
   // Accept bid endpoint - queues accept action to Redis to prevent race conditions
-  app.post('/api/bid/accept', async (req, res) => {
+  app.post('/api/bid/accept', bidLimiter, async (req, res) => {
     try {
       // Authenticate via JWT token
       let userId: number | null = null;

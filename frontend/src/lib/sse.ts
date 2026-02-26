@@ -1,6 +1,7 @@
 import { writable, type Writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import { env } from '$env/dynamic/public';
+import { getAuthToken } from './stores/auth';
 
 // Dynamically determine SSE URL based on current hostname
 function getSseUrl(): string {
@@ -300,7 +301,9 @@ class UserSSEClient {
     this.state.set('connecting');
 
     try {
-      this.eventSource = new EventSource(`${SSE_URL}/events/users/${this.userId}`);
+      const token = getAuthToken();
+      const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+      this.eventSource = new EventSource(`${SSE_URL}/events/users/${this.userId}${tokenParam}`);
 
       this.eventSource.onopen = () => {
         this.state.set('connected');
