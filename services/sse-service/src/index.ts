@@ -2,11 +2,13 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import Redis from 'ioredis';
+import jwt from 'jsonwebtoken';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || process.env.SSE_PORT || '3002', 10);
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const CORS_ORIGIN = process.env.SSE_CORS_ORIGIN || 'http://localhost:5173';
+const JWT_SECRET = process.env.PAYLOAD_SECRET || '';
 
 // Connection managers
 const productConnections = new Map<string, Set<Response>>();
@@ -158,9 +160,28 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
   });
 });
 
-// SSE endpoint for user updates (messages)
+// SSE endpoint for user updates (messages) — requires token auth
 app.get('/events/users/:userId', (req: Request, res: Response) => {
   const { userId } = req.params;
+  const token = req.query.token as string;
+
+  // Validate JWT token — user can only subscribe to their own events
+  if (!token || !JWT_SECRET) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    if (String(decoded.id) !== String(userId)) {
+      res.status(403).json({ error: 'Cannot subscribe to another user\'s events' });
+      return;
+    }
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' });
+    return;
+  }
+
   const origin = req.headers.origin;
 
   if (origin) {
