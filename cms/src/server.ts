@@ -632,6 +632,7 @@ const start = async () => {
       const product: any = await payload.findByID({
         collection: 'products',
         id: productId,
+        depth: 0, // Skip relationship hydration — only need scalar fields for validation
       });
 
       if (!product) {
