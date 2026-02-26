@@ -1,11 +1,12 @@
 <script lang="ts">
   import type { PageData } from './$types';
-  import { type Product } from '$lib/api';
+  import { type Product, fetchProduct } from '$lib/api';
   import { fetchMyPurchases } from '$lib/api';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { browser } from '$app/environment';
+  import { getUserSSE, disconnectUserSSE, type ProductVisibilityEvent } from '$lib/sse';
 
   import ImageSlider from '$lib/components/ImageSlider.svelte';
   import ProductForm from '$lib/components/ProductForm.svelte';
@@ -36,6 +37,14 @@
 
   // Product view state
   let productTab: 'active' | 'hidden' | 'ended' = $state('active');
+
+  // SSE cleanup
+  let unsubscribeSSE: (() => void) | null = null;
+
+  onDestroy(() => {
+    if (unsubscribeSSE) unsubscribeSSE();
+    if (data.user?.id) disconnectUserSSE(String(data.user.id));
+  });
 
   // Currency symbols
   const currencySymbols: Record<string, string> = {
@@ -206,6 +215,33 @@
     // Load purchases if on purchases tab
     if (activeTab === 'purchases') {
       loadPurchases();
+    }
+
+    // Subscribe to user SSE for real-time product visibility changes (e.g. admin hides a product)
+    if (data.user?.id) {
+      const userSSE = getUserSSE(String(data.user.id));
+      userSSE.connect();
+      unsubscribeSSE = userSSE.subscribe(async (event) => {
+        if (event.type === 'product_visibility') {
+          const { productId, active } = event as ProductVisibilityEvent;
+          const pid = String(productId);
+          if (active) {
+            // Product was unhidden — move from hidden to active
+            const product = hiddenProducts.find(p => String(p.id) === pid);
+            if (product) {
+              hiddenProducts = hiddenProducts.filter(p => String(p.id) !== pid);
+              activeProducts = [...activeProducts, { ...product, active: true }];
+            }
+          } else {
+            // Product was hidden — move from active to hidden
+            const product = activeProducts.find(p => String(p.id) === pid);
+            if (product) {
+              activeProducts = activeProducts.filter(p => String(p.id) !== pid);
+              hiddenProducts = [...hiddenProducts, { ...product, active: false }];
+            }
+          }
+        }
+      });
     }
   });
 </script>

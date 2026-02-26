@@ -357,6 +357,24 @@ export default buildConfig({
                   broadcast(String(doc.id));
                 });
               }
+
+              // Notify seller via user SSE when product visibility changes (e.g. admin hides it)
+              if (previousDoc && doc.active !== previousDoc.active) {
+                const publishMsg = (global as any).publishMessageNotification;
+                if (publishMsg) {
+                  const sellerId = typeof doc.seller === 'object' && doc.seller ? (doc.seller as any).id : doc.seller;
+                  if (sellerId) {
+                    setImmediate(() => {
+                      publishMsg(sellerId, {
+                        type: 'product_visibility',
+                        productId: doc.id,
+                        active: doc.active,
+                        title: doc.title,
+                      }).catch((err: Error) => console.error('Error publishing product_visibility event:', err));
+                    });
+                  }
+                }
+              }
             }
 
             // Publish new_product event to global SSE when a product is created
