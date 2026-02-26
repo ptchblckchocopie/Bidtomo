@@ -32,34 +32,35 @@ npm run migrate      # Run Payload database migrations
 npm run generate:types  # Regenerate payload-types.ts from collections
 ```
 
-### SSE Service (`services/sse-service/`) — port 3002
-```bash
-npm run dev          # ts-node dev server
-npm run build        # tsc
-npm start            # Node dist/index.js
-```
+### Services (`services/`)
 
-### Bid Worker (`services/bid-worker/`) — no port (background process)
-```bash
-npm run dev          # ts-node dev
-npm run build        # tsc
-npm start            # Node dist/index.js
-```
+Each service has its own `package.json`. Build with `npm run build`, start with `npm start`.
+
+- **bid-worker** — Redis BLPOP consumer. Writes to PostgreSQL directly (bypasses Payload ORM for performance).
+- **sse-service** — Express SSE server on :3002. Subscribes to Redis pub/sub channels.
 
 ### Full Stack (from repo root)
 
 ```bash
+# Local dev (infra only — Postgres :5433, Redis :6380, then run services natively)
+docker compose -f docker-compose.local.yml up -d
+
+# Full stack (all containers including app services)
 ./start-docker.sh    # Docker Compose: Postgres + Redis + all services
 ./stop-docker.sh     # Stop Docker Compose services
 ./setup-db.sh        # Initialize PostgreSQL database
 ./deploy.sh          # Blue/green production deployment with migrations
 ```
 
-### Local Development (DB only via Docker)
-```bash
-docker compose -f docker-compose.local.yml up -d  # Postgres :5433, Redis :6380
-# Then run each service locally with npm run dev
-```
+### Default Ports
+
+| Service | Port |
+|---------|------|
+| Frontend (Vite) | 5173 |
+| CMS (Payload) | 3001 |
+| SSE service | 3002 |
+| PostgreSQL | 5433 (mapped from 5432) |
+| Redis | 6379 (full stack) / 6380 (local) |
 
 ### Stress Tests (`tests/stress/`)
 ```bash
@@ -78,10 +79,10 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 
 **Real-time bidding pipeline:**
 1. Client calls `queueBid()` → bridge → CMS `/api/bid/queue` → Redis list `bids:pending`
-2. `bid-worker` pops from `bids:pending` via `BLPOP`, validates and inserts bid into PostgreSQL
+2. `bid-worker` pops from `bids:pending` via `BLPOP`, validates and writes to PostgreSQL directly (bypasses Payload ORM)
 3. Worker publishes result to Redis pub/sub channel `sse:product:{productId}`
 4. `sse-service` receives pub/sub message → pushes to connected SSE clients
-5. Frontend `ProductSSEClient` in `sse.ts` receives event → updates UI
+5. Frontend `ProductSSEClient` in `sse.ts` receives event → updates UI (exponential backoff reconnection with fallback polling)
 6. Fallback: if Redis is down, CMS creates bid directly (graceful degradation)
 
 **Search:** Elasticsearch indexes products for full-text search with fuzzy matching. CMS search endpoint at `GET /api/search/products`. Bridge at `GET /api/bridge/products/search`. See `/project:cms-guide` for details.
@@ -134,6 +135,21 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 - **CMS + SSE + Bid Worker:** Railway (nixpacks/dockerfile), blue/green via `deploy.sh`
 - **PM2:** `ecosystem.config.js` manages all 4 services on the production server
 - **Migrations:** Auto-applied during deploy; also `npm run migrate` in `cms/`
+
+**Collections:** All defined inline in `cms/src/payload.config.ts` (not separate files): `users`, `products`, `bids`, `messages`, `transactions`, `void-requests`, `ratings`, `media`. Media uses S3 via `@payloadcms/plugin-cloud-storage` (DigitalOcean Spaces).
+
+**Auth:** JWT-based. Frontend stores token in `localStorage.auth_token`. Bridge routes forward it as `Authorization: JWT <token>`. Custom endpoints use `authenticateJWT()` from `cms/src/auth-helpers.ts`. User roles: `admin`, `seller`, `buyer`.
+
+## Testing & Quality
+
+- **No unit/integration tests** — only k6 stress tests in `tests/stress/`
+- **No ESLint/Prettier** — TypeScript compiler (`svelte-check` for frontend, `tsc` for CMS) is the primary code quality tool
+- **Type generation:** Run `npm run generate:types` in `cms/` after changing collections to regenerate `payload-types.ts`
+
+## CI/CD
+
+- **CMS + services** → Railway via GitHub Actions (`.github/workflows/`). Push to `main` deploys to production; push to other branches deploys to `staging-v2`.
+- **Frontend** → Vercel via Git integration (adapter-vercel). Not managed by GitHub Actions.
 
 ## Slash Commands for Detailed Guides
 
