@@ -32,14 +32,35 @@ npm run migrate      # Run Payload database migrations
 npm run generate:types  # Regenerate payload-types.ts from collections
 ```
 
+### Services (`services/`)
+
+Each service has its own `package.json`. Build with `npm run build`, start with `npm start`.
+
+- **bid-worker** — Redis BLPOP consumer. Writes to PostgreSQL directly (bypasses Payload ORM for performance).
+- **sse-service** — Express SSE server on :3002. Subscribes to Redis pub/sub channels.
+
 ### Full Stack (from repo root)
 
 ```bash
+# Local dev (infra only — Postgres :5433, Redis :6380, then run services natively)
+docker compose -f docker-compose.local.yml up -d
+
+# Full stack (all containers including app services)
 ./start-docker.sh    # Docker Compose: Postgres + Redis + all services
 ./stop-docker.sh     # Stop Docker Compose services
 ./setup-db.sh        # Initialize PostgreSQL database
 ./deploy.sh          # Blue/green production deployment with migrations
 ```
+
+### Default Ports
+
+| Service | Port |
+|---------|------|
+| Frontend (Vite) | 5173 |
+| CMS (Payload) | 3001 |
+| SSE service | 3002 |
+| PostgreSQL | 5433 (mapped from 5432) |
+| Redis | 6379 (full stack) / 6380 (local) |
 
 ## Architecture Overview
 
@@ -47,7 +68,7 @@ npm run generate:types  # Regenerate payload-types.ts from collections
 
 The frontend never calls the CMS directly from the browser. All requests go through SvelteKit server routes at `frontend/src/routes/api/bridge/[...path]/` which proxy to the CMS backend.
 
-**Real-time:** Bids queued via Redis → bid-worker processes → SSE service pushes live updates to clients via `frontend/src/lib/sse.ts`.
+**Real-time:** Bids queued via Redis (`bids:pending` list) → bid-worker BLPOP processes → writes to PostgreSQL directly (not through Payload) → publishes result via Redis pub/sub → SSE service broadcasts to connected clients via `frontend/src/lib/sse.ts`. SSE clients use exponential backoff reconnection with fallback polling.
 
 **Search:** Elasticsearch indexes products for full-text search with fuzzy matching. CMS search endpoint at `GET /api/search/products`. Bridge at `GET /api/bridge/products/search`. See `/project:cms-guide` for details.
 
@@ -63,6 +84,21 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 **SSR disabled** — The app is a client-side SPA (`export const ssr = false` in `+layout.ts`).
 
 **Design system:** Bauhaus — sharp corners (`border-radius: 0`), bold borders, Outfit font. Use `bh-*` Tailwind tokens and `.btn-bh`, `.card-bh`, `.input-bh` utility classes.
+
+**Collections:** All defined inline in `cms/src/payload.config.ts` (not separate files): `users`, `products`, `bids`, `messages`, `transactions`, `void-requests`, `ratings`, `media`. Media uses S3 via `@payloadcms/plugin-cloud-storage` (DigitalOcean Spaces).
+
+**Auth:** JWT-based. Frontend stores token in `localStorage.auth_token`. Bridge routes forward it as `Authorization: JWT <token>`. Custom endpoints use `authenticateJWT()` from `cms/src/auth-helpers.ts`. User roles: `admin`, `seller`, `buyer`.
+
+## Testing & Quality
+
+- **No unit/integration tests** — only k6 stress tests in `tests/stress/`
+- **No ESLint/Prettier** — TypeScript compiler (`svelte-check` for frontend, `tsc` for CMS) is the primary code quality tool
+- **Type generation:** Run `npm run generate:types` in `cms/` after changing collections to regenerate `payload-types.ts`
+
+## CI/CD
+
+- **CMS + services** → Railway via GitHub Actions (`.github/workflows/`). Push to `main` deploys to production; push to other branches deploys to `staging-v2`.
+- **Frontend** → Vercel via Git integration (adapter-vercel). Not managed by GitHub Actions.
 
 ## Slash Commands for Detailed Guides
 
