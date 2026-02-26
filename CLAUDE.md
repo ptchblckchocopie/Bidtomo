@@ -72,6 +72,8 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 
 **Search:** Elasticsearch indexes products for full-text search with fuzzy matching. CMS search endpoint at `GET /api/search/products`. Bridge at `GET /api/bridge/products/search`. See `/project:cms-guide` for details.
 
+**Search:** Elasticsearch indexes products for full-text search with fuzzy matching. CMS search endpoint at `GET /api/search/products`. Bridge at `GET /api/bridge/products/search`. See `/project:cms-guide` for details.
+
 **Key files:**
 
 - `frontend/src/lib/api.ts` — Typed API client (JWT auth from `localStorage.auth_token`)
