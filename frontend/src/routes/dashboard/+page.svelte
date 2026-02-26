@@ -16,10 +16,10 @@
   type TabType = 'products' | 'purchases';
   let activeTab: TabType = $state('products');
 
-  // Separate products by status and visibility
-  let activeProducts = $derived(data.activeProducts);
-  let hiddenProducts = $derived(data.hiddenProducts);
-  let endedProducts = $derived(data.endedProducts);
+  // Separate products by status and visibility (local state for instant UI updates)
+  let activeProducts: Product[] = $state(data.activeProducts);
+  let hiddenProducts: Product[] = $state(data.hiddenProducts);
+  let endedProducts: Product[] = $state(data.endedProducts);
 
   // Purchases state
   let purchases: Product[] = $state([]);
@@ -92,51 +92,33 @@
   }
 
   function handleEditSuccess(updatedProduct: Product) {
-    // Update the product in the correct array and trigger reactivity
-    const updateInArray = (arr: Product[]) => {
-      const index = arr.findIndex(p => p.id === editingProduct!.id);
-      if (index !== -1) {
-        arr[index] = {
-          ...updatedProduct,
-          seller: editingProduct!.seller
-        };
-        return true;
+    if (!editingProduct) return;
+
+    const productId = editingProduct.id;
+    const wasActive = editingProduct.active;
+    const isActive = updatedProduct.active;
+    const merged = { ...updatedProduct, seller: editingProduct.seller };
+
+    // If active status changed, move product between arrays
+    if (wasActive !== isActive) {
+      activeProducts = activeProducts.filter(p => p.id !== productId);
+      hiddenProducts = hiddenProducts.filter(p => p.id !== productId);
+
+      if (isActive) {
+        activeProducts = [...activeProducts, merged];
+      } else {
+        hiddenProducts = [...hiddenProducts, merged];
       }
-      return false;
-    };
-
-    // Try to find and update in each array
-    let found = false;
-    if (updateInArray(data.activeProducts)) {
-      data.activeProducts = [...data.activeProducts]; // Trigger reactivity
-      found = true;
-    } else if (updateInArray(data.hiddenProducts)) {
-      data.hiddenProducts = [...data.hiddenProducts]; // Trigger reactivity
-      found = true;
-    } else if (updateInArray(data.endedProducts)) {
-      data.endedProducts = [...data.endedProducts]; // Trigger reactivity
-      found = true;
-    }
-
-    // Check if product moved between categories (e.g., active changed)
-    if (found && editingProduct) {
-      const productId = editingProduct.id;
-      const wasActive = editingProduct.active;
-      const isActive = updatedProduct.active;
-
-      // If active status changed, move product between arrays
-      if (wasActive !== isActive) {
-        // Remove from current array
-        data.activeProducts = data.activeProducts.filter((p: Product) => p.id !== productId);
-        data.hiddenProducts = data.hiddenProducts.filter((p: Product) => p.id !== productId);
-
-        // Add to correct array
-        if (isActive) {
-          data.activeProducts = [...data.activeProducts, { ...updatedProduct, seller: editingProduct.seller }];
-        } else {
-          data.hiddenProducts = [...data.hiddenProducts, { ...updatedProduct, seller: editingProduct.seller }];
-        }
-      }
+    } else {
+      // Same category — update in place
+      const update = (arr: Product[]) => {
+        const idx = arr.findIndex(p => p.id === productId);
+        if (idx !== -1) return [...arr.slice(0, idx), merged, ...arr.slice(idx + 1)];
+        return arr;
+      };
+      activeProducts = update(activeProducts);
+      hiddenProducts = update(hiddenProducts);
+      endedProducts = update(endedProducts);
     }
 
     setTimeout(() => {
