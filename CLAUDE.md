@@ -13,8 +13,9 @@ Bidmo.to is a full-stack auction marketplace with real-time bidding. It consists
 
 ## Development Commands
 
-### Frontend (`frontend/`)
+Each service has its own `package.json` — run `npm install` in each directory independently.
 
+### Frontend (`frontend/`) — port 5173
 ```bash
 npm run dev          # Vite dev server on :5173
 npm run build        # Production build
@@ -22,8 +23,7 @@ npm run check        # svelte-kit sync + svelte-check (type checking)
 npm run check:watch  # Type checking in watch mode
 ```
 
-### CMS Backend (`cms/`)
-
+### CMS Backend (`cms/`) — port 3001
 ```bash
 npm run dev          # nodemon with PAYLOAD_CONFIG_PATH=src/payload.config.ts on :3001
 npm run build        # tsc + payload build
@@ -62,30 +62,79 @@ docker compose -f docker-compose.local.yml up -d
 | PostgreSQL | 5433 (mapped from 5432) |
 | Redis | 6379 (full stack) / 6380 (local) |
 
+### Stress Tests (`tests/stress/`)
+```bash
+npm run test:all     # Orchestrated k6 test suite (smoke → browse → auth → bids → full → search)
+npm run test:bid-storm  # High-load bid simulation
+npm run test:sse     # SSE connection stress test
+npm run seed         # Generate test data
+npm run seed:cleanup # Clean up test data
+```
+
 ## Architecture Overview
 
 **Request flow:** Browser → SvelteKit server route (`/api/bridge/*`) → Payload CMS (`localhost:3001/api/*`)
 
-The frontend never calls the CMS directly from the browser. All requests go through SvelteKit server routes at `frontend/src/routes/api/bridge/[...path]/` which proxy to the CMS backend.
+The frontend never calls the CMS directly from the browser. All requests go through SvelteKit server routes at `frontend/src/routes/api/bridge/[...path]/` which proxy to the CMS backend. The proxy implementation is in `frontend/src/lib/server/cms.ts` (`cmsRequest()` function).
 
-**Real-time:** Bids queued via Redis (`bids:pending` list) → bid-worker BLPOP processes → writes to PostgreSQL directly (not through Payload) → publishes result via Redis pub/sub → SSE service broadcasts to connected clients via `frontend/src/lib/sse.ts`. SSE clients use exponential backoff reconnection with fallback polling.
-
-**Search:** Elasticsearch indexes products for full-text search with fuzzy matching. CMS search endpoint at `GET /api/search/products`. Bridge at `GET /api/bridge/products/search`. See `/project:cms-guide` for details.
+**Real-time bidding pipeline:**
+1. Client calls `queueBid()` → bridge → CMS `/api/bid/queue` → Redis list `bids:pending`
+2. `bid-worker` pops from `bids:pending` via `BLPOP`, validates and writes to PostgreSQL directly (bypasses Payload ORM)
+3. Worker publishes result to Redis pub/sub channel `sse:product:{productId}`
+4. `sse-service` receives pub/sub message → pushes to connected SSE clients
+5. Frontend `ProductSSEClient` in `sse.ts` receives event → updates UI (exponential backoff reconnection with fallback polling)
+6. Fallback: if Redis is down, CMS creates bid directly (graceful degradation)
 
 **Search:** Elasticsearch indexes products for full-text search with fuzzy matching. CMS search endpoint at `GET /api/search/products`. Bridge at `GET /api/bridge/products/search`. See `/project:cms-guide` for details.
 
 **Key files:**
-
-- `frontend/src/lib/api.ts` — Typed API client (JWT auth from `localStorage.auth_token`)
-- `cms/src/payload.config.ts` — Collections: users, products, bids, messages, transactions, void-requests, ratings, media
-- `cms/src/server.ts` — All custom Express endpoints (20+), main business logic
+- `frontend/src/lib/api.ts` — Typed API client (1500+ lines, JWT auth from `localStorage.auth_token`)
+- `frontend/src/lib/sse.ts` — SSE clients: ProductSSEClient, UserSSEClient, GlobalSSEClient (with polling fallback)
+- `frontend/src/lib/server/cms.ts` — Bridge proxy helper (cmsRequest, getTokenFromRequest)
+- `frontend/src/lib/stores/auth.ts` — Auth store (persists to localStorage, auto-logout on 401)
+- `cms/src/payload.config.ts` — Collections: users, products, bids, messages, transactions, void-requests, ratings, media, email-templates
+- `cms/src/server.ts` — All custom Express endpoints (21 endpoints), main business logic (2100+ lines)
 - `cms/src/redis.ts` — Redis client, queue helpers, pub/sub publishers
 - `cms/src/auth-helpers.ts` — `authenticateJWT()` for custom endpoints
-- `cms/src/services/elasticSearch.ts` — Elasticsearch client, indexing, search, bulk sync
+- `cms/src/services/elasticSearch.ts` — Elasticsearch indexing and search (edge n-gram analyzer)
+- `cms/src/services/emailService.ts` — Email queue via Redis + Resend API (rate-limited 2/sec)
+
+## Important Conventions
 
 **SSR disabled** — The app is a client-side SPA (`export const ssr = false` in `+layout.ts`).
 
-**Design system:** Bauhaus — sharp corners (`border-radius: 0`), bold borders, Outfit font. Use `bh-*` Tailwind tokens and `.btn-bh`, `.card-bh`, `.input-bh` utility classes.
+**Svelte 5 runes** — Frontend uses `$state`, `$derived`, `$props` (not Svelte 4 store syntax).
+
+**Design system:** Bauhaus — sharp corners (`border-radius: 0`), bold borders, Outfit font. Use `bh-*` Tailwind color tokens (`bh-bg`, `bh-fg`, `bh-red`, `bh-blue`, `bh-yellow`, `bh-border`, `bh-muted`) and `.btn-bh`, `.card-bh`, `.input-bh` utility classes.
+
+**No linting/formatting** — Neither ESLint nor Prettier is configured. TypeScript strict mode is used in both frontend and CMS.
+
+**CMS hooks auto-set fields** — Don't set these manually in API calls:
+- Products: `seller` is set to the logged-in user in `beforeChange`
+- Bids: `bidder` and `bidTime` are set automatically in `beforeChange`
+- Ratings: `rater` is set to the logged-in user in `beforeChange`
+
+**TypeScript configs differ:**
+- CMS: `target: ES2020`, `module: commonjs` (Node.js runtime)
+- Frontend: `moduleResolution: bundler` (Vite/SvelteKit)
+
+## Redis Keys & SSE Channels
+
+| Key/Channel | Purpose |
+|-------------|---------|
+| `bids:pending` | Bid job queue (BLPOP by bid-worker) |
+| `bids:failed` | Dead-letter queue for failed bids |
+| `email:queue` | Email notification queue |
+| `sse:product:{id}` | Pub/sub for product bid/status events |
+| `sse:user:{id}` | Pub/sub for user message notifications |
+| `sse:global` | Pub/sub for system-wide events (new products) |
+
+## Deployment
+
+- **Frontend:** Vercel (adapter-vercel), production at `bidmo.to`
+- **CMS + SSE + Bid Worker:** Railway (nixpacks/dockerfile), blue/green via `deploy.sh`
+- **PM2:** `ecosystem.config.js` manages all 4 services on the production server
+- **Migrations:** Auto-applied during deploy; also `npm run migrate` in `cms/`
 
 **Collections:** All defined inline in `cms/src/payload.config.ts` (not separate files): `users`, `products`, `bids`, `messages`, `transactions`, `void-requests`, `ratings`, `media`. Media uses S3 via `@payloadcms/plugin-cloud-storage` (DigitalOcean Spaces).
 

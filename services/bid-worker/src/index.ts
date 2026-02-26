@@ -694,19 +694,22 @@ async function drainAndDeduplicateQueue(firstJob: BidJob): Promise<BidJob[]> {
     return [firstJob]; // Queue is short, just process normally
   }
 
-  // Pull up to 200 additional jobs from the queue (non-blocking LPOP)
+  // Pull up to 200 additional jobs from the queue in a single LRANGE+LTRIM
   const jobs: BidJob[] = [firstJob];
   const maxDrain = Math.min(queueLen, 200);
 
-  for (let i = 0; i < maxDrain; i++) {
-    const raw = await redisQueue.lpop(QUEUE_KEY);
-    if (!raw) break;
-    try {
-      const job: BidJob = JSON.parse(raw);
-      if (!job.jobId) job.jobId = generateJobId();
-      jobs.push(job);
-    } catch {
-      // Skip malformed jobs
+  // Atomic batch: read all items then trim, instead of sequential LPOP
+  const rawItems = await redisQueue.lrange(QUEUE_KEY, 0, maxDrain - 1);
+  if (rawItems.length > 0) {
+    await redisQueue.ltrim(QUEUE_KEY, rawItems.length, -1);
+    for (const raw of rawItems) {
+      try {
+        const job: BidJob = JSON.parse(raw);
+        if (!job.jobId) job.jobId = generateJobId();
+        jobs.push(job);
+      } catch {
+        // Skip malformed jobs
+      }
     }
   }
 
@@ -760,8 +763,9 @@ async function drainAndDeduplicateQueue(firstJob: BidJob): Promise<BidJob[]> {
 
   // Re-queue survivors that aren't the first job (they'll be picked up next iteration)
   // Process them in order: accept_bid jobs first, then bids by descending amount
-  for (let i = survivors.length - 1; i >= 1; i--) {
-    await redisQueue.lpush(QUEUE_KEY, JSON.stringify(survivors[i]));
+  if (survivors.length > 1) {
+    const toRequeue = survivors.slice(1).reverse().map(s => JSON.stringify(s));
+    await redisQueue.lpush(QUEUE_KEY, ...toRequeue);
   }
 
   return [survivors[0]];
@@ -790,8 +794,8 @@ async function runWorker() {
         continue;
       }
 
-      // Blocking pop - wait for new jobs (timeout 5 seconds to check connection status)
-      const result = await redisQueue.blpop(QUEUE_KEY, 5);
+      // Blocking pop - wait for new jobs (timeout 1 second for fast responsiveness)
+      const result = await redisQueue.blpop(QUEUE_KEY, 1);
 
       if (!result) continue;
 
@@ -862,40 +866,17 @@ async function runWorker() {
         // Process regular bid
         console.log(`[WORKER] Processing bid: Product ${job.productId}, Amount ${job.amount}, Job ${job.jobId}`);
 
-        // --- Optimization 1: Timestamp check ---
-        // If the bid was submitted after the auction end date, reject immediately
-        // without touching the database at all.
-        if (job.timestamp) {
-          const productCheck = await pool.query(
-            `SELECT auction_end_date FROM products WHERE id = $1`,
-            [job.productId]
-          );
-          if (productCheck.rows.length > 0) {
-            const auctionEnd = new Date(productCheck.rows[0].auction_end_date).getTime();
-            if (job.timestamp > auctionEnd) {
-              console.log(`[WORKER] Bid ${job.jobId} submitted after auction end, rejecting`);
-              await publishBidResult(job.productId, {
-                success: false,
-                error: 'Auction has ended',
-                amount: job.amount,
-                bidderId: job.bidderId,
-              });
-              continue;
-            }
-          }
-        }
-
-        // --- Optimization 2: Batch dedup ---
+        // --- Optimization 1: Batch dedup ---
         // If queue is deep, drain it and reject lower bids for the same product.
         const [jobToProcess] = await drainAndDeduplicateQueue(job);
 
-        // --- Optimization 3: Fast reject ---
+        // --- Optimization 2: Fast reject ---
         // Quick check without row lock — skips the expensive FOR UPDATE transaction
-        // for bids that are already outbid.
+        // for bids that are already outbid. Also covers auction-ended check.
         const preCheck = await fastRejectCheck(jobToProcess);
         if (preCheck.reject) {
           console.log(`[WORKER] Fast-rejected bid ${jobToProcess.jobId}: ${preCheck.error}`);
-          await publishBidResult(jobToProcess.productId, {
+          publishBidResult(jobToProcess.productId, {
             success: false,
             error: preCheck.error,
             amount: jobToProcess.amount,
@@ -904,17 +885,17 @@ async function runWorker() {
           continue;
         }
 
-        // Save to database in case of crash
-        await savePendingBidToDb(jobToProcess);
+        // Save to database in case of crash (fire-and-forget — don't block hot path)
+        savePendingBidToDb(jobToProcess);
 
         const bidResult = await processBid(jobToProcess);
 
         if (bidResult.success) {
-          // Remove from pending bids
-          await removePendingBidFromDb(jobToProcess.jobId!);
+          // Remove from pending bids (fire-and-forget)
+          removePendingBidFromDb(jobToProcess.jobId!);
 
-          // Publish result to SSE with full bid data
-          await publishBidResult(jobToProcess.productId, {
+          // Publish result to SSE with full bid data (fire-and-forget)
+          publishBidResult(jobToProcess.productId, {
             ...bidResult,
             amount: jobToProcess.amount,
             bidderId: jobToProcess.bidderId,
