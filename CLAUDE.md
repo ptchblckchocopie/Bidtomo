@@ -72,3 +72,4 @@ Use these project commands to load detailed context on-demand:
 - `/project:tech-debt` — Known technical debt items
 - `/project:stress-test` — k6 stress testing guide, scenarios, report interpretation
 - `/project:staging` — Staging environment setup, URLs, deploy commands
+- `/project:evaluate-repository` — Full repository evaluation prompt (security, architecture, financial integrity, real-time reliability)

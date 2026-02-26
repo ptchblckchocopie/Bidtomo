@@ -61,7 +61,10 @@
       "Bash(PGPASSWORD=\"SAudxRxIxVxtsPnDBpzuZikyCBrDAhdm\" psql:*)",
       "Bash(DATABASE_URI=\"postgresql://postgres:SAudxRxIxVxtsPnDBpzuZikyCBrDAhdm@turntable.proxy.rlwy.net:51903/railway\" DB_PUSH=true PAYLOAD_SECRET=staging-test-secret PAYLOAD_CONFIG_PATH=src/payload.config.ts node:*)",
       "Bash(DATABASE_URI=\"postgresql://postgres:SAudxRxIxVxtsPnDBpzuZikyCBrDAhdm@turntable.proxy.rlwy.net:51903/railway\" DB_PUSH=true PAYLOAD_SECRET=staging-temp-secret SERVER_URL=\"\" REDIS_URL=\"\" ELASTICSEARCH_URL=\"\" timeout 45 npm run:*)",
-      "Bash(chmod +x:*)"
+      "Bash(chmod +x:*)",
+      "Bash(git merge:*)",
+      "Bash(git:*)",
+      "Bash(do echo:*)"
     ]
   }
 }
