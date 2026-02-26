@@ -736,12 +736,17 @@ export default buildConfig({
         useAsTitle: 'id',
       },
       access: {
-        read: ({ req }) => {
-          // Users can only read messages they sent or received
+        read: (({ req }: any) => {
           if (!req.user) return false;
-          // Return true - filtering will be done via hooks
-          return true;
-        },
+          if (req.user.role === 'admin') return true;
+          // DB-level filter: only messages where user is sender or receiver
+          return {
+            or: [
+              { sender: { equals: req.user.id } },
+              { receiver: { equals: req.user.id } },
+            ],
+          };
+        }) as any,
         create: ({ req }) => !!req.user,
         update: ({ req }) => !!req.user,
         delete: ({ req }) => req.user?.role === 'admin',
@@ -798,21 +803,6 @@ export default buildConfig({
             return doc;
           },
         ],
-        afterRead: [
-          async ({ req, doc }) => {
-            // Filter out messages user shouldn't see
-            if (!req.user) return null;
-
-            const senderId = typeof doc.sender === 'object' ? doc.sender.id : doc.sender;
-            const receiverId = typeof doc.receiver === 'object' ? doc.receiver.id : doc.receiver;
-
-            if (senderId === req.user.id || receiverId === req.user.id) {
-              return doc;
-            }
-
-            return null;
-          },
-        ],
       },
       fields: [
         {
@@ -865,31 +855,20 @@ export default buildConfig({
         useAsTitle: 'id',
       },
       access: {
-        read: ({ req }) => {
-          // Users can only read their own transactions
+        read: (({ req }: any) => {
           if (!req.user) return false;
-          return true; // Filtering done via hooks
-        },
+          if (req.user.role === 'admin') return true;
+          // DB-level filter: only transactions where user is buyer or seller
+          return {
+            or: [
+              { buyer: { equals: req.user.id } },
+              { seller: { equals: req.user.id } },
+            ],
+          };
+        }) as any,
         create: ({ req }) => req.user?.role === 'admin',
         update: ({ req }) => !!req.user,
         delete: ({ req }) => req.user?.role === 'admin',
-      },
-      hooks: {
-        afterRead: [
-          async ({ req, doc }) => {
-            // Filter out transactions user shouldn't see
-            if (!req.user) return null;
-
-            const buyerId = typeof doc.buyer === 'object' ? doc.buyer.id : doc.buyer;
-            const sellerId = typeof doc.seller === 'object' ? doc.seller.id : doc.seller;
-
-            if (buyerId === req.user.id || sellerId === req.user.id) {
-              return doc;
-            }
-
-            return null;
-          },
-        ],
       },
       fields: [
         {
