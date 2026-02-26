@@ -240,6 +240,12 @@ const start = async () => {
   // Create conversations for sold products
   app.post('/api/create-conversations', async (req, res) => {
     try {
+      // Admin-only maintenance endpoint
+      const user = await authenticateJWT(req);
+      if (!user || (user as any).role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
       console.log('Starting conversation creation for sold products...');
 
       // Find all sold products
