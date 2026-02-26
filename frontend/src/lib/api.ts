@@ -732,7 +732,7 @@ export async function getCurrentUser(customFetch?: typeof fetch): Promise<User |
 // Place a bid
 export async function placeBid(productId: string, amount: number, censorName: boolean = false): Promise<Bid | null> {
   try {
-    console.log('Placing bid:', { productId, amount, censorName, headers: getAuthHeaders() });
+    console.log('Placing bid:', { productId, amount, censorName });
 
     const response = await fetch(`${BRIDGE_URL}/api/bridge/bids`, {
       method: 'POST',
