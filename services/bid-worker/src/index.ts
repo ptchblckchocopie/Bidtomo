@@ -11,6 +11,16 @@ const EMAIL_QUEUE_KEY = 'email:queue';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 
+// HTML escape for email templates — prevents stored HTML injection
+function escHtml(str: string): string {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Currency symbols for email formatting
 const CURRENCY_SYMBOLS: Record<string, string> = {
   PHP: '₱',
@@ -250,6 +260,16 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
     if (typeof job.amount !== 'number' || isNaN(job.amount) || job.amount <= 0) {
       await client.query('ROLLBACK');
       return { success: false, error: 'Invalid bid amount' };
+    }
+
+    // Shill bidding check: bidder cannot be the product seller
+    const sellerCheck = await client.query(
+      `SELECT users_id FROM products_rels WHERE parent_id = $1 AND path = 'seller'`,
+      [job.productId]
+    );
+    if (sellerCheck.rows.length > 0 && sellerCheck.rows[0].users_id === job.bidderId) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'You cannot bid on your own product' };
     }
 
     // Validate bid amount (ensure numeric values)
@@ -504,6 +524,10 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
 
     // Email to buyer - congratulations for winning
     if (buyer?.email) {
+      const safeBuyerName = escHtml(buyer.name || 'Buyer');
+      const safeSellerName = escHtml(seller?.name || 'Seller');
+      const safeTitle = escHtml(product.title);
+
       await queueEmail({
         to: buyer.email,
         subject: `Congratulations! You won the bid for "${product.title}"`,
@@ -513,14 +537,14 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
               <h1 style="margin: 0;">Congratulations!</h1>
             </div>
             <div style="background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px;">
-              <p>Hi ${buyer.name},</p>
-              <p>Great news! Your bid has been accepted for <strong>${product.title}</strong>.</p>
+              <p>Hi ${safeBuyerName},</p>
+              <p>Great news! Your bid has been accepted for <strong>${safeTitle}</strong>.</p>
               <div style="background: #fef3c7; padding: 15px; border-radius: 4px; margin: 15px 0;">
-                <p style="margin: 5px 0;"><strong>Winning Bid:</strong> ${currencySymbol}${job.amount.toLocaleString()}</p>
-                <p style="margin: 5px 0;"><strong>Seller:</strong> ${seller?.name || 'Seller'}</p>
+                <p style="margin: 5px 0;"><strong>Winning Bid:</strong> ${escHtml(currencySymbol)}${escHtml(job.amount.toLocaleString())}</p>
+                <p style="margin: 5px 0;"><strong>Seller:</strong> ${safeSellerName}</p>
               </div>
               <p>The seller has been notified and will reach out to you shortly to discuss the next steps.</p>
-              <p><a href="${platformUrl}/inbox?product=${job.productId}" style="display: inline-block; background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 15px;">Go to Inbox</a></p>
+              <p><a href="${escHtml(platformUrl)}/inbox?product=${job.productId}" style="display: inline-block; background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 15px;">Go to Inbox</a></p>
               <p style="margin-top: 20px;">Thank you for using Veent Marketplace!</p>
             </div>
           </div>
@@ -531,6 +555,11 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
 
     // Email to seller - item sold notification
     if (seller?.email) {
+      const safeBuyerName = escHtml(buyer?.name || 'Buyer');
+      const safeBuyerEmail = escHtml(buyer?.email || 'N/A');
+      const safeSellerName = escHtml(seller.name || 'Seller');
+      const safeTitle = escHtml(product.title);
+
       await queueEmail({
         to: seller.email,
         subject: `Your item "${product.title}" has been sold!`,
@@ -540,14 +569,14 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
               <h1 style="margin: 0;">Item Sold!</h1>
             </div>
             <div style="background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px;">
-              <p>Hi ${seller.name},</p>
-              <p>Great news! Your item <strong>${product.title}</strong> has been sold.</p>
+              <p>Hi ${safeSellerName},</p>
+              <p>Great news! Your item <strong>${safeTitle}</strong> has been sold.</p>
               <div style="background: #dcfce7; padding: 15px; border-radius: 4px; margin: 15px 0;">
-                <p style="margin: 5px 0;"><strong>Winning Bid:</strong> ${currencySymbol}${job.amount.toLocaleString()}</p>
-                <p style="margin: 5px 0;"><strong>Buyer:</strong> ${buyer?.name || 'Buyer'} (${buyer?.email || 'N/A'})</p>
+                <p style="margin: 5px 0;"><strong>Winning Bid:</strong> ${escHtml(currencySymbol)}${escHtml(job.amount.toLocaleString())}</p>
+                <p style="margin: 5px 0;"><strong>Buyer:</strong> ${safeBuyerName} (${safeBuyerEmail})</p>
               </div>
               <p>A conversation has been automatically created. Please reach out to the buyer to arrange payment and delivery.</p>
-              <p><a href="${platformUrl}/inbox?product=${job.productId}" style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 15px;">Contact Buyer</a></p>
+              <p><a href="${escHtml(platformUrl)}/inbox?product=${job.productId}" style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 15px;">Contact Buyer</a></p>
               <p style="margin-top: 20px;">Thank you for selling on Veent Marketplace!</p>
             </div>
           </div>

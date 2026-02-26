@@ -13,6 +13,7 @@ dotenv.config();
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Configure CORS to allow requests from the frontend (including production URLs)
 const allowedOrigins: string[] = [
@@ -38,17 +39,17 @@ const allowedOrigins: string[] = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    // Allow any local network IP (192.168.x.x) for development
-    if (origin.match(/^http:\/\/192\.168\.\d+\.\d+:\d+$/)) {
-      return callback(null, true);
+    // In production, reject requests with no origin (prevents CORS bypass via curl/file:// URIs)
+    // In development, allow for tools like Postman
+    if (!origin) {
+      return callback(null, !isProduction);
     }
 
-    // Allow Railway deployment URLs
-    if (origin.endsWith('.up.railway.app')) {
-      return callback(null, true);
+    // Allow local network IPs for development only
+    if (!isProduction) {
+      if (origin.match(/^http:\/\/192\.168\.\d+\.\d+:\d+$/)) {
+        return callback(null, true);
+      }
     }
 
     if (allowedOrigins.includes(origin)) {
@@ -68,8 +69,8 @@ app.use(cors({
 // Explicitly handle OPTIONS requests for preflight
 app.options('*', cors());
 
-// Parse JSON body
-app.use(express.json());
+// Parse JSON body with explicit size limit
+app.use(express.json({ limit: '1mb' }));
 
 // Rate limiters
 const loginLimiter = rateLimit({
@@ -407,7 +408,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error creating conversations:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -460,7 +461,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error fetching product status:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -643,7 +644,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error syncing bids:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -822,7 +823,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error queuing bid:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -969,7 +970,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error accepting bid:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1102,7 +1103,7 @@ const start = async () => {
       res.json({ success: true, ...result });
     } catch (error: any) {
       console.error('Elasticsearch sync error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1253,7 +1254,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error creating void request:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1416,7 +1417,7 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('Error responding to void request:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1626,7 +1627,7 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('Error processing seller choice:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1756,26 +1757,28 @@ const start = async () => {
 
         // Send emails
         if (buyer?.email) {
+          const escH = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           await queueEmail({
             to: buyer.email,
             subject: `Congratulations! You've secured "${product.title}"`,
             html: `
               <h2>Congratulations!</h2>
-              <p>Your offer for <strong>${product.title}</strong> has been accepted.</p>
-              <p>Amount: ${voidRequest.secondBidderOffer.offerAmount}</p>
+              <p>Your offer for <strong>${escH(product.title)}</strong> has been accepted.</p>
+              <p>Amount: ${escH(String(voidRequest.secondBidderOffer.offerAmount))}</p>
               <p>Please check your inbox to coordinate with the seller.</p>
             `,
           });
         }
 
         if (seller?.email) {
+          const escH = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           await queueEmail({
             to: seller.email,
-            subject: `${buyer.name} accepted your offer for "${product.title}"`,
+            subject: `Offer accepted for "${product.title}"`,
             html: `
               <h2>Offer Accepted!</h2>
-              <p><strong>${buyer.name}</strong> has accepted your offer for <strong>${product.title}</strong>.</p>
-              <p>Amount: ${voidRequest.secondBidderOffer.offerAmount}</p>
+              <p><strong>${escH(buyer.name)}</strong> has accepted your offer for <strong>${escH(product.title)}</strong>.</p>
+              <p>Amount: ${escH(String(voidRequest.secondBidderOffer.offerAmount))}</p>
               <p>Please check your inbox to coordinate the transaction.</p>
             `,
           });
@@ -1811,12 +1814,13 @@ const start = async () => {
 
         // Email seller
         if (seller?.email) {
+          const escH = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           await queueEmail({
             to: seller.email,
             subject: `Offer declined for "${product.title}"`,
             html: `
               <h2>Offer Declined</h2>
-              <p><strong>${buyer.name}</strong> has declined your offer for <strong>${product.title}</strong>.</p>
+              <p><strong>${escH(buyer.name)}</strong> has declined your offer for <strong>${escH(product.title)}</strong>.</p>
               <p>You may want to restart the bidding to find another buyer.</p>
             `,
           });
@@ -1830,7 +1834,7 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('Error processing second bidder response:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1891,7 +1895,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error fetching void request:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1941,7 +1945,7 @@ const start = async () => {
       res.json({ success: true });
     } catch (error: any) {
       console.error('Error setting typing status:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1975,7 +1979,7 @@ const start = async () => {
       res.json({ typing: typingUsers.length > 0, users: typingUsers });
     } catch (error: any) {
       console.error('Error getting typing status:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -2098,7 +2102,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error fetching user limits:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -2175,7 +2179,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error updating profile picture:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -2241,7 +2245,7 @@ const start = async () => {
       res.json({ success: true });
     } catch (error: any) {
       console.error('Error removing profile picture:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
