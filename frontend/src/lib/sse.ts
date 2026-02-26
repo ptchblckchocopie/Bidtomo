@@ -117,7 +117,15 @@ export interface BidUpdateEvent {
   timestamp: number;
 }
 
-export type SSEEvent = BidEvent | MessageEvent | RedisStatusEvent | ConnectedEvent | AcceptedEvent | TypingEvent | NewProductEvent | BidUpdateEvent;
+export interface ProductVisibilityEvent {
+  type: 'product_visibility';
+  productId: number;
+  active: boolean;
+  title: string;
+  timestamp: number;
+}
+
+export type SSEEvent = BidEvent | MessageEvent | RedisStatusEvent | ConnectedEvent | AcceptedEvent | TypingEvent | NewProductEvent | BidUpdateEvent | ProductVisibilityEvent;
 
 // Product SSE client
 class ProductSSEClient {
