@@ -1,0 +1,38 @@
+name: Deploy to Production
+
+# Runs when code is merged/pushed to main
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-backend:
+    name: Deploy backend to production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy CMS to production
+        run: railway up --service cms --detach --environment production
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy SSE service to production
+        run: railway up --service sse-service --detach --environment production
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy bid-worker to production
+        run: railway up --service bid-worker --detach --environment production
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Done
+        run: |
+          echo "Production deployed!"
+          echo "CMS: https://cms-production-d0f7.up.railway.app"
+          echo "SSE: https://sse-service-production-1d4e.up.railway.app"
