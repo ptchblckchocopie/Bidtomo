@@ -5,7 +5,7 @@
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
-  import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type BidUpdateEvent } from '$lib/sse';
+  import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type BidUpdateEvent, type ProductVisibilityEvent } from '$lib/sse';
   import { updateProduct } from '$lib/api';
 
   let { data, params }: { data: PageData; params?: any } = $props();
@@ -428,6 +428,16 @@
         // New product listed — show notification banner
         if (data.status === 'active') {
           newProductCount++;
+        }
+      } else if (event.type === 'product_visibility') {
+        // Product hidden/unhidden by admin — remove from browse list if hidden
+        const visEvent = event as ProductVisibilityEvent;
+        const pid = String(visEvent.productId);
+        if (!visEvent.active) {
+          // Hidden — remove from visible products
+          data.products = data.products.filter(p => String(p.id) !== pid);
+          // Also remove from admin's removed list so it doesn't linger
+          removedProductIds = [...removedProductIds, visEvent.productId];
         }
       }
     });

@@ -387,22 +387,40 @@ export default buildConfig({
                 });
               }
 
-              // Notify seller via user SSE when product visibility changes (e.g. admin hides it)
+              // Notify all channels when product visibility changes (e.g. admin hides it)
               if (previousDoc && doc.active !== previousDoc.active) {
+                const visibilityPayload = {
+                  type: 'product_visibility',
+                  productId: doc.id,
+                  active: doc.active,
+                  title: doc.title,
+                };
+
+                // Notify seller via user SSE
                 const publishMsg = (global as any).publishMessageNotification;
                 if (publishMsg) {
                   const sellerId = typeof doc.seller === 'object' && doc.seller ? (doc.seller as any).id : doc.seller;
                   if (sellerId) {
                     setImmediate(() => {
-                      publishMsg(sellerId, {
-                        type: 'product_visibility',
-                        productId: doc.id,
-                        active: doc.active,
-                        title: doc.title,
-                      }).catch((err: Error) => console.error('Error publishing product_visibility event:', err));
+                      publishMsg(sellerId, visibilityPayload)
+                        .catch((err: Error) => console.error('Error publishing product_visibility to seller:', err));
                     });
                   }
                 }
+
+                // Notify global SSE (browse page) and product SSE (detail page)
+                const publishGlobal = (global as any).publishGlobalEvent;
+                const publishProduct = (global as any).publishProductUpdate;
+                setImmediate(() => {
+                  if (publishGlobal) {
+                    publishGlobal(visibilityPayload)
+                      .catch((err: Error) => console.error('Error publishing product_visibility to global:', err));
+                  }
+                  if (publishProduct) {
+                    publishProduct(doc.id, visibilityPayload)
+                      .catch((err: Error) => console.error('Error publishing product_visibility to product:', err));
+                  }
+                });
               }
             }
 
