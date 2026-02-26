@@ -679,8 +679,13 @@ const start = async () => {
 
       const { productId, amount, censorName } = req.body;
 
-      if (!productId || !amount) {
-        return res.status(400).json({ error: 'Missing productId or amount' });
+      if (!productId) {
+        return res.status(400).json({ error: 'Missing productId' });
+      }
+
+      // Strict bid amount validation — reject negative, zero, NaN, non-number
+      if (typeof amount !== 'number' || !isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ error: 'Bid amount must be a positive number' });
       }
 
       // Basic validation - get product to check status
@@ -702,9 +707,14 @@ const start = async () => {
         return res.status(400).json({ error: 'Product is not active' });
       }
 
-      // Check auction end date
-      if (new Date(product.auctionEndDate) <= new Date()) {
+      // Check auction end date (with 2-second buffer to account for queue processing delay)
+      const auctionEnd = new Date(product.auctionEndDate).getTime();
+      const now = Date.now();
+      if (auctionEnd <= now) {
         return res.status(400).json({ error: 'Auction has ended' });
+      }
+      if (auctionEnd - now < 2000) {
+        return res.status(400).json({ error: 'Auction is ending, bid cannot be processed in time' });
       }
 
       // Validate bid amount
