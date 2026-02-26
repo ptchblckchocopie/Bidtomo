@@ -88,16 +88,17 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 **Search:** Elasticsearch indexes products for full-text search with fuzzy matching. CMS search endpoint at `GET /api/search/products`. Bridge at `GET /api/bridge/products/search`. See `/project:cms-guide` for details.
 
 **Key files:**
-- `frontend/src/lib/api.ts` — Typed API client (1500+ lines, JWT auth from `localStorage.auth_token`)
+- `frontend/src/lib/api.ts` — Typed API client (1500+ lines, JWT auth)
 - `frontend/src/lib/sse.ts` — SSE clients: ProductSSEClient, UserSSEClient, GlobalSSEClient (with polling fallback)
-- `frontend/src/lib/server/cms.ts` — Bridge proxy helper (cmsRequest, getTokenFromRequest)
-- `frontend/src/lib/stores/auth.ts` — Auth store (persists to localStorage, auto-logout on 401)
+- `frontend/src/lib/server/cms.ts` — Bridge proxy helper (cmsRequest, getTokenFromRequest — reads httpOnly cookie + Authorization header)
+- `frontend/src/lib/stores/auth.ts` — Auth store (user data in localStorage, JWT in httpOnly cookie)
+- `frontend/src/hooks.server.ts` — CSRF Origin validation for bridge endpoints + Sentry
 - `cms/src/payload.config.ts` — Collections: users, products, bids, messages, transactions, void-requests, ratings, media, email-templates
-- `cms/src/server.ts` — All custom Express endpoints (21 endpoints), main business logic (2100+ lines)
+- `cms/src/server.ts` — All custom Express endpoints (21+ endpoints), main business logic (2200+ lines), rate limiting
 - `cms/src/redis.ts` — Redis client, queue helpers, pub/sub publishers
 - `cms/src/auth-helpers.ts` — `authenticateJWT()` for custom endpoints
 - `cms/src/services/elasticSearch.ts` — Elasticsearch indexing and search (edge n-gram analyzer)
-- `cms/src/services/emailService.ts` — Email queue via Redis + Resend API (rate-limited 2/sec)
+- `cms/src/services/emailService.ts` — Email queue via Redis + Resend API (rate-limited 2/sec), `escHtml()` for template safety
 
 ## Important Conventions
 
@@ -138,7 +139,25 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 
 **Collections:** All defined inline in `cms/src/payload.config.ts` (not separate files): `users`, `products`, `bids`, `messages`, `transactions`, `void-requests`, `ratings`, `media`. Media uses S3 via `@payloadcms/plugin-cloud-storage` (DigitalOcean Spaces).
 
-**Auth:** JWT-based. Frontend stores token in `localStorage.auth_token`. Bridge routes forward it as `Authorization: JWT <token>`. Custom endpoints use `authenticateJWT()` from `cms/src/auth-helpers.ts`. User roles: `admin`, `seller`, `buyer`.
+**Auth:** JWT-based, dual transport. Login bridge sets an `httpOnly` cookie (`auth_token`, Secure, SameSite=Strict). Bridge helper `getTokenFromRequest()` reads from cookie first, then `Authorization: JWT <token>` header. Token also kept in `localStorage` as fallback for SSE connections. Custom CMS endpoints use `authenticateJWT()` from `cms/src/auth-helpers.ts`. User roles: `admin`, `seller`, `buyer`.
+
+## Security Model
+
+**Access control uses Payload `Where` queries** (not afterRead hooks) for messages, transactions, void-requests, and products. This filters at the DB level. Internal `payload.find/findByID` calls use `overrideAccess: true` (Payload local API default), so server-side logic is unaffected.
+
+**Rate limiting:** CMS uses `express-rate-limit` — login (10/15min), registration (5/hr), bid queue/accept (30/min). Void requests are rate-limited at 5/user/24hr in application logic.
+
+**CSRF:** `hooks.server.ts` validates Origin header on all state-changing bridge requests. Combined with `SameSite=Strict` cookie.
+
+**SSE auth:** `/events/users/:userId` requires `?token=<jwt>` query param verified against `PAYLOAD_SECRET`. Product and global endpoints are unauthenticated (public data).
+
+**Email templates:** All user-controlled values must be escaped with `escHtml()` (defined in `emailService.ts`). The `renderTemplate()` function auto-escapes `{{variable}}` substitutions.
+
+**Users PII:** `afterRead` hook strips email, phone, countryCode from REST API responses. Only admins and the user themselves see full data. The hook checks `req.res` to skip for local API calls.
+
+**Products visibility:** `read` access returns a `Where` query — non-admins only see `active: true` products (plus their own). Frontend load guards in `+page.ts` files provide defense-in-depth.
+
+**Protected routes:** Use `+page.ts` load guards with `redirect()`, not client-side `onMount` checks. See `frontend/src/routes/sell/+page.ts`, `profile/+page.ts`, `inbox/+page.ts`.
 
 ## Testing & Quality
 
