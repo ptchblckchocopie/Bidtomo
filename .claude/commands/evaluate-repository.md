@@ -22,6 +22,7 @@ Browser (SPA, SSR disabled)
 ```
 
 **Services (independently deployed, NOT a monorepo):**
+
 - `frontend/` — SvelteKit 2 + Svelte 5, Tailwind CSS 3, adapter-vercel
 - `cms/` — Payload CMS 2 on Express, PostgreSQL, Elasticsearch, Redis
 - `services/sse-service/` — Redis-to-SSE event relay
@@ -44,6 +45,19 @@ Perform a thorough, evidence-based review of this repository.
 5. Base your assessment on repository contents, documentation, and code inspection.
 
 When uncertain, state what you cannot verify and why.
+
+### Scoped Mode
+
+If `$ARGUMENTS` matches one of the category names below, run ONLY that category instead of the full evaluation:
+
+- `code-quality` — Category 1 only
+- `security` — Category 2 only
+- `docs` — Category 3 only
+- `functionality` — Category 4 only
+- `hygiene` — Category 5 only
+- `claude-code` — Claude-Code-Specific Checklist + Permissions analysis only
+
+When running scoped, still read the previous output file, but only update the relevant section(s) and the changelog. Skip all other sections — leave them unchanged in the output file.
 
 ---
 
@@ -150,14 +164,14 @@ Unique to auction platforms:
 
 For each service pair, verify consistency:
 
-| Check | CMS ↔ Bid Worker | CMS ↔ SSE Service | CMS ↔ Frontend Bridge |
-|-------|:-:|:-:|:-:|
-| Redis channel names match | | | |
-| JWT token format handled identically | | | |
-| Error response shapes consistent | | | |
-| Product status enum values aligned | | | |
-| Bid amount types (number vs string) consistent | | | |
-| Environment variable names aligned | | | |
+| Check                                          | CMS ↔ Bid Worker | CMS ↔ SSE Service | CMS ↔ Frontend Bridge |
+| ---------------------------------------------- | :--------------: | :---------------: | :-------------------: |
+| Redis channel names match                      |                  |                   |                       |
+| JWT token format handled identically           |                  |                   |                       |
+| Error response shapes consistent               |                  |                   |                       |
+| Product status enum values aligned             |                  |                   |                       |
+| Bid amount types (number vs string) consistent |                  |                   |                       |
+| Environment variable names aligned             |                  |                   |                       |
 
 ---
 
@@ -235,22 +249,23 @@ Reference `/.claude/commands/tech-debt.md` for known items. Evaluate:
 
 ### Category Scores
 
-| Category | Score | Weight |
-|----------|-------|--------|
-| Code Quality & Architecture | /10 | High |
-| Security & Safety | /10 | Critical |
-| Financial & Auction Integrity | /10 | Critical |
-| Real-Time System Reliability | /10 | High |
-| Documentation & Transparency | /10 | Medium |
-| Testing & Quality Assurance | /10 | High |
-| DevOps & Deployment | /10 | Medium |
-| Repository Hygiene | /10 | Low |
+| Category                      | Score | Weight   |
+| ----------------------------- | ----- | -------- |
+| Code Quality & Architecture   | /10   | High     |
+| Security & Safety             | /10   | Critical |
+| Financial & Auction Integrity | /10   | Critical |
+| Real-Time System Reliability  | /10   | High     |
+| Documentation & Transparency  | /10   | Medium   |
+| Testing & Quality Assurance   | /10   | High     |
+| DevOps & Deployment           | /10   | Medium   |
+| Repository Hygiene            | /10   | Low      |
 
 ### Weighted Overall Score: X / 10
 
 ### Recommendation
 
 Choose one:
+
 - **Production-ready** — Safe for real users and real money
 - **Production-ready with caveats** — Functional but specific risks must be addressed
 - **Needs remediation before production** — Critical issues that could cause data loss or financial harm
@@ -278,6 +293,39 @@ List the 5 highest-impact improvements, ordered by urgency:
 
 ---
 
-REPOSITORY: The Bidtomo repository you are currently working in.
+## Previous Evaluation & Status Tracking
+
+Before starting, read the file `docs/evaluate-repository-output.md` if it exists.
+
+If a previous evaluation exists:
+
+- The output file uses a **status column** on each finding: `OPEN`, `RESOLVED`, or `NEW`.
+- Do NOT generate a separate comparison section. Instead, update statuses **in-place**:
+  - If a previously `OPEN` issue is now fixed, change its status to `RESOLVED`.
+  - If a previously `OPEN` issue still exists, leave it as `OPEN`.
+  - If you find a new issue not in the previous output, add it with status `NEW`.
+- Update scores for each category based on current state.
+
+If no previous evaluation exists, mark all findings as `NEW` and note "First evaluation — no prior baseline."
+
+---
+
+## Save Output
+
+After completing the evaluation, update `docs/evaluate-repository-output.md` in-place:
+
+1. Update the **Date** header to today.
+2. Update finding statuses (`OPEN` / `RESOLVED` / `NEW`) and category scores.
+3. **Append one line** to the `## Changelog` section at the bottom in this format:
+   ```
+   | YYYY-MM-DD | X.X/10 | N critical, N high, N medium, N low | Brief summary of changes |
+   ```
+4. Do NOT delete the changelog history — only append.
+
+This keeps the output file as both the current baseline and a running history.
+
+---
+
+REPOSITORY:
 
 IF ARGUMENTS PRESENT: <REPO>$ARGUMENTS</REPO>
