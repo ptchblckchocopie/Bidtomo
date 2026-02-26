@@ -702,8 +702,28 @@ const start = async () => {
       );
 
       if (!result.success) {
-        // If Redis is down, fall back to direct bid creation
+        // If Redis is down, fall back to direct bid creation with full validation
         console.warn('[CMS] Redis queue failed, falling back to direct bid creation');
+
+        // Validate bid amount is a valid positive number
+        if (typeof amount !== 'number' || !isFinite(amount) || amount <= 0) {
+          return res.status(400).json({ error: 'Invalid bid amount' });
+        }
+
+        // Check auction end date
+        if (product.auctionEndDate && new Date(product.auctionEndDate) <= new Date()) {
+          return res.status(400).json({ error: 'Auction has ended' });
+        }
+
+        // Validate minimum bid
+        const currentBid = Number(product.currentBid) || 0;
+        const bidInterval = Number(product.bidInterval) || 1;
+        const startingPrice = Number(product.startingPrice) || 0;
+        const minimumBid = currentBid > 0 ? currentBid + bidInterval : startingPrice;
+
+        if (amount < minimumBid) {
+          return res.status(400).json({ error: `Bid must be at least ${minimumBid}` });
+        }
 
         const bidTime = new Date().toISOString();
         const bid = await payload.create({
@@ -841,6 +861,16 @@ const start = async () => {
       if (!result.success) {
         // Fallback to direct update if Redis is down
         console.warn('[CMS] Redis queue failed, falling back to direct accept');
+
+        // Re-fetch product to check status atomically (prevent double-acceptance race condition)
+        const freshProduct = await payload.findByID({
+          collection: 'products',
+          id: productId,
+        });
+
+        if (freshProduct.status !== 'available') {
+          return res.status(400).json({ error: `Product is already ${freshProduct.status}` });
+        }
 
         await payload.update({
           collection: 'products',
@@ -1091,6 +1121,15 @@ const start = async () => {
         return res.status(400).json({ error: `Cannot void transaction with status: ${transaction.status}` });
       }
 
+      // Cooldown: reject void requests on transactions created less than 1 hour ago
+      const transactionCreatedAt = new Date(transaction.createdAt).getTime();
+      const oneHourMs = 60 * 60 * 1000;
+      if (Date.now() - transactionCreatedAt < oneHourMs) {
+        return res.status(400).json({
+          error: 'Void requests can only be submitted at least 1 hour after the transaction was created',
+        });
+      }
+
       // Check if there's already a pending void request
       const existingRequests = await payload.find({
         collection: 'void-requests',
@@ -1103,6 +1142,21 @@ const start = async () => {
 
       if (existingRequests.docs.length > 0) {
         return res.status(400).json({ error: 'There is already a pending void request for this transaction' });
+      }
+
+      // Rate limit: prevent spam by checking total void requests from this user in the last 24 hours
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const recentUserRequests = await payload.find({
+        collection: 'void-requests',
+        where: {
+          initiator: { equals: userId },
+          createdAt: { greater_than: oneDayAgo },
+        },
+        limit: 0,
+      });
+
+      if (recentUserRequests.totalDocs >= 5) {
+        return res.status(429).json({ error: 'Too many void requests. Please try again later.' });
       }
 
       const initiatorRole = userId === sellerId ? 'seller' : 'buyer';
