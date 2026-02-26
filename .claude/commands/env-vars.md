@@ -1,7 +1,7 @@
 # Environment Variables
 
 ## Backend (cms/.env)
-`DATABASE_URI`, `PAYLOAD_SECRET`, `S3_BUCKET`/`S3_REGION`/`S3_ACCESS_KEY`/`S3_SECRET_KEY`, `SUPABASE_URL`, `RESEND_API_KEY`, `REDIS_URL`, `PORT` (default 3001), `SERVER_URL`, `FRONTEND_URL`
+`DATABASE_URI`, `PAYLOAD_SECRET`, `S3_BUCKET`/`S3_REGION`/`S3_ACCESS_KEY`/`S3_SECRET_KEY`, `SUPABASE_URL`, `RESEND_API_KEY`, `REDIS_URL`, `ELASTICSEARCH_URL` (default `http://localhost:9200`), `PORT` (default 3001), `SERVER_URL`, `FRONTEND_URL`
 
 ## Frontend
 `PUBLIC_API_URL` / `VITE_API_URL` / `CMS_URL` pointing to the CMS backend URL, `PUBLIC_SSE_URL` pointing to the SSE service

@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "PayloadCMS backend for marketplace platform",
   "main": "dist/server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts nodemon",
     "build": "tsc --skipLibCheck && payload build",
