@@ -96,7 +96,7 @@ export default buildConfig({
       connectionString: process.env.DATABASE_URI || process.env.DATABASE_URL || 'postgresql://localhost:5432/marketplace',
     },
     migrationDir: path.resolve(__dirname, '../migrations'),
-    push: false, // Disable - use manual migrations
+    push: process.env.DB_PUSH === 'true', // Enable via env var for staging schema sync
     ...(process.env.NODE_ENV === 'production' && {
       ssl: process.env.DATABASE_CA_CERT ? {
         rejectUnauthorized: true,
@@ -354,20 +354,30 @@ export default buildConfig({
               setImmediate(() => {
                 esIndex(doc).catch((err: Error) => console.error('ES index error:', err));
               });
-            } else if (operation === 'update' && esUpdate) {
-              setImmediate(() => {
-                esUpdate(doc.id, {
-                  title: doc.title,
-                  description: doc.description,
-                  keywords: (doc.keywords || []).map((k: any) => k.keyword || k).filter(Boolean).join(' '),
-                  currentBid: doc.currentBid || 0,
-                  status: doc.status || 'available',
-                  active: doc.active !== false,
-                  region: doc.region || '',
-                  city: doc.city || '',
-                  updatedAt: doc.updatedAt,
-                }).catch((err: Error) => console.error('ES update error:', err));
-              });
+            } else if (operation === 'update' && esUpdate && previousDoc) {
+              // Only update ES when search-relevant fields change (skip currentBid-only updates)
+              const searchFieldsChanged =
+                doc.title !== previousDoc.title ||
+                doc.description !== previousDoc.description ||
+                doc.status !== previousDoc.status ||
+                doc.active !== previousDoc.active ||
+                doc.region !== previousDoc.region ||
+                doc.city !== previousDoc.city;
+              if (searchFieldsChanged) {
+                setImmediate(() => {
+                  esUpdate(doc.id, {
+                    title: doc.title,
+                    description: doc.description,
+                    keywords: (doc.keywords || []).map((k: any) => k.keyword || k).filter(Boolean).join(' '),
+                    currentBid: doc.currentBid || 0,
+                    status: doc.status || 'available',
+                    active: doc.active !== false,
+                    region: doc.region || '',
+                    city: doc.city || '',
+                    updatedAt: doc.updatedAt,
+                  }).catch((err: Error) => console.error('ES update error:', err));
+                });
+              }
             }
 
             return doc;
