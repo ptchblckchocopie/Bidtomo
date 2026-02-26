@@ -137,7 +137,7 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 - **PM2:** `ecosystem.config.js` manages all 4 services on the production server
 - **Migrations:** Auto-applied during deploy; also `npm run migrate` in `cms/`
 
-**Collections:** All defined inline in `cms/src/payload.config.ts` (not separate files): `users`, `products`, `bids`, `messages`, `transactions`, `void-requests`, `ratings`, `media`. Media uses S3 via `@payloadcms/plugin-cloud-storage` (DigitalOcean Spaces).
+**Collections:** Most defined inline in `cms/src/payload.config.ts`: `users`, `products`, `bids`, `messages`, `transactions`, `void-requests`, `ratings`, `media`. `email-templates` is in `cms/src/collections/EmailTemplates.ts`. Media uses S3 via `@payloadcms/plugin-cloud-storage` (DigitalOcean Spaces).
 
 **Auth:** JWT-based, dual transport. Login bridge sets an `httpOnly` cookie (`auth_token`, Secure, SameSite=Strict). Bridge helper `getTokenFromRequest()` reads from cookie first, then `Authorization: JWT <token>` header. Token also kept in `localStorage` as fallback for SSE connections. Custom CMS endpoints use `authenticateJWT()` from `cms/src/auth-helpers.ts`. User roles: `admin`, `seller`, `buyer`.
 

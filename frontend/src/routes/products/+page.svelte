@@ -977,6 +977,7 @@
             disabled={adminModalLoading}
           >
             {#if adminModalLoading}
+              <span class="modal-spinner"></span>
               Processing...
             {:else}
               {adminModalProduct.active ? 'Hide Item' : 'Unhide Item'}
@@ -1730,6 +1731,22 @@
     opacity: 0.6;
     cursor: not-allowed;
     transform: none;
+  }
+
+  .modal-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: modalSpin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 0.4rem;
+  }
+
+  @keyframes modalSpin {
+    to { transform: rotate(360deg); }
   }
 
   .status-active {
