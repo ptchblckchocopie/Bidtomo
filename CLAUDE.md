@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Bidmo.to is a full-stack auction marketplace with real-time bidding. It consists of independently managed services (not a monorepo — no shared workspace tooling):
 
 - **`frontend/`** — SvelteKit 2 + Svelte 5, Tailwind CSS 3, adapter-vercel
-- **`cms/`** — Payload CMS 2 on Express, PostgreSQL (via `@payloadcms/db-postgres`), Webpack bundler
+- **`cms/`** — Payload CMS 2 on Express, PostgreSQL (via `@payloadcms/db-postgres`), Webpack bundler, Elasticsearch for search
 - **`services/sse-service/`** — Standalone SSE server for real-time product updates
 - **`services/bid-worker/`** — Background Redis queue consumer for bid processing
 
@@ -46,12 +46,15 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 
 **Real-time:** Bids queued via Redis → bid-worker processes → SSE service pushes live updates to clients via `frontend/src/lib/sse.ts`.
 
+**Search:** Elasticsearch indexes products for full-text search with fuzzy matching. CMS search endpoint at `GET /api/search/products`. Bridge at `GET /api/bridge/products/search`. See `/project:cms-guide` for details.
+
 **Key files:**
 - `frontend/src/lib/api.ts` — Typed API client (JWT auth from `localStorage.auth_token`)
 - `cms/src/payload.config.ts` — Collections: users, products, bids, messages, transactions, void-requests, ratings, media
 - `cms/src/server.ts` — All custom Express endpoints (20+), main business logic
 - `cms/src/redis.ts` — Redis client, queue helpers, pub/sub publishers
 - `cms/src/auth-helpers.ts` — `authenticateJWT()` for custom endpoints
+- `cms/src/services/elasticSearch.ts` — Elasticsearch client, indexing, search, bulk sync
 
 **SSR disabled** — The app is a client-side SPA (`export const ssr = false` in `+layout.ts`).
 
