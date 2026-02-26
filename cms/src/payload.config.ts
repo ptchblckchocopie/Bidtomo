@@ -944,7 +944,14 @@ export default buildConfig({
         group: 'Transactions',
       },
       access: {
-        read: ({ req }) => !!req.user,
+        read: (({ req }: any) => {
+          if (!req.user) return false;
+          if (req.user.role === 'admin') return true;
+          // DB-level filter: only void requests initiated by this user
+          // (the other transaction party accesses via the custom API endpoints in server.ts,
+          //  which use overrideAccess: true)
+          return { initiator: { equals: req.user.id } };
+        }) as any,
         create: ({ req }) => !!req.user,
         update: ({ req }) => !!req.user,
         delete: ({ req }) => req.user?.role === 'admin',
