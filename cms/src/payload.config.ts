@@ -96,7 +96,7 @@ export default buildConfig({
       connectionString: process.env.DATABASE_URI || process.env.DATABASE_URL || 'postgresql://localhost:5432/marketplace',
     },
     migrationDir: path.resolve(__dirname, '../migrations'),
-    push: false, // Disable - use manual migrations
+    push: process.env.DB_PUSH === 'true', // Enable via env var for staging schema sync
     ...(process.env.NODE_ENV === 'production' && {
       ssl: process.env.DATABASE_CA_CERT ? {
         rejectUnauthorized: true,

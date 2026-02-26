@@ -7,6 +7,7 @@
 - **Bid Worker** — Railway service `bid-worker`
 - **Database** — Railway PostgreSQL service
 - **Redis** — Railway Redis service
+- **Elasticsearch** — Railway Elasticsearch service (used for product search)
 - **Storage** — Supabase Storage (S3-compatible), bucket: `bidmo-media`, prefix: `bidmoto/`
 
 ## Deploying CMS to Railway
