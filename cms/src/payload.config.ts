@@ -124,6 +124,25 @@ export default buildConfig({
         update: ({ req }) => !!req.user,
         delete: ({ req }) => req.user?.role === 'admin',
       },
+      hooks: {
+        afterRead: [
+          ({ req, doc }: any) => {
+            // Skip PII stripping for internal/local API calls (no Express response object)
+            // This preserves email access for server.ts email notifications, bid processing, etc.
+            if (!req.res) return doc;
+
+            // Admins see everything
+            if (req.user?.role === 'admin') return doc;
+
+            // Users see their own full profile
+            if (req.user?.id === doc.id) return doc;
+
+            // Strip PII for everyone else (including populated relations in products, bids, etc.)
+            const { email, phoneNumber, countryCode, ...publicData } = doc;
+            return publicData;
+          },
+        ],
+      },
       fields: [
         {
           name: 'name',
