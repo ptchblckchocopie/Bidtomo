@@ -310,7 +310,12 @@ class UserSSEClient {
 
     try {
       const token = getAuthToken();
-      const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+      if (!token) {
+        this.state.set('disconnected');
+        return;
+      }
+      const tokenParam = `?token=${encodeURIComponent(token)}`;
+      const connectTime = Date.now();
       this.eventSource = new EventSource(`${SSE_URL}/events/users/${this.userId}${tokenParam}`);
 
       this.eventSource.onopen = () => {
@@ -334,6 +339,15 @@ class UserSSEClient {
       };
 
       this.eventSource.onerror = () => {
+        // If connection failed within 2s of opening, likely a 401/403 (auth error)
+        // not a network blip — stop retrying to avoid spamming with expired tokens
+        const failedFast = Date.now() - connectTime < 2000;
+        if (failedFast && this.eventSource?.readyState === EventSource.CLOSED) {
+          this.state.set('disconnected');
+          this.eventSource?.close();
+          this.eventSource = null;
+          return;
+        }
         this.state.set('error');
         this.handleReconnect();
       };
