@@ -359,7 +359,7 @@ const start = async () => {
         id: currentUserId as string,
         data: {
           profilePicture: mediaId,
-          role: currentUser.role,
+          role: (currentUser as any).role,
         },
         overrideAccess: true,
       });
@@ -414,7 +414,7 @@ const start = async () => {
         id: currentUserId as string,
         data: {
           profilePicture: null as any,
-          role: currentUser.role,
+          role: (currentUser as any).role,
         },
         overrideAccess: true,
       });
