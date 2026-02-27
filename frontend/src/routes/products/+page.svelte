@@ -36,7 +36,9 @@
   // Clear loading when data changes (new results arrived)
   $effect(() => {
     const _products = data.products;
+    const _users = data.users;
     const _status = data.status;
+    const _searchType = data.searchType;
     loading = false;
     lastStatus = _status;
   });
@@ -112,6 +114,7 @@
   }
 
   function handleSearchTypeChange(type: string) {
+    if (searchTypeInput === type) return; // Already on this tab
     searchTypeInput = type;
     loading = true;
     updateURL({
@@ -647,10 +650,6 @@
           {/each}
         </div>
       </section>
-    {:else if !data.search}
-      <div class="empty-state">
-        <p>Type a name to search for users</p>
-      </div>
     {:else if data.users && data.users.length > 0}
       <section class="auction-section">
         <div class="users-grid">
