@@ -769,7 +769,7 @@
     {/if}
   </div>
 
-  {#if mode === 'edit'}
+  {#if mode === 'edit' && $authStore.user?.role === 'admin'}
     <div class="form-group">
       <label class="checkbox-label">
         <input

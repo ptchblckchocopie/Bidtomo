@@ -439,9 +439,11 @@
                     <button class="btn-edit" onclick={() => openEditModal(product)}>
                       ✏️ Edit
                     </button>
-                    <button class="btn-hide" onclick={() => openHideModal(product)}>
-                      🙈 Hide
-                    </button>
+                    {#if data.user?.role === 'admin'}
+                      <button class="btn-hide" onclick={() => openHideModal(product)}>
+                        🙈 Hide
+                      </button>
+                    {/if}
                     <a href="/products/{product.id}" class="btn-view">
                       👁️ View
                     </a>
@@ -505,9 +507,11 @@
                     <button class="btn-edit" onclick={() => openEditModal(product)}>
                       ✏️ Edit
                     </button>
-                    <button class="btn-unhide" onclick={() => openHideModal(product)}>
-                      👁️ Unhide
-                    </button>
+                    {#if data.user?.role === 'admin'}
+                      <button class="btn-unhide" onclick={() => openHideModal(product)}>
+                        👁️ Unhide
+                      </button>
+                    {/if}
                     <a href="/products/{product.id}" class="btn-view">
                       🔗 View
                     </a>
