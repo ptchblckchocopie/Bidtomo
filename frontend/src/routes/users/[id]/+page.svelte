@@ -493,7 +493,7 @@
     gap: 1.5rem;
     padding: 2rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .profile-avatar {
@@ -676,12 +676,12 @@
 
   .status-badge.available {
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .status-badge.sold {
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     opacity: 0.7;
   }
 
@@ -835,7 +835,7 @@
     gap: 0.25rem;
     padding: 0.25rem 0.5rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
     text-decoration: none;
@@ -1062,7 +1062,7 @@
 
   .buyer-badge {
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .seller-badge {

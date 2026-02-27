@@ -1736,7 +1736,7 @@
     display: inline-block;
     padding: 0.75rem 2rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     text-decoration: none;
     font-weight: 600;
     border: var(--border-bh) solid var(--color-red);
@@ -1801,7 +1801,7 @@
   .tab.active {
     background: var(--color-red);
     border-color: var(--color-red);
-    color: var(--color-white);
+    color: white;
     opacity: 1;
   }
 
@@ -1979,17 +1979,17 @@
 
   .status-active {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .status-sold {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .status-ended {
     background-color: var(--color-fg);
-    color: var(--color-white);
+    color: white;
   }
 
   :global(html.dark) .status-ended {
@@ -2120,7 +2120,7 @@
   .send-btn {
     padding: 0.75rem 2rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-red);
     font-weight: 600;
     font-size: 1rem;
@@ -2278,7 +2278,7 @@
     display: inline-block;
     padding: 0.75rem 2rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     text-decoration: none;
     font-weight: 600;
     border: var(--border-bh) solid var(--color-red);
@@ -2307,7 +2307,7 @@
 
   .back-btn:hover:not(:disabled) {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
   }
 
   .back-btn:disabled {
@@ -2486,7 +2486,7 @@
     margin-top: 0.75rem;
     padding: 0.5rem 1rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-blue);
     font-weight: 600;
     font-size: 0.85rem;
@@ -2664,7 +2664,7 @@
   .btn-submit {
     padding: 0.75rem 1.5rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-red);
     font-weight: 600;
     font-size: 0.95rem;
@@ -2699,7 +2699,7 @@
     gap: 0.4rem;
     padding: 0.35rem 1rem;
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     border: 2px solid var(--color-fg);
     font-weight: 700;
     font-size: 0.8rem;
@@ -3025,5 +3025,113 @@
       flex-direction: column;
       text-align: center;
     }
+  }
+
+  /* ── Dark mode fixes ── */
+
+  /* Chat input: needs dark bg + light text */
+  :global(html.dark) .chat-input {
+    background: #0F0F12;
+    color: var(--color-fg);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.10);
+    border-radius: 8px !important;
+  }
+
+  :global(html.dark) .chat-input:focus {
+    border-color: var(--color-accent, #5E6AD2);
+    box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+    outline: none;
+  }
+
+  /* Send button */
+  :global(html.dark) .send-btn {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
+    border-color: var(--color-accent, #5E6AD2);
+    border-width: 1px;
+    border-radius: 8px !important;
+  }
+
+  /* All buttons that use color: var(--color-white) on accent bg */
+  :global(html.dark) .btn-browse,
+  :global(html.dark) .view-product-btn,
+  :global(html.dark) .btn-submit,
+  :global(html.dark) .submit-rating-btn {
+    color: #fff;
+  }
+
+  /* Inbox tabs */
+  :global(html.dark) .tab.active {
+    background: var(--color-accent, #5E6AD2);
+    border-color: var(--color-accent, #5E6AD2);
+    color: #fff;
+  }
+
+  /* Back button hover */
+  :global(html.dark) .back-btn:hover:not(:disabled) {
+    color: #fff;
+  }
+
+  /* Rating bar */
+  :global(html.dark) .rating-bar {
+    background: rgba(201, 168, 48, 0.10);
+    border-top-width: 1px;
+    border-top-color: rgba(255, 255, 255, 0.06);
+  }
+
+  /* Conversations list & chat area surfaces */
+  :global(html.dark) .conversations-list,
+  :global(html.dark) .chat-area,
+  :global(html.dark) .modal-content {
+    background: var(--color-bg);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.06);
+    border-radius: 12px !important;
+  }
+
+  /* Inbox tab surface */
+  :global(html.dark) .tab {
+    background: transparent;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.06);
+    border-radius: 8px !important;
+  }
+
+  :global(html.dark) .tab:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* Rating comment textarea */
+  :global(html.dark) .comment-input textarea {
+    background: #0F0F12;
+    color: var(--color-fg);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.10);
+    border-radius: 8px !important;
+  }
+
+  :global(html.dark) .comment-input textarea:focus {
+    border-color: var(--color-accent, #5E6AD2);
+    box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+  }
+
+  /* Modal input fields */
+  :global(html.dark) .modal-content input,
+  :global(html.dark) .modal-content textarea,
+  :global(html.dark) .modal-content select {
+    background: #0F0F12;
+    color: var(--color-fg);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.10);
+    border-radius: 8px !important;
+  }
+
+  :global(html.dark) .modal-content input:focus,
+  :global(html.dark) .modal-content textarea:focus,
+  :global(html.dark) .modal-content select:focus {
+    border-color: var(--color-accent, #5E6AD2);
+    box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+    outline: none;
   }
 </style>

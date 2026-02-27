@@ -1676,7 +1676,7 @@
   .edit-product-btn {
     padding: 0.75rem 1.5rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
     font-size: 1rem;
@@ -1999,12 +1999,12 @@
 
   .status-active {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .status-ended {
     background-color: var(--color-red);
-    color: var(--color-white);
+    color: white;
   }
 
   .status-sold {
@@ -2014,7 +2014,7 @@
 
   .status-available {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .bid-section-header-wrapper {
@@ -2074,7 +2074,7 @@
   }
 
   .countdown-timer-inline .countdown-time {
-    color: var(--color-white);
+    color: white;
     font-size: 1.5rem;
     font-weight: 900;
     font-family: 'Courier New', monospace;
@@ -2096,7 +2096,7 @@
   }
 
   .highest-bid-container {
-    color: var(--color-white);
+    color: white;
     position: relative;
     width: 100%;
   }
@@ -2143,7 +2143,7 @@
   }
 
   .countdown-timer-badge .countdown-time {
-    color: var(--color-white);
+    color: white;
     font-weight: 900;
     letter-spacing: 1px;
     font-family: 'Courier New', monospace;
@@ -2162,7 +2162,7 @@
     font-size: 3.5rem;
     font-weight: 900;
     line-height: 1;
-    color: var(--color-white);
+    color: white;
     margin-bottom: 0;
   }
 
@@ -2179,7 +2179,7 @@
   }
 
   .arrow-up-icon {
-    color: var(--color-white);
+    color: white;
     animation: arrowBounce 1s ease-in-out infinite;
     flex-shrink: 0;
   }
@@ -2187,7 +2187,7 @@
   .percentage-text {
     font-size: 1.25rem;
     font-weight: 900;
-    color: var(--color-white);
+    color: white;
     letter-spacing: 0.5px;
   }
 
@@ -2275,7 +2275,7 @@
     font-weight: 900;
     letter-spacing: 3px;
     margin-bottom: 0.75rem;
-    color: var(--color-white);
+    color: white;
     background-color: rgba(255, 255, 255, 0.2);
     padding: 0.5rem 1.5rem;
     display: inline-block;
@@ -2286,7 +2286,7 @@
     font-size: 1.1rem;
     font-weight: 600;
     margin-top: 0.75rem;
-    color: var(--color-white);
+    color: white;
     opacity: 0.95;
   }
 
@@ -2373,7 +2373,7 @@
   }
 
   .outbid-alert .alert-text {
-    color: var(--color-white);
+    color: white;
     flex: 1;
   }
 
@@ -2449,12 +2449,12 @@
   .winner-alert-header .alert-text {
     font-size: 1.5rem;
     font-weight: 800;
-    color: var(--color-white);
+    color: white;
     letter-spacing: 0.5px;
   }
 
   .winner-alert-message {
-    color: var(--color-white);
+    color: white;
     font-size: 1rem;
     margin-bottom: 1rem;
     line-height: 1.5;
@@ -2530,7 +2530,7 @@
     background: var(--color-blue);
     border: var(--border-bh) solid var(--color-border);
     cursor: pointer;
-    color: var(--color-white);
+    color: white;
     font-weight: 600;
     font-size: 0.9rem;
     box-shadow: var(--shadow-bh-sm);
@@ -2616,7 +2616,7 @@
     align-items: center;
     gap: 0.25rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     padding: 0.375rem 0.75rem;
     font-size: 0.875rem;
     font-weight: 600;
@@ -2674,7 +2674,7 @@
     width: 100%;
     padding: 1rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     text-align: center;
     text-decoration: none;
     font-weight: 600;
@@ -2740,7 +2740,7 @@
 
   .bid-arrow-btn {
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     border: 2px solid var(--color-border);
     width: 48px;
     height: 48px;
@@ -2823,7 +2823,7 @@
     font-size: 1.1rem;
     font-weight: 700;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
     cursor: pointer;
@@ -2850,7 +2850,7 @@
 
   .success-message {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     padding: 1rem;
     margin-bottom: 1rem;
     animation: slideDown 0.3s ease-out;
@@ -2859,7 +2859,7 @@
 
   .error-message {
     background-color: var(--color-red);
-    color: var(--color-white);
+    color: white;
     padding: 1rem;
     margin-bottom: 1rem;
     animation: slideDown 0.3s ease-out;
@@ -2868,7 +2868,7 @@
 
   .info-message {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     padding: 1rem;
     margin-bottom: 1rem;
     text-align: center;
@@ -2913,7 +2913,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-white);
+    color: white;
     font-weight: 600;
     font-size: 1.25rem;
     border: 2px solid var(--color-border);
@@ -3037,7 +3037,7 @@
   .view-profile-btn:hover {
     background: var(--color-blue);
     border-color: var(--color-border);
-    color: var(--color-white);
+    color: white;
   }
 
   /* Price Analytics */
@@ -3251,7 +3251,7 @@
     top: -0.75rem;
     right: 1rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     padding: 0.375rem 0.875rem;
     font-size: 0.75rem;
     font-weight: 700;
@@ -3379,7 +3379,7 @@
 
   .btn-login {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-login:hover {
@@ -3389,7 +3389,7 @@
 
   .btn-register {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-register:hover {
@@ -3434,7 +3434,7 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 0.75rem;
-    color: var(--color-white);
+    color: white;
   }
 
   .confirm-row:last-child {
@@ -3525,7 +3525,7 @@
 
   .btn-confirm-bid {
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-confirm-bid:hover {
@@ -3633,7 +3633,7 @@
 
   .btn-save-edit {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-save-edit:hover:not(:disabled) {
@@ -3686,7 +3686,7 @@
     font-size: 1.2rem;
     font-weight: 700;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
     cursor: pointer;
@@ -3723,7 +3723,7 @@
     border: var(--border-bh) solid var(--color-border);
     cursor: pointer;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-accept-bid:hover:not(:disabled) {
@@ -3814,7 +3814,7 @@
 
   .duration-btn:hover:not(:disabled) {
     background-color: var(--color-red);
-    color: var(--color-white);
+    color: white;
     transform: translateY(-2px);
     box-shadow: var(--shadow-bh-sm);
   }
@@ -3860,7 +3860,7 @@
   .apply-duration-btn {
     padding: 0.625rem 1.5rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     font-size: 0.95rem;
     font-weight: 600;
@@ -3958,7 +3958,7 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    color: var(--color-white);
+    color: white;
     animation: iconPop 0.5s ease-out 0.2s both;
     border: 2px solid var(--color-border);
   }
@@ -3985,7 +3985,7 @@
   .toast-title {
     font-weight: 700;
     font-size: 1rem;
-    color: var(--color-white);
+    color: white;
   }
 
   .toast-subtitle {
@@ -4002,7 +4002,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: var(--color-white);
+    color: white;
     transition: all 0.2s;
     flex-shrink: 0;
   }
@@ -4205,7 +4205,7 @@
     top: 8px;
     right: 8px;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     padding: 0.25rem 0.625rem;
     font-size: 0.7rem;
     font-weight: 800;
@@ -4282,7 +4282,7 @@
     gap: 0.5rem;
     padding: 1rem 2rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     font-weight: 600;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
@@ -4331,7 +4331,7 @@
     width: 32px;
     height: 32px;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: 2px solid var(--color-border);
     font-size: 1.25rem;
     cursor: pointer;
@@ -4359,7 +4359,7 @@
     bottom: 0.5rem;
     left: 0.5rem;
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
     font-weight: 600;
@@ -4370,7 +4370,7 @@
     top: 0.5rem;
     left: 0.5rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     padding: 0.25rem 0.5rem;
     font-size: 0.7rem;
     font-weight: 600;

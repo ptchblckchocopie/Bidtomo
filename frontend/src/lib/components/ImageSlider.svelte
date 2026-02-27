@@ -315,7 +315,7 @@
     top: 50%;
     transform: translateY(-50%);
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     border: none;
     font-size: 3rem;
     width: 50px;
@@ -351,7 +351,7 @@
     bottom: 1rem;
     right: 1rem;
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     padding: 0.5rem 1rem;
     font-size: 0.9rem;
     font-weight: 700;
@@ -495,7 +495,7 @@
     top: 20px;
     right: 20px;
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-white);
     font-size: 2.5rem;
     width: 60px;
@@ -540,7 +540,7 @@
     top: 50%;
     transform: translateY(-50%);
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-white);
     font-size: 4rem;
     width: 70px;
@@ -575,7 +575,7 @@
     left: 50%;
     transform: translateX(-50%);
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     padding: 0.75rem 1.5rem;
     font-size: 1.1rem;
     font-weight: 700;
