@@ -13,6 +13,8 @@ Bidmo.to is a full-stack auction marketplace with real-time bidding. Independent
 
 ## Initial Setup
 
+**Node.js 20+** required (CMS `engines` field enforces this; nixpacks deploys with `nodejs_20`).
+
 Each service has its own `package.json` — run `npm install` in each directory independently. Copy `.env.example` files before starting:
 
 ```bash
@@ -48,8 +50,10 @@ Each service: `npm run build` to build, `npm start` to run.
 
 ```bash
 docker compose -f docker-compose.local.yml up -d  # Local dev: Postgres :5433, Redis :6380
-./start-docker.sh    # Full stack: all containers
+./start.sh.local     # Full local dev: starts Docker + all 4 services with health checks & colored logs
+./start-docker.sh    # Full stack: all containers (Docker only)
 ./stop-docker.sh     # Stop all
+pm2 start ecosystem.config.js  # Alternative: PM2 process manager for all 4 services
 ```
 
 **Ports:** Frontend 5173 | CMS 3001 | SSE 3002 | Postgres 5433 | Redis 6379/6380

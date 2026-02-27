@@ -2,9 +2,9 @@ import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse } from '$l
 import type { RequestHandler } from './$types';
 
 // POST /api/bridge/users/profile-picture — Set profile picture (mediaId in JSON body)
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, cookies }) => {
   try {
-    const token = getTokenFromRequest(request);
+    const token = getTokenFromRequest(request, cookies);
     if (!token) {
       return errorResponse('Unauthorized', 401);
     }
@@ -38,9 +38,9 @@ export const POST: RequestHandler = async ({ request }) => {
 };
 
 // DELETE /api/bridge/users/profile-picture — Remove profile picture
-export const DELETE: RequestHandler = async ({ request }) => {
+export const DELETE: RequestHandler = async ({ request, cookies }) => {
   try {
-    const token = getTokenFromRequest(request);
+    const token = getTokenFromRequest(request, cookies);
     if (!token) {
       return errorResponse('Unauthorized', 401);
     }

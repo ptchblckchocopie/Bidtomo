@@ -98,12 +98,13 @@
 
     try {
       const token = getAuthToken();
+      const patchHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) patchHeaders['Authorization'] = `JWT ${token}`;
+
       const response = await fetch('/api/bridge/users/me', {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `JWT ${token}`,
-        },
+        headers: patchHeaders,
+        credentials: 'include',
         body: JSON.stringify({
           name: editName.trim(),
           countryCode: editCountryCode,
@@ -186,11 +187,13 @@
       const formData = new FormData();
       formData.append('file', file);
 
+      const uploadHeaders: Record<string, string> = {};
+      if (token) uploadHeaders['Authorization'] = `JWT ${token}`;
+
       const uploadResponse = await fetch('/api/bridge/media', {
         method: 'POST',
-        headers: {
-          'Authorization': `JWT ${token}`,
-        },
+        headers: uploadHeaders,
+        credentials: 'include',
         body: formData,
       });
 
@@ -207,12 +210,13 @@
       }
 
       // Step 2: Set as profile picture (CMS handles old image deletion)
+      const setHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) setHeaders['Authorization'] = `JWT ${token}`;
+
       const setResponse = await fetch('/api/bridge/users/profile-picture', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `JWT ${token}`,
-        },
+        headers: setHeaders,
+        credentials: 'include',
         body: JSON.stringify({ mediaId }),
       });
 
@@ -251,11 +255,13 @@
     try {
       const token = getAuthToken();
 
+      const deleteHeaders: Record<string, string> = {};
+      if (token) deleteHeaders['Authorization'] = `JWT ${token}`;
+
       const response = await fetch('/api/bridge/users/profile-picture', {
         method: 'DELETE',
-        headers: {
-          'Authorization': `JWT ${token}`,
-        },
+        headers: deleteHeaders,
+        credentials: 'include',
       });
 
       if (!response.ok) {
