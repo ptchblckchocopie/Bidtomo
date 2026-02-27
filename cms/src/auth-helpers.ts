@@ -1,3 +1,8 @@
+import crypto from 'crypto';
+
+// Payload v2 hashes the secret before signing JWTs
+const payloadJwtSecret = crypto.createHash('sha256').update(process.env.PAYLOAD_SECRET!).digest('hex').slice(0, 32);
+
 export async function authenticateJWT(req: any): Promise<any | null> {
   const jwt = require('jsonwebtoken');
   // If already authenticated via cookie, return existing user
@@ -14,10 +19,8 @@ export async function authenticateJWT(req: any): Promise<any | null> {
   const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
 
   try {
-    const secret = process.env.PAYLOAD_SECRET!;
-
-    // Verify and decode JWT
-    const decoded: any = jwt.verify(token, secret);
+    // Verify and decode JWT using the same hashed secret Payload uses
+    const decoded: any = jwt.verify(token, payloadJwtSecret);
 
     // Fetch user from database
     if (decoded.id) {
