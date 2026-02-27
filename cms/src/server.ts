@@ -2,6 +2,7 @@ import express from 'express';
 import payload from 'payload';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
@@ -20,13 +21,6 @@ const allowedOrigins: string[] = [
   'http://localhost:5173',
   'http://localhost:3001',
   'http://localhost:3000',
-  'http://192.168.18.117:5173',
-  'http://192.168.18.117:3001',
-  'http://192.168.1.34:5173',
-  'http://192.168.1.34:3001',
-  'http://157.230.40.58',
-  'http://157.230.40.58:3001',
-  'http://157.230.40.58:3000',
   'https://bidmo.to',
   'https://www.bidmo.to',
   'https://app.bidmo.to',
@@ -68,6 +62,12 @@ app.use(cors({
 
 // Explicitly handle OPTIONS requests for preflight
 app.options('*', cors());
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Payload admin panel manages its own CSP
+  crossOriginEmbedderPolicy: false, // Allow cross-origin media loading
+}));
 
 // Parse JSON body with explicit size limit
 app.use(express.json({ limit: '1mb' }));
@@ -2256,6 +2256,9 @@ const start = async () => {
   if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server listening on port ${PORT}`);
+      if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_CA_CERT) {
+        console.warn('[SECURITY] DATABASE_CA_CERT not set — DB SSL certificate verification is disabled. Set DATABASE_CA_CERT for full TLS verification.');
+      }
     });
   }
 };

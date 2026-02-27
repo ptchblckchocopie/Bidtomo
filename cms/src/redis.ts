@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import crypto from 'crypto';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const BID_QUEUE_KEY = 'bids:pending';
@@ -54,7 +55,7 @@ export function isRedisConnected(): boolean {
 
 // Generate unique job ID
 function generateJobId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
 }
 
 interface BidJob {

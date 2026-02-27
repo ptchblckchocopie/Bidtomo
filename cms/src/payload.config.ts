@@ -35,8 +35,6 @@ export default buildConfig({
   cors: [
     'http://localhost:5173',
     'http://localhost:3001',
-    'http://192.168.18.117:5173',
-    'http://192.168.18.117:3001',
     'https://www.bidmo.to',
     'https://bidmo.to',
     'https://app.bidmo.to',
@@ -46,8 +44,6 @@ export default buildConfig({
   csrf: [
     'http://localhost:5173',
     'http://localhost:3001',
-    'http://192.168.18.117:5173',
-    'http://192.168.18.117:3001',
     'https://www.bidmo.to',
     'https://bidmo.to',
     'https://app.bidmo.to',
@@ -102,7 +98,7 @@ export default buildConfig({
         rejectUnauthorized: true,
         ca: process.env.DATABASE_CA_CERT,
       } : {
-        rejectUnauthorized: false, // Accept self-signed certificates
+        rejectUnauthorized: false, // Railway proxy uses self-signed certs; set DATABASE_CA_CERT for full verification
       },
     }),
   }),

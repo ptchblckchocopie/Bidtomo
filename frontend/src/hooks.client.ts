@@ -11,7 +11,7 @@ Sentry.init({
     replaysOnErrorSampleRate: 1,
     integrations: [Sentry.replayIntegration()],
     enableLogs: true,
-    sendDefaultPii: true
+    sendDefaultPii: false
 })
 
 // Initialize auth state when the app loads
