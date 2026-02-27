@@ -1393,22 +1393,23 @@
             <div class="error-message">{error}</div>
           {/if}
 
-          <!-- Compact Rating Prompt -->
+          <!-- Compact Rating Bar -->
           {#if selectedProduct.status === 'sold' && transaction}
             <div class="rating-bar">
               {#if !myRating}
-                <button class="rating-bar-link" onclick={() => { ratingValue = 0; ratingComment = ''; ratingError = ''; showRatingModal = true; }}>
-                  Rate {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'the buyer') : (sellerName || 'the seller')}?
+                <button class="rating-bar-btn" onclick={() => { ratingValue = 0; ratingComment = ''; ratingError = ''; showRatingModal = true; }}>
+                  <span class="rating-bar-star">★</span>
+                  <span>Rate {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'the buyer') : (sellerName || 'the seller')}</span>
                 </button>
               {:else}
-                <span class="rating-bar-done">
-                  <span class="rating-check">✓</span>
-                  Rated {myRating.rating}/5
+                <div class="rating-bar-done">
+                  <span class="rating-bar-star filled">★</span>
+                  <span class="rating-bar-label">You rated {myRating.rating}/5</span>
                   {#if otherPartyRating}
-                    <span class="rating-bar-separator">|</span>
-                    They rated you {otherPartyRating.rating}/5
+                    <span class="rating-bar-divider"></span>
+                    <span class="rating-bar-label">They rated you {otherPartyRating.rating}/5</span>
                   {/if}
-                </span>
+                </div>
               {/if}
             </div>
           {/if}
@@ -2671,42 +2672,67 @@
   .rating-bar {
     border-top: var(--border-bh) solid var(--color-border);
     padding: 0.5rem 1.25rem;
-    text-align: center;
-    font-size: 0.85rem;
+    background: var(--color-yellow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .rating-bar-link {
-    background: none;
-    border: none;
-    color: var(--color-blue);
-    font-weight: 600;
-    font-size: 0.85rem;
-    cursor: pointer;
+  .rating-bar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 1rem;
+    background: var(--color-fg);
+    color: var(--color-white);
+    border: 2px solid var(--color-fg);
+    font-weight: 700;
+    font-size: 0.8rem;
     font-family: inherit;
-    text-decoration: underline;
-    text-underline-offset: 2px;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    box-shadow: 2px 2px 0px var(--color-border);
   }
 
-  .rating-bar-link:hover {
-    opacity: 0.8;
+  .rating-bar-btn:hover {
+    transform: translateY(1px);
+    box-shadow: 1px 1px 0px var(--color-border);
+  }
+
+  .rating-bar-btn:active {
+    transform: translateY(2px);
+    box-shadow: none;
+  }
+
+  .rating-bar-star {
+    font-size: 0.9rem;
+    color: var(--color-yellow);
+  }
+
+  .rating-bar-star.filled {
+    color: var(--color-fg);
   }
 
   .rating-bar-done {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 0.35rem;
-    color: var(--color-fg);
-    opacity: 0.7;
+    gap: 0.4rem;
     font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-fg);
   }
 
-  .rating-check {
-    color: var(--color-blue);
+  .rating-bar-label {
+    opacity: 0.85;
   }
 
-  .rating-bar-separator {
+  .rating-bar-divider {
+    width: 3px;
+    height: 3px;
+    background: var(--color-fg);
     opacity: 0.4;
-    margin: 0 0.15rem;
+    flex-shrink: 0;
   }
 
   /* Mobile responsive for new elements */
@@ -2739,7 +2765,7 @@
     }
 
     .rating-bar {
-      padding: 0.5rem 1rem;
+      padding: 0.4rem 0.75rem;
     }
   }
 
