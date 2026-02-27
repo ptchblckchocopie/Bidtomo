@@ -1270,7 +1270,7 @@ export default buildConfig({
       access: {
         read: () => true,
         create: ({ req }) => !!req.user,
-        update: ({ req }) => !!req.user,
+        update: ({ req }) => req.user?.role === 'admin',
         delete: ({ req }) => req.user?.role === 'admin',
       },
       fields: [
