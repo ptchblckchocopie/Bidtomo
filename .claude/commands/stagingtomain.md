@@ -1,8 +1,8 @@
-# Staging to Main — Production Merge & Deploy
+# Staging to Main — Production Pull Request
 
-You are about to help the user merge the `staging` branch into `main` for a production deployment. This will trigger: (1) GitHub Actions deploying CMS, SSE service, and bid-worker to Railway production, and (2) Vercel auto-deploying the frontend to production at `bidmo.to`.
+You are about to help the user create a Pull Request from `staging` into `main` for a production deployment. This will NOT merge or push — it creates a PR that the team reviews and merges manually via GitHub.
 
-**This is a production deploy — be thorough and careful.**
+**This targets production — be thorough and careful.**
 
 ## Steps
 
@@ -18,25 +18,39 @@ Run `git status --short`. If there are uncommitted changes, warn the user and as
    - Run `git log HEAD..origin/staging --oneline`
    - If there are incoming commits, run `git pull origin staging` to sync.
 4. Confirm staging is now in sync: `git log origin/staging..HEAD --oneline` should be empty.
+5. Push any local-only commits: if `git log origin/staging..HEAD --oneline` shows commits before pull, run `git push origin staging`.
 
-### Step 3: Ensure main is up to date
-
-1. Run `git checkout main`.
-2. Run `git pull origin main` to sync with remote.
-3. If pull fails due to divergence, use `git pull --rebase origin main`.
-
-### Step 4: Check what will be merged
+### Step 3: Check what will be in the PR
 
 Run these commands to understand what staging has that main doesn't:
-- `git log main..staging --oneline` to see commits that will be merged
-- `git diff main..staging --stat` to see changed files summary
-- `git diff main..staging` to read the actual diff (don't dump raw to user)
+- `git log origin/main..origin/staging --oneline` to see commits that will be in the PR
+- `git diff origin/main..origin/staging --stat` to see changed files summary
+- `git diff origin/main..origin/staging` to read the actual diff (don't dump raw to user)
 
 If there are **no commits** to merge, tell the user "Nothing to merge — main is up to date with staging." and stop.
 
-### Step 5: Verify staging health (pre-merge sanity check)
+### Step 4: Check for conflicts
 
-Before merging, verify the staging services are healthy (these are the same code that will be deployed to production). Run these health checks **in parallel**:
+1. Run `git merge-tree $(git merge-base origin/main origin/staging) origin/main origin/staging` or do a dry-run merge to detect conflicts:
+   ```
+   git checkout -B temp-merge-check origin/main
+   git merge --no-commit --no-ff origin/staging
+   ```
+2. Check for conflicts with `git diff --name-only --diff-filter=U`.
+3. **Abort the test merge immediately:** `git merge --abort && git checkout staging`
+
+If there are **no conflicts**, note "Clean merge — no conflicts detected."
+
+If there **are conflicts**, list each conflicted file and for each one:
+- Read the file and explain what both sides changed
+- Suggest how to resolve it (which version to keep, or how to combine both)
+- Note whether it's a logic conflict (needs careful review) or a trivial conflict (formatting, generated files, lock files)
+
+**Do NOT resolve the conflicts yourself.** Just report them. The team will handle resolution during the PR review.
+
+### Step 5: Verify staging health (pre-PR sanity check)
+
+Before creating the PR, verify the staging services are healthy. Run these health checks **in parallel**:
 
 1. **CMS Health:** `curl -s --max-time 10 https://cms-staging-v2.up.railway.app/api/health`
    - Expect JSON with `status: "ok"`.
@@ -51,7 +65,7 @@ Before merging, verify the staging services are healthy (these are the same code
 Generate a health status table:
 
 ```
-### Staging Health (Pre-Merge)
+### Staging Health
 
 | Service       | Status          | Redis | Elasticsearch |
 |---------------|-----------------|-------|---------------|
@@ -60,37 +74,22 @@ Generate a health status table:
 | Frontend      | ✓ OK / ✗ Down   | N/A   | N/A           |
 ```
 
-- If **CMS is down**: STOP. Code is broken in staging — do NOT merge to production. Ask the user to fix staging first.
-- If **SSE is down**: WARN. Real-time features won't work in production. Flag it.
+- If **CMS is down**: WARN. Code may be broken in staging — flag this in the PR description.
+- If **SSE is down**: WARN. Real-time features may not work. Flag it.
 - If **Frontend returns non-200**: WARN. Possible build issue.
-- If services are **unreachable/timeout**: Note as "Unreachable (may be sleeping)". Non-blocking but flag it.
+- If services are **unreachable/timeout**: Note as "Unreachable (may be sleeping)". Non-blocking.
 
-### Step 6: Merge staging into main
+### Step 6: Generate the report and create the PR
 
-1. Make sure you're on `main`: `git checkout main`
-2. Run `git merge staging --no-ff -m "Merge staging into main for production deploy"`
-   - The `--no-ff` flag preserves the merge commit for clear history.
-   - If the merge succeeds cleanly, continue to Step 7.
-   - If there are **merge conflicts**:
-     a. Run `git diff --name-only --diff-filter=U` to list conflicted files.
-     b. For each conflicted file, read it, understand both sides of the conflict, and resolve it:
-        - **Prefer the staging version** (that's the code we want to deploy).
-        - If main has hotfixes not in staging, keep both changes.
-        - For `package-lock.json`: delete and regenerate with `npm install` in the affected directory.
-        - For generated files (`payload-types.ts`, etc.): prefer the staging version.
-     c. After resolving, stage files with `git add <file>` and complete with `git commit`.
-     d. Show the user exactly what conflicts were found and how each was resolved.
-     e. Ask the user to confirm the resolutions look correct before proceeding.
-
-### Step 7: Generate the production deploy report
+First, show the user this report:
 
 ```
-## Production Deploy Report: staging → main
+## Production PR Report: staging → main
 
 **Date:** <current date>
-**Commits being deployed:** <count>
+**Commits in PR:** <count>
 
-### Staging Health (Pre-Merge)
+### Staging Health
 
 | Service       | Status | Redis | Elasticsearch |
 |---------------|--------|-------|---------------|
@@ -107,11 +106,11 @@ Generate a health status table:
 ### Summary
 <2-4 bullet points describing WHAT changed and WHY, grouped by feature/fix>
 
-### Conflicts Resolved
-<if any conflicts were resolved in Step 6, list them here>
-<if no conflicts, omit this section>
+### Conflicts
+<if conflicts detected in Step 4, list them with suggested resolutions>
+<if no conflicts: "Clean merge — no conflicts detected.">
 
-### What Will Happen on Push
+### What Will Happen When Merged
 1. **GitHub Actions** will deploy CMS, SSE service, and bid-worker to **Railway production**
 2. **Vercel** will auto-deploy frontend to **bidmo.to** (production)
 
@@ -120,66 +119,87 @@ Generate a health status table:
 <if DB migrations are included, WARN that they will auto-run on deploy>
 ```
 
-### Step 8: Final confirmation — MANDATORY
+### Step 7: Final confirmation — MANDATORY
 
-**CRITICAL: You MUST stop here and wait for the user's explicit response. Do NOT proceed to Step 9 under any circumstances until the user replies.**
+**CRITICAL: You MUST stop here and wait for the user's explicit response. Do NOT create the PR under any circumstances until the user replies.**
 
 After showing the full report, ask the user:
 
-> Everything above will be deployed to **PRODUCTION** (`bidmo.to`).
-> This will trigger Railway backend deploys AND Vercel frontend deploy.
+> This will create a Pull Request from `staging` → `main`. It will **NOT** merge or deploy anything — your team can review and merge it manually.
 >
-> **Do you want to proceed with the push to main? (yes/no)**
+> **Do you want to create the PR? (yes/no)**
 
-Then STOP. Do not run any git push command. Wait for the user to respond in a new message.
+Then STOP. Do not run any gh command. Wait for the user to respond in a new message.
 
-- If the user says **yes / y / go / push / do it / confirm** → proceed to Step 9.
-- If the user says **no / n / stop / cancel / wait / not yet** or anything other than a clear yes → acknowledge and stop. Do not push.
-- If the user asks to change something first → help them make the change, amend or add a commit, then re-run from Step 7.
+- If the user says **yes / y / go / create / do it / confirm** → proceed to Step 8.
+- If the user says **no / n / stop / cancel / wait / not yet** or anything other than a clear yes → acknowledge and stop. Do not create the PR.
+- If the user asks to change something first → help them make the change, then re-run from Step 3.
 
-### Step 9: Push to main
+### Step 8: Create the Pull Request
 
-Only run this step AFTER the user has explicitly confirmed in Step 8.
+Only run this step AFTER the user has explicitly confirmed in Step 7.
 
-1. Run `git push origin main`.
-2. Show the push result.
-3. Show the GitHub Actions status link: `https://github.com/ptchblckchocopie/Bidtomo/actions`
-4. Tell the user:
+Create the PR using `gh pr create`:
+
+```bash
+gh pr create \
+  --base main \
+  --head staging \
+  --title "Production Deploy: <brief summary of changes>" \
+  --body "$(cat <<'EOF'
+## Production Deploy: staging → main
+
+### Summary
+<2-4 bullet points from the report>
+
+### Commits
+<list each commit: hash + message>
+
+### Files Changed
+<count> files changed, <insertions> insertions, <deletions> deletions
+
+### Staging Health at PR Creation
+| Service | Status | Redis | Elasticsearch |
+|---------|--------|-------|---------------|
+| CMS     | ...    | ...   | ...           |
+| SSE     | ...    | ...   | ...           |
+| Frontend| ...    | N/A   | N/A           |
+
+### What Happens on Merge
+1. **GitHub Actions** deploys CMS, SSE, bid-worker to **Railway production**
+2. **Vercel** auto-deploys frontend to **bidmo.to**
+
+### Potential Risks
+<risks from report, or "None identified.">
+
+---
+🤖 Generated with [Claude Code](https://claude.ai/code)
+EOF
+)"
+```
+
+After creating the PR, show the user:
 
 ```
-### Deploy Triggered ✓
+### Pull Request Created ✓
 
-**Backend (Railway):** GitHub Actions workflow started
-  - CMS: https://cms-production-d0f7.up.railway.app
-  - SSE: https://sse-service-production-1d4e.up.railway.app
+**PR:** <PR URL>
 
-**Frontend (Vercel):** Auto-deploy triggered
-  - Production: https://bidmo.to
-
-Monitor the deploy:
-  - GitHub Actions: https://github.com/ptchblckchocopie/Bidtomo/actions
-  - Vercel dashboard: check Vercel project page
-
-Backend deploys typically take 2-5 minutes. Frontend deploys typically take 1-2 minutes.
+**Next steps:**
+1. Review the PR on GitHub with your team
+2. When ready, merge via GitHub to trigger production deploy
+3. After merge, deploys will trigger automatically:
+   - Backend (Railway): https://github.com/ptchblckchocopie/Bidtomo/actions
+   - Frontend (Vercel): auto-deploys to https://bidmo.to
 ```
-
-### Step 10: Post-deploy health check (optional)
-
-After the user confirms deploys are complete (or after ~3 minutes), offer to run production health checks:
-
-1. **CMS:** `curl -s --max-time 10 https://cms-production-d0f7.up.railway.app/api/health`
-2. **SSE:** `curl -s --max-time 10 https://sse-service-production-1d4e.up.railway.app/health`
-3. **Frontend:** `curl -s -o /dev/null -w "%{http_code}" --max-time 10 https://bidmo.to/`
-
-Report results in the same table format.
 
 ## Rules
 
-- **NEVER push without the user's explicit "yes" in Step 8.** The confirmation is not rhetorical — always wait.
-- **Never force push to main.** If a regular push fails, investigate why and report to the user.
-- **Prefer staging version** in conflict resolution — staging is the tested code.
+- **NEVER create the PR without the user's explicit "yes" in Step 7.** The confirmation is not rhetorical — always wait.
+- **NEVER merge the PR yourself.** Only create it. The team merges manually.
+- **NEVER push directly to main.** All production deploys go through PRs.
+- **Do NOT resolve conflicts.** Report them with suggested fixes — the team handles resolution during PR review.
 - Keep the summary human-readable — no raw diffs in the output, just the report.
-- If conflict resolution changed any logic (not just whitespace/formatting), always ask the user to review before continuing.
-- If ALL staging services are down, strongly recommend fixing staging before merging to production.
+- If ALL staging services are down, strongly recommend fixing staging before creating the PR.
 - Health checks should have a 10-second timeout — don't hang waiting for unresponsive services.
-- After pushing, switch back to the `staging` branch: `git checkout staging` so the user continues working on staging.
+- After creating the PR, stay on the `staging` branch so the user continues working on staging.
