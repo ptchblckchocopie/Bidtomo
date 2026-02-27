@@ -1017,6 +1017,11 @@
     transition: opacity 0.2s;
   }
 
+  :global(html.dark) .drag-handle {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+
   .image-preview-item:hover .drag-handle {
     opacity: 1;
   }
@@ -1052,6 +1057,11 @@
     transform: scale(1.1);
   }
 
+  :global(html.dark) .remove-image-btn:hover:not(:disabled) {
+    background: #ff5555;
+    color: #fff;
+  }
+
   .remove-image-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -1066,6 +1076,11 @@
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
     font-weight: 700;
+  }
+
+  :global(html.dark) .image-number {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
   }
 
   .new-badge {
@@ -1181,6 +1196,11 @@
   .toast.error {
     background: var(--color-red);
     color: white;
+  }
+
+  :global(html.dark) .toast.error {
+    background: #ff5555;
+    color: #fff;
   }
 
   .toast-icon {

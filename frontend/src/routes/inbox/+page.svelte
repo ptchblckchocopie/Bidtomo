@@ -1992,6 +1992,16 @@
     color: var(--color-white);
   }
 
+  :global(html.dark) .status-ended {
+    background: rgba(255, 85, 85, 0.15);
+    color: #ff7777;
+  }
+
+  :global(html.dark) .status-sold {
+    background: rgba(94, 106, 210, 0.2);
+    color: #8b93e0;
+  }
+
   .view-product-link {
     color: var(--color-red);
     text-decoration: none;
@@ -2030,6 +2040,11 @@
   .message.mine .message-content {
     background: var(--color-blue);
     color: white;
+  }
+
+  :global(html.dark) .message.mine .message-content {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
   }
 
   .message-sender {
@@ -2693,6 +2708,12 @@
     letter-spacing: 0.02em;
     transition: transform 0.1s ease, box-shadow 0.1s ease;
     box-shadow: 2px 2px 0px var(--color-border);
+  }
+
+  :global(html.dark) .rating-bar-btn {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
+    border-color: var(--color-accent, #5E6AD2);
   }
 
   .rating-bar-btn:hover {
