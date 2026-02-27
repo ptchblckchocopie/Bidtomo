@@ -352,12 +352,14 @@ const start = async () => {
       }
 
       // Update user with new profile picture
-      // overrideAccess bypasses field validation that requires 'role' on every update
+      // overrideAccess bypasses access control but NOT field validation.
+      // Payload v2 requires all `required` fields in the data, so include `role`.
       const updatedUser = await payload.update({
         collection: 'users',
         id: currentUserId as string,
         data: {
           profilePicture: mediaId,
+          role: currentUser.role,
         },
         overrideAccess: true,
       });
@@ -412,6 +414,7 @@ const start = async () => {
         id: currentUserId as string,
         data: {
           profilePicture: null as any,
+          role: currentUser.role,
         },
         overrideAccess: true,
       });
