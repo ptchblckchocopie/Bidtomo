@@ -28,6 +28,7 @@ const allowedOrigins: string[] = [
   'http://www.bidmo.to',
   'http://app.bidmo.to',
   'https://cms-production-d0f7.up.railway.app',
+  'https://cms-staging-v2.up.railway.app',
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
 ];
 
