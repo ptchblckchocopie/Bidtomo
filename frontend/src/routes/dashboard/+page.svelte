@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { PageData } from './$types';
-  import { type Product, fetchProduct } from '$lib/api';
+  import { type Product, fetchProduct, updateProduct } from '$lib/api';
   import { fetchMyPurchases } from '$lib/api';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -34,6 +34,51 @@
   let viewingProduct: Product | null = $state(null);
   let showProductModal = $state(false);
   let selectedProduct: Product | null = $state(null);
+
+  // Hide/unhide confirmation modal
+  let showHideModal = $state(false);
+  let hideModalProduct: Product | null = $state(null);
+  let hideModalLoading = $state(false);
+
+  function openHideModal(product: Product) {
+    hideModalProduct = product;
+    showHideModal = true;
+  }
+
+  function closeHideModal() {
+    showHideModal = false;
+    hideModalLoading = false;
+    hideModalProduct = null;
+  }
+
+  async function confirmToggleVisibility() {
+    if (!hideModalProduct) return;
+    hideModalLoading = true;
+    try {
+      const newActive = !hideModalProduct.active;
+      const result = await updateProduct(String(hideModalProduct.id), { active: newActive });
+      if (result) {
+        const productId = hideModalProduct.id;
+        if (newActive) {
+          // Move from hidden to active
+          const product = hiddenProducts.find(p => p.id === productId);
+          if (product) {
+            hiddenProducts = hiddenProducts.filter(p => p.id !== productId);
+            activeProducts = [...activeProducts, { ...product, active: true }];
+          }
+        } else {
+          // Move from active to hidden
+          const product = activeProducts.find(p => p.id === productId);
+          if (product) {
+            activeProducts = activeProducts.filter(p => p.id !== productId);
+            hiddenProducts = [...hiddenProducts, { ...product, active: false }];
+          }
+        }
+      }
+    } finally {
+      closeHideModal();
+    }
+  }
 
   // Product view state
   let productTab: 'active' | 'hidden' | 'ended' = $state('active');
@@ -365,6 +410,9 @@
                     <button class="btn-edit" onclick={() => openEditModal(product)}>
                       ✏️ Edit
                     </button>
+                    <button class="btn-hide" onclick={() => openHideModal(product)}>
+                      🙈 Hide
+                    </button>
                     <a href="/products/{product.id}" class="btn-view">
                       👁️ View
                     </a>
@@ -428,8 +476,11 @@
                     <button class="btn-edit" onclick={() => openEditModal(product)}>
                       ✏️ Edit
                     </button>
+                    <button class="btn-unhide" onclick={() => openHideModal(product)}>
+                      👁️ Unhide
+                    </button>
                     <a href="/products/{product.id}" class="btn-view">
-                      👁️ View
+                      🔗 View
                     </a>
                   </div>
                 </div>
@@ -694,6 +745,48 @@
           </div>
 
           <a href="/products/{selectedProduct.id}" class="btn-view-full">View Full Details</a>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Hide/Unhide Confirmation Modal -->
+{#if showHideModal && hideModalProduct}
+  <div class="hide-modal-overlay" onclick={closeHideModal} onkeydown={(e) => e.key === 'Escape' && closeHideModal()} role="button" tabindex="-1">
+    <div class="hide-modal-content" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+      <button class="hide-modal-close" onclick={closeHideModal} disabled={hideModalLoading}>&times;</button>
+
+      <div class="hide-modal-header">
+        <h2>{hideModalProduct.active ? 'Hide Product' : 'Unhide Product'}</h2>
+      </div>
+
+      <div class="hide-modal-body">
+        <p class="hide-modal-product-title">"{hideModalProduct.title}"</p>
+        <p class="hide-modal-description">
+          {#if hideModalProduct.active}
+            This product will be hidden from the Browse Products page and won't be visible to other users. You can unhide it later from the Hidden tab.
+          {:else}
+            This product will be restored and visible to all users again on the Browse Products page.
+          {/if}
+        </p>
+
+        <div class="hide-modal-actions">
+          <button class="btn-hide-cancel" onclick={closeHideModal} disabled={hideModalLoading}>
+            Cancel
+          </button>
+          <button
+            class="btn-hide-confirm {hideModalProduct.active ? 'btn-confirm-hide' : 'btn-confirm-unhide'}"
+            onclick={confirmToggleVisibility}
+            disabled={hideModalLoading}
+          >
+            {#if hideModalLoading}
+              <span class="hide-spinner"></span>
+              Processing...
+            {:else}
+              {hideModalProduct.active ? 'Hide Product' : 'Unhide Product'}
+            {/if}
+          </button>
         </div>
       </div>
     </div>
@@ -1602,5 +1695,210 @@
       text-align: center;
       display: block;
     }
+
+    .hide-modal-content {
+      margin: 1rem;
+      max-width: calc(100vw - 2rem);
+    }
+  }
+
+  /* Hide/Unhide buttons */
+  .btn-hide,
+  .btn-unhide {
+    flex: 1;
+    padding: 0.625rem 1rem;
+    border: 2px solid var(--color-border);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn-hide {
+    background: var(--color-muted);
+    color: var(--color-fg);
+  }
+
+  .btn-hide:hover {
+    background: var(--color-fg);
+    color: var(--color-white);
+  }
+
+  .btn-unhide {
+    background: #22c55e;
+    color: white;
+  }
+
+  .btn-unhide:hover {
+    opacity: 0.85;
+  }
+
+  /* Hide/Unhide Confirmation Modal */
+  .hide-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: hideOverlayFadeIn 0.2s ease-out;
+  }
+
+  @keyframes hideOverlayFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .hide-modal-content {
+    background: var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-sm);
+    max-width: 440px;
+    width: 100%;
+    position: relative;
+    animation: hideModalSlideUp 0.25s ease-out;
+  }
+
+  @keyframes hideModalSlideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hide-modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--color-fg);
+    opacity: 0.5;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hide-modal-close:hover {
+    opacity: 1;
+  }
+
+  .hide-modal-close:disabled {
+    cursor: not-allowed;
+    opacity: 0.3;
+  }
+
+  .hide-modal-header {
+    padding: 1.5rem 1.5rem 0;
+  }
+
+  .hide-modal-header h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .hide-modal-body {
+    padding: 1rem 1.5rem 1.5rem;
+  }
+
+  .hide-modal-product-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--color-fg);
+    margin-bottom: 0.5rem;
+  }
+
+  .hide-modal-description {
+    color: var(--color-fg);
+    opacity: 0.7;
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+  }
+
+  .hide-modal-actions {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .btn-hide-cancel {
+    flex: 1;
+    padding: 0.75rem 1.5rem;
+    background: var(--color-muted);
+    border: 2px solid var(--color-border);
+    color: var(--color-fg);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-hide-cancel:hover {
+    background: var(--color-border);
+  }
+
+  .btn-hide-cancel:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .btn-hide-confirm {
+    flex: 1;
+    padding: 0.75rem 1.5rem;
+    border: 2px solid transparent;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .btn-confirm-hide {
+    background: var(--color-red);
+    border-color: var(--color-red);
+  }
+
+  .btn-confirm-hide:hover {
+    opacity: 0.85;
+  }
+
+  .btn-confirm-unhide {
+    background: #22c55e;
+    border-color: #22c55e;
+  }
+
+  .btn-confirm-unhide:hover {
+    opacity: 0.85;
+  }
+
+  .btn-hide-confirm:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  .hide-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: hideSpinnerRotate 0.6s linear infinite;
+  }
+
+  @keyframes hideSpinnerRotate {
+    to { transform: rotate(360deg); }
   }
 </style>
