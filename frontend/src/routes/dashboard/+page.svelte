@@ -1082,6 +1082,24 @@
     color: white;
   }
 
+  :global(html.dark) .status-active {
+    background: rgba(94, 106, 210, 0.2);
+    color: #8b93e0;
+    border: 1px solid rgba(94, 106, 210, 0.3);
+  }
+
+  :global(html.dark) .status-ended {
+    background: rgba(255, 85, 85, 0.15);
+    color: #ff7777;
+    border: 1px solid rgba(255, 85, 85, 0.25);
+  }
+
+  :global(html.dark) .status-sold {
+    background: rgba(201, 168, 48, 0.15);
+    color: #d4b44a;
+    border: 1px solid rgba(201, 168, 48, 0.25);
+  }
+
   .status-hidden {
     background: var(--color-muted);
     color: var(--color-fg);
@@ -1132,6 +1150,12 @@
 
   .btn-view:hover {
     opacity: 0.85;
+  }
+
+  :global(html.dark) .btn-view {
+    background: rgba(94, 106, 210, 0.2);
+    color: #8b93e0;
+    border: 1px solid rgba(94, 106, 210, 0.3);
   }
 
   /* Purchases List */
@@ -1758,6 +1782,11 @@
   .btn-hide:hover {
     background: var(--color-fg);
     color: var(--color-white);
+  }
+
+  :global(html.dark) .btn-hide:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-fg);
   }
 
   .btn-unhide {

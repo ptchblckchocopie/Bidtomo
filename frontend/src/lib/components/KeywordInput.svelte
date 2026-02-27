@@ -117,6 +117,17 @@
     animation: slideIn 0.2s ease-out;
   }
 
+  :global(html.dark) .keyword-pill {
+    background: rgba(94, 106, 210, 0.2);
+    color: #8b93e0;
+    border-color: rgba(94, 106, 210, 0.3);
+  }
+
+  :global(html.dark) .remove-btn {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+
   @keyframes slideIn {
     from {
       opacity: 0;
