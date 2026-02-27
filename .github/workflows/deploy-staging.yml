@@ -7,8 +7,31 @@ on:
       - main
 
 jobs:
+  type-check:
+    name: Type-check before deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Type-check CMS
+        run: |
+          cd cms
+          npm ci
+          npx tsc --noEmit
+
+      - name: Type-check Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run check
+
   deploy-backend:
     name: Deploy backend to staging
+    needs: type-check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

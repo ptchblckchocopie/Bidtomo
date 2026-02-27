@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import Redis from 'ioredis';
 import { Pool } from 'pg';
+import crypto from 'crypto';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/marketplace';
@@ -64,7 +65,7 @@ interface Product {
 
 // Generate unique job ID
 function generateJobId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
 }
 
 // Initialize Redis with retry logic
@@ -357,7 +358,7 @@ async function queueEmail(emailData: {
   try {
     const queuedEmail = {
       ...emailData,
-      id: `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `email_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`,
       queuedAt: Date.now(),
       attempts: 0,
     };
