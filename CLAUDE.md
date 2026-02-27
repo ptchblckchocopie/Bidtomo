@@ -11,9 +11,17 @@ Bidmo.to is a full-stack auction marketplace with real-time bidding. It consists
 - **`services/sse-service/`** — Standalone SSE server for real-time product updates
 - **`services/bid-worker/`** — Background Redis queue consumer for bid processing
 
-## Development Commands
+## Initial Setup
 
-Each service has its own `package.json` — run `npm install` in each directory independently.
+Each service has its own `package.json` — run `npm install` in each directory independently. Copy `.env.example` files before starting:
+
+```bash
+cp cms/.env.example cms/.env          # DATABASE_URI, PAYLOAD_SECRET, FRONTEND_URL, etc.
+cp frontend/.env.example frontend/.env  # PUBLIC_API_URL
+# services/sse-service/ and services/bid-worker/ have .env files already
+```
+
+## Development Commands
 
 ### Frontend (`frontend/`) — port 5173
 ```bash
@@ -75,7 +83,9 @@ npm run seed:cleanup # Clean up test data
 
 **Request flow:** Browser → SvelteKit server route (`/api/bridge/*`) → Payload CMS (`localhost:3001/api/*`)
 
-The frontend never calls the CMS directly from the browser. All requests go through SvelteKit server routes at `frontend/src/routes/api/bridge/[...path]/` which proxy to the CMS backend. The proxy implementation is in `frontend/src/lib/server/cms.ts` (`cmsRequest()` function).
+The frontend never calls the CMS directly from the browser. All requests go through SvelteKit server routes at `frontend/src/routes/api/bridge/` which proxy to the CMS backend. The proxy implementation is in `frontend/src/lib/server/cms.ts` (`cmsRequest()` function).
+
+**Bridge route structure:** Most resources have dedicated bridge routes (`/api/bridge/users/`, `/api/bridge/products/`, `/api/bridge/bids/`, `/api/bridge/messages/`, `/api/bridge/transactions/`, `/api/bridge/ratings/`, `/api/bridge/typing/`, `/api/bridge/void-request/`, `/api/bridge/media/`, `/api/bridge/elasticsearch/`). The catch-all `[...path]/` handles anything not matched by a dedicated route.
 
 **Real-time bidding pipeline:**
 1. Client calls `queueBid()` → bridge → CMS `/api/bid/queue` → Redis list `bids:pending`
@@ -106,7 +116,11 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 
 **Svelte 5 runes** — Frontend uses `$state`, `$derived`, `$props` (not Svelte 4 store syntax).
 
-**Design system:** Bauhaus — sharp corners (`border-radius: 0`), bold borders, Outfit font. Use `bh-*` Tailwind color tokens (`bh-bg`, `bh-fg`, `bh-red`, `bh-blue`, `bh-yellow`, `bh-border`, `bh-muted`) and `.btn-bh`, `.card-bh`, `.input-bh` utility classes.
+**Design system:** Bauhaus — sharp corners (`border-radius: 0`), bold borders, Outfit font. Tailwind theme (`frontend/tailwind.config.js`):
+- Colors: `bh-bg`, `bh-fg`, `bh-red`, `bh-blue`, `bh-yellow`, `bh-border`, `bh-muted`, `primary` (#D02020)
+- Shadows: `shadow-bh-sm` (3px), `shadow-bh-md` (5px) — solid black offsets
+- Borders: `border-bh` (3px), `border-bh-lg` (5px)
+- Utility classes: `.btn-bh`, `.card-bh`, `.input-bh`
 
 **No linting/formatting** — Neither ESLint nor Prettier is configured. TypeScript strict mode is used in both frontend and CMS.
 
@@ -114,6 +128,12 @@ The frontend never calls the CMS directly from the browser. All requests go thro
 - Products: `seller` is set to the logged-in user in `beforeChange`
 - Bids: `bidder` and `bidTime` are set automatically in `beforeChange`
 - Ratings: `rater` is set to the logged-in user in `beforeChange`
+
+**Media storage** — Uploaded files go to S3-compatible storage (Supabase Storage) via a custom adapter (`cms/src/s3Adapter.ts`). Public URLs are generated as `{SUPABASE_URL}/storage/v1/object/public/{S3_BUCKET}/bidmoto/{filename}`. Local storage is disabled in production.
+
+**Collections are mostly inline** — All collections are defined directly in `cms/src/payload.config.ts` except `EmailTemplates` which has its own file at `cms/src/collections/EmailTemplates.ts`.
+
+**Error tracking** — Frontend uses `@sentry/sveltekit` (configured in `hooks.client.ts`, `hooks.server.ts`, `instrumentation.server.ts`).
 
 **TypeScript configs differ:**
 - CMS: `target: ES2020`, `module: commonjs` (Node.js runtime)
