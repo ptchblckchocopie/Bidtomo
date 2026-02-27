@@ -30,29 +30,33 @@
   --border-bh-lg: 5px;
 }
 
-/* ── Dark Mode — Refined Palette ── */
+/* ── Dark Mode — Linear/Modern Palette ── */
 html.dark {
-  --color-bg: #0D0D14;
-  --color-fg: #E8E8F0;
+  --color-bg: #050506;
+  --color-fg: #EDEDEF;
   --color-red: #FF5555;
-  --color-blue: #5B8DEF;
+  --color-blue: #5E6AD2;
   --color-yellow: #FFD24D;
-  --color-border: #2A2A3A;
-  --color-muted: #161622;
-  --color-white: #13131F;
+  --color-border: #161620;
+  --color-muted: #0d0d12;
+  --color-white: #0a0a0c;
   --color-green: #5AE879;
 
-  --color-bg-rgb: 13 13 20;
-  --color-fg-rgb: 232 232 240;
+  --color-bg-rgb: 5 5 6;
+  --color-fg-rgb: 237 237 239;
   --color-red-rgb: 255 85 85;
-  --color-blue-rgb: 91 141 239;
+  --color-blue-rgb: 94 106 210;
   --color-yellow-rgb: 255 210 77;
-  --color-border-rgb: 42 42 58;
-  --color-muted-rgb: 22 22 34;
-  --color-white-rgb: 19 19 31;
+  --color-border-rgb: 22 22 32;
+  --color-muted-rgb: 13 13 18;
+  --color-white-rgb: 10 10 12;
 
-  --shadow-bh-sm: 0 2px 12px rgba(0, 0, 0, 0.4);
-  --shadow-bh-md: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --shadow-bh-sm: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 2px 12px rgba(0, 0, 0, 0.3), 0 0 20px rgba(0, 0, 0, 0.15);
+  --shadow-bh-md: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 0, 0, 0.2);
+
+  --color-accent: #5E6AD2;
+  --color-accent-bright: #6872D9;
+  --color-accent-glow: rgba(94, 106, 210, 0.3);
 }
 
 /* ── Global Base ── */
@@ -64,10 +68,10 @@ html.dark {
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  /* Bauhaus: no rounded corners (except explicit rounded-full for circles) */
-  *,
-  *::before,
-  *::after {
+  /* Bauhaus: no rounded corners in light mode (dark mode allows rounded corners) */
+  html:not(.dark) *,
+  html:not(.dark) *::before,
+  html:not(.dark) *::after {
     border-radius: 0 !important;
   }
 
@@ -183,124 +187,174 @@ img[loading="lazy"][complete] {
 }
 
 /* ══════════════════════════════════════════════════
-   Dark Mode — Glassmorphism & Visual Polish
+   Dark Mode — Linear/Modern Design System
    ══════════════════════════════════════════════════ */
 
-/* Ambient gradient background */
+/* Body — vertical depth gradient */
 html.dark body {
-  background:
-    radial-gradient(ellipse at 15% 5%, rgba(91, 141, 239, 0.07) 0%, transparent 40%),
-    radial-gradient(ellipse at 85% 95%, rgba(255, 85, 85, 0.05) 0%, transparent 40%),
-    radial-gradient(ellipse at 50% 50%, rgba(255, 210, 77, 0.02) 0%, transparent 60%),
-    var(--color-bg);
+  background: radial-gradient(ellipse at top, #0a0a0f 0%, #050506 50%, #020203 100%);
 }
 
-/* Glass cards */
+/* Cards — gradient glass, rounded, multi-layer shadow */
 html.dark .card-bh {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
   border-width: 1px;
-  border-color: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.06);
+  border-radius: 16px !important;
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 2px 20px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(0, 0, 0, 0.2);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 html.dark .card-bh:hover {
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.10);
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 4px 24px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(94, 106, 210, 0.08);
 }
 
-/* Glass inputs */
+/* Inputs — dark surface, rounded, accent focus ring */
 html.dark .input-bh {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: #0F0F12;
   border-width: 1px;
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.10);
+  border-radius: 8px !important;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 html.dark .input-bh:focus {
-  border-color: var(--color-blue);
-  box-shadow: 0 0 0 3px rgba(91, 141, 239, 0.2);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+  background: #111116;
   outline: none;
 }
 
-/* Glass buttons */
+/* Buttons — subtle glass with inner highlight */
 html.dark .btn-bh {
+  background: rgba(255, 255, 255, 0.05);
   border-width: 1px;
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  border-color: rgba(255, 255, 255, 0.10);
+  border-radius: 8px !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.2s ease,
+              border-color 0.2s ease;
 }
 
 html.dark .btn-bh:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.15);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 html.dark .btn-bh:active {
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  transform: scale(0.98);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+  transition-duration: 0.1s;
 }
 
 html.dark .btn-bh:disabled {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
+  opacity: 0.4;
 }
 
+/* Primary button — accent indigo with glow */
 html.dark .btn-bh-red {
-  background: rgba(255, 85, 85, 0.85);
-  border-color: rgba(255, 85, 85, 0.3);
+  background: var(--color-accent);
+  color: #fff;
+  border-color: rgba(94, 106, 210, 0.5);
+  box-shadow:
+    0 0 0 1px rgba(94, 106, 210, 0.5),
+    0 4px 12px rgba(94, 106, 210, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
 }
 
+html.dark .btn-bh-red:hover {
+  background: var(--color-accent-bright);
+  box-shadow:
+    0 0 0 1px rgba(94, 106, 210, 0.6),
+    0 6px 20px rgba(94, 106, 210, 0.4),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+}
+
+html.dark .btn-bh-red:active {
+  background: #5560c5;
+  box-shadow:
+    0 0 0 1px rgba(94, 106, 210, 0.5),
+    0 2px 8px rgba(94, 106, 210, 0.2),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Blue button — secondary ghost style */
 html.dark .btn-bh-blue {
-  background: rgba(91, 141, 239, 0.85);
-  border-color: rgba(91, 141, 239, 0.3);
+  background: rgba(94, 106, 210, 0.15);
+  color: #8b93e0;
+  border-color: rgba(94, 106, 210, 0.25);
+  box-shadow: inset 0 1px 0 0 rgba(94, 106, 210, 0.1);
 }
 
+html.dark .btn-bh-blue:hover {
+  background: rgba(94, 106, 210, 0.25);
+  border-color: rgba(94, 106, 210, 0.35);
+}
+
+/* Yellow button — muted yellow glow */
 html.dark .btn-bh-yellow {
-  color: #0D0D14;
+  background: rgba(255, 210, 77, 0.15);
+  color: #FFD24D;
+  border-color: rgba(255, 210, 77, 0.3);
+  box-shadow: inset 0 1px 0 0 rgba(255, 210, 77, 0.1);
 }
 
-/* Glass header */
+html.dark .btn-bh-yellow:hover {
+  background: rgba(255, 210, 77, 0.25);
+  border-color: rgba(255, 210, 77, 0.4);
+}
+
+/* Header — dark glass, no red */
 html.dark .site-header {
-  background: rgb(var(--color-red-rgb) / 0.75) !important;
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  background: rgba(5, 5, 6, 0.80) !important;
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
   border-bottom-width: 1px !important;
-  border-bottom-color: rgba(255, 255, 255, 0.1) !important;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-/* Glass footer */
+/* Footer — deepest dark */
 html.dark .site-footer {
-  background: rgba(255, 255, 255, 0.03) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  color: var(--color-fg) !important;
+  background: #020203 !important;
+  color: #8A8F98 !important;
   border-top-width: 1px !important;
-  border-top-color: rgba(255, 255, 255, 0.08) !important;
+  border-top-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-/* Glass divider */
+/* Divider — gradient fade line */
 html.dark .divider-bh {
-  background: rgba(255, 255, 255, 0.08);
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.10), transparent);
   height: 1px;
 }
 
-/* Headline glow */
+/* Headline — gradient text */
 html.dark .headline-bh {
-  text-shadow: 0 0 40px rgba(91, 141, 239, 0.15);
+  background: linear-gradient(to bottom, #ffffff, rgba(255, 255, 255, 0.70));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
 }
 
-/* Smooth focus ring for dark mode */
+/* Focus ring — accent indigo */
 html.dark *:focus-visible {
-  outline-color: var(--color-blue);
+  outline-color: var(--color-accent);
   outline-offset: 2px;
 }
