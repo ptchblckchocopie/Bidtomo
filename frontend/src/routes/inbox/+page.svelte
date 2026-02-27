@@ -1393,75 +1393,22 @@
             <div class="error-message">{error}</div>
           {/if}
 
-          <!-- Inline Rating Section -->
+          <!-- Compact Rating Prompt -->
           {#if selectedProduct.status === 'sold' && transaction}
-            <div class="inline-rating-section">
+            <div class="rating-bar">
               {#if !myRating}
-                <div class="rating-prompt">
-                  <div class="rating-prompt-header">
-                    <span class="rating-icon">⭐</span>
-                    <span class="rating-title">Rate this transaction</span>
-                  </div>
-                  <p class="rating-prompt-text">
-                    How was your experience with {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'the buyer') : (sellerName || 'the seller')} for this order?
-                  </p>
-                  <div class="inline-rating-form">
-                    <div class="inline-star-selector">
-                      <StarRating
-                        rating={ratingValue}
-                        interactive={true}
-                        size="medium"
-                        onChange={(detail) => ratingValue = detail.rating}
-                      />
-                      {#if ratingValue > 0}
-                        <span class="rating-value-text">{ratingValue}/5</span>
-                      {/if}
-                    </div>
-                    {#if ratingValue > 0}
-                      <div class="inline-comment-row">
-                        <input
-                          type="text"
-                          bind:value={ratingComment}
-                          placeholder="Add a comment (optional)"
-                          class="inline-comment-input"
-                        />
-                        <button
-                          class="inline-submit-btn"
-                          onclick={submitRating}
-                          disabled={submittingRating}
-                        >
-                          {submittingRating ? '...' : 'Submit'}
-                        </button>
-                      </div>
-                    {/if}
-                  </div>
-                  {#if ratingError}
-                    <div class="inline-rating-error">{ratingError}</div>
-                  {/if}
-                </div>
+                <button class="rating-bar-link" onclick={() => { ratingValue = 0; ratingComment = ''; ratingError = ''; showRatingModal = true; }}>
+                  Rate {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'the buyer') : (sellerName || 'the seller')}?
+                </button>
               {:else}
-                <div class="rating-submitted-inline">
-                  <div class="rating-submitted-header">
-                    <span class="rating-check">✓</span>
-                    <span>You rated {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'the buyer') : (sellerName || 'the seller')}</span>
-                  </div>
-                  <div class="rating-submitted-content">
-                    <StarRating rating={myRating.rating} size="small" />
-                    <span class="rating-score">{myRating.rating}/5</span>
-                    {#if myRating.comment}
-                      <span class="rating-comment-text">"{myRating.comment}"</span>
-                    {/if}
-                  </div>
+                <span class="rating-bar-done">
+                  <span class="rating-check">✓</span>
+                  Rated {myRating.rating}/5
                   {#if otherPartyRating}
-                    <div class="other-party-rating">
-                      <span class="other-rating-label">
-                        {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'Buyer') : (sellerName || 'Seller')} rated you:
-                      </span>
-                      <StarRating rating={otherPartyRating.rating} size="small" />
-                      <span class="rating-score">{otherPartyRating.rating}/5</span>
-                    </div>
+                    <span class="rating-bar-separator">|</span>
+                    They rated you {otherPartyRating.rating}/5
                   {/if}
-                </div>
+                </span>
               {/if}
             </div>
           {/if}
@@ -2720,167 +2667,46 @@
     cursor: not-allowed;
   }
 
-  /* Inline Rating Section */
-  .inline-rating-section {
+  /* Compact Rating Bar */
+  .rating-bar {
     border-top: var(--border-bh) solid var(--color-border);
-    padding: 1rem 1.25rem;
-    background: var(--color-yellow);
-  }
-
-  .rating-prompt {
+    padding: 0.5rem 1.25rem;
     text-align: center;
-  }
-
-  .rating-prompt-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .rating-icon {
-    font-size: 1.25rem;
-  }
-
-  .rating-title {
-    font-weight: 600;
-    font-size: 1rem;
-    color: var(--color-fg);
-  }
-
-  .rating-prompt-text {
-    margin: 0 0 0.75rem 0;
     font-size: 0.85rem;
-    color: var(--color-fg);
+  }
+
+  .rating-bar-link {
+    background: none;
+    border: none;
+    color: var(--color-blue);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-family: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .rating-bar-link:hover {
     opacity: 0.8;
   }
 
-  .inline-rating-form {
-    display: flex;
-    flex-direction: column;
+  .rating-bar-done {
+    display: inline-flex;
     align-items: center;
-    gap: 0.75rem;
-  }
-
-  .inline-star-selector {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .rating-value-text {
-    font-weight: 600;
+    gap: 0.35rem;
     color: var(--color-fg);
-    font-size: 0.9rem;
-  }
-
-  .inline-comment-row {
-    display: flex;
-    gap: 0.5rem;
-    width: 100%;
-    max-width: 400px;
-  }
-
-  .inline-comment-input {
-    flex: 1;
-    padding: 0.5rem 0.75rem;
-    border: var(--border-bh) solid var(--color-border);
-    font-size: 0.9rem;
-    font-family: inherit;
-    background: var(--color-white);
-  }
-
-  .inline-comment-input:focus {
-    outline: none;
-    border-color: var(--color-fg);
-    box-shadow: var(--shadow-bh-sm);
-  }
-
-  .inline-submit-btn {
-    padding: 0.5rem 1rem;
-    background: var(--color-red);
-    color: var(--color-white);
-    border: var(--border-bh) solid var(--color-red);
-    font-weight: 600;
-    font-size: 0.9rem;
-    cursor: pointer;
-    box-shadow: var(--shadow-bh-sm);
-    transition: opacity 0.2s, box-shadow 0.2s;
-    white-space: nowrap;
-  }
-
-  .inline-submit-btn:hover:not(:disabled) {
-    opacity: 0.9;
-    box-shadow: var(--shadow-bh-md);
-  }
-
-  .inline-submit-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .inline-rating-error {
-    color: var(--color-red);
-    font-size: 0.85rem;
-    margin-top: 0.5rem;
-  }
-
-  /* Rating Submitted Inline */
-  .rating-submitted-inline {
-    background: var(--color-muted);
-    border: var(--border-bh) solid var(--color-border);
-    padding: 0.75rem 1rem;
-  }
-
-  .rating-submitted-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    color: var(--color-blue);
-    font-size: 0.9rem;
+    opacity: 0.7;
+    font-size: 0.8rem;
   }
 
   .rating-check {
     color: var(--color-blue);
-    font-size: 1.1rem;
   }
 
-  .rating-submitted-content {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
-  .rating-score {
-    font-weight: 600;
-    color: var(--color-fg);
-    font-size: 0.85rem;
-  }
-
-  .rating-comment-text {
-    font-style: italic;
-    color: var(--color-fg);
-    opacity: 0.7;
-    font-size: 0.85rem;
-  }
-
-  .other-party-rating {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid var(--color-border);
-    flex-wrap: wrap;
-  }
-
-  .other-rating-label {
-    font-size: 0.8rem;
-    color: var(--color-blue);
+  .rating-bar-separator {
+    opacity: 0.4;
+    margin: 0 0.15rem;
   }
 
   /* Mobile responsive for new elements */
@@ -2912,26 +2738,8 @@
       width: 100%;
     }
 
-    .inline-rating-section {
-      padding: 0.75rem 1rem;
-    }
-
-    .inline-comment-row {
-      flex-direction: column;
-    }
-
-    .inline-submit-btn {
-      width: 100%;
-    }
-
-    .rating-submitted-content {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .other-party-rating {
-      flex-direction: column;
-      align-items: flex-start;
+    .rating-bar {
+      padding: 0.5rem 1rem;
     }
   }
 
