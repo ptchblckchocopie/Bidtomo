@@ -6,6 +6,9 @@
   import { logout as apiLogout, getUnreadMessageCount } from '$lib/api';
   import { onMount } from 'svelte';
   import { unreadCountStore } from '$lib/stores/inbox';
+  import { themeStore } from '$lib/stores/theme';
+  import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import ThemeTransition from '$lib/components/ThemeTransition.svelte';
   import type { Snippet } from 'svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -14,6 +17,20 @@
 
   let mobileMenuOpen = $state(false);
   let userMenuOpen = $state(false);
+  let animating = $state(false);
+
+  function triggerThemeAnimation() {
+    if (animating) return;
+    animating = true;
+  }
+
+  function handleAnimationMidpoint() {
+    themeStore.toggle();
+  }
+
+  function handleAnimationComplete() {
+    animating = false;
+  }
 
   // Subscribe to the shared unread count store
   let unreadCount = $derived($unreadCountStore);
@@ -103,6 +120,7 @@
 
         <!-- Desktop Actions -->
         <div class="hidden md:flex md:items-center md:space-x-4">
+          <ThemeToggle onToggle={triggerThemeAnimation} />
           {#if $authStore.isAuthenticated}
             <!-- Inbox Button -->
             <a
@@ -179,6 +197,11 @@
               Register
             </a>
           {/if}
+        </div>
+
+        <!-- Mobile actions -->
+        <div class="flex items-center gap-2 md:hidden">
+          <ThemeToggle onToggle={triggerThemeAnimation} />
         </div>
 
         <!-- Mobile menu button -->
@@ -297,10 +320,12 @@
   </main>
 
   <!-- Footer -->
-  <footer class="bg-bh-fg text-white border-t-4 border-bh-border py-4 text-center text-sm">
+  <footer class="bg-bh-fg text-bh-bg border-t-4 border-bh-border py-4 text-center text-sm">
     <p>&copy; 2025 BidMo.to - Bid mo 'to!</p>
   </footer>
 </div>
+
+<ThemeTransition active={animating} onMidpoint={handleAnimationMidpoint} onComplete={handleAnimationComplete} />
 
 <style>
   /* User dropdown slide-in */

@@ -1083,7 +1083,8 @@
     background: none;
     border: none;
     font-size: 1.25rem;
-    color: #999;
+    color: var(--color-fg);
+    opacity: 0.5;
     cursor: pointer;
     padding: 0.5rem;
     line-height: 1;
@@ -1095,7 +1096,8 @@
   }
 
   .search-results {
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
     font-size: 0.95rem;
     margin: 0;
   }
