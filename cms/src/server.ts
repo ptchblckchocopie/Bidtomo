@@ -27,9 +27,11 @@ function authenticateFromRequest(req: express.Request): string | number | null {
       try {
         const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
         if (decoded.id) userId = decoded.id;
-      } catch {
-        // Token invalid/expired
+      } catch (err: any) {
+        console.error(`[Auth] JWT verify failed for ${req.method} ${req.path}:`, err.message);
       }
+    } else {
+      console.warn(`[Auth] No Authorization header for ${req.method} ${req.path}`);
     }
   }
   return userId;
