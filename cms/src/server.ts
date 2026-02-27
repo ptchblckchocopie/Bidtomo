@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
@@ -20,8 +19,15 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // Payload v2 hashes the secret before signing JWTs:
 //   crypto.createHash('sha256').update(secret).digest('hex').slice(0, 32)
-// We must use the same hashed secret when verifying tokens outside Payload middleware.
-const payloadJwtSecret = crypto.createHash('sha256').update(process.env.PAYLOAD_SECRET!).digest('hex').slice(0, 32);
+// Lazily computed to avoid issues with module load order.
+let _payloadJwtSecret = '';
+function getPayloadJwtSecret(): string {
+  if (!_payloadJwtSecret) {
+    const crypto = require('crypto');
+    _payloadJwtSecret = crypto.createHash('sha256').update(process.env.PAYLOAD_SECRET!).digest('hex').slice(0, 32);
+  }
+  return _payloadJwtSecret;
+}
 
 // Extract user ID from Express request via Payload's req.user or JWT header fallback
 function authenticateFromRequest(req: express.Request): string | number | null {
@@ -31,7 +37,7 @@ function authenticateFromRequest(req: express.Request): string | number | null {
     if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
       const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
       try {
-        const decoded = jwt.verify(token, payloadJwtSecret) as any;
+        const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
         if (decoded.id) userId = decoded.id;
       } catch (err: any) {
         console.error(`[Auth] JWT verify failed for ${req.method} ${req.path}:`, err.message);
