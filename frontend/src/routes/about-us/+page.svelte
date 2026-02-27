@@ -125,7 +125,7 @@
   </section>
 
   <!-- Why Join Section -->
-  <section class="bg-bh-fg text-white px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
+  <section class="about-why-join text-white px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
     <div class="max-w-5xl mx-auto">
       <h2 class="headline-bh text-3xl sm:text-4xl lg:text-5xl text-center mb-12 text-white">Why Join Our Beta?</h2>
 
@@ -175,3 +175,28 @@
     </div>
   </section>
 </div>
+
+<style>
+  .about-why-join {
+    background-color: var(--color-fg);
+  }
+
+  :global(html.dark) .about-why-join {
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  }
+
+  :global(html.dark) .about-why-join h2 {
+    background: linear-gradient(to bottom, #ffffff, rgba(255, 255, 255, 0.70));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  :global(html.dark) .about-why-join h3 {
+    color: var(--color-fg);
+  }
+
+  :global(html.dark) .about-why-join p {
+    color: #8A8F98;
+  }
+</style>
