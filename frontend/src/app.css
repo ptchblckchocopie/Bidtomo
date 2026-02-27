@@ -34,9 +34,9 @@
 html.dark {
   --color-bg: #050506;
   --color-fg: #EDEDEF;
-  --color-red: #FF5555;
+  --color-red: #5E6AD2;
   --color-blue: #5E6AD2;
-  --color-yellow: #FFD24D;
+  --color-yellow: #C9A830;
   --color-border: #161620;
   --color-muted: #0d0d12;
   --color-white: #0a0a0c;
@@ -44,9 +44,9 @@ html.dark {
 
   --color-bg-rgb: 5 5 6;
   --color-fg-rgb: 237 237 239;
-  --color-red-rgb: 255 85 85;
+  --color-red-rgb: 94 106 210;
   --color-blue-rgb: 94 106 210;
-  --color-yellow-rgb: 255 210 77;
+  --color-yellow-rgb: 201 168 48;
   --color-border-rgb: 22 22 32;
   --color-muted-rgb: 13 13 18;
   --color-white-rgb: 10 10 12;
@@ -307,17 +307,17 @@ html.dark .btn-bh-blue:hover {
   border-color: rgba(94, 106, 210, 0.35);
 }
 
-/* Yellow button — muted yellow glow */
+/* Yellow button — muted gold glow */
 html.dark .btn-bh-yellow {
-  background: rgba(255, 210, 77, 0.15);
-  color: #FFD24D;
-  border-color: rgba(255, 210, 77, 0.3);
-  box-shadow: inset 0 1px 0 0 rgba(255, 210, 77, 0.1);
+  background: rgba(201, 168, 48, 0.20);
+  color: #d4b44a;
+  border-color: rgba(201, 168, 48, 0.3);
+  box-shadow: inset 0 1px 0 0 rgba(201, 168, 48, 0.1);
 }
 
 html.dark .btn-bh-yellow:hover {
-  background: rgba(255, 210, 77, 0.25);
-  border-color: rgba(255, 210, 77, 0.4);
+  background: rgba(201, 168, 48, 0.30);
+  border-color: rgba(201, 168, 48, 0.4);
 }
 
 /* Header — dark glass, no red */
