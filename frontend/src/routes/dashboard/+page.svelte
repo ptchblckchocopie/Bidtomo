@@ -1757,7 +1757,7 @@
   }
 
   .btn-unhide {
-    background: #22c55e;
+    background: var(--color-green);
     color: white;
   }
 
@@ -1904,8 +1904,8 @@
   }
 
   .btn-confirm-unhide {
-    background: #22c55e;
-    border-color: #22c55e;
+    background: var(--color-green);
+    border-color: var(--color-green);
   }
 
   .btn-confirm-unhide:hover {
