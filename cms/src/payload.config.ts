@@ -123,15 +123,16 @@ export default buildConfig({
       },
       hooks: {
         beforeChange: [
-          ({ req, data, operation }: any) => {
+          ({ req, data, operation, originalDoc }: any) => {
             // Prevent role escalation: only admins can set/change the role field
             if (req.user?.role !== 'admin') {
               if (operation === 'create') {
                 // Force default role on registration — ignore any client-supplied role
                 data.role = 'buyer';
               } else if (operation === 'update') {
-                // Strip role from update payload for non-admins
-                delete data.role;
+                // Preserve existing role — using `delete` would cause "required" validation
+                // failure on partial updates (e.g. profile picture)
+                data.role = originalDoc?.role ?? 'buyer';
               }
             }
             return data;
