@@ -267,10 +267,7 @@ const start = async () => {
                 },
               },
               {
-                or: [
-                  { status: { equals: 'active' } },
-                  { status: { equals: 'available' } },
-                ],
+                status: { equals: 'available' },
               },
               {
                 active: { equals: true },
@@ -293,10 +290,7 @@ const start = async () => {
               },
             },
             {
-              or: [
-                { status: { equals: 'active' } },
-                { status: { equals: 'available' } },
-              ],
+              status: { equals: 'available' },
             },
             {
               active: { equals: true },
