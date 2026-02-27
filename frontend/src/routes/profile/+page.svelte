@@ -98,12 +98,13 @@
 
     try {
       const token = getAuthToken();
+      const patchHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) patchHeaders['Authorization'] = `JWT ${token}`;
+
       const response = await fetch('/api/bridge/users/me', {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `JWT ${token}`,
-        },
+        headers: patchHeaders,
+        credentials: 'include',
         body: JSON.stringify({
           name: editName.trim(),
           countryCode: editCountryCode,
@@ -186,16 +187,19 @@
       const formData = new FormData();
       formData.append('file', file);
 
+      const uploadHeaders: Record<string, string> = {};
+      if (token) uploadHeaders['Authorization'] = `JWT ${token}`;
+
       const uploadResponse = await fetch('/api/bridge/media', {
         method: 'POST',
-        headers: {
-          'Authorization': `JWT ${token}`,
-        },
+        headers: uploadHeaders,
+        credentials: 'include',
         body: formData,
       });
 
       if (!uploadResponse.ok) {
-        throw new Error('Failed to upload image');
+        const errData = await uploadResponse.json().catch(() => null);
+        throw new Error(errData?.error || errData?.errors?.[0]?.message || 'Failed to upload image');
       }
 
       const mediaDoc = await uploadResponse.json();
@@ -206,17 +210,19 @@
       }
 
       // Step 2: Set as profile picture (CMS handles old image deletion)
+      const setHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) setHeaders['Authorization'] = `JWT ${token}`;
+
       const setResponse = await fetch('/api/bridge/users/profile-picture', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `JWT ${token}`,
-        },
+        headers: setHeaders,
+        credentials: 'include',
         body: JSON.stringify({ mediaId }),
       });
 
       if (!setResponse.ok) {
-        throw new Error('Failed to set profile picture');
+        const errData = await setResponse.json().catch(() => null);
+        throw new Error(errData?.error || errData?.errors?.[0]?.message || 'Failed to set profile picture');
       }
 
       const result = await setResponse.json();
@@ -249,11 +255,13 @@
     try {
       const token = getAuthToken();
 
+      const deleteHeaders: Record<string, string> = {};
+      if (token) deleteHeaders['Authorization'] = `JWT ${token}`;
+
       const response = await fetch('/api/bridge/users/profile-picture', {
         method: 'DELETE',
-        headers: {
-          'Authorization': `JWT ${token}`,
-        },
+        headers: deleteHeaders,
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -584,7 +592,7 @@
     justify-content: center;
     font-size: 3rem;
     font-weight: 800;
-    color: var(--color-white);
+    color: white;
     background: var(--color-red);
   }
 
@@ -614,7 +622,7 @@
   .btn-upload {
     padding: 0.4rem 0.75rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     border: 2px solid var(--color-border);
     font-weight: 600;
     font-size: 0.8rem;
@@ -644,7 +652,7 @@
 
   .btn-remove-photo:hover:not(:disabled) {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-remove-photo:disabled {
@@ -731,7 +739,7 @@
   .btn-edit {
     padding: 0.5rem 1rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
     font-weight: 600;
@@ -837,7 +845,7 @@
   .btn-save {
     padding: 0.75rem 1.5rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
     font-weight: 600;
@@ -948,7 +956,7 @@
 
   .limit-card .card-header {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     padding: 1.5rem;
     margin-bottom: 0;
     justify-content: flex-start;
@@ -956,7 +964,7 @@
   }
 
   .limit-card h3 {
-    color: var(--color-white);
+    color: white;
   }
 
   .limit-content {
@@ -1082,7 +1090,7 @@
 
   .btn-primary {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
   }
@@ -1100,7 +1108,7 @@
 
   .btn-secondary:hover {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-disabled {

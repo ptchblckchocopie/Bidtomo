@@ -2,9 +2,9 @@ import { getTokenFromRequest, jsonResponse, errorResponse, CMS_URL } from '$lib/
 import type { RequestHandler } from './$types';
 
 // POST /api/bridge/media - Upload media (forwards multipart form data)
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, cookies }) => {
   try {
-    const token = getTokenFromRequest(request);
+    const token = getTokenFromRequest(request, cookies);
     if (!token) {
       return errorResponse('Unauthorized', 401);
     }

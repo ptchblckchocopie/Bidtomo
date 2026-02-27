@@ -1393,73 +1393,21 @@
             <div class="error-message">{error}</div>
           {/if}
 
-          <!-- Inline Rating Section -->
+          <!-- Compact Rating Bar -->
           {#if selectedProduct.status === 'sold' && transaction}
-            <div class="inline-rating-section">
+            <div class="rating-bar">
               {#if !myRating}
-                <div class="rating-prompt">
-                  <div class="rating-prompt-header">
-                    <span class="rating-icon">⭐</span>
-                    <span class="rating-title">Rate this transaction</span>
-                  </div>
-                  <p class="rating-prompt-text">
-                    How was your experience with {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'the buyer') : (sellerName || 'the seller')} for this order?
-                  </p>
-                  <div class="inline-rating-form">
-                    <div class="inline-star-selector">
-                      <StarRating
-                        rating={ratingValue}
-                        interactive={true}
-                        size="medium"
-                        onChange={(detail) => ratingValue = detail.rating}
-                      />
-                      {#if ratingValue > 0}
-                        <span class="rating-value-text">{ratingValue}/5</span>
-                      {/if}
-                    </div>
-                    {#if ratingValue > 0}
-                      <div class="inline-comment-row">
-                        <input
-                          type="text"
-                          bind:value={ratingComment}
-                          placeholder="Add a comment (optional)"
-                          class="inline-comment-input"
-                        />
-                        <button
-                          class="inline-submit-btn"
-                          onclick={submitRating}
-                          disabled={submittingRating}
-                        >
-                          {submittingRating ? '...' : 'Submit'}
-                        </button>
-                      </div>
-                    {/if}
-                  </div>
-                  {#if ratingError}
-                    <div class="inline-rating-error">{ratingError}</div>
-                  {/if}
-                </div>
+                <button class="rating-bar-btn" onclick={() => { ratingValue = 0; ratingComment = ''; ratingError = ''; showRatingModal = true; }}>
+                  <span class="rating-bar-star">★</span>
+                  <span>Rate {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'the buyer') : (sellerName || 'the seller')}</span>
+                </button>
               {:else}
-                <div class="rating-submitted-inline">
-                  <div class="rating-submitted-header">
-                    <span class="rating-check">✓</span>
-                    <span>You rated {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'the buyer') : (sellerName || 'the seller')}</span>
-                  </div>
-                  <div class="rating-submitted-content">
-                    <StarRating rating={myRating.rating} size="small" />
-                    <span class="rating-score">{myRating.rating}/5</span>
-                    {#if myRating.comment}
-                      <span class="rating-comment-text">"{myRating.comment}"</span>
-                    {/if}
-                  </div>
+                <div class="rating-bar-done">
+                  <span class="rating-bar-star filled">★</span>
+                  <span class="rating-bar-label">You rated {myRating.rating}/5</span>
                   {#if otherPartyRating}
-                    <div class="other-party-rating">
-                      <span class="other-rating-label">
-                        {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'Buyer') : (sellerName || 'Seller')} rated you:
-                      </span>
-                      <StarRating rating={otherPartyRating.rating} size="small" />
-                      <span class="rating-score">{otherPartyRating.rating}/5</span>
-                    </div>
+                    <span class="rating-bar-divider"></span>
+                    <span class="rating-bar-label">They rated you {otherPartyRating.rating}/5</span>
                   {/if}
                 </div>
               {/if}
@@ -1788,7 +1736,7 @@
     display: inline-block;
     padding: 0.75rem 2rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     text-decoration: none;
     font-weight: 600;
     border: var(--border-bh) solid var(--color-red);
@@ -1853,7 +1801,7 @@
   .tab.active {
     background: var(--color-red);
     border-color: var(--color-red);
-    color: var(--color-white);
+    color: white;
     opacity: 1;
   }
 
@@ -2031,17 +1979,27 @@
 
   .status-active {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .status-sold {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .status-ended {
     background-color: var(--color-fg);
-    color: var(--color-white);
+    color: white;
+  }
+
+  :global(html.dark) .status-ended {
+    background: rgba(255, 85, 85, 0.15);
+    color: #ff7777;
+  }
+
+  :global(html.dark) .status-sold {
+    background: rgba(94, 106, 210, 0.2);
+    color: #8b93e0;
   }
 
   .view-product-link {
@@ -2082,6 +2040,11 @@
   .message.mine .message-content {
     background: var(--color-blue);
     color: white;
+  }
+
+  :global(html.dark) .message.mine .message-content {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
   }
 
   .message-sender {
@@ -2157,7 +2120,7 @@
   .send-btn {
     padding: 0.75rem 2rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-red);
     font-weight: 600;
     font-size: 1rem;
@@ -2315,7 +2278,7 @@
     display: inline-block;
     padding: 0.75rem 2rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     text-decoration: none;
     font-weight: 600;
     border: var(--border-bh) solid var(--color-red);
@@ -2344,7 +2307,7 @@
 
   .back-btn:hover:not(:disabled) {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
   }
 
   .back-btn:disabled {
@@ -2523,7 +2486,7 @@
     margin-top: 0.75rem;
     padding: 0.5rem 1rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-blue);
     font-weight: 600;
     font-size: 0.85rem;
@@ -2701,7 +2664,7 @@
   .btn-submit {
     padding: 0.75rem 1.5rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-red);
     font-weight: 600;
     font-size: 0.95rem;
@@ -2720,167 +2683,77 @@
     cursor: not-allowed;
   }
 
-  /* Inline Rating Section */
-  .inline-rating-section {
+  /* Compact Rating Bar */
+  .rating-bar {
     border-top: var(--border-bh) solid var(--color-border);
-    padding: 1rem 1.25rem;
+    padding: 0.5rem 1.25rem;
     background: var(--color-yellow);
-  }
-
-  .rating-prompt {
-    text-align: center;
-  }
-
-  .rating-prompt-header {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
   }
 
-  .rating-icon {
-    font-size: 1.25rem;
-  }
-
-  .rating-title {
-    font-weight: 600;
-    font-size: 1rem;
-    color: var(--color-fg);
-  }
-
-  .rating-prompt-text {
-    margin: 0 0 0.75rem 0;
-    font-size: 0.85rem;
-    color: var(--color-fg);
-    opacity: 0.8;
-  }
-
-  .inline-rating-form {
-    display: flex;
-    flex-direction: column;
+  .rating-bar-btn {
+    display: inline-flex;
     align-items: center;
-    gap: 0.75rem;
-  }
-
-  .inline-star-selector {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .rating-value-text {
-    font-weight: 600;
-    color: var(--color-fg);
-    font-size: 0.9rem;
-  }
-
-  .inline-comment-row {
-    display: flex;
-    gap: 0.5rem;
-    width: 100%;
-    max-width: 400px;
-  }
-
-  .inline-comment-input {
-    flex: 1;
-    padding: 0.5rem 0.75rem;
-    border: var(--border-bh) solid var(--color-border);
-    font-size: 0.9rem;
-    font-family: inherit;
-    background: var(--color-white);
-  }
-
-  .inline-comment-input:focus {
-    outline: none;
-    border-color: var(--color-fg);
-    box-shadow: var(--shadow-bh-sm);
-  }
-
-  .inline-submit-btn {
-    padding: 0.5rem 1rem;
-    background: var(--color-red);
-    color: var(--color-white);
-    border: var(--border-bh) solid var(--color-red);
-    font-weight: 600;
-    font-size: 0.9rem;
-    cursor: pointer;
-    box-shadow: var(--shadow-bh-sm);
-    transition: opacity 0.2s, box-shadow 0.2s;
-    white-space: nowrap;
-  }
-
-  .inline-submit-btn:hover:not(:disabled) {
-    opacity: 0.9;
-    box-shadow: var(--shadow-bh-md);
-  }
-
-  .inline-submit-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .inline-rating-error {
-    color: var(--color-red);
-    font-size: 0.85rem;
-    margin-top: 0.5rem;
-  }
-
-  /* Rating Submitted Inline */
-  .rating-submitted-inline {
-    background: var(--color-muted);
-    border: var(--border-bh) solid var(--color-border);
-    padding: 0.75rem 1rem;
-  }
-
-  .rating-submitted-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    color: var(--color-blue);
-    font-size: 0.9rem;
-  }
-
-  .rating-check {
-    color: var(--color-blue);
-    font-size: 1.1rem;
-  }
-
-  .rating-submitted-content {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
-  .rating-score {
-    font-weight: 600;
-    color: var(--color-fg);
-    font-size: 0.85rem;
-  }
-
-  .rating-comment-text {
-    font-style: italic;
-    color: var(--color-fg);
-    opacity: 0.7;
-    font-size: 0.85rem;
-  }
-
-  .other-party-rating {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid var(--color-border);
-    flex-wrap: wrap;
-  }
-
-  .other-rating-label {
+    gap: 0.4rem;
+    padding: 0.35rem 1rem;
+    background: var(--color-fg);
+    color: white;
+    border: 2px solid var(--color-fg);
+    font-weight: 700;
     font-size: 0.8rem;
-    color: var(--color-blue);
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    box-shadow: 2px 2px 0px var(--color-border);
+  }
+
+  :global(html.dark) .rating-bar-btn {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
+    border-color: var(--color-accent, #5E6AD2);
+  }
+
+  .rating-bar-btn:hover {
+    transform: translateY(1px);
+    box-shadow: 1px 1px 0px var(--color-border);
+  }
+
+  .rating-bar-btn:active {
+    transform: translateY(2px);
+    box-shadow: none;
+  }
+
+  .rating-bar-star {
+    font-size: 0.9rem;
+    color: var(--color-yellow);
+  }
+
+  .rating-bar-star.filled {
+    color: var(--color-fg);
+  }
+
+  .rating-bar-done {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-fg);
+  }
+
+  .rating-bar-label {
+    opacity: 0.85;
+  }
+
+  .rating-bar-divider {
+    width: 3px;
+    height: 3px;
+    background: var(--color-fg);
+    opacity: 0.4;
+    flex-shrink: 0;
   }
 
   /* Mobile responsive for new elements */
@@ -2912,26 +2785,8 @@
       width: 100%;
     }
 
-    .inline-rating-section {
-      padding: 0.75rem 1rem;
-    }
-
-    .inline-comment-row {
-      flex-direction: column;
-    }
-
-    .inline-submit-btn {
-      width: 100%;
-    }
-
-    .rating-submitted-content {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .other-party-rating {
-      flex-direction: column;
-      align-items: flex-start;
+    .rating-bar {
+      padding: 0.4rem 0.75rem;
     }
   }
 
@@ -3170,5 +3025,113 @@
       flex-direction: column;
       text-align: center;
     }
+  }
+
+  /* ── Dark mode fixes ── */
+
+  /* Chat input: needs dark bg + light text */
+  :global(html.dark) .chat-input {
+    background: #0F0F12;
+    color: var(--color-fg);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.10);
+    border-radius: 8px !important;
+  }
+
+  :global(html.dark) .chat-input:focus {
+    border-color: var(--color-accent, #5E6AD2);
+    box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+    outline: none;
+  }
+
+  /* Send button */
+  :global(html.dark) .send-btn {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
+    border-color: var(--color-accent, #5E6AD2);
+    border-width: 1px;
+    border-radius: 8px !important;
+  }
+
+  /* All buttons that use color: var(--color-white) on accent bg */
+  :global(html.dark) .btn-browse,
+  :global(html.dark) .view-product-btn,
+  :global(html.dark) .btn-submit,
+  :global(html.dark) .submit-rating-btn {
+    color: #fff;
+  }
+
+  /* Inbox tabs */
+  :global(html.dark) .tab.active {
+    background: var(--color-accent, #5E6AD2);
+    border-color: var(--color-accent, #5E6AD2);
+    color: #fff;
+  }
+
+  /* Back button hover */
+  :global(html.dark) .back-btn:hover:not(:disabled) {
+    color: #fff;
+  }
+
+  /* Rating bar */
+  :global(html.dark) .rating-bar {
+    background: rgba(201, 168, 48, 0.10);
+    border-top-width: 1px;
+    border-top-color: rgba(255, 255, 255, 0.06);
+  }
+
+  /* Conversations list & chat area surfaces */
+  :global(html.dark) .conversations-list,
+  :global(html.dark) .chat-area,
+  :global(html.dark) .modal-content {
+    background: var(--color-bg);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.06);
+    border-radius: 12px !important;
+  }
+
+  /* Inbox tab surface */
+  :global(html.dark) .tab {
+    background: transparent;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.06);
+    border-radius: 8px !important;
+  }
+
+  :global(html.dark) .tab:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* Rating comment textarea */
+  :global(html.dark) .comment-input textarea {
+    background: #0F0F12;
+    color: var(--color-fg);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.10);
+    border-radius: 8px !important;
+  }
+
+  :global(html.dark) .comment-input textarea:focus {
+    border-color: var(--color-accent, #5E6AD2);
+    box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+  }
+
+  /* Modal input fields */
+  :global(html.dark) .modal-content input,
+  :global(html.dark) .modal-content textarea,
+  :global(html.dark) .modal-content select {
+    background: #0F0F12;
+    color: var(--color-fg);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.10);
+    border-radius: 8px !important;
+  }
+
+  :global(html.dark) .modal-content input:focus,
+  :global(html.dark) .modal-content textarea:focus,
+  :global(html.dark) .modal-content select:focus {
+    border-color: var(--color-accent, #5E6AD2);
+    box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+    outline: none;
   }
 </style>

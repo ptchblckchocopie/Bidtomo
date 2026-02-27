@@ -2,6 +2,7 @@ import express from 'express';
 import payload from 'payload';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
@@ -12,21 +13,47 @@ import { authenticateJWT } from './auth-helpers';
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (Railway/reverse proxy) — required for express-rate-limit
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const isProduction = process.env.NODE_ENV === 'production';
+
+// Payload v2 hashes the secret before signing JWTs:
+//   crypto.createHash('sha256').update(secret).digest('hex').slice(0, 32)
+// Lazily computed to avoid issues with module load order.
+let _payloadJwtSecret = '';
+function getPayloadJwtSecret(): string {
+  if (!_payloadJwtSecret) {
+    const crypto = require('crypto');
+    _payloadJwtSecret = crypto.createHash('sha256').update(process.env.PAYLOAD_SECRET!).digest('hex').slice(0, 32);
+  }
+  return _payloadJwtSecret;
+}
+
+// Extract user ID from Express request via Payload's req.user or JWT header fallback
+function authenticateFromRequest(req: express.Request): string | number | null {
+  let userId: string | number | null = (req as any).user?.id || null;
+  if (!userId) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
+      const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+      try {
+        const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
+        if (decoded.id) userId = decoded.id;
+      } catch (err: any) {
+        console.error(`[Auth] JWT verify failed for ${req.method} ${req.path}:`, err.message);
+      }
+    } else {
+      console.warn(`[Auth] No Authorization header for ${req.method} ${req.path}`);
+    }
+  }
+  return userId;
+}
 
 // Configure CORS to allow requests from the frontend (including production URLs)
 const allowedOrigins: string[] = [
   'http://localhost:5173',
   'http://localhost:3001',
   'http://localhost:3000',
-  'http://192.168.18.117:5173',
-  'http://192.168.18.117:3001',
-  'http://192.168.1.34:5173',
-  'http://192.168.1.34:3001',
-  'http://157.230.40.58',
-  'http://157.230.40.58:3001',
-  'http://157.230.40.58:3000',
   'https://bidmo.to',
   'https://www.bidmo.to',
   'https://app.bidmo.to',
@@ -34,6 +61,7 @@ const allowedOrigins: string[] = [
   'http://www.bidmo.to',
   'http://app.bidmo.to',
   'https://cms-production-d0f7.up.railway.app',
+  'https://cms-staging-v2.up.railway.app',
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
 ];
 
@@ -68,6 +96,12 @@ app.use(cors({
 
 // Explicitly handle OPTIONS requests for preflight
 app.options('*', cors());
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Payload admin panel manages its own CSP
+  crossOriginEmbedderPolicy: false, // Allow cross-origin media loading
+}));
 
 // Parse JSON body with explicit size limit
 app.use(express.json({ limit: '1mb' }));
@@ -182,6 +216,225 @@ const start = async () => {
     }
 
     next();
+  });
+
+  // ── Register custom /api/users/* routes BEFORE payload.init() ──
+  // Payload registers GET/DELETE /api/users/:id which would intercept
+  // paths like /api/users/limits and /api/users/profile-picture.
+  // Registering here ensures Express matches our routes first.
+  // The `payload` singleton is resolved at request time (after init).
+
+  app.get('/api/users/limits', async (req, res) => {
+    try {
+      const currentUserId = authenticateFromRequest(req);
+
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Define maximum limits
+      const MAX_BIDS = 10;
+      const MAX_POSTS = 10;
+
+      // Count active products where user has placed bids
+      const userBids = await payload.find({
+        collection: 'bids',
+        where: {
+          bidder: {
+            equals: currentUserId,
+          },
+        },
+        limit: 1000,
+      });
+
+      // Get unique product IDs from user's bids
+      const bidProductIds = new Set<string>();
+      userBids.docs.forEach((bid: any) => {
+        const productId = typeof bid.product === 'object' ? bid.product.id : bid.product;
+        bidProductIds.add(String(productId));
+      });
+
+      // Count how many of those products are still active
+      let activeBidCount = 0;
+      if (bidProductIds.size > 0) {
+        const activeProducts = await payload.find({
+          collection: 'products',
+          where: {
+            and: [
+              {
+                id: {
+                  in: Array.from(bidProductIds),
+                },
+              },
+              {
+                status: { equals: 'available' },
+              },
+              {
+                active: { equals: true },
+              },
+            ],
+          },
+          limit: 1000,
+        });
+        activeBidCount = activeProducts.totalDocs;
+      }
+
+      // Count active products posted by the user
+      const userProducts = await payload.find({
+        collection: 'products',
+        where: {
+          and: [
+            {
+              seller: {
+                equals: currentUserId,
+              },
+            },
+            {
+              status: { equals: 'available' },
+            },
+            {
+              active: { equals: true },
+            },
+          ],
+        },
+        limit: 1000,
+      });
+
+      const activePostCount = userProducts.totalDocs;
+
+      // Calculate remaining limits
+      const bidsRemaining = Math.max(0, MAX_BIDS - activeBidCount);
+      const postsRemaining = Math.max(0, MAX_POSTS - activePostCount);
+
+      res.json({
+        bids: {
+          current: activeBidCount,
+          max: MAX_BIDS,
+          remaining: bidsRemaining,
+        },
+        posts: {
+          current: activePostCount,
+          max: MAX_POSTS,
+          remaining: postsRemaining,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error fetching user limits:', error);
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
+  });
+
+  app.post('/api/users/profile-picture', async (req, res) => {
+    try {
+      const currentUserId = authenticateFromRequest(req);
+
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Get the current user to find old profile picture
+      const currentUser = await payload.findByID({
+        collection: 'users',
+        id: currentUserId as string,
+      });
+
+      const oldProfilePictureId = currentUser?.profilePicture
+        ? (typeof currentUser.profilePicture === 'object'
+          ? (currentUser.profilePicture as any).id
+          : currentUser.profilePicture)
+        : null;
+
+      // The request body contains the new media ID (uploaded via /api/media first)
+      const { mediaId } = req.body;
+
+      if (!mediaId) {
+        return res.status(400).json({ error: 'mediaId is required' });
+      }
+
+      // Update user with new profile picture
+      // overrideAccess bypasses access control but NOT field validation.
+      // Payload v2 requires all `required` fields in the data, so include `role`.
+      const updatedUser = await payload.update({
+        collection: 'users',
+        id: currentUserId as string,
+        data: {
+          profilePicture: mediaId,
+        },
+        overrideAccess: true,
+      });
+
+      // Delete old profile picture from media collection (which also deletes from Supabase)
+      if (oldProfilePictureId && String(oldProfilePictureId) !== String(mediaId)) {
+        try {
+          await payload.delete({
+            collection: 'media',
+            id: String(oldProfilePictureId),
+          });
+          console.log(`Deleted old profile picture: ${oldProfilePictureId}`);
+        } catch (deleteErr) {
+          console.error('Failed to delete old profile picture:', deleteErr);
+          // Non-fatal: the new picture is already set
+        }
+      }
+
+      res.json({
+        success: true,
+        user: updatedUser,
+      });
+    } catch (error: any) {
+      console.error('Error updating profile picture:', error);
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
+  });
+
+  app.delete('/api/users/profile-picture', async (req, res) => {
+    try {
+      const currentUserId = authenticateFromRequest(req);
+
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Get the current user to find the profile picture
+      const currentUser = await payload.findByID({
+        collection: 'users',
+        id: currentUserId as string,
+      });
+
+      const profilePictureId = currentUser?.profilePicture
+        ? (typeof currentUser.profilePicture === 'object'
+          ? (currentUser.profilePicture as any).id
+          : currentUser.profilePicture)
+        : null;
+
+      // Clear the profile picture field
+      await payload.update({
+        collection: 'users',
+        id: currentUserId as string,
+        data: {
+          profilePicture: null as any,
+        },
+        overrideAccess: true,
+      });
+
+      // Delete the media record
+      if (profilePictureId) {
+        try {
+          await payload.delete({
+            collection: 'media',
+            id: String(profilePictureId),
+          });
+          console.log(`Deleted profile picture: ${profilePictureId}`);
+        } catch (deleteErr) {
+          console.error('Failed to delete profile picture media:', deleteErr);
+        }
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error removing profile picture:', error);
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
   });
 
   await payload.init({
@@ -465,127 +718,8 @@ const start = async () => {
     }
   });
 
-  // Server-Sent Events endpoint for real-time product updates
-  // Note: SSE won't work properly on Vercel serverless due to timeout limitations
-  // Store active SSE connections per product
-  const productListeners = new Map<string, Set<any>>();
-
-  app.get('/api/products/:id/stream', async (req, res) => {
-    const productId = req.params.id;
-
-    // Set SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
-
-    // Send initial connection message
-    res.write(`data: ${JSON.stringify({ type: 'connected', productId })}\n\n`);
-
-    // Add this connection to listeners
-    if (!productListeners.has(productId)) {
-      productListeners.set(productId, new Set());
-    }
-    productListeners.get(productId)!.add(res);
-
-    console.log(`SSE client connected for product ${productId}. Total listeners: ${productListeners.get(productId)!.size}`);
-
-    // Send initial product status
-    try {
-      const product = await payload.findByID({
-        collection: 'products',
-        id: productId,
-      });
-
-      const latestBid = await payload.find({
-        collection: 'bids',
-        where: { product: { equals: productId } },
-        sort: '-bidTime',
-        limit: 1,
-      });
-
-      const status = {
-        type: 'update',
-        id: product.id,
-        updatedAt: product.updatedAt,
-        status: product.status,
-        currentBid: product.currentBid,
-        latestBidTime: latestBid.docs.length > 0 ? latestBid.docs[0].bidTime : null,
-        bidCount: latestBid.totalDocs,
-      };
-
-      res.write(`data: ${JSON.stringify(status)}\n\n`);
-    } catch (error) {
-      console.error('Error sending initial status:', error);
-    }
-
-    // Keep connection alive with heartbeat every 30 seconds
-    const heartbeat = setInterval(() => {
-      res.write(`:heartbeat\n\n`);
-    }, 30000);
-
-    // Handle client disconnect
-    req.on('close', () => {
-      clearInterval(heartbeat);
-      const listeners = productListeners.get(productId);
-      if (listeners) {
-        listeners.delete(res);
-        console.log(`SSE client disconnected for product ${productId}. Remaining: ${listeners.size}`);
-        if (listeners.size === 0) {
-          productListeners.delete(productId);
-        }
-      }
-    });
-  });
-
-  // Helper function to broadcast updates to all listeners of a product
-  const broadcastProductUpdate = async (productId: string) => {
-    const listeners = productListeners.get(productId);
-    if (!listeners || listeners.size === 0) return;
-
-    try {
-      const product = await payload.findByID({
-        collection: 'products',
-        id: productId,
-      });
-
-      const latestBid = await payload.find({
-        collection: 'bids',
-        where: { product: { equals: productId } },
-        sort: '-bidTime',
-        limit: 1,
-      });
-
-      const status = {
-        type: 'update',
-        id: product.id,
-        updatedAt: product.updatedAt,
-        status: product.status,
-        currentBid: product.currentBid,
-        latestBidTime: latestBid.docs.length > 0 ? latestBid.docs[0].bidTime : null,
-        bidCount: latestBid.totalDocs,
-      };
-
-      const message = `data: ${JSON.stringify(status)}\n\n`;
-
-      // Send to all listeners
-      listeners.forEach((res) => {
-        try {
-          res.write(message);
-        } catch (error) {
-          console.error('Error broadcasting to client:', error);
-          listeners.delete(res);
-        }
-      });
-
-      console.log(`Broadcasted update for product ${productId} to ${listeners.size} clients`);
-    } catch (error) {
-      console.error('Error broadcasting product update:', error);
-    }
-  };
-
-  // Expose broadcast function globally so hooks can call it
-  (global as any).broadcastProductUpdate = broadcastProductUpdate;
+  // Legacy in-process SSE endpoint removed — real-time updates handled by sse-service via Redis pub/sub
+  // Hooks that call (global as any).broadcastProductUpdate will get undefined and skip via if (broadcast) guard
 
   // Expose Redis message notification globally for hooks (avoid webpack bundling issues)
   (global as any).publishMessageNotification = publishMessageNotification;
@@ -1986,276 +2120,13 @@ const start = async () => {
     }
   });
 
-  // Get user limits (bidding and posting)
-  app.get('/api/users/limits', async (req, res) => {
-    try {
-      let currentUserId: number | string | null = (req as any).user?.id || null;
-
-      // JWT fallback for when Payload middleware doesn't set req.user
-      if (!currentUserId) {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) {
-              currentUserId = decoded.id;
-            }
-          } catch (jwtError) {
-            // Token invalid/expired
-          }
-        }
-      }
-
-      if (!currentUserId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      // Define maximum limits
-      const MAX_BIDS = 10;
-      const MAX_POSTS = 10;
-
-      // Count active products where user has placed bids
-      const userBids = await payload.find({
-        collection: 'bids',
-        where: {
-          bidder: {
-            equals: currentUserId,
-          },
-        },
-        limit: 1000,
-      });
-
-      // Get unique product IDs from user's bids
-      const bidProductIds = new Set<string>();
-      userBids.docs.forEach((bid: any) => {
-        const productId = typeof bid.product === 'object' ? bid.product.id : bid.product;
-        bidProductIds.add(String(productId));
-      });
-
-      // Count how many of those products are still active
-      let activeBidCount = 0;
-      if (bidProductIds.size > 0) {
-        const activeProducts = await payload.find({
-          collection: 'products',
-          where: {
-            and: [
-              {
-                id: {
-                  in: Array.from(bidProductIds),
-                },
-              },
-              {
-                or: [
-                  { status: { equals: 'active' } },
-                  { status: { equals: 'available' } },
-                ],
-              },
-              {
-                active: { equals: true },
-              },
-            ],
-          },
-          limit: 1000,
-        });
-        activeBidCount = activeProducts.totalDocs;
-      }
-
-      // Count active products posted by the user
-      const userProducts = await payload.find({
-        collection: 'products',
-        where: {
-          and: [
-            {
-              seller: {
-                equals: currentUserId,
-              },
-            },
-            {
-              or: [
-                { status: { equals: 'active' } },
-                { status: { equals: 'available' } },
-              ],
-            },
-            {
-              active: { equals: true },
-            },
-          ],
-        },
-        limit: 1000,
-      });
-
-      const activePostCount = userProducts.totalDocs;
-
-      // Calculate remaining limits
-      const bidsRemaining = Math.max(0, MAX_BIDS - activeBidCount);
-      const postsRemaining = Math.max(0, MAX_POSTS - activePostCount);
-
-      res.json({
-        bids: {
-          current: activeBidCount,
-          max: MAX_BIDS,
-          remaining: bidsRemaining,
-        },
-        posts: {
-          current: activePostCount,
-          max: MAX_POSTS,
-          remaining: postsRemaining,
-        },
-      });
-    } catch (error: any) {
-      console.error('Error fetching user limits:', error);
-      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
-    }
-  });
-
-  // POST /api/users/profile-picture — Upload profile picture and delete the old one
-  app.post('/api/users/profile-picture', async (req, res) => {
-    try {
-      let currentUserId: number | string | null = (req as any).user?.id || null;
-
-      // JWT fallback
-      if (!currentUserId) {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) {
-              currentUserId = decoded.id;
-            }
-          } catch (jwtError) {
-            // Token invalid/expired
-          }
-        }
-      }
-
-      if (!currentUserId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      // Get the current user to find old profile picture
-      const currentUser = await payload.findByID({
-        collection: 'users',
-        id: currentUserId as string,
-      });
-
-      const oldProfilePictureId = currentUser?.profilePicture
-        ? (typeof currentUser.profilePicture === 'object'
-          ? (currentUser.profilePicture as any).id
-          : currentUser.profilePicture)
-        : null;
-
-      // The request body contains the new media ID (uploaded via /api/media first)
-      const { mediaId } = req.body;
-
-      if (!mediaId) {
-        return res.status(400).json({ error: 'mediaId is required' });
-      }
-
-      // Update user with new profile picture
-      const updatedUser = await payload.update({
-        collection: 'users',
-        id: currentUserId as string,
-        data: {
-          profilePicture: mediaId,
-        },
-      });
-
-      // Delete old profile picture from media collection (which also deletes from Supabase)
-      if (oldProfilePictureId && String(oldProfilePictureId) !== String(mediaId)) {
-        try {
-          await payload.delete({
-            collection: 'media',
-            id: String(oldProfilePictureId),
-          });
-          console.log(`Deleted old profile picture: ${oldProfilePictureId}`);
-        } catch (deleteErr) {
-          console.error('Failed to delete old profile picture:', deleteErr);
-          // Non-fatal: the new picture is already set
-        }
-      }
-
-      res.json({
-        success: true,
-        user: updatedUser,
-      });
-    } catch (error: any) {
-      console.error('Error updating profile picture:', error);
-      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
-    }
-  });
-
-  // DELETE /api/users/profile-picture — Remove profile picture
-  app.delete('/api/users/profile-picture', async (req, res) => {
-    try {
-      let currentUserId: number | string | null = (req as any).user?.id || null;
-
-      // JWT fallback
-      if (!currentUserId) {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) {
-              currentUserId = decoded.id;
-            }
-          } catch (jwtError) {
-            // Token invalid/expired
-          }
-        }
-      }
-
-      if (!currentUserId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      // Get the current user to find the profile picture
-      const currentUser = await payload.findByID({
-        collection: 'users',
-        id: currentUserId as string,
-      });
-
-      const profilePictureId = currentUser?.profilePicture
-        ? (typeof currentUser.profilePicture === 'object'
-          ? (currentUser.profilePicture as any).id
-          : currentUser.profilePicture)
-        : null;
-
-      // Clear the profile picture field
-      await payload.update({
-        collection: 'users',
-        id: currentUserId as string,
-        data: {
-          profilePicture: null as any,
-        },
-      });
-
-      // Delete the media record
-      if (profilePictureId) {
-        try {
-          await payload.delete({
-            collection: 'media',
-            id: String(profilePictureId),
-          });
-          console.log(`Deleted profile picture: ${profilePictureId}`);
-        } catch (deleteErr) {
-          console.error('Failed to delete profile picture media:', deleteErr);
-        }
-      }
-
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error('Error removing profile picture:', error);
-      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
-    }
-  });
-
   // Only start server if not in serverless environment
   if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server listening on port ${PORT}`);
+      if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_CA_CERT) {
+        console.warn('[SECURITY] DATABASE_CA_CERT not set — DB SSL certificate verification is disabled. Set DATABASE_CA_CERT for full TLS verification.');
+      }
     });
   }
 };

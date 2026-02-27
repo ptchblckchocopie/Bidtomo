@@ -36,7 +36,9 @@
   // Clear loading when data changes (new results arrived)
   $effect(() => {
     const _products = data.products;
+    const _users = data.users;
     const _status = data.status;
+    const _searchType = data.searchType;
     loading = false;
     lastStatus = _status;
   });
@@ -112,6 +114,7 @@
   }
 
   function handleSearchTypeChange(type: string) {
+    if (searchTypeInput === type) return; // Already on this tab
     searchTypeInput = type;
     loading = true;
     updateURL({
@@ -647,10 +650,6 @@
           {/each}
         </div>
       </section>
-    {:else if !data.search}
-      <div class="empty-state">
-        <p>Type a name to search for users</p>
-      </div>
     {:else if data.users && data.users.length > 0}
       <section class="auction-section">
         <div class="users-grid">
@@ -1071,6 +1070,11 @@
     white-space: nowrap;
   }
 
+  :global(html.dark) .btn-clear-filters {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
+  }
+
   .btn-clear-filters:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-bh-md);
@@ -1084,7 +1088,8 @@
     background: none;
     border: none;
     font-size: 1.25rem;
-    color: #999;
+    color: var(--color-fg);
+    opacity: 0.5;
     cursor: pointer;
     padding: 0.5rem;
     line-height: 1;
@@ -1096,7 +1101,8 @@
   }
 
   .search-results {
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
     font-size: 0.95rem;
     margin: 0;
   }
@@ -1109,6 +1115,11 @@
     font-weight: 600;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  :global(html.dark) .btn-clear-search {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
   }
 
   .btn-clear-search:hover {
@@ -1130,6 +1141,10 @@
     font-size: 0.95rem;
     color: #666;
     font-weight: 500;
+  }
+
+  :global(html.dark) .items-per-page label {
+    color: #8A8F98;
   }
 
   .items-per-page select {
@@ -1201,6 +1216,12 @@
     border-color: var(--color-red);
     border-bottom: 4px solid var(--color-border);
     color: white;
+  }
+
+  :global(html.dark) .tab.active {
+    background: var(--color-accent, #5E6AD2);
+    border-color: var(--color-accent, #5E6AD2);
+    color: #fff;
   }
 
   .tab-badge {
@@ -1499,6 +1520,11 @@
     box-shadow: var(--shadow-bh-sm);
   }
 
+  :global(html.dark) .percent-increase {
+    background: rgba(94, 106, 210, 0.2);
+    color: #8b93e0;
+  }
+
   .arrow-up-mini {
     color: white;
     flex-shrink: 0;
@@ -1535,6 +1561,11 @@
     color: white;
     box-shadow: var(--shadow-bh-sm);
     letter-spacing: 0.5px;
+  }
+
+  :global(html.dark) .owner-badge {
+    background: rgba(94, 106, 210, 0.2);
+    color: #8b93e0;
   }
 
   .admin-hide-btn,
@@ -1779,6 +1810,30 @@
     color: white;
   }
 
+  :global(html.dark) .status-active {
+    background: rgba(94, 106, 210, 0.2);
+    color: #8b93e0;
+    border: 1px solid rgba(94, 106, 210, 0.3);
+  }
+
+  :global(html.dark) .status-ended {
+    background: rgba(255, 85, 85, 0.15);
+    color: #ff7777;
+    border: 1px solid rgba(255, 85, 85, 0.25);
+  }
+
+  :global(html.dark) .status-sold {
+    background: rgba(201, 168, 48, 0.15);
+    color: #d4b44a;
+    border: 1px solid rgba(201, 168, 48, 0.25);
+  }
+
+  :global(html.dark) .status-cancelled {
+    background: rgba(156, 163, 175, 0.15);
+    color: #9ca3af;
+    border: 1px solid rgba(156, 163, 175, 0.25);
+  }
+
   .countdown-badge {
     display: flex;
     align-items: center;
@@ -1821,7 +1876,7 @@
   /* Critical - Less than 3 hours */
   .countdown-critical {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: 2px solid var(--color-border);
     animation: pulse-critical 1s ease-in-out infinite;
     box-shadow: var(--shadow-bh-md);
@@ -2337,6 +2392,12 @@
     color: white;
   }
 
+  :global(html.dark) .search-type-btn.active {
+    background: var(--color-accent, #5E6AD2);
+    border-color: var(--color-accent, #5E6AD2);
+    color: #fff;
+  }
+
   .search-type-btn:hover:not(.active) {
     background: var(--color-muted);
   }
@@ -2497,5 +2558,31 @@
       width: 48px;
       height: 48px;
     }
+  }
+
+  /* ── Dark mode: fix hardcoded light-mode colors ── */
+  :global(html.dark) .description,
+  :global(html.dark) .label,
+  :global(html.dark) .label-small,
+  :global(html.dark) .location-info,
+  :global(html.dark) .pagination-number,
+  :global(html.dark) .countdown-ended,
+  :global(html.dark) .user-card-date,
+  :global(html.dark) .empty-state .filter-detail {
+    color: #8A8F98;
+  }
+
+  :global(html.dark) .label-tiny {
+    color: #6b7280;
+  }
+
+  :global(html.dark) .pagination-number.active {
+    background-color: var(--color-accent, #5E6AD2);
+    border-color: var(--color-accent, #5E6AD2);
+    color: #fff;
+  }
+
+  :global(html.dark) .arrow-up-mini {
+    color: #8b93e0;
   }
 </style>

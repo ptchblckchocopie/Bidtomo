@@ -769,7 +769,7 @@
     {/if}
   </div>
 
-  {#if mode === 'edit'}
+  {#if mode === 'edit' && $authStore.user?.role === 'admin'}
     <div class="form-group">
       <label class="checkbox-label">
         <input
@@ -1007,7 +1007,7 @@
     left: 50%;
     transform: translateX(-50%);
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     padding: 0.25rem 0.75rem;
     font-size: 1.25rem;
     font-weight: bold;
@@ -1015,6 +1015,11 @@
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.2s;
+  }
+
+  :global(html.dark) .drag-handle {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
   }
 
   .image-preview-item:hover .drag-handle {
@@ -1035,7 +1040,7 @@
     width: 32px;
     height: 32px;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: 2px solid var(--color-border);
     font-size: 1.25rem;
     cursor: pointer;
@@ -1052,6 +1057,11 @@
     transform: scale(1.1);
   }
 
+  :global(html.dark) .remove-image-btn:hover:not(:disabled) {
+    background: #ff5555;
+    color: #fff;
+  }
+
   .remove-image-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -1062,10 +1072,15 @@
     bottom: 0.5rem;
     left: 0.5rem;
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
     font-weight: 700;
+  }
+
+  :global(html.dark) .image-number {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
   }
 
   .new-badge {
@@ -1073,7 +1088,7 @@
     top: 0.5rem;
     left: 0.5rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     padding: 0.25rem 0.5rem;
     font-size: 0.7rem;
     font-weight: 700;
@@ -1181,6 +1196,11 @@
   .toast.error {
     background: var(--color-red);
     color: white;
+  }
+
+  :global(html.dark) .toast.error {
+    background: #ff5555;
+    color: #fff;
   }
 
   .toast-icon {

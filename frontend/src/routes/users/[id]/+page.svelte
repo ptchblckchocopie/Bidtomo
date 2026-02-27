@@ -76,6 +76,25 @@
   // Separate ratings by role
   let ratingsAsSeller = $derived(data.ratings.filter((r: Rating) => r.raterRole === 'buyer')); // Buyers rate sellers
   let ratingsAsBuyer = $derived(data.ratings.filter((r: Rating) => r.raterRole === 'seller')); // Sellers rate buyers
+
+  // Rating distribution (1-5 stars)
+  let ratingDistribution = $derived.by(() => {
+    const dist = [0, 0, 0, 0, 0]; // index 0 = 1-star, index 4 = 5-star
+    for (const r of data.ratings) {
+      const stars = Math.round(r.rating);
+      if (stars >= 1 && stars <= 5) dist[stars - 1]++;
+    }
+    return dist;
+  });
+
+  let maxDistCount = $derived(Math.max(...ratingDistribution, 1));
+
+  // Recent 5 ratings (sorted by newest first)
+  let recentRatings = $derived(
+    [...data.ratings]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5)
+  );
 </script>
 
 <svelte:head>
@@ -126,6 +145,77 @@
         </div>
       </div>
     </div>
+
+    <!-- Rating Summary (Play Store style) -->
+    {#if data.ratings.length > 0}
+      <div class="rating-summary">
+        <h2 class="rating-summary-title">Ratings & Reviews</h2>
+        <div class="rating-summary-content">
+          <!-- Left: Big average number + stars -->
+          <div class="rating-overview">
+            <span class="rating-big-number">{data.ratingStats.averageRating.toFixed(1)}</span>
+            <StarRating rating={data.ratingStats.averageRating} size="medium" />
+            <span class="rating-total-count">{data.ratingStats.totalRatings} rating{data.ratingStats.totalRatings !== 1 ? 's' : ''}</span>
+          </div>
+
+          <!-- Right: Distribution bars -->
+          <div class="rating-distribution">
+            {#each [5, 4, 3, 2, 1] as stars}
+              <div class="dist-row">
+                <span class="dist-label">{stars}</span>
+                <div class="dist-bar-track">
+                  <div
+                    class="dist-bar-fill"
+                    style="width: {(ratingDistribution[stars - 1] / maxDistCount) * 100}%"
+                  ></div>
+                </div>
+                <span class="dist-count">{ratingDistribution[stars - 1]}</span>
+              </div>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Recent Reviews -->
+        {#if recentRatings.length > 0}
+          <div class="recent-reviews">
+            <h3 class="recent-reviews-title">Recent Reviews</h3>
+            <div class="recent-reviews-list">
+              {#each recentRatings as rating}
+                {@const product = getProductFromRating(rating)}
+                <div class="recent-review-card">
+                  <div class="recent-review-top">
+                    <div class="recent-reviewer">
+                      <span class="recent-reviewer-name">{getRaterName(rating)}</span>
+                      <span class="recent-reviewer-role {rating.raterRole === 'buyer' ? 'buyer-badge' : 'seller-badge'}">
+                        {rating.raterRole === 'buyer' ? 'Buyer' : 'Seller'}
+                      </span>
+                    </div>
+                    <span class="recent-review-date">{formatDate(rating.createdAt)}</span>
+                  </div>
+                  <div class="recent-review-stars">
+                    <StarRating rating={rating.rating} size="small" />
+                    <span class="recent-rating-score">{rating.rating}/5</span>
+                  </div>
+                  {#if rating.comment}
+                    <p class="recent-review-comment">"{rating.comment}"</p>
+                  {/if}
+                  {#if product}
+                    <a href="/products/{product.id}" class="recent-review-product">
+                      {product.title}
+                    </a>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+            {#if data.ratings.length > 5}
+              <button class="see-all-reviews-btn" onclick={() => activeTab = 'reviews'}>
+                See all {data.ratings.length} reviews
+              </button>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Tabs -->
     <div class="profile-tabs">
@@ -403,7 +493,7 @@
     gap: 1.5rem;
     padding: 2rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .profile-avatar {
@@ -586,12 +676,12 @@
 
   .status-badge.available {
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .status-badge.sold {
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     opacity: 0.7;
   }
 
@@ -745,7 +835,7 @@
     gap: 0.25rem;
     padding: 0.25rem 0.5rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
     text-decoration: none;
@@ -836,6 +926,206 @@
     opacity: 0.6;
   }
 
+  /* Rating Summary (Play Store style) */
+  .rating-summary {
+    padding: 2rem;
+    border-bottom: var(--border-bh) solid var(--color-border);
+  }
+
+  .rating-summary-title {
+    margin: 0 0 1.5rem 0;
+    font-size: 1.25rem;
+    color: var(--color-fg);
+  }
+
+  .rating-summary-content {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+  }
+
+  .rating-overview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 120px;
+  }
+
+  .rating-big-number {
+    font-size: 3rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--color-fg);
+  }
+
+  .rating-total-count {
+    font-size: 0.85rem;
+    color: var(--color-fg);
+    opacity: 0.6;
+  }
+
+  .rating-distribution {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    max-width: 400px;
+  }
+
+  .dist-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .dist-label {
+    width: 14px;
+    text-align: right;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-fg);
+  }
+
+  .dist-bar-track {
+    flex: 1;
+    height: 10px;
+    background: var(--color-muted);
+    border: 1px solid var(--color-border);
+    overflow: hidden;
+  }
+
+  .dist-bar-fill {
+    height: 100%;
+    background: var(--color-yellow);
+    transition: width 0.4s ease;
+    min-width: 0;
+  }
+
+  .dist-count {
+    width: 24px;
+    font-size: 0.8rem;
+    color: var(--color-fg);
+    opacity: 0.6;
+  }
+
+  /* Recent Reviews */
+  .recent-reviews {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .recent-reviews-title {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-fg);
+  }
+
+  .recent-reviews-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .recent-review-card {
+    padding: 1rem;
+    background: var(--color-muted);
+    border: 1px solid var(--color-border);
+  }
+
+  .recent-review-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.375rem;
+  }
+
+  .recent-reviewer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .recent-reviewer-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--color-fg);
+  }
+
+  .recent-reviewer-role {
+    font-size: 0.7rem;
+    padding: 0.125rem 0.375rem;
+    font-weight: 600;
+  }
+
+  .buyer-badge {
+    background: var(--color-blue);
+    color: white;
+  }
+
+  .seller-badge {
+    background: var(--color-yellow);
+    color: var(--color-fg);
+  }
+
+  .recent-review-date {
+    font-size: 0.8rem;
+    color: var(--color-fg);
+    opacity: 0.5;
+  }
+
+  .recent-review-stars {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .recent-rating-score {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--color-fg);
+  }
+
+  .recent-review-comment {
+    margin: 0 0 0.5rem 0;
+    font-style: italic;
+    color: var(--color-fg);
+    opacity: 0.8;
+    line-height: 1.5;
+    font-size: 0.9rem;
+  }
+
+  .recent-review-product {
+    font-size: 0.8rem;
+    color: var(--color-blue);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .recent-review-product:hover {
+    text-decoration: underline;
+  }
+
+  .see-all-reviews-btn {
+    margin-top: 1rem;
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--color-muted);
+    border: 2px solid var(--color-border);
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--color-fg);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .see-all-reviews-btn:hover {
+    background: var(--color-border);
+  }
+
   /* Empty State */
   .empty-state {
     text-align: center;
@@ -862,6 +1152,20 @@
 
     .products-grid {
       grid-template-columns: repeat(2, 1fr);
+    }
+
+    .rating-summary-content {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .rating-overview {
+      flex-direction: row;
+      gap: 0.75rem;
+    }
+
+    .rating-distribution {
+      max-width: none;
     }
   }
 

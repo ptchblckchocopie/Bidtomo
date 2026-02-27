@@ -35,8 +35,6 @@ export default buildConfig({
   cors: [
     'http://localhost:5173',
     'http://localhost:3001',
-    'http://192.168.18.117:5173',
-    'http://192.168.18.117:3001',
     'https://www.bidmo.to',
     'https://bidmo.to',
     'https://app.bidmo.to',
@@ -46,8 +44,6 @@ export default buildConfig({
   csrf: [
     'http://localhost:5173',
     'http://localhost:3001',
-    'http://192.168.18.117:5173',
-    'http://192.168.18.117:3001',
     'https://www.bidmo.to',
     'https://bidmo.to',
     'https://app.bidmo.to',
@@ -102,7 +98,7 @@ export default buildConfig({
         rejectUnauthorized: true,
         ca: process.env.DATABASE_CA_CERT,
       } : {
-        rejectUnauthorized: false, // Accept self-signed certificates
+        rejectUnauthorized: false, // Railway proxy uses self-signed certs; set DATABASE_CA_CERT for full verification
       },
     }),
   }),
@@ -127,15 +123,16 @@ export default buildConfig({
       },
       hooks: {
         beforeChange: [
-          ({ req, data, operation }: any) => {
+          ({ req, data, operation, originalDoc }: any) => {
             // Prevent role escalation: only admins can set/change the role field
             if (req.user?.role !== 'admin') {
               if (operation === 'create') {
                 // Force default role on registration — ignore any client-supplied role
                 data.role = 'buyer';
               } else if (operation === 'update') {
-                // Strip role from update payload for non-admins
-                delete data.role;
+                // Preserve existing role — using `delete` would cause "required" validation
+                // failure on partial updates (e.g. profile picture)
+                data.role = originalDoc?.role ?? 'buyer';
               }
             }
             return data;
@@ -1274,7 +1271,7 @@ export default buildConfig({
       access: {
         read: () => true,
         create: ({ req }) => !!req.user,
-        update: ({ req }) => !!req.user,
+        update: ({ req }) => req.user?.role === 'admin',
         delete: ({ req }) => req.user?.role === 'admin',
       },
       fields: [
@@ -1301,14 +1298,44 @@ export default buildConfig({
         delete: ({ req }) => req.user?.role === 'admin',
       },
       hooks: {
+        beforeValidate: [
+          async ({ req, data, operation }: any) => {
+            if (operation === 'create' && data.transaction && req.user) {
+              // Auto-set rater to logged-in user (must run before validation since rater is required)
+              data.rater = req.user.id;
+
+              // Fetch transaction to auto-set ratee and raterRole (both required fields)
+              const transaction: any = await req.payload.findByID({
+                collection: 'transactions',
+                id: data.transaction,
+              });
+
+              if (!transaction) {
+                throw new Error('Transaction not found');
+              }
+
+              const buyerId = typeof transaction.buyer === 'object' ? transaction.buyer.id : transaction.buyer;
+              const sellerId = typeof transaction.seller === 'object' ? transaction.seller.id : transaction.seller;
+
+              if (req.user.id !== buyerId && req.user.id !== sellerId) {
+                throw new Error('You are not part of this transaction');
+              }
+
+              // Auto-set raterRole and ratee based on user's role in transaction
+              if (req.user.id === buyerId) {
+                data.raterRole = 'buyer';
+                data.ratee = sellerId; // Buyer rates seller
+              } else {
+                data.raterRole = 'seller';
+                data.ratee = buyerId; // Seller rates buyer
+              }
+            }
+            return data;
+          },
+        ],
         beforeChange: [
           async ({ req, data, operation, originalDoc }) => {
             if (operation === 'create') {
-              // Auto-set rater to logged-in user
-              if (req.user && !data.rater) {
-                data.rater = req.user.id;
-              }
-
               // Validate: prevent duplicate ratings (one per transaction per rater)
               if (data.transaction && req.user) {
                 const existingRating = await req.payload.find({
@@ -1324,34 +1351,6 @@ export default buildConfig({
 
                 if (existingRating.docs.length > 0) {
                   throw new Error('You have already rated this transaction');
-                }
-              }
-
-              // Validate: user must be part of the transaction
-              if (data.transaction && req.user) {
-                const transaction: any = await req.payload.findByID({
-                  collection: 'transactions',
-                  id: data.transaction,
-                });
-
-                if (!transaction) {
-                  throw new Error('Transaction not found');
-                }
-
-                const buyerId = typeof transaction.buyer === 'object' ? transaction.buyer.id : transaction.buyer;
-                const sellerId = typeof transaction.seller === 'object' ? transaction.seller.id : transaction.seller;
-
-                if (req.user.id !== buyerId && req.user.id !== sellerId) {
-                  throw new Error('You are not part of this transaction');
-                }
-
-                // Auto-set raterRole based on user's role in transaction
-                if (req.user.id === buyerId) {
-                  data.raterRole = 'buyer';
-                  data.ratee = sellerId; // Buyer rates seller
-                } else {
-                  data.raterRole = 'seller';
-                  data.ratee = buyerId; // Seller rates buyer
                 }
               }
             }

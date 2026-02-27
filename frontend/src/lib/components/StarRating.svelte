@@ -125,6 +125,17 @@
     transition: fill 0.15s ease, stroke 0.15s ease;
   }
 
+  :global(.dark) .star svg {
+    fill: transparent;
+    stroke: #6b7280;
+    stroke-width: 1.5;
+  }
+
+  :global(.dark) .star.filled svg {
+    fill: var(--color-yellow);
+    stroke: var(--color-yellow);
+  }
+
   .star.filled svg {
     fill: var(--color-yellow);
     stroke: var(--color-yellow);

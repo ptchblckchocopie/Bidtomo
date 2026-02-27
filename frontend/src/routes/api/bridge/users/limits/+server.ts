@@ -2,9 +2,9 @@ import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse } from '$l
 import type { RequestHandler } from './$types';
 
 // GET /api/bridge/users/limits - Get user bidding/posting limits
-export const GET: RequestHandler = async ({ request }) => {
+export const GET: RequestHandler = async ({ request, cookies }) => {
   try {
-    const token = getTokenFromRequest(request);
+    const token = getTokenFromRequest(request, cookies);
     if (!token) {
       return errorResponse('Unauthorized', 401);
     }
