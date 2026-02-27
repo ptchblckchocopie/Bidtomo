@@ -1007,7 +1007,7 @@
     left: 50%;
     transform: translateX(-50%);
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     padding: 0.25rem 0.75rem;
     font-size: 1.25rem;
     font-weight: bold;
@@ -1040,7 +1040,7 @@
     width: 32px;
     height: 32px;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: 2px solid var(--color-border);
     font-size: 1.25rem;
     cursor: pointer;
@@ -1072,7 +1072,7 @@
     bottom: 0.5rem;
     left: 0.5rem;
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
     font-weight: 700;
@@ -1088,7 +1088,7 @@
     top: 0.5rem;
     left: 0.5rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     padding: 0.25rem 0.5rem;
     font-size: 0.7rem;
     font-weight: 700;

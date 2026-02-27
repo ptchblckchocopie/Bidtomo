@@ -1781,7 +1781,7 @@
 
   .btn-hide:hover {
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
   }
 
   :global(html.dark) .btn-hide:hover {

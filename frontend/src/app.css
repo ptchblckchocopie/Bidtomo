@@ -353,6 +353,27 @@ html.dark .headline-bh {
   text-shadow: none;
 }
 
+/* Native form elements — ensure dark bg + light text for all inputs */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]),
+html.dark textarea,
+html.dark select {
+  background-color: #0F0F12;
+  color: var(--color-fg);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):focus,
+html.dark textarea:focus,
+html.dark select:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+}
+
+html.dark select option {
+  background-color: #0F0F12;
+  color: var(--color-fg);
+}
+
 /* Focus ring — accent indigo */
 html.dark *:focus-visible {
   outline-color: var(--color-accent);

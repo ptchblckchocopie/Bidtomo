@@ -584,7 +584,7 @@
     justify-content: center;
     font-size: 3rem;
     font-weight: 800;
-    color: var(--color-white);
+    color: white;
     background: var(--color-red);
   }
 
@@ -614,7 +614,7 @@
   .btn-upload {
     padding: 0.4rem 0.75rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     border: 2px solid var(--color-border);
     font-weight: 600;
     font-size: 0.8rem;
@@ -644,7 +644,7 @@
 
   .btn-remove-photo:hover:not(:disabled) {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-remove-photo:disabled {
@@ -731,7 +731,7 @@
   .btn-edit {
     padding: 0.5rem 1rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
     font-weight: 600;
@@ -837,7 +837,7 @@
   .btn-save {
     padding: 0.75rem 1.5rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
     font-weight: 600;
@@ -948,7 +948,7 @@
 
   .limit-card .card-header {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     padding: 1.5rem;
     margin-bottom: 0;
     justify-content: flex-start;
@@ -956,7 +956,7 @@
   }
 
   .limit-card h3 {
-    color: var(--color-white);
+    color: white;
   }
 
   .limit-content {
@@ -1082,7 +1082,7 @@
 
   .btn-primary {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
   }
@@ -1100,7 +1100,7 @@
 
   .btn-secondary:hover {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-disabled {

@@ -1876,7 +1876,7 @@
   /* Critical - Less than 3 hours */
   .countdown-critical {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: 2px solid var(--color-border);
     animation: pulse-critical 1s ease-in-out infinite;
     box-shadow: var(--shadow-bh-md);
