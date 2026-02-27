@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { PageData } from './$types';
-  import { type Product, fetchProduct, updateProduct } from '$lib/api';
+  import { type Product, fetchProduct, updateProduct, fetchActiveProductsBySeller, fetchHiddenProductsBySeller, fetchEndedProductsBySeller } from '$lib/api';
   import { fetchMyPurchases } from '$lib/api';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -82,6 +82,20 @@
 
   // Product view state
   let productTab: 'active' | 'hidden' | 'ended' = $state('active');
+
+  // Refresh product lists from server (used when returning to page after hide/unhide elsewhere)
+  async function refreshProducts() {
+    if (!data.user?.id) return;
+    const sellerId = String(data.user.id);
+    const [fresh_active, fresh_hidden, fresh_ended] = await Promise.all([
+      fetchActiveProductsBySeller(sellerId),
+      fetchHiddenProductsBySeller(sellerId),
+      fetchEndedProductsBySeller(sellerId),
+    ]);
+    activeProducts = fresh_active;
+    hiddenProducts = fresh_hidden;
+    endedProducts = fresh_ended;
+  }
 
   // SSE cleanup
   let unsubscribeSSE: (() => void) | null = null;
@@ -288,6 +302,21 @@
         }
       });
     }
+
+    // Re-fetch product lists when user returns to this tab/page
+    // Covers: browser tab switch, and SPA navigation back from product detail after hide/unhide
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        refreshProducts();
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // Also refresh on SPA navigation back (component remounts with possibly stale cached data)
+    refreshProducts();
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   });
 </script>
 
