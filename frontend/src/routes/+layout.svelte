@@ -9,6 +9,7 @@
   import { themeStore } from '$lib/stores/theme';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import ThemeTransition from '$lib/components/ThemeTransition.svelte';
+  import ThreeBackground from '$lib/components/ThreeBackground.svelte';
   import type { Snippet } from 'svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -92,9 +93,11 @@
 
 <svelte:window onclick={handleClickOutside} />
 
-<div class="min-h-screen flex flex-col">
+<ThreeBackground />
+
+<div class="min-h-screen flex flex-col relative z-[1]">
   <!-- Header -->
-  <header class="bg-bh-red text-white border-b-4 border-bh-border shadow-bh-sm sticky top-0 z-50">
+  <header class="site-header bg-bh-red text-white border-b-4 border-bh-border shadow-bh-sm sticky top-0 z-50">
     <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
         <!-- Logo -->
@@ -320,7 +323,7 @@
   </main>
 
   <!-- Footer -->
-  <footer class="bg-bh-fg text-bh-bg border-t-4 border-bh-border py-4 text-center text-sm">
+  <footer class="site-footer bg-bh-fg text-bh-bg border-t-4 border-bh-border py-4 text-center text-sm">
     <p>&copy; 2025 BidMo.to - Bid mo 'to!</p>
   </footer>
 </div>
