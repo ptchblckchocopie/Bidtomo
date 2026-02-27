@@ -9,14 +9,14 @@ export const GET: RequestHandler = async ({ url, request }) => {
     const page = url.searchParams.get('page') || '1';
     const limit = url.searchParams.get('limit') || '12';
 
-    if (!search.trim()) {
-      return jsonResponse({ docs: [], totalDocs: 0, totalPages: 0, page: 1, limit: parseInt(limit) });
-    }
-
     // Query Payload CMS users collection: search by name, exclude admins
     const queryParams = new URLSearchParams();
-    queryParams.append('where[name][like]', search);
-    queryParams.append('where[role][not_equals]', 'admin');
+    if (search.trim()) {
+      queryParams.append('where[and][0][name][like]', search);
+      queryParams.append('where[and][1][role][not_equals]', 'admin');
+    } else {
+      queryParams.append('where[role][not_equals]', 'admin');
+    }
     queryParams.append('limit', limit);
     queryParams.append('page', page);
     queryParams.append('sort', 'name');
