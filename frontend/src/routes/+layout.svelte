@@ -161,7 +161,7 @@
               </button>
 
               {#if userMenuOpen}
-                <div class="user-dropdown card-bh absolute right-0 mt-2 w-48 py-1 z-50">
+                <div class="user-dropdown card-bh absolute right-0 mt-2 w-48 py-1 z-50 !bg-bh-bg">
                   <a
                     href="/dashboard"
                     onclick={closeUserMenu}

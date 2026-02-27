@@ -195,7 +195,8 @@
       });
 
       if (!uploadResponse.ok) {
-        throw new Error('Failed to upload image');
+        const errData = await uploadResponse.json().catch(() => null);
+        throw new Error(errData?.error || errData?.errors?.[0]?.message || 'Failed to upload image');
       }
 
       const mediaDoc = await uploadResponse.json();
@@ -216,7 +217,8 @@
       });
 
       if (!setResponse.ok) {
-        throw new Error('Failed to set profile picture');
+        const errData = await setResponse.json().catch(() => null);
+        throw new Error(errData?.error || errData?.errors?.[0]?.message || 'Failed to set profile picture');
       }
 
       const result = await setResponse.json();
