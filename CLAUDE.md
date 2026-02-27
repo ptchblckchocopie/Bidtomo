@@ -4,10 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Bidmo.to is a full-stack auction marketplace with real-time bidding. It consists of independently managed services (not a monorepo — no shared workspace tooling):
+Bidmo.to is a full-stack auction marketplace with real-time bidding. Independent services (not a monorepo):
 
 - **`frontend/`** — SvelteKit 2 + Svelte 5, Tailwind CSS 3, adapter-vercel
-- **`cms/`** — Payload CMS 2 on Express, PostgreSQL (via `@payloadcms/db-postgres`), Webpack bundler, Elasticsearch for search
+- **`cms/`** — Payload CMS 2 on Express, PostgreSQL, Webpack bundler, Elasticsearch
 - **`services/sse-service/`** — Standalone SSE server for real-time product updates
 - **`services/bid-worker/`** — Background Redis queue consumer for bid processing
 
@@ -16,9 +16,8 @@ Bidmo.to is a full-stack auction marketplace with real-time bidding. It consists
 Each service has its own `package.json` — run `npm install` in each directory independently. Copy `.env.example` files before starting:
 
 ```bash
-cp cms/.env.example cms/.env          # DATABASE_URI, PAYLOAD_SECRET, FRONTEND_URL, etc.
-cp frontend/.env.example frontend/.env  # PUBLIC_API_URL
-# services/sse-service/ and services/bid-worker/ have .env files already
+cp cms/.env.example cms/.env
+cp frontend/.env.example frontend/.env
 ```
 
 ## Development Commands
@@ -28,131 +27,54 @@ cp frontend/.env.example frontend/.env  # PUBLIC_API_URL
 npm run dev          # Vite dev server on :5173
 npm run build        # Production build
 npm run check        # svelte-kit sync + svelte-check (type checking)
-npm run check:watch  # Type checking in watch mode
 ```
 
 ### CMS Backend (`cms/`) — port 3001
 ```bash
 npm run dev          # nodemon with PAYLOAD_CONFIG_PATH=src/payload.config.ts on :3001
 npm run build        # tsc + payload build
-npm run serve        # Production server from dist/ (used by Railway)
+npm run serve        # Production server from dist/
 npm run migrate      # Run Payload database migrations
 npm run generate:types  # Regenerate payload-types.ts from collections
 ```
 
 ### Services (`services/`)
+Each service: `npm run build` to build, `npm start` to run.
 
-Each service has its own `package.json`. Build with `npm run build`, start with `npm start`.
-
-- **bid-worker** — Redis BLPOP consumer. Writes to PostgreSQL directly (bypasses Payload ORM for performance).
-- **sse-service** — Express SSE server on :3002. Subscribes to Redis pub/sub channels.
-
-### Full Stack (from repo root)
-
+### Infrastructure (from repo root)
 ```bash
-# Local dev (infra only — Postgres :5433, Redis :6380, then run services natively)
-docker compose -f docker-compose.local.yml up -d
-
-# Full stack (all containers including app services)
-./start-docker.sh    # Docker Compose: Postgres + Redis + all services
-./stop-docker.sh     # Stop Docker Compose services
-./setup-db.sh        # Initialize PostgreSQL database
-./deploy.sh          # Blue/green production deployment with migrations
+docker compose -f docker-compose.local.yml up -d  # Local dev: Postgres :5433, Redis :6380
+./start-docker.sh    # Full stack: all containers
+./stop-docker.sh     # Stop all
 ```
 
-### Default Ports
-
-| Service | Port |
-|---------|------|
-| Frontend (Vite) | 5173 |
-| CMS (Payload) | 3001 |
-| SSE service | 3002 |
-| PostgreSQL | 5433 (mapped from 5432) |
-| Redis | 6379 (full stack) / 6380 (local) |
-
-### Stress Tests (`tests/stress/`)
-```bash
-npm run test:all     # Orchestrated k6 test suite (smoke → browse → auth → bids → full → search)
-npm run test:bid-storm  # High-load bid simulation
-npm run test:sse     # SSE connection stress test
-npm run seed         # Generate test data
-npm run seed:cleanup # Clean up test data
-```
-
-## Architecture Overview
-
-**Request flow:** Browser → SvelteKit server route (`/api/bridge/*`) → Payload CMS (`localhost:3001/api/*`). The frontend never calls the CMS directly from the browser.
-
-**Real-time bidding:** Client → bridge → CMS → Redis queue → bid-worker → PostgreSQL → Redis pub/sub → SSE → browser. Fallback: direct CMS bid if Redis is down.
-
-**Auth:** JWT-based, dual transport (httpOnly cookie `auth_token` + `Authorization: JWT <token>` header). Roles: `admin`, `seller`, `buyer`.
-
-For full details (bridge routes, key files, bidding pipeline, Redis channels), see `/project:architecture`.
+**Ports:** Frontend 5173 | CMS 3001 | SSE 3002 | Postgres 5433 | Redis 6379/6380
 
 ## Important Conventions
 
-**SSR disabled** — The app is a client-side SPA (`export const ssr = false` in `+layout.ts`).
-
-**Svelte 5 runes** — Frontend uses `$state`, `$derived`, `$props` (not Svelte 4 store syntax).
-
-**Design system:** Bauhaus — sharp corners (`border-radius: 0`), bold borders, Outfit font. Tailwind theme (`frontend/tailwind.config.js`):
-- Colors: `bh-bg`, `bh-fg`, `bh-red`, `bh-blue`, `bh-yellow`, `bh-border`, `bh-muted`, `primary` (#D02020)
-- Shadows: `shadow-bh-sm` (3px), `shadow-bh-md` (5px) — solid black offsets
-- Borders: `border-bh` (3px), `border-bh-lg` (5px)
-- Utility classes: `.btn-bh`, `.card-bh`, `.input-bh`
-
-**No linting/formatting** — Neither ESLint nor Prettier is configured. TypeScript strict mode is used in both frontend and CMS.
-
-**CMS hooks auto-set fields** — Don't set these manually in API calls:
-- Products: `seller` is set to the logged-in user in `beforeChange`
-- Bids: `bidder` and `bidTime` are set automatically in `beforeChange`
-- Ratings: `rater` is set to the logged-in user in `beforeChange`
-
-**Media storage** — Uploaded files go to S3-compatible storage (Supabase Storage) via a custom adapter (`cms/src/s3Adapter.ts`). Public URLs are generated as `{SUPABASE_URL}/storage/v1/object/public/{S3_BUCKET}/bidmoto/{filename}`. Local storage is disabled in production.
-
-**Collections are mostly inline** — All collections are defined directly in `cms/src/payload.config.ts` except `EmailTemplates` which has its own file at `cms/src/collections/EmailTemplates.ts`.
-
-**Error tracking** — Frontend uses `@sentry/sveltekit` (configured in `hooks.client.ts`, `hooks.server.ts`, `instrumentation.server.ts`).
-
-**TypeScript configs differ:**
-- CMS: `target: ES2020`, `module: commonjs` (Node.js runtime)
-- Frontend: `moduleResolution: bundler` (Vite/SvelteKit)
-
-## Deployment
-
-- **Frontend:** Vercel (adapter-vercel), production at `bidmo.to`
-- **CMS + SSE + Bid Worker:** Railway (nixpacks/dockerfile), blue/green via `deploy.sh`
-- **PM2:** `ecosystem.config.js` manages all 4 services on the production server
-- **Migrations:** Auto-applied during deploy; also `npm run migrate` in `cms/`
-
-## Security Model
-
-Access control uses Payload `Where` queries at the DB level. PII is stripped in `afterRead` hooks. Protected routes use `+page.ts` load guards with `redirect()`. Email template variables are auto-escaped via `escHtml()`. For full details (rate limits, CSRF, SSE auth, PII stripping), see `/project:security`.
-
-## Testing & Quality
-
-- **No unit/integration tests** — only k6 stress tests in `tests/stress/`
-- **No ESLint/Prettier** — TypeScript compiler (`svelte-check` for frontend, `tsc` for CMS) is the primary code quality tool
-- **Type generation:** Run `npm run generate:types` in `cms/` after changing collections to regenerate `payload-types.ts`
-
-## CI/CD
-
-- **CMS + services** → Railway via GitHub Actions (`.github/workflows/`). Push to `main` deploys to production; push to other branches deploys to `staging-v2`. Workflows run `svelte-check` (frontend) and `tsc` (CMS) before deploying.
-- **Frontend** → Vercel via Git integration (adapter-vercel). Not managed by GitHub Actions.
+- **SSR disabled** — Client-side SPA (`export const ssr = false` in `+layout.ts`)
+- **Svelte 5 runes** — Use `$state`, `$derived`, `$props` (not Svelte 4 store syntax)
+- **Bauhaus design system** — Sharp corners, bold borders, Outfit font. See `/project:frontend-guide` for theme details
+- **No linting/formatting** — TypeScript strict mode is the primary quality tool. Run `svelte-check` (frontend) and `tsc` (CMS) before deploying
+- **CMS hooks auto-set fields** — Don't set manually: `seller` on Products, `bidder`/`bidTime` on Bids, `rater` on Ratings
+- **Type generation** — Run `npm run generate:types` in `cms/` after changing collections
+- **Collections are mostly inline** in `cms/src/payload.config.ts` (except `EmailTemplates`)
+- **Media storage** — S3-compatible via Supabase Storage (`cms/src/s3Adapter.ts`)
 
 ## Slash Commands for Detailed Guides
 
 Use these project commands to load detailed context on-demand:
 
-- `/project:architecture` — Full architecture: request flow, bridge routes, bidding pipeline, key files, Redis channels, auth
-- `/project:security` — Security model: access control, rate limiting, CSRF, SSE auth, PII, protected routes
-- `/project:deploy` — Deployment guide, Railway/Vercel IDs, CMS deploy commands
-- `/project:pitfalls` — Known bugs, gotchas, and recurring issues
-- `/project:cms-guide` — Payload CMS structure, collections, column naming, storage, migrations
+- `/project:architecture` — Request flow, bridge routes, bidding pipeline, key files, Redis channels, auth
 - `/project:frontend-guide` — Frontend architecture, API bridge, auth, stores, SSE, design system
+- `/project:cms-guide` — Payload CMS structure, collections, column naming, storage, migrations
+- `/project:security` — Access control, rate limiting, CSRF, SSE auth, PII, protected routes
+- `/project:deploy` — Deployment guide, Railway/Vercel IDs, CMS deploy commands
+- `/project:staging` — Staging environment setup, URLs, deploy commands
+- `/project:push-staging` — Pre-push review and deploy to staging
+- `/project:stagingtomain` — Staging to main merge and production deploy
+- `/project:pitfalls` — Known bugs, gotchas, and recurring issues
 - `/project:env-vars` — All environment variables, CORS config, .env rules
 - `/project:tech-debt` — Known technical debt items
 - `/project:stress-test` — k6 stress testing guide, scenarios, report interpretation
-- `/project:staging` — Staging environment setup, URLs, deploy commands
-- `/project:push-staging` — Pre-push review and deploy to staging
-- `/project:evaluate-repository` — Full repository evaluation (security, architecture, financial integrity, real-time reliability). Supports scoped mode: `security`, `code-quality`, `docs`, `functionality`, `testing`, `devops`, `hygiene`, `claude-code`, `financial`, `realtime`
+- `/project:evaluate-repository` — Full repository evaluation (supports scoped mode: `security`, `code-quality`, `docs`, `functionality`, `testing`, `devops`, `hygiene`, `claude-code`, `financial`, `realtime`)
