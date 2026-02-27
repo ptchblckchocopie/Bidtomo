@@ -170,7 +170,8 @@
   }
 
   .keyword-input::placeholder {
-    color: #999;
+    color: var(--color-fg);
+    opacity: 0.5;
     font-style: italic;
   }
 

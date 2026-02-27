@@ -12,6 +12,16 @@
   --color-border: #121212;
   --color-muted: #E0E0E0;
   --color-white: #FFFFFF;
+  --color-green: #22c55e;
+
+  --color-bg-rgb: 240 240 240;
+  --color-fg-rgb: 18 18 18;
+  --color-red-rgb: 208 32 32;
+  --color-blue-rgb: 16 64 192;
+  --color-yellow-rgb: 240 192 32;
+  --color-border-rgb: 18 18 18;
+  --color-muted-rgb: 224 224 224;
+  --color-white-rgb: 255 255 255;
 
   --shadow-bh-sm: 3px 3px 0px #121212;
   --shadow-bh-md: 5px 5px 0px #121212;
@@ -20,12 +30,38 @@
   --border-bh-lg: 5px;
 }
 
+/* ── Dark Mode ── */
+html.dark {
+  --color-bg: #1A1A1A;
+  --color-fg: #F0F0F0;
+  --color-red: #E83030;
+  --color-blue: #2060E0;
+  --color-yellow: #F0C020;
+  --color-border: #F0F0F0;
+  --color-muted: #2A2A2A;
+  --color-white: #242424;
+  --color-green: #34d399;
+
+  --color-bg-rgb: 26 26 26;
+  --color-fg-rgb: 240 240 240;
+  --color-red-rgb: 232 48 48;
+  --color-blue-rgb: 32 96 224;
+  --color-yellow-rgb: 240 192 32;
+  --color-border-rgb: 240 240 240;
+  --color-muted-rgb: 42 42 42;
+  --color-white-rgb: 36 36 36;
+
+  --shadow-bh-sm: 3px 3px 0px rgba(0, 0, 0, 0.5);
+  --shadow-bh-md: 5px 5px 0px rgba(0, 0, 0, 0.5);
+}
+
 /* ── Global Base ── */
 @layer base {
   body {
     font-family: 'Outfit', sans-serif;
     background-color: var(--color-bg);
     color: var(--color-fg);
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   /* Bauhaus: no rounded corners (except explicit rounded-full for circles) */
@@ -84,7 +120,8 @@
 
   /* ── Card ── */
   .card-bh {
-    @apply bg-white border-bh border-bh-border shadow-bh-sm;
+    @apply border-bh border-bh-border shadow-bh-sm;
+    background-color: var(--color-white);
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
                 box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -92,7 +129,8 @@
   /* ── Input ── */
   .input-bh {
     @apply w-full px-3 py-2.5 text-base font-outfit
-           border-bh border-bh-border bg-white text-bh-fg;
+           border-bh border-bh-border text-bh-fg;
+    background-color: var(--color-white);
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
   }
   .input-bh:focus {
