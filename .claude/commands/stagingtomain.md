@@ -1,6 +1,6 @@
-# Staging to Main — Production Pull Request
+# Staging to Main — Production Deploy
 
-You are about to help the user create a Pull Request from `staging` into `main` for a production deployment. This will NOT merge or push — it creates a PR that the team reviews and merges manually via GitHub.
+You are about to help the user create a Pull Request from `staging` into `main`, verify it passes all checks, fix any issues, and merge it for production deployment.
 
 **This targets production — be thorough and careful.**
 
@@ -31,7 +31,7 @@ If there are **no commits** to merge, tell the user "Nothing to merge — main i
 
 ### Step 4: Check for conflicts
 
-1. Run `git merge-tree $(git merge-base origin/main origin/staging) origin/main origin/staging` or do a dry-run merge to detect conflicts:
+1. Do a dry-run merge to detect conflicts:
    ```
    git checkout -B temp-merge-check origin/main
    git merge --no-commit --no-ff origin/staging
@@ -46,9 +46,36 @@ If there **are conflicts**, list each conflicted file and for each one:
 - Suggest how to resolve it (which version to keep, or how to combine both)
 - Note whether it's a logic conflict (needs careful review) or a trivial conflict (formatting, generated files, lock files)
 
-**Do NOT resolve the conflicts yourself.** Just report them. The team will handle resolution during the PR review.
+**Do NOT resolve the conflicts yourself at this step.** Just report them — they will be resolved in Step 10 if the user confirms.
 
-### Step 5: Verify staging health (pre-PR sanity check)
+### Step 5: Run type-checking (CI gates)
+
+Run the same checks that GitHub Actions will run, **in parallel**:
+
+1. **CMS type-check:**
+   ```bash
+   cd cms && npm ci && npx tsc --noEmit
+   ```
+2. **Frontend type-check:**
+   ```bash
+   cd frontend && npm ci && npm run check
+   ```
+
+Report the results:
+- If **both pass**: "CI gates passed."
+- If **either fails**: Show the errors. These MUST be fixed before merging. Proceed to Step 5a.
+
+#### Step 5a: Fix type-check errors (if any)
+
+If type-check errors were found:
+1. Read the failing files and understand the errors.
+2. Fix each error — prefer minimal, targeted fixes.
+3. Commit the fixes to `staging` with a descriptive message.
+4. Push to `origin/staging`: `git push origin staging`.
+5. Re-run the failing type-check to confirm it passes now.
+6. If it still fails, repeat. If you cannot fix it after 3 attempts, STOP and ask the user for help.
+
+### Step 6: Verify staging health (pre-PR sanity check)
 
 Before creating the PR, verify the staging services are healthy. Run these health checks **in parallel**:
 
@@ -79,15 +106,22 @@ Generate a health status table:
 - If **Frontend returns non-200**: WARN. Possible build issue.
 - If services are **unreachable/timeout**: Note as "Unreachable (may be sleeping)". Non-blocking.
 
-### Step 6: Generate the report and create the PR
+### Step 7: Generate the report
 
-First, show the user this report:
+Show the user this report:
 
 ```
-## Production PR Report: staging → main
+## Production Deploy Report: staging → main
 
 **Date:** <current date>
 **Commits in PR:** <count>
+
+### CI Gates
+
+| Check | Result |
+|-------|--------|
+| CMS `tsc --noEmit` | ✓ Pass / ✗ Fail (fixed) |
+| Frontend `svelte-check` | ✓ Pass / ✗ Fail (fixed) |
 
 ### Staging Health
 
@@ -119,25 +153,25 @@ First, show the user this report:
 <if DB migrations are included, WARN that they will auto-run on deploy>
 ```
 
-### Step 7: Final confirmation — MANDATORY
+### Step 8: Final confirmation — MANDATORY
 
-**CRITICAL: You MUST stop here and wait for the user's explicit response. Do NOT create the PR under any circumstances until the user replies.**
+**CRITICAL: You MUST stop here and wait for the user's explicit response. Do NOT create the PR or merge under any circumstances until the user replies.**
 
 After showing the full report, ask the user:
 
-> This will create a Pull Request from `staging` → `main`. It will **NOT** merge or deploy anything — your team can review and merge it manually.
+> This will create a Pull Request from `staging` → `main`, wait for CI checks to pass, and then **merge it to production**.
 >
-> **Do you want to create the PR? (yes/no)**
+> **Do you want to proceed? (yes/no)**
 
 Then STOP. Do not run any gh command. Wait for the user to respond in a new message.
 
-- If the user says **yes / y / go / create / do it / confirm** → proceed to Step 8.
-- If the user says **no / n / stop / cancel / wait / not yet** or anything other than a clear yes → acknowledge and stop. Do not create the PR.
+- If the user says **yes / y / go / create / do it / confirm / merge** → proceed to Step 9.
+- If the user says **no / n / stop / cancel / wait / not yet** or anything other than a clear yes → acknowledge and stop.
 - If the user asks to change something first → help them make the change, then re-run from Step 3.
 
-### Step 8: Create the Pull Request
+### Step 9: Create the Pull Request
 
-Only run this step AFTER the user has explicitly confirmed in Step 7.
+Only run this step AFTER the user has explicitly confirmed in Step 8.
 
 Create the PR using `gh pr create`:
 
@@ -173,33 +207,119 @@ gh pr create \
 <risks from report, or "None identified.">
 
 ---
-🤖 Generated with [Claude Code](https://claude.ai/code)
+Generated with [Claude Code](https://claude.ai/code)
 EOF
 )"
 ```
 
-After creating the PR, show the user:
+### Step 10: Wait for CI checks and fix issues
+
+After creating the PR, monitor CI checks:
+
+1. Run `gh pr checks <PR_NUMBER> --watch` to wait for checks to complete (use a reasonable timeout).
+   - If the command hangs or is unavailable, poll with `gh pr checks <PR_NUMBER>` every 30 seconds, up to 10 minutes.
+
+2. If **all checks pass**, proceed to Step 11.
+
+3. If **any check fails**:
+   a. Run `gh pr checks <PR_NUMBER>` to identify which checks failed.
+   b. For failed GitHub Actions workflows, fetch the logs: `gh run view <RUN_ID> --log-failed` to understand the failure.
+   c. Read the error output and identify the root cause.
+   d. Fix the issue on the `staging` branch:
+      - Make the fix locally
+      - Commit with a descriptive message (e.g., "Fix type error in cms/src/server.ts for production deploy")
+      - Push to `origin/staging`: `git push origin staging`
+   e. The PR will automatically update. Wait for checks to re-run.
+   f. Repeat up to **3 fix attempts**. If checks still fail after 3 attempts, STOP and tell the user:
+      > CI checks are still failing after 3 fix attempts. Please review the errors manually.
+      > **PR:** <PR URL>
+   g. Do NOT merge if checks are failing.
+
+### Step 11: Pre-merge summary and confirmation — MANDATORY
+
+**CRITICAL: You MUST stop here and wait for the user's explicit response. Do NOT merge under any circumstances until the user replies.**
+
+After all CI checks have passed, show a final summary:
 
 ```
-### Pull Request Created ✓
+## Ready to Merge: staging → main
 
 **PR:** <PR URL>
+**CI Status:** All checks passed ✓
 
-**Next steps:**
-1. Review the PR on GitHub with your team
-2. When ready, merge via GitHub to trigger production deploy
-3. After merge, deploys will trigger automatically:
-   - Backend (Railway): https://github.com/ptchblckchocopie/Bidtomo/actions
-   - Frontend (Vercel): auto-deploys to https://bidmo.to
+### Issues Fixed During This Process
+<if any type-check errors were fixed in Step 5a, list them: file, what was wrong, what was fixed>
+<if any CI failures were fixed in Step 10, list them: what failed, what was fixed>
+<if nothing was fixed: "No issues — all checks passed on first run.">
+
+### Commits Being Merged
+<list each commit: hash + message, INCLUDING any fix commits added during this process>
+
+### What Happens Now
+1. **GitHub Actions** deploys CMS, SSE, bid-worker to **Railway production**
+2. **Vercel** auto-deploys frontend to **bidmo.to**
+```
+
+Then ask:
+
+> Everything above is ready to go. This will **merge to main and trigger production deployment**.
+>
+> **Merge to production? (yes/no)**
+
+Then STOP. Wait for the user to respond in a new message.
+
+- If the user says **yes / y / go / merge / do it / confirm** → proceed to Step 12.
+- If the user says **no / n / stop / cancel / wait / not yet** or anything other than a clear yes → acknowledge and stop. The PR remains open for manual review.
+- If the user asks to change something → help them, push to staging, wait for CI to re-pass, then show this summary again.
+
+### Step 12: Merge the Pull Request
+
+Only run this step AFTER the user has explicitly confirmed in Step 11.
+
+```bash
+gh pr merge <PR_NUMBER> --merge --delete-branch=false
+```
+
+**IMPORTANT:** Use `--delete-branch=false` to keep the `staging` branch alive.
+
+After merging, show the user:
+
+```
+### Production Deploy Complete
+
+**PR:** <PR URL> (merged)
+
+**Deployments triggered:**
+1. **Backend (Railway):** https://github.com/ptchblckchocopie/Bidtomo/actions
+   - CMS, SSE service, and bid-worker deploying to production
+2. **Frontend (Vercel):** auto-deploying to https://bidmo.to
+
+**Monitor deployments:**
+- Railway: check GitHub Actions for deploy status
+- Vercel: check https://vercel.com/ptchblckchocopies-projects for deploy status
+
+**Note:** Stay on `staging` branch for continued development.
+```
+
+### Step 13: Post-merge sync
+
+After the merge, sync the local staging branch:
+
+```bash
+git checkout staging
+git fetch origin
+git pull origin staging
 ```
 
 ## Rules
 
-- **NEVER create the PR without the user's explicit "yes" in Step 7.** The confirmation is not rhetorical — always wait.
-- **NEVER merge the PR yourself.** Only create it. The team merges manually.
-- **NEVER push directly to main.** All production deploys go through PRs.
-- **Do NOT resolve conflicts.** Report them with suggested fixes — the team handles resolution during PR review.
+- **TWO confirmations required.** Step 8 (before creating PR) and Step 11 (before merging). NEVER skip either — always wait for explicit "yes".
+- **NEVER force push to main.** All production deploys go through PR merges.
+- **NEVER merge with failing CI checks.** Fix the issues first or stop and ask the user.
+- **NEVER delete the staging branch.** Always use `--delete-branch=false` when merging.
+- **Fix issues on staging, not main.** All fixes go through the staging branch and into the PR.
 - Keep the summary human-readable — no raw diffs in the output, just the report.
 - If ALL staging services are down, strongly recommend fixing staging before creating the PR.
 - Health checks should have a 10-second timeout — don't hang waiting for unresponsive services.
-- After creating the PR, stay on the `staging` branch so the user continues working on staging.
+- After everything, ensure you are back on the `staging` branch.
+- If conflicts exist and the user confirms to proceed, resolve them during the merge process. Prefer keeping both changes when they don't contradict; prefer the staging version for logic changes.
