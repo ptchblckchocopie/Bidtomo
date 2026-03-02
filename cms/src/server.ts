@@ -392,10 +392,21 @@ const start = async () => {
 
   // Pre-init migration: fix schema issues BEFORE payload.init() tries to access them.
   // Must run before init because Payload queries these columns during startup.
+  // The ratings table may have been created by an earlier deployment without these columns.
+  // CREATE TABLE IF NOT EXISTS doesn't add missing columns, so we must ADD them explicitly.
   try {
     const { Pool: PrePool } = require('pg');
     const prePool = new PrePool({ connectionString: process.env.DATABASE_URI });
-    // Fix 1: Rename rater_role → raterRole (Payload v2 keeps camelCase for select fields)
+
+    // Ensure enum type exists
+    await prePool.query(`
+      DO $$ BEGIN
+        CREATE TYPE "enum_ratings_rater_role" AS ENUM ('buyer', 'seller');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+    `);
+
+    // Rename rater_role → raterRole if the old snake_case column exists
     await prePool.query(`
       DO $$ BEGIN
         ALTER TABLE "ratings" RENAME COLUMN "rater_role" TO "raterRole";
@@ -403,13 +414,28 @@ const start = async () => {
                WHEN undefined_table THEN null;
       END $$;
     `);
-    // Fix 2: Add missing "order" column to ratings_rels if it was created without it
+
+    // Add raterRole column if it doesn't exist at all (table was created without it)
     await prePool.query(`
-      ALTER TABLE "ratings_rels" ADD COLUMN IF NOT EXISTS "order" integer;
+      DO $$ BEGIN
+        ALTER TABLE "ratings" ADD COLUMN "raterRole" "enum_ratings_rater_role" NOT NULL DEFAULT 'buyer';
+      EXCEPTION WHEN duplicate_column THEN null;
+               WHEN undefined_table THEN null;
+      END $$;
     `);
+
+    // Add missing "order" column to ratings_rels if it was created without it
+    await prePool.query(`
+      DO $$ BEGIN
+        ALTER TABLE "ratings_rels" ADD COLUMN IF NOT EXISTS "order" integer;
+      EXCEPTION WHEN undefined_table THEN null;
+      END $$;
+    `);
+
     await prePool.end();
+    console.log('[PRE-INIT] Schema fixes applied for ratings table');
   } catch (e) {
-    console.log('Pre-init migration skipped:', (e as any).message);
+    console.log('[PRE-INIT] Migration error:', (e as any).message);
   }
 
   await payload.init({
