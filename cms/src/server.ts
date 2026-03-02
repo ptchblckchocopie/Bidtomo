@@ -390,20 +390,79 @@ const start = async () => {
     }
   });
 
-  // Pre-init migration: fix rater_role → raterRole before Payload queries the column
+  // Pre-init migration: ensure ratings table has all required columns before Payload queries it
   try {
     const { Pool: PrePool } = require('pg');
     const prePool = new PrePool({ connectionString: process.env.DATABASE_URI });
+
+    // Ensure enum type exists
+    await prePool.query(`
+      DO $$ BEGIN
+        CREATE TYPE "enum_ratings_rater_role" AS ENUM ('buyer', 'seller');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+    `);
+
+    // Create table if it doesn't exist at all (with correct column names)
+    await prePool.query(`
+      CREATE TABLE IF NOT EXISTS "ratings" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "rating" numeric NOT NULL,
+        "comment" varchar,
+        "raterRole" "enum_ratings_rater_role" NOT NULL DEFAULT 'buyer',
+        "follow_up_rating" numeric,
+        "follow_up_comment" varchar,
+        "follow_up_created_at" timestamp(3) with time zone,
+        "has_follow_up" boolean,
+        "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+        "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+      );
+    `);
+
+    // If table already exists but is missing columns, add them
+    await prePool.query(`
+      ALTER TABLE "ratings" ADD COLUMN IF NOT EXISTS "rating" numeric;
+      ALTER TABLE "ratings" ADD COLUMN IF NOT EXISTS "comment" varchar;
+      ALTER TABLE "ratings" ADD COLUMN IF NOT EXISTS "follow_up_rating" numeric;
+      ALTER TABLE "ratings" ADD COLUMN IF NOT EXISTS "follow_up_comment" varchar;
+      ALTER TABLE "ratings" ADD COLUMN IF NOT EXISTS "follow_up_created_at" timestamp(3) with time zone;
+      ALTER TABLE "ratings" ADD COLUMN IF NOT EXISTS "has_follow_up" boolean;
+      ALTER TABLE "ratings" ADD COLUMN IF NOT EXISTS "updated_at" timestamp(3) with time zone DEFAULT now();
+      ALTER TABLE "ratings" ADD COLUMN IF NOT EXISTS "created_at" timestamp(3) with time zone DEFAULT now();
+    `);
+
+    // Fix rater_role → raterRole rename if old column exists
     await prePool.query(`
       DO $$ BEGIN
         ALTER TABLE "ratings" RENAME COLUMN "rater_role" TO "raterRole";
       EXCEPTION WHEN undefined_column THEN null;
-               WHEN undefined_table THEN null;
       END $$;
     `);
+
+    // Add raterRole if missing entirely
+    await prePool.query(`
+      ALTER TABLE "ratings" ADD COLUMN IF NOT EXISTS "raterRole" "enum_ratings_rater_role" NOT NULL DEFAULT 'buyer';
+    `);
+
+    // Ensure ratings_rels table exists with all columns
+    await prePool.query(`
+      CREATE TABLE IF NOT EXISTS "ratings_rels" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "order" integer,
+        "parent_id" integer NOT NULL REFERENCES "ratings"("id") ON DELETE CASCADE,
+        "path" varchar NOT NULL,
+        "transactions_id" integer REFERENCES "transactions"("id") ON DELETE CASCADE,
+        "users_id" integer REFERENCES "users"("id") ON DELETE CASCADE
+      );
+      ALTER TABLE "ratings_rels" ADD COLUMN IF NOT EXISTS "order" integer;
+      CREATE INDEX IF NOT EXISTS "ratings_rels_order_idx" ON "ratings_rels" USING btree ("order");
+      CREATE INDEX IF NOT EXISTS "ratings_rels_parent_idx" ON "ratings_rels" USING btree ("parent_id");
+      CREATE INDEX IF NOT EXISTS "ratings_rels_path_idx" ON "ratings_rels" USING btree ("path");
+    `);
+
     await prePool.end();
   } catch (preErr: any) {
-    console.error('Pre-init migration (raterRole rename) failed:', preErr.message);
+    console.error('Pre-init migration (ratings) failed:', preErr.message);
   }
 
   await payload.init({
