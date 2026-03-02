@@ -2,7 +2,7 @@ import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse } from '$l
 import type { RequestHandler } from './$types';
 
 // GET /api/bridge/products/[id] - Get single product
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async ({ params, url, request }) => {
   try {
     const queryParams = new URLSearchParams();
     url.searchParams.forEach((value, key) => {
@@ -12,7 +12,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
     const queryString = queryParams.toString();
     const endpoint = `/api/products/${params.id}${queryString ? `?${queryString}` : ''}`;
 
-    const response = await cmsRequest(endpoint);
+    // Forward auth token so CMS can evaluate access control for hidden products
+    const token = getTokenFromRequest(request);
+    const response = await cmsRequest(endpoint, {
+      token: token || undefined,
+    });
     const data = await response.json();
 
     return jsonResponse(data, response.status);

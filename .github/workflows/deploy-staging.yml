@@ -1,0 +1,64 @@
+name: Deploy to Staging
+
+# Runs when anyone pushes any branch EXCEPT main
+on:
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  type-check:
+    name: Type-check before deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Type-check CMS
+        run: |
+          cd cms
+          npm ci
+          npx tsc --noEmit
+
+      - name: Type-check Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run check
+
+  deploy-backend:
+    name: Deploy backend to staging
+    needs: type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy CMS to staging
+        run: railway up --service cms --detach --environment staging-v2
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+
+      - name: Deploy SSE service to staging
+        run: railway up --service sse-service --detach --environment staging-v2
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+
+      - name: Deploy bid-worker to staging
+        run: railway up --service bid-worker --detach --environment staging-v2
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+
+      - name: Done
+        run: |
+          echo "Staging deployed!"
+          echo "CMS: https://cms-staging-v2.up.railway.app"
+          echo "SSE: https://sse-service-staging-v2.up.railway.app"

@@ -2,9 +2,9 @@ import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse } from '$l
 import type { RequestHandler } from './$types';
 
 // POST /api/bridge/users/profile-picture — Set profile picture (mediaId in JSON body)
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, cookies }) => {
   try {
-    const token = getTokenFromRequest(request);
+    const token = getTokenFromRequest(request, cookies);
     if (!token) {
       return errorResponse('Unauthorized', 401);
     }
@@ -17,7 +17,19 @@ export const POST: RequestHandler = async ({ request }) => {
       body,
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.error('Bridge profile-picture: non-JSON CMS response:', response.status, text.slice(0, 500));
+      return errorResponse('CMS returned invalid response', 502);
+    }
+
+    if (!response.ok) {
+      console.error('Bridge profile-picture: CMS error:', response.status, data);
+    }
+
     return jsonResponse(data, response.status);
   } catch (error: any) {
     console.error('Bridge profile picture error:', error);
@@ -26,9 +38,9 @@ export const POST: RequestHandler = async ({ request }) => {
 };
 
 // DELETE /api/bridge/users/profile-picture — Remove profile picture
-export const DELETE: RequestHandler = async ({ request }) => {
+export const DELETE: RequestHandler = async ({ request, cookies }) => {
   try {
-    const token = getTokenFromRequest(request);
+    const token = getTokenFromRequest(request, cookies);
     if (!token) {
       return errorResponse('Unauthorized', 401);
     }

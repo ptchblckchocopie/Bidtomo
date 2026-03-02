@@ -298,6 +298,9 @@ export async function fetchProducts(params?: {
     // Sort by creation date (newest first)
     queryParams.append('sort', '-createdAt');
 
+    // Depth 1 ensures upload/relationship fields (e.g. images.image) are populated
+    queryParams.append('depth', '1');
+
     const response = await fetchFn(`${BRIDGE_URL}/api/bridge/products?${queryParams.toString()}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
@@ -403,6 +406,9 @@ export async function fetchMyBidsProducts(params?: {
     // Sort by creation date (newest first)
     productQueryParams.append('sort', '-createdAt');
 
+    // Depth 1 ensures upload/relationship fields (e.g. images.image) are populated
+    productQueryParams.append('depth', '1');
+
     const productsResponse = await fetchFn(`${BRIDGE_URL}/api/bridge/products?${productQueryParams.toString()}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
@@ -435,7 +441,7 @@ export async function fetchMyBidsProducts(params?: {
 // Fetch products by seller
 export async function fetchProductsBySeller(sellerId: string): Promise<Product[]> {
   try {
-    const response = await fetch(`${BRIDGE_URL}/api/bridge/products?where[seller][equals]=${sellerId}`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/products?where[seller][equals]=${sellerId}&depth=1`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -458,7 +464,7 @@ export async function fetchActiveProductsBySeller(sellerId: string, customFetch?
     const fetchFn = customFetch || fetch;
     const now = new Date().toISOString();
     const response = await fetchFn(
-      `${BRIDGE_URL}/api/bridge/products?where[and][0][seller][equals]=${sellerId}&where[and][1][status][equals]=available&where[and][2][active][equals]=true&where[and][3][auctionEndDate][greater_than]=${now}`,
+      `${BRIDGE_URL}/api/bridge/products?where[and][0][seller][equals]=${sellerId}&where[and][1][status][equals]=available&where[and][2][active][equals]=true&where[and][3][auctionEndDate][greater_than]=${now}&depth=1`,
       {
         headers: getAuthHeaders(),
         credentials: 'include',
@@ -482,7 +488,7 @@ export async function fetchHiddenProductsBySeller(sellerId: string, customFetch?
   try {
     const fetchFn = customFetch || fetch;
     const response = await fetchFn(
-      `${BRIDGE_URL}/api/bridge/products?where[and][0][seller][equals]=${sellerId}&where[and][1][active][equals]=false`,
+      `${BRIDGE_URL}/api/bridge/products?where[and][0][seller][equals]=${sellerId}&where[and][1][active][equals]=false&depth=1`,
       {
         headers: getAuthHeaders(),
         credentials: 'include',
@@ -507,7 +513,7 @@ export async function fetchEndedProductsBySeller(sellerId: string, customFetch?:
     const fetchFn = customFetch || fetch;
     const now = new Date().toISOString();
     const response = await fetchFn(
-      `${BRIDGE_URL}/api/bridge/products?where[and][0][seller][equals]=${sellerId}&where[and][1][or][0][status][equals]=sold&where[and][1][or][1][status][equals]=ended&where[and][1][or][2][and][0][status][equals]=available&where[and][1][or][2][and][1][auctionEndDate][less_than_equal]=${now}`,
+      `${BRIDGE_URL}/api/bridge/products?where[and][0][seller][equals]=${sellerId}&where[and][1][or][0][status][equals]=sold&where[and][1][or][1][status][equals]=ended&where[and][1][or][2][and][0][status][equals]=available&where[and][1][or][2][and][1][auctionEndDate][less_than_equal]=${now}&depth=1`,
       {
         headers: getAuthHeaders(),
         credentials: 'include',
@@ -732,7 +738,7 @@ export async function getCurrentUser(customFetch?: typeof fetch): Promise<User |
 // Place a bid
 export async function placeBid(productId: string, amount: number, censorName: boolean = false): Promise<Bid | null> {
   try {
-    console.log('Placing bid:', { productId, amount, censorName, headers: getAuthHeaders() });
+    console.log('Placing bid:', { productId, amount, censorName });
 
     const response = await fetch(`${BRIDGE_URL}/api/bridge/bids`, {
       method: 'POST',
@@ -789,7 +795,7 @@ export async function fetchProductBids(productId: string, customFetch?: typeof f
 // Fetch user's purchases (products they won)
 export async function fetchMyPurchases(): Promise<Product[]> {
   try {
-    const response = await fetch(`${BRIDGE_URL}/api/bridge/products?where[status][in][0]=sold&where[status][in][1]=ended&limit=100`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/products?where[status][in][0]=sold&where[status][in][1]=ended&limit=100&depth=1`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });

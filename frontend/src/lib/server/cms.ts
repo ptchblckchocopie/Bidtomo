@@ -40,13 +40,28 @@ export async function cmsRequest(
   return fetch(url, fetchOptions);
 }
 
-export function getTokenFromRequest(request: Request): string | null {
+export function getTokenFromRequest(request: Request, cookies?: { get: (name: string) => string | undefined }): string | null {
+  // Check Authorization header first
   const authHeader = request.headers.get('Authorization');
   if (authHeader?.startsWith('JWT ') || authHeader?.startsWith('Bearer ')) {
     return authHeader.startsWith('JWT ')
       ? authHeader.substring(4)
       : authHeader.substring(7);
   }
+
+  // Fall back to httpOnly cookie via SvelteKit cookies API (most reliable)
+  if (cookies) {
+    const cookieToken = cookies.get('auth_token');
+    if (cookieToken) return cookieToken;
+  }
+
+  // Final fallback: parse raw Cookie header
+  const cookieHeader = request.headers.get('Cookie');
+  if (cookieHeader) {
+    const match = cookieHeader.match(/(?:^|;\s*)auth_token=([^;]+)/);
+    if (match) return match[1];
+  }
+
   return null;
 }
 

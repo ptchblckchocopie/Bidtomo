@@ -12,6 +12,16 @@
   --color-border: #121212;
   --color-muted: #E0E0E0;
   --color-white: #FFFFFF;
+  --color-green: #22c55e;
+
+  --color-bg-rgb: 240 240 240;
+  --color-fg-rgb: 18 18 18;
+  --color-red-rgb: 208 32 32;
+  --color-blue-rgb: 16 64 192;
+  --color-yellow-rgb: 240 192 32;
+  --color-border-rgb: 18 18 18;
+  --color-muted-rgb: 224 224 224;
+  --color-white-rgb: 255 255 255;
 
   --shadow-bh-sm: 3px 3px 0px #121212;
   --shadow-bh-md: 5px 5px 0px #121212;
@@ -20,18 +30,48 @@
   --border-bh-lg: 5px;
 }
 
+/* ── Dark Mode — Linear/Modern Palette ── */
+html.dark {
+  --color-bg: #050506;
+  --color-fg: #EDEDEF;
+  --color-red: #5E6AD2;
+  --color-blue: #5E6AD2;
+  --color-yellow: #C9A830;
+  --color-border: #161620;
+  --color-muted: #0d0d12;
+  --color-white: #0a0a0c;
+  --color-green: #5AE879;
+
+  --color-bg-rgb: 5 5 6;
+  --color-fg-rgb: 237 237 239;
+  --color-red-rgb: 94 106 210;
+  --color-blue-rgb: 94 106 210;
+  --color-yellow-rgb: 201 168 48;
+  --color-border-rgb: 22 22 32;
+  --color-muted-rgb: 13 13 18;
+  --color-white-rgb: 10 10 12;
+
+  --shadow-bh-sm: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 2px 12px rgba(0, 0, 0, 0.3), 0 0 20px rgba(0, 0, 0, 0.15);
+  --shadow-bh-md: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 0, 0, 0.2);
+
+  --color-accent: #5E6AD2;
+  --color-accent-bright: #6872D9;
+  --color-accent-glow: rgba(94, 106, 210, 0.3);
+}
+
 /* ── Global Base ── */
 @layer base {
   body {
     font-family: 'Outfit', sans-serif;
     background-color: var(--color-bg);
     color: var(--color-fg);
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  /* Bauhaus: no rounded corners (except explicit rounded-full for circles) */
-  *,
-  *::before,
-  *::after {
+  /* Bauhaus: no rounded corners in light mode (dark mode allows rounded corners) */
+  html:not(.dark) *,
+  html:not(.dark) *::before,
+  html:not(.dark) *::after {
     border-radius: 0 !important;
   }
 
@@ -84,7 +124,8 @@
 
   /* ── Card ── */
   .card-bh {
-    @apply bg-white border-bh border-bh-border shadow-bh-sm;
+    @apply border-bh border-bh-border shadow-bh-sm;
+    background-color: var(--color-white);
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
                 box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -92,7 +133,8 @@
   /* ── Input ── */
   .input-bh {
     @apply w-full px-3 py-2.5 text-base font-outfit
-           border-bh border-bh-border bg-white text-bh-fg;
+           border-bh border-bh-border text-bh-fg;
+    background-color: var(--color-white);
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
   }
   .input-bh:focus {
@@ -142,4 +184,198 @@ img[loading="lazy"] {
 img[loading="lazy"].loaded,
 img[loading="lazy"][complete] {
   opacity: 1;
+}
+
+/* ══════════════════════════════════════════════════
+   Dark Mode — Linear/Modern Design System
+   ══════════════════════════════════════════════════ */
+
+/* Body — vertical depth gradient */
+html.dark body {
+  background: radial-gradient(ellipse at top, #0a0a0f 0%, #050506 50%, #020203 100%);
+}
+
+/* Cards — gradient glass, rounded, multi-layer shadow */
+html.dark .card-bh {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  border-width: 1px;
+  border-color: rgba(255, 255, 255, 0.06);
+  border-radius: 16px !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 2px 20px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(0, 0, 0, 0.2);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html.dark .card-bh:hover {
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 4px 24px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(94, 106, 210, 0.08);
+}
+
+/* Inputs — dark surface, rounded, accent focus ring */
+html.dark .input-bh {
+  background: #0F0F12;
+  border-width: 1px;
+  border-color: rgba(255, 255, 255, 0.10);
+  border-radius: 8px !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+html.dark .input-bh:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+  background: #111116;
+  outline: none;
+}
+
+/* Buttons — subtle glass with inner highlight */
+html.dark .btn-bh {
+  background: rgba(255, 255, 255, 0.05);
+  border-width: 1px;
+  border-color: rgba(255, 255, 255, 0.10);
+  border-radius: 8px !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.2s ease,
+              border-color 0.2s ease;
+}
+
+html.dark .btn-bh:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+html.dark .btn-bh:active {
+  transform: scale(0.98);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+  transition-duration: 0.1s;
+}
+
+html.dark .btn-bh:disabled {
+  box-shadow: none;
+  opacity: 0.4;
+}
+
+/* Primary button — accent indigo with glow */
+html.dark .btn-bh-red {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: rgba(94, 106, 210, 0.5);
+  box-shadow:
+    0 0 0 1px rgba(94, 106, 210, 0.5),
+    0 4px 12px rgba(94, 106, 210, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+html.dark .btn-bh-red:hover {
+  background: var(--color-accent-bright);
+  box-shadow:
+    0 0 0 1px rgba(94, 106, 210, 0.6),
+    0 6px 20px rgba(94, 106, 210, 0.4),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+}
+
+html.dark .btn-bh-red:active {
+  background: #5560c5;
+  box-shadow:
+    0 0 0 1px rgba(94, 106, 210, 0.5),
+    0 2px 8px rgba(94, 106, 210, 0.2),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Blue button — secondary ghost style */
+html.dark .btn-bh-blue {
+  background: rgba(94, 106, 210, 0.15);
+  color: #8b93e0;
+  border-color: rgba(94, 106, 210, 0.25);
+  box-shadow: inset 0 1px 0 0 rgba(94, 106, 210, 0.1);
+}
+
+html.dark .btn-bh-blue:hover {
+  background: rgba(94, 106, 210, 0.25);
+  border-color: rgba(94, 106, 210, 0.35);
+}
+
+/* Yellow button — muted gold glow */
+html.dark .btn-bh-yellow {
+  background: rgba(201, 168, 48, 0.20);
+  color: #d4b44a;
+  border-color: rgba(201, 168, 48, 0.3);
+  box-shadow: inset 0 1px 0 0 rgba(201, 168, 48, 0.1);
+}
+
+html.dark .btn-bh-yellow:hover {
+  background: rgba(201, 168, 48, 0.30);
+  border-color: rgba(201, 168, 48, 0.4);
+}
+
+/* Header — dark glass, no red */
+html.dark .site-header {
+  background: rgba(5, 5, 6, 0.80) !important;
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border-bottom-width: 1px !important;
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Footer — deepest dark */
+html.dark .site-footer {
+  background: #020203 !important;
+  color: #8A8F98 !important;
+  border-top-width: 1px !important;
+  border-top-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Divider — gradient fade line */
+html.dark .divider-bh {
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.10), transparent);
+  height: 1px;
+}
+
+/* Headline — gradient text */
+html.dark .headline-bh {
+  background: linear-gradient(to bottom, #ffffff, rgba(255, 255, 255, 0.70));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+}
+
+/* Native form elements — ensure dark bg + light text for all inputs */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]),
+html.dark textarea,
+html.dark select {
+  background-color: #0F0F12;
+  color: var(--color-fg);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):focus,
+html.dark textarea:focus,
+html.dark select:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+}
+
+html.dark select option {
+  background-color: #0F0F12;
+  color: var(--color-fg);
+}
+
+/* Focus ring — accent indigo */
+html.dark *:focus-visible {
+  outline-color: var(--color-accent);
+  outline-offset: 2px;
 }

@@ -35,8 +35,6 @@ export default buildConfig({
   cors: [
     'http://localhost:5173',
     'http://localhost:3001',
-    'http://192.168.18.117:5173',
-    'http://192.168.18.117:3001',
     'https://www.bidmo.to',
     'https://bidmo.to',
     'https://app.bidmo.to',
@@ -46,8 +44,6 @@ export default buildConfig({
   csrf: [
     'http://localhost:5173',
     'http://localhost:3001',
-    'http://192.168.18.117:5173',
-    'http://192.168.18.117:3001',
     'https://www.bidmo.to',
     'https://bidmo.to',
     'https://app.bidmo.to',
@@ -102,7 +98,7 @@ export default buildConfig({
         rejectUnauthorized: true,
         ca: process.env.DATABASE_CA_CERT,
       } : {
-        rejectUnauthorized: false, // Accept self-signed certificates
+        rejectUnauthorized: false, // Railway proxy uses self-signed certs; set DATABASE_CA_CERT for full verification
       },
     }),
   }),
@@ -112,6 +108,7 @@ export default buildConfig({
       slug: 'users',
       auth: {
         verify: false,
+        maxLoginAttempts: 5,
       },
       admin: {
         useAsTitle: 'email',
@@ -123,6 +120,41 @@ export default buildConfig({
         create: () => true,
         update: ({ req }) => !!req.user,
         delete: ({ req }) => req.user?.role === 'admin',
+      },
+      hooks: {
+        beforeChange: [
+          ({ req, data, operation, originalDoc }: any) => {
+            // Prevent role escalation: only admins can set/change the role field
+            if (req.user?.role !== 'admin') {
+              if (operation === 'create') {
+                // Force default role on registration — ignore any client-supplied role
+                data.role = 'buyer';
+              } else if (operation === 'update') {
+                // Preserve existing role — using `delete` would cause "required" validation
+                // failure on partial updates (e.g. profile picture)
+                data.role = originalDoc?.role ?? 'buyer';
+              }
+            }
+            return data;
+          },
+        ],
+        afterRead: [
+          ({ req, doc }: any) => {
+            // Skip PII stripping for internal/local API calls (no Express response object)
+            // This preserves email access for server.ts email notifications, bid processing, etc.
+            if (!req.res) return doc;
+
+            // Admins see everything
+            if (req.user?.role === 'admin') return doc;
+
+            // Users see their own full profile
+            if (req.user?.id === doc.id) return doc;
+
+            // Strip PII for everyone else (including populated relations in products, bids, etc.)
+            const { email, phoneNumber, countryCode, ...publicData } = doc;
+            return publicData;
+          },
+        ],
       },
       fields: [
         {
@@ -196,7 +228,25 @@ export default buildConfig({
         useAsTitle: 'title',
       },
       access: {
-        read: () => true,
+        read: (({ req }: any) => {
+          // Admins see everything
+          if (req.user?.role === 'admin') return true;
+
+          // Authenticated non-admins see active products + their own listings
+          if (req.user) {
+            return {
+              or: [
+                { active: { equals: true } },
+                { seller: { equals: req.user.id } },
+              ],
+            };
+          }
+
+          // Unauthenticated users see only active products
+          return {
+            active: { equals: true },
+          };
+        }) as any,
         create: ({ req }) => !!req.user,
         update: ({ req, id }) => {
           // Admins can update any product
@@ -235,8 +285,13 @@ export default buildConfig({
                 throw new Error('Cannot edit products that have been sold');
               }
 
-              // Prevent editing startingPrice if there are already bids
-              if (data && data.startingPrice !== undefined && data.startingPrice !== originalDoc?.startingPrice) {
+              // Prevent editing startingPrice, auctionEndDate, or status if there are already bids
+              // Prevent editing startingPrice, auctionEndDate, or status if there are already bids
+              const hasStartingPriceChange = data?.startingPrice !== undefined && data.startingPrice !== originalDoc?.startingPrice;
+              const hasEndDateChange = data?.auctionEndDate !== undefined && data.auctionEndDate !== originalDoc?.auctionEndDate;
+              const hasStatusChange = data?.status !== undefined && data.status !== originalDoc?.status;
+
+              if (hasStartingPriceChange || hasEndDateChange || hasStatusChange) {
                 const existingBids = await req.payload.find({
                   collection: 'bids',
                   where: {
@@ -248,7 +303,15 @@ export default buildConfig({
                 });
 
                 if (existingBids.docs.length > 0) {
-                  throw new Error('Cannot change starting price after bids have been placed');
+                  if (hasStartingPriceChange) {
+                    throw new Error('Cannot change starting price after bids have been placed');
+                  }
+                  if (hasEndDateChange) {
+                    throw new Error('Cannot change auction end date after bids have been placed');
+                  }
+                  if (hasStatusChange) {
+                    throw new Error('Cannot change product status after bids have been placed');
+                  }
                 }
               }
             }
@@ -318,6 +381,42 @@ export default buildConfig({
               if (broadcast) {
                 setImmediate(() => {
                   broadcast(String(doc.id));
+                });
+              }
+
+              // Notify all channels when product visibility changes (e.g. admin hides it)
+              if (previousDoc && doc.active !== previousDoc.active) {
+                const visibilityPayload = {
+                  type: 'product_visibility',
+                  productId: doc.id,
+                  active: doc.active,
+                  title: doc.title,
+                };
+
+                // Notify seller via user SSE
+                const publishMsg = (global as any).publishMessageNotification;
+                if (publishMsg) {
+                  const sellerId = typeof doc.seller === 'object' && doc.seller ? (doc.seller as any).id : doc.seller;
+                  if (sellerId) {
+                    setImmediate(() => {
+                      publishMsg(sellerId, visibilityPayload)
+                        .catch((err: Error) => console.error('Error publishing product_visibility to seller:', err));
+                    });
+                  }
+                }
+
+                // Notify global SSE (browse page) and product SSE (detail page)
+                const publishGlobal = (global as any).publishGlobalEvent;
+                const publishProduct = (global as any).publishProductUpdate;
+                setImmediate(() => {
+                  if (publishGlobal) {
+                    publishGlobal(visibilityPayload)
+                      .catch((err: Error) => console.error('Error publishing product_visibility to global:', err));
+                  }
+                  if (publishProduct) {
+                    publishProduct(doc.id, visibilityPayload)
+                      .catch((err: Error) => console.error('Error publishing product_visibility to product:', err));
+                  }
                 });
               }
             }
@@ -576,6 +675,50 @@ export default buildConfig({
         delete: ({ req }) => req.user?.role === 'admin',
       },
       hooks: {
+        beforeValidate: [
+          async ({ req, data, operation }: any) => {
+            // Enforce business rules when bids are created via Payload REST API (POST /api/bids).
+            // The bid-worker bypasses Payload ORM and has its own SQL-level validation,
+            // but this hook protects against direct REST API abuse.
+            if (operation === 'create' && data?.product) {
+              const productId = typeof data.product === 'string' ? parseInt(data.product, 10) : data.product;
+              const product: any = await req.payload.findByID({
+                collection: 'products',
+                id: productId,
+                overrideAccess: true,
+              });
+
+              if (!product) throw new Error('Product not found');
+              if (product.status !== 'available') throw new Error(`Product is ${product.status}`);
+              if (!product.active) throw new Error('Product is not active');
+              if (new Date(product.auctionEndDate) <= new Date()) throw new Error('Auction has ended');
+
+              // Shill bidding check: bidder cannot be the seller
+              const sellerId = typeof product.seller === 'object' ? product.seller.id : product.seller;
+              const bidderId = data.bidder || req.user?.id;
+              if (sellerId === bidderId) throw new Error('You cannot bid on your own product');
+
+              // Minimum bid check
+              const currentBid = Number(product.currentBid) || 0;
+              const bidInterval = Number(product.bidInterval) || 1;
+              const startingPrice = Number(product.startingPrice) || 0;
+              const minimumBid = currentBid > 0 ? currentBid + bidInterval : startingPrice;
+              if (typeof data.amount !== 'number' || !isFinite(data.amount) || data.amount <= 0) {
+                throw new Error('Invalid bid amount');
+              }
+              if (data.amount < minimumBid) {
+                throw new Error(`Bid must be at least ${minimumBid}`);
+              }
+
+              // Cap maximum bid to prevent griefing (10x current price or 10M, whichever is larger)
+              const maxBid = Math.max((currentBid || startingPrice) * 10, 10_000_000);
+              if (data.amount > maxBid) {
+                throw new Error(`Bid amount exceeds maximum allowed (${maxBid})`);
+              }
+            }
+            return data;
+          },
+        ],
         beforeChange: [
           async ({ req, data, operation }) => {
             // Convert product to integer if it's a string
@@ -699,14 +842,29 @@ export default buildConfig({
         useAsTitle: 'id',
       },
       access: {
-        read: ({ req }) => {
-          // Users can only read messages they sent or received
+        read: (({ req }: any) => {
           if (!req.user) return false;
-          // Return true - filtering will be done via hooks
-          return true;
-        },
+          if (req.user.role === 'admin') return true;
+          // DB-level filter: only messages where user is sender or receiver
+          return {
+            or: [
+              { sender: { equals: req.user.id } },
+              { receiver: { equals: req.user.id } },
+            ],
+          };
+        }) as any,
         create: ({ req }) => !!req.user,
-        update: ({ req }) => !!req.user,
+        update: (({ req }: any) => {
+          if (!req.user) return false;
+          if (req.user.role === 'admin') return true;
+          // DB-level filter: only sender or receiver can update their messages
+          return {
+            or: [
+              { sender: { equals: req.user.id } },
+              { receiver: { equals: req.user.id } },
+            ],
+          };
+        }) as any,
         delete: ({ req }) => req.user?.role === 'admin',
       },
       hooks: {
@@ -761,21 +919,6 @@ export default buildConfig({
             return doc;
           },
         ],
-        afterRead: [
-          async ({ req, doc }) => {
-            // Filter out messages user shouldn't see
-            if (!req.user) return null;
-
-            const senderId = typeof doc.sender === 'object' ? doc.sender.id : doc.sender;
-            const receiverId = typeof doc.receiver === 'object' ? doc.receiver.id : doc.receiver;
-
-            if (senderId === req.user.id || receiverId === req.user.id) {
-              return doc;
-            }
-
-            return null;
-          },
-        ],
       },
       fields: [
         {
@@ -828,29 +971,54 @@ export default buildConfig({
         useAsTitle: 'id',
       },
       access: {
-        read: ({ req }) => {
-          // Users can only read their own transactions
+        read: (({ req }: any) => {
           if (!req.user) return false;
-          return true; // Filtering done via hooks
-        },
+          if (req.user.role === 'admin') return true;
+          // DB-level filter: only transactions where user is buyer or seller
+          return {
+            or: [
+              { buyer: { equals: req.user.id } },
+              { seller: { equals: req.user.id } },
+            ],
+          };
+        }) as any,
         create: ({ req }) => req.user?.role === 'admin',
-        update: ({ req }) => !!req.user,
+        update: (({ req }: any) => {
+          if (!req.user) return false;
+          if (req.user.role === 'admin') return true;
+          // DB-level filter: only buyer or seller can update their transactions
+          return {
+            or: [
+              { buyer: { equals: req.user.id } },
+              { seller: { equals: req.user.id } },
+            ],
+          };
+        }) as any,
         delete: ({ req }) => req.user?.role === 'admin',
       },
       hooks: {
-        afterRead: [
-          async ({ req, doc }) => {
-            // Filter out transactions user shouldn't see
-            if (!req.user) return null;
-
-            const buyerId = typeof doc.buyer === 'object' ? doc.buyer.id : doc.buyer;
-            const sellerId = typeof doc.seller === 'object' ? doc.seller.id : doc.seller;
-
-            if (buyerId === req.user.id || sellerId === req.user.id) {
-              return doc;
+        beforeChange: [
+          ({ req, data, operation, originalDoc }: any) => {
+            // Prevent non-admins from changing critical fields on transactions
+            if (operation === 'update' && req.user?.role !== 'admin') {
+              // Only allow status transitions that make sense, and block amount/relationship changes
+              delete data.product;
+              delete data.seller;
+              delete data.buyer;
+              delete data.amount;
+              // Only allow status changes to: in_progress, completed (from pending/in_progress)
+              if (data.status) {
+                const allowed: Record<string, string[]> = {
+                  pending: ['in_progress'],
+                  in_progress: ['completed'],
+                };
+                const currentStatus = originalDoc?.status || 'pending';
+                if (!allowed[currentStatus]?.includes(data.status)) {
+                  throw new Error(`Cannot change status from ${currentStatus} to ${data.status}`);
+                }
+              }
             }
-
-            return null;
+            return data;
           },
         ],
       },
@@ -928,9 +1096,18 @@ export default buildConfig({
         group: 'Transactions',
       },
       access: {
-        read: ({ req }) => !!req.user,
+        read: (({ req }: any) => {
+          if (!req.user) return false;
+          if (req.user.role === 'admin') return true;
+          // DB-level filter: only void requests initiated by this user
+          // (the other transaction party accesses via the custom API endpoints in server.ts,
+          //  which use overrideAccess: true)
+          return { initiator: { equals: req.user.id } };
+        }) as any,
         create: ({ req }) => !!req.user,
-        update: ({ req }) => !!req.user,
+        // Restrict direct updates: only admins can modify void requests via REST API.
+        // All user-facing mutations go through custom endpoints in server.ts which use overrideAccess: true.
+        update: ({ req }) => req.user?.role === 'admin',
         delete: ({ req }) => req.user?.role === 'admin',
       },
       fields: [
@@ -1094,7 +1271,7 @@ export default buildConfig({
       access: {
         read: () => true,
         create: ({ req }) => !!req.user,
-        update: ({ req }) => !!req.user,
+        update: ({ req }) => req.user?.role === 'admin',
         delete: ({ req }) => req.user?.role === 'admin',
       },
       fields: [
@@ -1121,14 +1298,44 @@ export default buildConfig({
         delete: ({ req }) => req.user?.role === 'admin',
       },
       hooks: {
+        beforeValidate: [
+          async ({ req, data, operation }: any) => {
+            if (operation === 'create' && data.transaction && req.user) {
+              // Auto-set rater to logged-in user (must run before validation since rater is required)
+              data.rater = req.user.id;
+
+              // Fetch transaction to auto-set ratee and raterRole (both required fields)
+              const transaction: any = await req.payload.findByID({
+                collection: 'transactions',
+                id: data.transaction,
+              });
+
+              if (!transaction) {
+                throw new Error('Transaction not found');
+              }
+
+              const buyerId = typeof transaction.buyer === 'object' ? transaction.buyer.id : transaction.buyer;
+              const sellerId = typeof transaction.seller === 'object' ? transaction.seller.id : transaction.seller;
+
+              if (req.user.id !== buyerId && req.user.id !== sellerId) {
+                throw new Error('You are not part of this transaction');
+              }
+
+              // Auto-set raterRole and ratee based on user's role in transaction
+              if (req.user.id === buyerId) {
+                data.raterRole = 'buyer';
+                data.ratee = sellerId; // Buyer rates seller
+              } else {
+                data.raterRole = 'seller';
+                data.ratee = buyerId; // Seller rates buyer
+              }
+            }
+            return data;
+          },
+        ],
         beforeChange: [
           async ({ req, data, operation, originalDoc }) => {
             if (operation === 'create') {
-              // Auto-set rater to logged-in user
-              if (req.user && !data.rater) {
-                data.rater = req.user.id;
-              }
-
               // Validate: prevent duplicate ratings (one per transaction per rater)
               if (data.transaction && req.user) {
                 const existingRating = await req.payload.find({
@@ -1144,34 +1351,6 @@ export default buildConfig({
 
                 if (existingRating.docs.length > 0) {
                   throw new Error('You have already rated this transaction');
-                }
-              }
-
-              // Validate: user must be part of the transaction
-              if (data.transaction && req.user) {
-                const transaction: any = await req.payload.findByID({
-                  collection: 'transactions',
-                  id: data.transaction,
-                });
-
-                if (!transaction) {
-                  throw new Error('Transaction not found');
-                }
-
-                const buyerId = typeof transaction.buyer === 'object' ? transaction.buyer.id : transaction.buyer;
-                const sellerId = typeof transaction.seller === 'object' ? transaction.seller.id : transaction.seller;
-
-                if (req.user.id !== buyerId && req.user.id !== sellerId) {
-                  throw new Error('You are not part of this transaction');
-                }
-
-                // Auto-set raterRole based on user's role in transaction
-                if (req.user.id === buyerId) {
-                  data.raterRole = 'buyer';
-                  data.ratee = sellerId; // Buyer rates seller
-                } else {
-                  data.raterRole = 'seller';
-                  data.ratee = buyerId; // Seller rates buyer
                 }
               }
             }

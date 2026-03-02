@@ -2,28 +2,28 @@ import express from 'express';
 import payload from 'payload';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
 import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
+import { authenticateJWT } from './auth-helpers';
+import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
+import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema } from './middleware/validate';
 
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (Railway/reverse proxy) — required for express-rate-limit
 const PORT = parseInt(process.env.PORT || '3001', 10);
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Configure CORS to allow requests from the frontend (including production URLs)
 const allowedOrigins: string[] = [
   'http://localhost:5173',
   'http://localhost:3001',
   'http://localhost:3000',
-  'http://192.168.18.117:5173',
-  'http://192.168.18.117:3001',
-  'http://192.168.1.34:5173',
-  'http://192.168.1.34:3001',
-  'http://157.230.40.58',
-  'http://157.230.40.58:3001',
-  'http://157.230.40.58:3000',
   'https://bidmo.to',
   'https://www.bidmo.to',
   'https://app.bidmo.to',
@@ -31,22 +31,23 @@ const allowedOrigins: string[] = [
   'http://www.bidmo.to',
   'http://app.bidmo.to',
   'https://cms-production-d0f7.up.railway.app',
+  'https://cms-staging-v2.up.railway.app',
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
 ];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    // Allow any local network IP (192.168.x.x) for development
-    if (origin.match(/^http:\/\/192\.168\.\d+\.\d+:\d+$/)) {
-      return callback(null, true);
+    // In production, reject requests with no origin (prevents CORS bypass via curl/file:// URIs)
+    // In development, allow for tools like Postman
+    if (!origin) {
+      return callback(null, !isProduction);
     }
 
-    // Allow Railway deployment URLs
-    if (origin.endsWith('.up.railway.app')) {
-      return callback(null, true);
+    // Allow local network IPs for development only
+    if (!isProduction) {
+      if (origin.match(/^http:\/\/192\.168\.\d+\.\d+:\d+$/)) {
+        return callback(null, true);
+      }
     }
 
     if (allowedOrigins.includes(origin)) {
@@ -66,8 +67,47 @@ app.use(cors({
 // Explicitly handle OPTIONS requests for preflight
 app.options('*', cors());
 
-// Parse JSON body
-app.use(express.json());
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Payload admin panel manages its own CSP
+  crossOriginEmbedderPolicy: false, // Allow cross-origin media loading
+}));
+
+// Parse JSON body with explicit size limit
+app.use(express.json({ limit: '1mb' }));
+
+// Rate limiters
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per window
+  message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 registrations per hour per IP
+  message: { error: 'Too many registration attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const bidLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 bids per minute
+  message: { error: 'Too many bid attempts. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiters to Payload's built-in auth endpoints
+app.use('/api/users/login', loginLimiter);
+app.use('/api/users', (req, res, next) => {
+  // Only rate limit POST (registration), not GET (list users)
+  if (req.method === 'POST') return registrationLimiter(req, res, next);
+  next();
+});
 
 const start = async () => {
   // Import config directly
@@ -127,7 +167,7 @@ const start = async () => {
 
     try {
       const token = decodeURIComponent(tokenMatch[1]);
-      const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+      const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
 
       if (decoded?.id) {
         const user = await payload.findByID({
@@ -146,6 +186,208 @@ const start = async () => {
     }
 
     next();
+  });
+
+  // ── Register custom /api/users/* routes BEFORE payload.init() ──
+  // Payload registers GET/DELETE /api/users/:id which would intercept
+  // paths like /api/users/limits and /api/users/profile-picture.
+  // Registering here ensures Express matches our routes first.
+  // The `payload` singleton is resolved at request time (after init).
+
+  app.get('/api/users/limits', requireAuth, async (req, res) => {
+    try {
+      const currentUserId = (req as any).userId;
+
+      // Define maximum limits
+      const MAX_BIDS = 10;
+      const MAX_POSTS = 10;
+
+      // Count active products where user has placed bids
+      const userBids = await payload.find({
+        collection: 'bids',
+        where: {
+          bidder: {
+            equals: currentUserId,
+          },
+        },
+        limit: 1000,
+      });
+
+      // Get unique product IDs from user's bids
+      const bidProductIds = new Set<string>();
+      userBids.docs.forEach((bid: any) => {
+        const productId = typeof bid.product === 'object' ? bid.product.id : bid.product;
+        bidProductIds.add(String(productId));
+      });
+
+      // Count how many of those products are still active
+      let activeBidCount = 0;
+      if (bidProductIds.size > 0) {
+        const activeProducts = await payload.find({
+          collection: 'products',
+          where: {
+            and: [
+              {
+                id: {
+                  in: Array.from(bidProductIds),
+                },
+              },
+              {
+                status: { equals: 'available' },
+              },
+              {
+                active: { equals: true },
+              },
+            ],
+          },
+          limit: 1000,
+        });
+        activeBidCount = activeProducts.totalDocs;
+      }
+
+      // Count active products posted by the user
+      const userProducts = await payload.find({
+        collection: 'products',
+        where: {
+          and: [
+            {
+              seller: {
+                equals: currentUserId,
+              },
+            },
+            {
+              status: { equals: 'available' },
+            },
+            {
+              active: { equals: true },
+            },
+          ],
+        },
+        limit: 1000,
+      });
+
+      const activePostCount = userProducts.totalDocs;
+
+      // Calculate remaining limits
+      const bidsRemaining = Math.max(0, MAX_BIDS - activeBidCount);
+      const postsRemaining = Math.max(0, MAX_POSTS - activePostCount);
+
+      res.json({
+        bids: {
+          current: activeBidCount,
+          max: MAX_BIDS,
+          remaining: bidsRemaining,
+        },
+        posts: {
+          current: activePostCount,
+          max: MAX_POSTS,
+          remaining: postsRemaining,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error fetching user limits:', error);
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
+  });
+
+  app.post('/api/users/profile-picture', requireAuth, validate(profilePictureSchema), async (req, res) => {
+    try {
+      const currentUserId = (req as any).userId;
+
+      // Get the current user to find old profile picture
+      const currentUser = await payload.findByID({
+        collection: 'users',
+        id: currentUserId as string,
+      });
+
+      const oldProfilePictureId = currentUser?.profilePicture
+        ? (typeof currentUser.profilePicture === 'object'
+          ? (currentUser.profilePicture as any).id
+          : currentUser.profilePicture)
+        : null;
+
+      const { mediaId } = req.body;
+
+      // Update user with new profile picture
+      // overrideAccess bypasses access control but NOT field validation.
+      // Payload v2 requires all `required` fields in the data, so include `role`.
+      const updatedUser = await payload.update({
+        collection: 'users',
+        id: currentUserId as string,
+        data: {
+          profilePicture: mediaId,
+        },
+        overrideAccess: true,
+      });
+
+      // Delete old profile picture from media collection (which also deletes from Supabase)
+      if (oldProfilePictureId && String(oldProfilePictureId) !== String(mediaId)) {
+        try {
+          await payload.delete({
+            collection: 'media',
+            id: String(oldProfilePictureId),
+          });
+          console.log(`Deleted old profile picture: ${oldProfilePictureId}`);
+        } catch (deleteErr) {
+          console.error('Failed to delete old profile picture:', deleteErr);
+          // Non-fatal: the new picture is already set
+        }
+      }
+
+      res.json({
+        success: true,
+        user: updatedUser,
+      });
+    } catch (error: any) {
+      console.error('Error updating profile picture:', error);
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
+  });
+
+  app.delete('/api/users/profile-picture', requireAuth, async (req, res) => {
+    try {
+      const currentUserId = (req as any).userId;
+
+      // Get the current user to find the profile picture
+      const currentUser = await payload.findByID({
+        collection: 'users',
+        id: currentUserId as string,
+      });
+
+      const profilePictureId = currentUser?.profilePicture
+        ? (typeof currentUser.profilePicture === 'object'
+          ? (currentUser.profilePicture as any).id
+          : currentUser.profilePicture)
+        : null;
+
+      // Clear the profile picture field
+      await payload.update({
+        collection: 'users',
+        id: currentUserId as string,
+        data: {
+          profilePicture: null as any,
+        },
+        overrideAccess: true,
+      });
+
+      // Delete the media record
+      if (profilePictureId) {
+        try {
+          await payload.delete({
+            collection: 'media',
+            id: String(profilePictureId),
+          });
+          console.log(`Deleted profile picture: ${profilePictureId}`);
+        } catch (deleteErr) {
+          console.error('Failed to delete profile picture media:', deleteErr);
+        }
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error removing profile picture:', error);
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
   });
 
   await payload.init({
@@ -239,6 +481,12 @@ const start = async () => {
   // Create conversations for sold products
   app.post('/api/create-conversations', async (req, res) => {
     try {
+      // Admin-only maintenance endpoint
+      const user = await authenticateJWT(req);
+      if (!user || (user as any).role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
       console.log('Starting conversation creation for sold products...');
 
       // Find all sold products
@@ -366,7 +614,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error creating conversations:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -383,6 +631,15 @@ const start = async () => {
 
       if (!product) {
         return res.status(404).json({ error: 'Product not found' });
+      }
+
+      // Block hidden product status for non-admins (unless they're the seller)
+      if (!product.active) {
+        const user = await authenticateJWT(req);
+        const sellerId = typeof product.seller === 'object' ? (product.seller as any).id : product.seller;
+        if (!user || ((user as any).role !== 'admin' && (user as any).id !== sellerId)) {
+          return res.status(404).json({ error: 'Product not found' });
+        }
       }
 
       // Get the latest bid timestamp
@@ -410,131 +667,12 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error fetching product status:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
-  // Server-Sent Events endpoint for real-time product updates
-  // Note: SSE won't work properly on Vercel serverless due to timeout limitations
-  // Store active SSE connections per product
-  const productListeners = new Map<string, Set<any>>();
-
-  app.get('/api/products/:id/stream', async (req, res) => {
-    const productId = req.params.id;
-
-    // Set SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
-
-    // Send initial connection message
-    res.write(`data: ${JSON.stringify({ type: 'connected', productId })}\n\n`);
-
-    // Add this connection to listeners
-    if (!productListeners.has(productId)) {
-      productListeners.set(productId, new Set());
-    }
-    productListeners.get(productId)!.add(res);
-
-    console.log(`SSE client connected for product ${productId}. Total listeners: ${productListeners.get(productId)!.size}`);
-
-    // Send initial product status
-    try {
-      const product = await payload.findByID({
-        collection: 'products',
-        id: productId,
-      });
-
-      const latestBid = await payload.find({
-        collection: 'bids',
-        where: { product: { equals: productId } },
-        sort: '-bidTime',
-        limit: 1,
-      });
-
-      const status = {
-        type: 'update',
-        id: product.id,
-        updatedAt: product.updatedAt,
-        status: product.status,
-        currentBid: product.currentBid,
-        latestBidTime: latestBid.docs.length > 0 ? latestBid.docs[0].bidTime : null,
-        bidCount: latestBid.totalDocs,
-      };
-
-      res.write(`data: ${JSON.stringify(status)}\n\n`);
-    } catch (error) {
-      console.error('Error sending initial status:', error);
-    }
-
-    // Keep connection alive with heartbeat every 30 seconds
-    const heartbeat = setInterval(() => {
-      res.write(`:heartbeat\n\n`);
-    }, 30000);
-
-    // Handle client disconnect
-    req.on('close', () => {
-      clearInterval(heartbeat);
-      const listeners = productListeners.get(productId);
-      if (listeners) {
-        listeners.delete(res);
-        console.log(`SSE client disconnected for product ${productId}. Remaining: ${listeners.size}`);
-        if (listeners.size === 0) {
-          productListeners.delete(productId);
-        }
-      }
-    });
-  });
-
-  // Helper function to broadcast updates to all listeners of a product
-  const broadcastProductUpdate = async (productId: string) => {
-    const listeners = productListeners.get(productId);
-    if (!listeners || listeners.size === 0) return;
-
-    try {
-      const product = await payload.findByID({
-        collection: 'products',
-        id: productId,
-      });
-
-      const latestBid = await payload.find({
-        collection: 'bids',
-        where: { product: { equals: productId } },
-        sort: '-bidTime',
-        limit: 1,
-      });
-
-      const status = {
-        type: 'update',
-        id: product.id,
-        updatedAt: product.updatedAt,
-        status: product.status,
-        currentBid: product.currentBid,
-        latestBidTime: latestBid.docs.length > 0 ? latestBid.docs[0].bidTime : null,
-        bidCount: latestBid.totalDocs,
-      };
-
-      const message = `data: ${JSON.stringify(status)}\n\n`;
-
-      // Send to all listeners
-      listeners.forEach((res) => {
-        try {
-          res.write(message);
-        } catch (error) {
-          console.error('Error broadcasting to client:', error);
-          listeners.delete(res);
-        }
-      });
-
-      console.log(`Broadcasted update for product ${productId} to ${listeners.size} clients`);
-    } catch (error) {
-      console.error('Error broadcasting product update:', error);
-    }
-  };
-
-  // Expose broadcast function globally so hooks can call it
-  (global as any).broadcastProductUpdate = broadcastProductUpdate;
+  // Legacy in-process SSE endpoint removed — real-time updates handled by sse-service via Redis pub/sub
+  // Hooks that call (global as any).broadcastProductUpdate will get undefined and skip via if (broadcast) guard
 
   // Expose Redis message notification globally for hooks (avoid webpack bundling issues)
   (global as any).publishMessageNotification = publishMessageNotification;
@@ -542,9 +680,17 @@ const start = async () => {
   // Expose global event publisher for hooks (new products, etc.)
   (global as any).publishGlobalEvent = publishGlobalEvent;
 
-  // Sync endpoint to update product currentBid with highest bid
+  // Expose product update publisher for hooks (visibility changes, etc.)
+  (global as any).publishProductUpdate = publishProductUpdate;
+
+  // Sync endpoint to update product currentBid with highest bid (admin only)
   app.post('/api/sync-bids', async (req, res) => {
     try {
+      const user = await authenticateJWT(req);
+      if (!user || (user as any).role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
       // Fetch all bids
       const bids = await payload.find({
         collection: 'bids',
@@ -588,45 +734,16 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error syncing bids:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
   // Queue bid endpoint - queues bid to Redis for processing by bid worker
   // This prevents race conditions by processing bids sequentially
-  app.post('/api/bid/queue', async (req, res) => {
+  app.post('/api/bid/queue', bidLimiter, requireAuth, validate(bidQueueSchema), async (req, res) => {
     try {
-      // Authenticate via JWT token
-      let userId: number | null = null;
-
-      // Check if already authenticated via Payload middleware
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        // Check for JWT in Authorization header
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) {
-              userId = decoded.id;
-            }
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
+      const userId = (req as any).userId;
       const { productId, amount, censorName } = req.body;
-
-      if (!productId || !amount) {
-        return res.status(400).json({ error: 'Missing productId or amount' });
-      }
 
       // Basic validation - get product to check status
       const product: any = await payload.findByID({
@@ -647,9 +764,14 @@ const start = async () => {
         return res.status(400).json({ error: 'Product is not active' });
       }
 
-      // Check auction end date
-      if (new Date(product.auctionEndDate) <= new Date()) {
+      // Check auction end date (with 2-second buffer to account for queue processing delay)
+      const auctionEnd = new Date(product.auctionEndDate).getTime();
+      const now = Date.now();
+      if (auctionEnd <= now) {
         return res.status(400).json({ error: 'Auction has ended' });
+      }
+      if (auctionEnd - now < 2000) {
+        return res.status(400).json({ error: 'Auction is ending, bid cannot be processed in time' });
       }
 
       // Validate bid amount
@@ -681,52 +803,127 @@ const start = async () => {
       );
 
       if (!result.success) {
-        // If Redis is down, fall back to direct bid creation
+        // If Redis is down, fall back to direct bid creation with row-level locking
+        // Uses raw SQL with FOR UPDATE to prevent race conditions (mirrors bid-worker)
         console.warn('[CMS] Redis queue failed, falling back to direct bid creation');
 
-        const bidTime = new Date().toISOString();
-        const bid = await payload.create({
-          collection: 'bids',
-          data: {
-            product: parseInt(productId, 10),
-            bidder: userId,
+        const pool = (payload.db as any).pool;
+        const client = await pool.connect();
+
+        try {
+          await client.query('BEGIN');
+
+          // Lock the product row — prevents concurrent bids from both passing validation
+          const lockedResult = await client.query(
+            `SELECT id, current_bid, starting_price, bid_interval, status, active, auction_end_date
+             FROM products WHERE id = $1 FOR UPDATE`,
+            [parseInt(productId, 10)]
+          );
+
+          if (lockedResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Product not found' });
+          }
+
+          const locked = lockedResult.rows[0];
+
+          if (locked.status !== 'available') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: `Product is ${locked.status}` });
+          }
+
+          if (!locked.active) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Product is not active' });
+          }
+
+          if (new Date(locked.auction_end_date) <= new Date()) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Auction has ended' });
+          }
+
+          // Re-validate minimum bid against locked row data
+          const lockedCurrentBid = Number(locked.current_bid) || 0;
+          const lockedBidInterval = Number(locked.bid_interval) || 1;
+          const lockedStartingPrice = Number(locked.starting_price) || 0;
+          const lockedMinimumBid = lockedCurrentBid > 0
+            ? lockedCurrentBid + lockedBidInterval
+            : lockedStartingPrice;
+
+          if (amount < lockedMinimumBid) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: `Bid must be at least ${lockedMinimumBid}` });
+          }
+
+          // Shill-bidding check under lock
+          const sellerCheck = await client.query(
+            `SELECT users_id FROM products_rels WHERE parent_id = $1 AND path = 'seller'`,
+            [parseInt(productId, 10)]
+          );
+          if (sellerCheck.rows.length > 0 && sellerCheck.rows[0].users_id === userId) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'You cannot bid on your own product' });
+          }
+
+          // Create bid (Payload v2 schema — relationships in separate table)
+          const bidResult = await client.query(
+            `INSERT INTO bids (amount, bid_time, censor_name, created_at, updated_at)
+             VALUES ($1, NOW(), $2, NOW(), NOW()) RETURNING id`,
+            [amount, censorName || false]
+          );
+          const bidId = bidResult.rows[0].id;
+
+          await client.query(
+            `INSERT INTO bids_rels (parent_id, path, products_id) VALUES ($1, 'product', $2)`,
+            [bidId, parseInt(productId, 10)]
+          );
+          await client.query(
+            `INSERT INTO bids_rels (parent_id, path, users_id) VALUES ($1, 'bidder', $2)`,
+            [bidId, userId]
+          );
+
+          // Update product current bid
+          await client.query(
+            `UPDATE products SET current_bid = $1, updated_at = NOW() WHERE id = $2`,
+            [amount, parseInt(productId, 10)]
+          );
+
+          // Get bidder name for SSE event
+          const bidderResult = await client.query(
+            `SELECT name FROM users WHERE id = $1`,
+            [userId]
+          );
+
+          await client.query('COMMIT');
+
+          const bidTime = new Date().toISOString();
+          const bidderName = bidderResult.rows[0]?.name || 'Anonymous';
+
+          // Publish update via Redis if possible (with full bid data)
+          publishProductUpdate(parseInt(productId, 10), {
+            type: 'bid',
+            success: true,
+            bidId,
             amount,
+            bidderId: userId,
+            bidderName,
             censorName: censorName || false,
             bidTime,
-          },
-        });
+          });
 
-        // Update product current bid
-        await payload.update({
-          collection: 'products',
-          id: productId,
-          data: { currentBid: amount },
-        });
-
-        // Get bidder name for SSE event
-        const bidder = await payload.findByID({
-          collection: 'users',
-          id: userId,
-        });
-
-        // Publish update via Redis if possible (with full bid data)
-        publishProductUpdate(parseInt(productId, 10), {
-          type: 'bid',
-          success: true,
-          bidId: bid.id,
-          amount,
-          bidderId: userId,
-          bidderName: bidder?.name || 'Anonymous',
-          censorName: censorName || false,
-          bidTime,
-        });
-
-        return res.json({
-          success: true,
-          bidId: bid.id,
-          fallback: true,
-          message: 'Bid placed successfully (direct)',
-        });
+          return res.json({
+            success: true,
+            bidId,
+            fallback: true,
+            message: 'Bid placed successfully (direct)',
+          });
+        } catch (error: any) {
+          await client.query('ROLLBACK').catch(() => {});
+          console.error('[CMS] Fallback bid error:', error);
+          return res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+        } finally {
+          client.release();
+        }
       }
 
       res.json({
@@ -737,42 +934,15 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error queuing bid:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
   // Accept bid endpoint - queues accept action to Redis to prevent race conditions
-  app.post('/api/bid/accept', async (req, res) => {
+  app.post('/api/bid/accept', bidLimiter, requireAuth, validate(bidAcceptSchema), async (req, res) => {
     try {
-      // Authenticate via JWT token
-      let userId: number | null = null;
-
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) {
-              userId = decoded.id;
-            }
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
+      const userId = (req as any).userId;
       const { productId } = req.body;
-
-      if (!productId) {
-        return res.status(400).json({ error: 'Missing productId' });
-      }
 
       // Get product to verify ownership and get highest bid
       const product: any = await payload.findByID({
@@ -818,52 +988,105 @@ const start = async () => {
       );
 
       if (!result.success) {
-        // Fallback to direct update if Redis is down
+        // Fallback to direct update if Redis is down — use row-level locking
+        // Uses raw SQL with FOR UPDATE to prevent double-acceptance (mirrors bid-worker)
         console.warn('[CMS] Redis queue failed, falling back to direct accept');
 
-        await payload.update({
-          collection: 'products',
-          id: productId,
-          data: { status: 'sold' },
-        });
+        const pool = (payload.db as any).pool;
+        const client = await pool.connect();
 
-        // Create congratulatory message from seller to buyer
-        await payload.create({
-          collection: 'messages',
-          data: {
-            product: Number(productId),
-            sender: sellerId,
-            receiver: highestBidderId,
-            message: `Congratulations! Your bid has been accepted for "${product.title}". Let's discuss the next steps for completing this transaction.`,
-            read: false,
-          },
-        });
+        try {
+          await client.query('BEGIN');
 
-        // Create transaction record
-        await payload.create({
-          collection: 'transactions',
-          data: {
-            product: Number(productId),
-            seller: sellerId,
-            buyer: highestBidderId,
+          // Lock the product row — prevents two concurrent accepts from both succeeding
+          const freshResult = await client.query(
+            `SELECT id, title, status FROM products WHERE id = $1 FOR UPDATE`,
+            [parseInt(productId, 10)]
+          );
+
+          if (freshResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Product not found' });
+          }
+
+          const freshProduct = freshResult.rows[0];
+
+          if (freshProduct.status !== 'available') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: `Product is already ${freshProduct.status}` });
+          }
+
+          // Update product status to sold
+          await client.query(
+            `UPDATE products SET status = 'sold', updated_at = NOW() WHERE id = $1`,
+            [parseInt(productId, 10)]
+          );
+
+          // Create congratulatory message
+          const congratsMessage = `Congratulations! Your bid has been accepted for "${freshProduct.title}". Let's discuss the next steps for completing this transaction.`;
+          const messageResult = await client.query(
+            `INSERT INTO messages (message, read, created_at, updated_at)
+             VALUES ($1, false, NOW(), NOW()) RETURNING id`,
+            [congratsMessage]
+          );
+          const messageId = messageResult.rows[0].id;
+
+          await client.query(
+            `INSERT INTO messages_rels (parent_id, path, products_id) VALUES ($1, 'product', $2)`,
+            [messageId, parseInt(productId, 10)]
+          );
+          await client.query(
+            `INSERT INTO messages_rels (parent_id, path, users_id) VALUES ($1, 'sender', $2)`,
+            [messageId, sellerId]
+          );
+          await client.query(
+            `INSERT INTO messages_rels (parent_id, path, users_id) VALUES ($1, 'receiver', $2)`,
+            [messageId, highestBidderId]
+          );
+
+          // Create transaction record
+          const txNotes = `Transaction created for "${freshProduct.title}" with winning bid of ${highestBid.amount}`;
+          const txResult = await client.query(
+            `INSERT INTO transactions (amount, status, notes, created_at, updated_at)
+             VALUES ($1, 'pending', $2, NOW(), NOW()) RETURNING id`,
+            [highestBid.amount, txNotes]
+          );
+          const transactionId = txResult.rows[0].id;
+
+          await client.query(
+            `INSERT INTO transactions_rels (parent_id, path, products_id) VALUES ($1, 'product', $2)`,
+            [transactionId, parseInt(productId, 10)]
+          );
+          await client.query(
+            `INSERT INTO transactions_rels (parent_id, path, users_id) VALUES ($1, 'seller', $2)`,
+            [transactionId, sellerId]
+          );
+          await client.query(
+            `INSERT INTO transactions_rels (parent_id, path, users_id) VALUES ($1, 'buyer', $2)`,
+            [transactionId, highestBidderId]
+          );
+
+          await client.query('COMMIT');
+
+          publishProductUpdate(parseInt(productId, 10), {
+            type: 'accepted',
+            status: 'sold',
+            winnerId: highestBidderId,
             amount: highestBid.amount,
-            status: 'pending',
-            notes: `Transaction created for "${product.title}" with winning bid of ${highestBid.amount}`,
-          },
-        });
+          });
 
-        publishProductUpdate(parseInt(productId, 10), {
-          type: 'accepted',
-          status: 'sold',
-          winnerId: highestBidderId,
-          amount: highestBid.amount,
-        });
-
-        return res.json({
-          success: true,
-          fallback: true,
-          message: 'Bid accepted successfully (direct)',
-        });
+          return res.json({
+            success: true,
+            fallback: true,
+            message: 'Bid accepted successfully (direct)',
+          });
+        } catch (error: any) {
+          await client.query('ROLLBACK').catch(() => {});
+          console.error('[CMS] Fallback accept error:', error);
+          return res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+        } finally {
+          client.release();
+        }
       }
 
       res.json({
@@ -874,7 +1097,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error accepting bid:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -893,11 +1116,19 @@ const start = async () => {
   app.get('/api/search/products', async (req, res) => {
     try {
       const query = req.query.q as string || '';
-      const status = req.query.status as string || 'available';
+      let status = req.query.status as string || 'available';
       const region = req.query.region as string || '';
       const city = req.query.city as string || '';
       const page = parseInt(req.query.page as string || '1', 10);
       const limit = parseInt(req.query.limit as string || '12', 10);
+
+      // Only admins can search hidden products
+      if (status === 'hidden') {
+        const user = await authenticateJWT(req);
+        if (!user || (user as any).role !== 'admin') {
+          status = 'available'; // Silently fall back to available
+        }
+      }
 
       const esAvailable = await isElasticAvailable();
 
@@ -966,27 +1197,9 @@ const start = async () => {
   });
 
   // Elasticsearch: bulk sync all products (admin utility)
-  app.post('/api/elasticsearch/sync', async (req, res) => {
+  app.post('/api/elasticsearch/sync', requireAuth, async (req, res) => {
     try {
-      // Auth check — try Payload middleware first, then JWT fallback
-      let userId: number | string | null = (req as any).user?.id || null;
-
-      if (!userId) {
-        const authHeader = req.headers.authorization;
-        if (authHeader) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
-          if (token) {
-            try {
-              const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET || '') as any;
-              userId = decoded.id;
-            } catch (jwtError) {
-              // Token invalid/expired
-            }
-          }
-        }
-      }
-      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
+      const userId = (req as any).userId;
       const user = await payload.findByID({ collection: 'users', id: userId });
       if ((user as any).role !== 'admin') return res.status(403).json({ error: 'Admin only' });
 
@@ -999,7 +1212,7 @@ const start = async () => {
       res.json({ success: true, ...result });
     } catch (error: any) {
       console.error('Elasticsearch sync error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1008,34 +1221,10 @@ const start = async () => {
   // ============================================
 
   // Create void request
-  app.post('/api/void-request/create', async (req, res) => {
+  app.post('/api/void-request/create', requireAuth, validate(voidRequestCreateSchema), async (req, res) => {
     try {
-      // Authenticate user - check for existing auth first, then JWT
-      let userId: number | null = null;
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) userId = decoded.id;
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
+      const userId = (req as any).userId;
       const { transactionId, reason } = req.body;
-
-      if (!transactionId || !reason) {
-        return res.status(400).json({ error: 'Missing transactionId or reason' });
-      }
 
       // Get transaction with relationships
       const transaction: any = await payload.findByID({
@@ -1062,6 +1251,15 @@ const start = async () => {
         return res.status(400).json({ error: `Cannot void transaction with status: ${transaction.status}` });
       }
 
+      // Cooldown: reject void requests on transactions created less than 1 hour ago
+      const transactionCreatedAt = new Date(transaction.createdAt).getTime();
+      const oneHourMs = 60 * 60 * 1000;
+      if (Date.now() - transactionCreatedAt < oneHourMs) {
+        return res.status(400).json({
+          error: 'Void requests can only be submitted at least 1 hour after the transaction was created',
+        });
+      }
+
       // Check if there's already a pending void request
       const existingRequests = await payload.find({
         collection: 'void-requests',
@@ -1074,6 +1272,21 @@ const start = async () => {
 
       if (existingRequests.docs.length > 0) {
         return res.status(400).json({ error: 'There is already a pending void request for this transaction' });
+      }
+
+      // Rate limit: prevent spam by checking total void requests from this user in the last 24 hours
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const recentUserRequests = await payload.find({
+        collection: 'void-requests',
+        where: {
+          initiator: { equals: userId },
+          createdAt: { greater_than: oneDayAgo },
+        },
+        limit: 0,
+      });
+
+      if (recentUserRequests.totalDocs >= 5) {
+        return res.status(429).json({ error: 'Too many void requests. Please try again later.' });
       }
 
       const initiatorRole = userId === sellerId ? 'seller' : 'buyer';
@@ -1126,43 +1339,15 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error creating void request:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
   // Respond to void request (approve/reject)
-  app.post('/api/void-request/respond', async (req, res) => {
+  app.post('/api/void-request/respond', requireAuth, validate(voidRequestRespondSchema), async (req, res) => {
     try {
-      // Authenticate user - check for existing auth first, then JWT
-      let userId: number | null = null;
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) userId = decoded.id;
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
+      const userId = (req as any).userId;
       const { voidRequestId, action, rejectionReason } = req.body;
-
-      if (!voidRequestId || !action) {
-        return res.status(400).json({ error: 'Missing voidRequestId or action' });
-      }
-
-      if (!['approve', 'reject'].includes(action)) {
-        return res.status(400).json({ error: 'Action must be approve or reject' });
-      }
 
       // Get void request with relationships
       const voidRequest: any = await payload.findByID({
@@ -1289,43 +1474,15 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('Error responding to void request:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
   // Seller choice after void approval
-  app.post('/api/void-request/seller-choice', async (req, res) => {
+  app.post('/api/void-request/seller-choice', requireAuth, validate(voidRequestSellerChoiceSchema), async (req, res) => {
     try {
-      // Authenticate user - check for existing auth first, then JWT
-      let userId: number | null = null;
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) userId = decoded.id;
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
+      const userId = (req as any).userId;
       const { voidRequestId, choice } = req.body;
-
-      if (!voidRequestId || !choice) {
-        return res.status(400).json({ error: 'Missing voidRequestId or choice' });
-      }
-
-      if (!['restart_bidding', 'offer_second_bidder'].includes(choice)) {
-        return res.status(400).json({ error: 'Choice must be restart_bidding or offer_second_bidder' });
-      }
 
       // Get void request
       const voidRequest: any = await payload.findByID({
@@ -1499,43 +1656,15 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('Error processing seller choice:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
   // Second bidder response to offer
-  app.post('/api/void-request/second-bidder-response', async (req, res) => {
+  app.post('/api/void-request/second-bidder-response', requireAuth, validate(voidRequestSecondBidderSchema), async (req, res) => {
     try {
-      // Authenticate user - check for existing auth first, then JWT
-      let userId: number | null = null;
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) userId = decoded.id;
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
+      const userId = (req as any).userId;
       const { voidRequestId, action } = req.body;
-
-      if (!voidRequestId || !action) {
-        return res.status(400).json({ error: 'Missing voidRequestId or action' });
-      }
-
-      if (!['accept', 'decline'].includes(action)) {
-        return res.status(400).json({ error: 'Action must be accept or decline' });
-      }
 
       // Get void request
       const voidRequest: any = await payload.findByID({
@@ -1572,6 +1701,41 @@ const start = async () => {
       const buyer: any = await payload.findByID({ collection: 'users', id: userId });
 
       if (action === 'accept') {
+        // Atomically lock the product row and set to sold — prevents concurrent accepts
+        // from both succeeding (two users hitting "accept" simultaneously, or network retries)
+        const pool = (payload.db as any).pool;
+        const client = await pool.connect();
+
+        try {
+          await client.query('BEGIN');
+
+          const lockedProduct = await client.query(
+            `SELECT id, status FROM products WHERE id = $1 FOR UPDATE`,
+            [parseInt(productId, 10)]
+          );
+
+          if (lockedProduct.rows.length === 0 || lockedProduct.rows[0].status === 'sold') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Product is no longer available' });
+          }
+
+          await client.query(
+            `UPDATE products SET status = 'sold', updated_at = NOW() WHERE id = $1`,
+            [parseInt(productId, 10)]
+          );
+
+          await client.query('COMMIT');
+        } catch (lockError: any) {
+          await client.query('ROLLBACK').catch(() => {});
+          console.error('Error locking product for second bidder accept:', lockError);
+          return res.status(500).json({ error: isProduction ? 'Internal server error' : lockError.message });
+        } finally {
+          client.release();
+        }
+
+        // Product atomically sold — safe to use Payload ORM for remaining records
+        // (concurrent request will see status = 'sold' and bail at the lock above)
+
         // Update offer status
         await payload.update({
           collection: 'void-requests',
@@ -1585,14 +1749,7 @@ const start = async () => {
           },
         });
 
-        // Update product status to sold
-        await payload.update({
-          collection: 'products',
-          id: productId,
-          data: { status: 'sold' },
-        });
-
-        // Create new transaction
+        // Create new transaction (product already set to sold above via row lock)
         const newTransaction = await payload.create({
           collection: 'transactions',
           data: {
@@ -1629,26 +1786,28 @@ const start = async () => {
 
         // Send emails
         if (buyer?.email) {
+          const escH = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           await queueEmail({
             to: buyer.email,
             subject: `Congratulations! You've secured "${product.title}"`,
             html: `
               <h2>Congratulations!</h2>
-              <p>Your offer for <strong>${product.title}</strong> has been accepted.</p>
-              <p>Amount: ${voidRequest.secondBidderOffer.offerAmount}</p>
+              <p>Your offer for <strong>${escH(product.title)}</strong> has been accepted.</p>
+              <p>Amount: ${escH(String(voidRequest.secondBidderOffer.offerAmount))}</p>
               <p>Please check your inbox to coordinate with the seller.</p>
             `,
           });
         }
 
         if (seller?.email) {
+          const escH = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           await queueEmail({
             to: seller.email,
-            subject: `${buyer.name} accepted your offer for "${product.title}"`,
+            subject: `Offer accepted for "${product.title}"`,
             html: `
               <h2>Offer Accepted!</h2>
-              <p><strong>${buyer.name}</strong> has accepted your offer for <strong>${product.title}</strong>.</p>
-              <p>Amount: ${voidRequest.secondBidderOffer.offerAmount}</p>
+              <p><strong>${escH(buyer.name)}</strong> has accepted your offer for <strong>${escH(product.title)}</strong>.</p>
+              <p>Amount: ${escH(String(voidRequest.secondBidderOffer.offerAmount))}</p>
               <p>Please check your inbox to coordinate the transaction.</p>
             `,
           });
@@ -1684,12 +1843,13 @@ const start = async () => {
 
         // Email seller
         if (seller?.email) {
+          const escH = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           await queueEmail({
             to: seller.email,
             subject: `Offer declined for "${product.title}"`,
             html: `
               <h2>Offer Declined</h2>
-              <p><strong>${buyer.name}</strong> has declined your offer for <strong>${product.title}</strong>.</p>
+              <p><strong>${escH(buyer.name)}</strong> has declined your offer for <strong>${escH(product.title)}</strong>.</p>
               <p>You may want to restart the bidding to find another buyer.</p>
             `,
           });
@@ -1703,33 +1863,14 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('Error processing second bidder response:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
   // Get void request for a transaction
-  app.get('/api/void-request/:transactionId', async (req, res) => {
+  app.get('/api/void-request/:transactionId', requireAuth, async (req, res) => {
     try {
-      // Authenticate user - check for existing auth first, then JWT
-      let userId: number | null = null;
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) userId = decoded.id;
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const userId = (req as any).userId;
 
       const { transactionId } = req.params;
 
@@ -1764,7 +1905,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error fetching void request:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -1774,28 +1915,10 @@ const start = async () => {
   const TYPING_TIMEOUT = 3000; // 3 seconds
 
   // Set typing status
-  app.post('/api/typing', async (req, res) => {
+  app.post('/api/typing', requireAuth, validate(typingSchema), async (req, res) => {
     try {
+      const userId = (req as any).userId;
       const { product, isTyping } = req.body;
-      let userId: number | null = (req as any).user?.id || null;
-
-      // JWT fallback for typing endpoint
-      if (!userId) {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) userId = decoded.id;
-          } catch (jwtError) {
-            // Token invalid
-          }
-        }
-      }
-
-      if (!userId || !product) {
-        return res.status(400).json({ error: 'Missing required fields' });
-      }
 
       const key = `${product}:${userId}`;
       const productId = typeof product === 'string' ? parseInt(product, 10) : product;
@@ -1814,19 +1937,15 @@ const start = async () => {
       res.json({ success: true });
     } catch (error: any) {
       console.error('Error setting typing status:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
   // Get typing status for a product
-  app.get('/api/typing/:productId', async (req, res) => {
+  app.get('/api/typing/:productId', requireAuth, async (req, res) => {
     try {
       const { productId } = req.params;
-      const currentUserId = (req as any).user?.id;
-
-      if (!currentUserId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const currentUserId = (req as any).userId;
 
       const now = Date.now();
       const typingUsers: string[] = [];
@@ -1848,273 +1967,7 @@ const start = async () => {
       res.json({ typing: typingUsers.length > 0, users: typingUsers });
     } catch (error: any) {
       console.error('Error getting typing status:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Get user limits (bidding and posting)
-  app.get('/api/users/limits', async (req, res) => {
-    try {
-      let currentUserId: number | string | null = (req as any).user?.id || null;
-
-      // JWT fallback for when Payload middleware doesn't set req.user
-      if (!currentUserId) {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) {
-              currentUserId = decoded.id;
-            }
-          } catch (jwtError) {
-            // Token invalid/expired
-          }
-        }
-      }
-
-      if (!currentUserId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      // Define maximum limits
-      const MAX_BIDS = 10;
-      const MAX_POSTS = 10;
-
-      // Count active products where user has placed bids
-      const userBids = await payload.find({
-        collection: 'bids',
-        where: {
-          bidder: {
-            equals: currentUserId,
-          },
-        },
-        limit: 1000,
-      });
-
-      // Get unique product IDs from user's bids
-      const bidProductIds = new Set<string>();
-      userBids.docs.forEach((bid: any) => {
-        const productId = typeof bid.product === 'object' ? bid.product.id : bid.product;
-        bidProductIds.add(String(productId));
-      });
-
-      // Count how many of those products are still active
-      let activeBidCount = 0;
-      if (bidProductIds.size > 0) {
-        const activeProducts = await payload.find({
-          collection: 'products',
-          where: {
-            and: [
-              {
-                id: {
-                  in: Array.from(bidProductIds),
-                },
-              },
-              {
-                or: [
-                  { status: { equals: 'active' } },
-                  { status: { equals: 'available' } },
-                ],
-              },
-              {
-                active: { equals: true },
-              },
-            ],
-          },
-          limit: 1000,
-        });
-        activeBidCount = activeProducts.totalDocs;
-      }
-
-      // Count active products posted by the user
-      const userProducts = await payload.find({
-        collection: 'products',
-        where: {
-          and: [
-            {
-              seller: {
-                equals: currentUserId,
-              },
-            },
-            {
-              or: [
-                { status: { equals: 'active' } },
-                { status: { equals: 'available' } },
-              ],
-            },
-            {
-              active: { equals: true },
-            },
-          ],
-        },
-        limit: 1000,
-      });
-
-      const activePostCount = userProducts.totalDocs;
-
-      // Calculate remaining limits
-      const bidsRemaining = Math.max(0, MAX_BIDS - activeBidCount);
-      const postsRemaining = Math.max(0, MAX_POSTS - activePostCount);
-
-      res.json({
-        bids: {
-          current: activeBidCount,
-          max: MAX_BIDS,
-          remaining: bidsRemaining,
-        },
-        posts: {
-          current: activePostCount,
-          max: MAX_POSTS,
-          remaining: postsRemaining,
-        },
-      });
-    } catch (error: any) {
-      console.error('Error fetching user limits:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // POST /api/users/profile-picture — Upload profile picture and delete the old one
-  app.post('/api/users/profile-picture', async (req, res) => {
-    try {
-      let currentUserId: number | string | null = (req as any).user?.id || null;
-
-      // JWT fallback
-      if (!currentUserId) {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) {
-              currentUserId = decoded.id;
-            }
-          } catch (jwtError) {
-            // Token invalid/expired
-          }
-        }
-      }
-
-      if (!currentUserId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      // Get the current user to find old profile picture
-      const currentUser = await payload.findByID({
-        collection: 'users',
-        id: currentUserId as string,
-      });
-
-      const oldProfilePictureId = currentUser?.profilePicture
-        ? (typeof currentUser.profilePicture === 'object'
-          ? (currentUser.profilePicture as any).id
-          : currentUser.profilePicture)
-        : null;
-
-      // The request body contains the new media ID (uploaded via /api/media first)
-      const { mediaId } = req.body;
-
-      if (!mediaId) {
-        return res.status(400).json({ error: 'mediaId is required' });
-      }
-
-      // Update user with new profile picture
-      const updatedUser = await payload.update({
-        collection: 'users',
-        id: currentUserId as string,
-        data: {
-          profilePicture: mediaId,
-        },
-      });
-
-      // Delete old profile picture from media collection (which also deletes from Supabase)
-      if (oldProfilePictureId && String(oldProfilePictureId) !== String(mediaId)) {
-        try {
-          await payload.delete({
-            collection: 'media',
-            id: String(oldProfilePictureId),
-          });
-          console.log(`Deleted old profile picture: ${oldProfilePictureId}`);
-        } catch (deleteErr) {
-          console.error('Failed to delete old profile picture:', deleteErr);
-          // Non-fatal: the new picture is already set
-        }
-      }
-
-      res.json({
-        success: true,
-        user: updatedUser,
-      });
-    } catch (error: any) {
-      console.error('Error updating profile picture:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // DELETE /api/users/profile-picture — Remove profile picture
-  app.delete('/api/users/profile-picture', async (req, res) => {
-    try {
-      let currentUserId: number | string | null = (req as any).user?.id || null;
-
-      // JWT fallback
-      if (!currentUserId) {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
-            if (decoded.id) {
-              currentUserId = decoded.id;
-            }
-          } catch (jwtError) {
-            // Token invalid/expired
-          }
-        }
-      }
-
-      if (!currentUserId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      // Get the current user to find the profile picture
-      const currentUser = await payload.findByID({
-        collection: 'users',
-        id: currentUserId as string,
-      });
-
-      const profilePictureId = currentUser?.profilePicture
-        ? (typeof currentUser.profilePicture === 'object'
-          ? (currentUser.profilePicture as any).id
-          : currentUser.profilePicture)
-        : null;
-
-      // Clear the profile picture field
-      await payload.update({
-        collection: 'users',
-        id: currentUserId as string,
-        data: {
-          profilePicture: null as any,
-        },
-      });
-
-      // Delete the media record
-      if (profilePictureId) {
-        try {
-          await payload.delete({
-            collection: 'media',
-            id: String(profilePictureId),
-          });
-          console.log(`Deleted profile picture: ${profilePictureId}`);
-        } catch (deleteErr) {
-          console.error('Failed to delete profile picture media:', deleteErr);
-        }
-      }
-
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error('Error removing profile picture:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
 
@@ -2122,6 +1975,9 @@ const start = async () => {
   if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server listening on port ${PORT}`);
+      if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_CA_CERT) {
+        console.warn('[SECURITY] DATABASE_CA_CERT not set — DB SSL certificate verification is disabled. Set DATABASE_CA_CERT for full TLS verification.');
+      }
     });
   }
 };

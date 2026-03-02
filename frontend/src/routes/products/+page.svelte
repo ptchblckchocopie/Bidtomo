@@ -5,7 +5,7 @@
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
-  import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type BidUpdateEvent } from '$lib/sse';
+  import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type BidUpdateEvent, type ProductVisibilityEvent } from '$lib/sse';
   import { updateProduct } from '$lib/api';
 
   let { data, params }: { data: PageData; params?: any } = $props();
@@ -36,7 +36,9 @@
   // Clear loading when data changes (new results arrived)
   $effect(() => {
     const _products = data.products;
+    const _users = data.users;
     const _status = data.status;
+    const _searchType = data.searchType;
     loading = false;
     lastStatus = _status;
   });
@@ -112,6 +114,7 @@
   }
 
   function handleSearchTypeChange(type: string) {
+    if (searchTypeInput === type) return; // Already on this tab
     searchTypeInput = type;
     loading = true;
     updateURL({
@@ -158,6 +161,7 @@
   }
 
   function changeTab(status: string) {
+    if (data.status === status) return;
     removedProductIds = [];
     loading = true;
     updateURL({
@@ -388,8 +392,10 @@
   });
 
   onMount(() => {
-    updateCountdowns();
-    countdownInterval = setInterval(updateCountdowns, 1000);
+    if (data.status !== 'ended') {
+      updateCountdowns();
+      countdownInterval = setInterval(updateCountdowns, 1000);
+    }
     fetchUserBids();
 
     // Connect to global SSE for live bid updates and new product notifications
@@ -428,6 +434,16 @@
         // New product listed — show notification banner
         if (data.status === 'active') {
           newProductCount++;
+        }
+      } else if (event.type === 'product_visibility') {
+        // Product hidden/unhidden by admin — remove from browse list if hidden
+        const visEvent = event as ProductVisibilityEvent;
+        const pid = String(visEvent.productId);
+        if (!visEvent.active) {
+          // Hidden — remove from visible products
+          data.products = data.products.filter(p => String(p.id) !== pid);
+          // Also remove from admin's removed list so it doesn't linger
+          removedProductIds = [...removedProductIds, visEvent.productId];
         }
       }
     });
@@ -568,9 +584,10 @@
           oninput={handleSearchInput}
           placeholder={searchTypeInput === 'users' ? 'Search users by name...' : 'Search by title, description, or keywords...'}
           class="search-input input-bh"
+          aria-label="Search products"
         />
         {#if searchInput}
-          <button class="clear-search" onclick={() => { searchInput = ''; handleSearchInput(); }}>✕</button>
+          <button class="clear-search" aria-label="Clear search" onclick={() => { searchInput = ''; handleSearchInput(); }}>✕</button>
         {/if}
       </div>
 
@@ -580,6 +597,7 @@
             bind:value={regionInput}
             onchange={handleLocationInput}
             class="location-select"
+            aria-label="Filter by region"
           >
             <option value="">All Regions</option>
             {#each regions as region}
@@ -591,6 +609,7 @@
             onchange={handleLocationInput}
             class="location-select"
             disabled={!regionInput}
+            aria-label="Filter by city"
           >
             <option value="">All Cities</option>
             {#each availableCities as city}
@@ -611,8 +630,8 @@
     <!-- Items per page selector -->
     <div class="controls-container">
       <div class="items-per-page">
-        <label>Items per page:</label>
-        <select value={data.limit} onchange={(e) => changeItemsPerPage(parseInt(e.currentTarget.value))}>
+        <label for="items-per-page">Items per page:</label>
+        <select id="items-per-page" value={data.limit} onchange={(e) => changeItemsPerPage(parseInt(e.currentTarget.value))}>
           {#each itemsPerPageOptions as option}
             <option value={option}>{option}</option>
           {/each}
@@ -637,10 +656,6 @@
           {/each}
         </div>
       </section>
-    {:else if !data.search}
-      <div class="empty-state">
-        <p>Type a name to search for users</p>
-      </div>
     {:else if data.users && data.users.length > 0}
       <section class="auction-section">
         <div class="users-grid">
@@ -714,9 +729,11 @@
     {/if}
 
     <!-- Tabs - Always visible -->
-    <div class="tabs-container" id="products-section">
+    <div class="tabs-container" id="products-section" role="tablist">
     <button
       class="tab"
+      role="tab"
+      aria-selected={data.status === 'active'}
       class:active={data.status === 'active'}
       onclick={() => changeTab('active')}
     >
@@ -724,6 +741,8 @@
     </button>
     <button
       class="tab"
+      role="tab"
+      aria-selected={data.status === 'ended'}
       class:active={data.status === 'ended'}
       onclick={() => changeTab('ended')}
     >
@@ -731,6 +750,8 @@
     </button>
     <button
       class="tab"
+      role="tab"
+      aria-selected={data.status === 'my-bids'}
       class:active={data.status === 'my-bids'}
       onclick={() => changeTab('my-bids')}
     >
@@ -739,6 +760,8 @@
     {#if $authStore.user?.role === 'admin'}
       <button
         class="tab tab-admin"
+        role="tab"
+        aria-selected={data.status === 'hidden'}
         class:active={data.status === 'hidden'}
         onclick={() => changeTab('hidden')}
       >
@@ -759,7 +782,7 @@
 
   <!-- Products Grid -->
   {#if loading}
-    <section class="auction-section">
+    <section class="auction-section" role="tabpanel">
       <div class="products-grid">
         {#each Array(data.limit || 12) as _}
           <div class="product-card skeleton-card">
@@ -781,13 +804,13 @@
       </div>
     </section>
   {:else if sortedProducts.length > 0}
-      <section class="auction-section">
+      <section class="auction-section" role="tabpanel">
         <div class="products-grid">
           {#each sortedProducts as product}
             <a href="/products/{product.id}?from=browse" class="product-card" class:ended-card={data.status === 'ended'}>
               <div class="product-image">
                 {#if product.images && product.images.length > 0 && product.images[0].image}
-                  <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" />
+                  <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" width="400" height="200" loading="lazy" decoding="async" onload={(e) => e.currentTarget.classList.add('loaded')} />
                 {:else}
                   <div class="placeholder-image">
                     <span>No Image</span>
@@ -806,7 +829,7 @@
 
                 {#if product.region || product.city}
                   <div class="location-info">
-                    <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                       <circle cx="12" cy="10" r="3"></circle>
                     </svg>
@@ -824,7 +847,7 @@
                         </div>
                         {#if product.currentBid > product.startingPrice}
                           <div class="percent-increase">
-                            <svg class="arrow-up-mini" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <svg class="arrow-up-mini" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
                               <polyline points="18 15 12 9 6 15"></polyline>
                             </svg>
                             <span>{Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%</span>
@@ -876,7 +899,7 @@
                   </div>
                   {#if data.status === 'active' || data.status === 'my-bids'}
                     <div class="countdown-badge countdown-{getUrgencyClass(product.auctionEndDate)}">
-                      <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <circle cx="12" cy="12" r="10"></circle>
                         <polyline points="12 6 12 12 16 14"></polyline>
                       </svg>
@@ -884,7 +907,7 @@
                     </div>
                   {:else}
                     <div class="countdown-badge countdown-ended">
-                      <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <circle cx="12" cy="12" r="10"></circle>
                         <polyline points="12 6 12 12 16 14"></polyline>
                       </svg>
@@ -977,6 +1000,7 @@
             disabled={adminModalLoading}
           >
             {#if adminModalLoading}
+              <span class="modal-spinner"></span>
               Processing...
             {:else}
               {adminModalProduct.active ? 'Hide Item' : 'Unhide Item'}
@@ -1060,6 +1084,11 @@
     white-space: nowrap;
   }
 
+  :global(html.dark) .btn-clear-filters {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
+  }
+
   .btn-clear-filters:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-bh-md);
@@ -1073,7 +1102,8 @@
     background: none;
     border: none;
     font-size: 1.25rem;
-    color: #999;
+    color: var(--color-fg);
+    opacity: 0.5;
     cursor: pointer;
     padding: 0.5rem;
     line-height: 1;
@@ -1085,7 +1115,8 @@
   }
 
   .search-results {
-    color: #666;
+    color: var(--color-fg);
+    opacity: 0.6;
     font-size: 0.95rem;
     margin: 0;
   }
@@ -1098,6 +1129,11 @@
     font-weight: 600;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  :global(html.dark) .btn-clear-search {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
   }
 
   .btn-clear-search:hover {
@@ -1117,8 +1153,12 @@
 
   .items-per-page label {
     font-size: 0.95rem;
-    color: #666;
+    color: #555;
     font-weight: 500;
+  }
+
+  :global(html.dark) .items-per-page label {
+    color: #8A8F98;
   }
 
   .items-per-page select {
@@ -1162,7 +1202,7 @@
     font-weight: 600;
     position: relative;
     font-size: 1rem;
-    color: #666;
+    color: #555;
     cursor: pointer;
     transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
                 border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
@@ -1190,6 +1230,12 @@
     border-color: var(--color-red);
     border-bottom: 4px solid var(--color-border);
     color: white;
+  }
+
+  :global(html.dark) .tab.active {
+    background: var(--color-accent, #5E6AD2);
+    border-color: var(--color-accent, #5E6AD2);
+    color: #fff;
   }
 
   .tab-badge {
@@ -1247,7 +1293,7 @@
 
   .empty-state .filter-detail {
     font-size: 1rem;
-    color: #666;
+    color: #555;
     margin-bottom: 0.5rem;
   }
 
@@ -1366,7 +1412,7 @@
   }
 
   .description {
-    color: #666;
+    color: #555;
     margin-bottom: 0.75rem;
     flex: 1;
   }
@@ -1376,7 +1422,7 @@
     align-items: center;
     gap: 0.375rem;
     font-size: 0.85rem;
-    color: #666;
+    color: #555;
     margin-bottom: 0.75rem;
     padding: 0.375rem 0.5rem;
     background-color: var(--color-muted);
@@ -1433,12 +1479,12 @@
   }
 
   .label {
-    color: #666;
+    color: #555;
     font-size: 0.9rem;
   }
 
   .label-small {
-    color: #666;
+    color: #555;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1446,7 +1492,7 @@
   }
 
   .label-tiny {
-    color: #888;
+    color: #666;
     font-size: 0.7rem;
     font-weight: 500;
   }
@@ -1488,6 +1534,11 @@
     box-shadow: var(--shadow-bh-sm);
   }
 
+  :global(html.dark) .percent-increase {
+    background: rgba(94, 106, 210, 0.2);
+    color: #8b93e0;
+  }
+
   .arrow-up-mini {
     color: white;
     flex-shrink: 0;
@@ -1524,6 +1575,11 @@
     color: white;
     box-shadow: var(--shadow-bh-sm);
     letter-spacing: 0.5px;
+  }
+
+  :global(html.dark) .owner-badge {
+    background: rgba(94, 106, 210, 0.2);
+    color: #8b93e0;
   }
 
   .admin-hide-btn,
@@ -1732,6 +1788,22 @@
     transform: none;
   }
 
+  .modal-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: modalSpin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 0.4rem;
+  }
+
+  @keyframes modalSpin {
+    to { transform: rotate(360deg); }
+  }
+
   .status-active {
     background: var(--color-blue);
     color: white;
@@ -1750,6 +1822,30 @@
   .status-cancelled {
     background-color: #9ca3af;
     color: white;
+  }
+
+  :global(html.dark) .status-active {
+    background: rgba(94, 106, 210, 0.2);
+    color: #8b93e0;
+    border: 1px solid rgba(94, 106, 210, 0.3);
+  }
+
+  :global(html.dark) .status-ended {
+    background: rgba(255, 85, 85, 0.15);
+    color: #ff7777;
+    border: 1px solid rgba(255, 85, 85, 0.25);
+  }
+
+  :global(html.dark) .status-sold {
+    background: rgba(201, 168, 48, 0.15);
+    color: #d4b44a;
+    border: 1px solid rgba(201, 168, 48, 0.25);
+  }
+
+  :global(html.dark) .status-cancelled {
+    background: rgba(156, 163, 175, 0.15);
+    color: #9ca3af;
+    border: 1px solid rgba(156, 163, 175, 0.25);
   }
 
   .countdown-badge {
@@ -1794,7 +1890,7 @@
   /* Critical - Less than 3 hours */
   .countdown-critical {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: 2px solid var(--color-border);
     animation: pulse-critical 1s ease-in-out infinite;
     box-shadow: var(--shadow-bh-md);
@@ -1891,7 +1987,7 @@
     padding: 0.625rem 0.75rem;
     background-color: var(--color-white);
     border: 2px solid var(--color-border);
-    color: #666;
+    color: #555;
     font-weight: 600;
     cursor: pointer;
     transition: background-color 0.15s ease,
@@ -2190,8 +2286,7 @@
   }
 
   .skeleton-pulse {
-    background: linear-gradient(90deg, var(--color-muted) 25%, #e8e8e8 50%, var(--color-muted) 75%);
-    background-size: 200% 100%;
+    background: var(--color-muted);
     animation: skeleton-shimmer 1.5s ease-in-out infinite;
   }
 
@@ -2254,12 +2349,8 @@
   }
 
   @keyframes skeleton-shimmer {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
   }
 
   @media (max-width: 768px) {
@@ -2289,7 +2380,7 @@
     font-size: 0.9rem;
     border: 2px solid var(--color-border);
     background: var(--color-white);
-    color: #666;
+    color: #555;
     cursor: pointer;
     transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
                 color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
@@ -2308,6 +2399,12 @@
     background: var(--color-fg);
     border-color: var(--color-fg);
     color: white;
+  }
+
+  :global(html.dark) .search-type-btn.active {
+    background: var(--color-accent, #5E6AD2);
+    border-color: var(--color-accent, #5E6AD2);
+    color: #fff;
   }
 
   .search-type-btn:hover:not(.active) {
@@ -2412,7 +2509,7 @@
 
   .user-card-date {
     font-size: 0.8rem;
-    color: #888;
+    color: #666;
     white-space: nowrap;
   }
 
@@ -2470,5 +2567,31 @@
       width: 48px;
       height: 48px;
     }
+  }
+
+  /* ── Dark mode: fix hardcoded light-mode colors ── */
+  :global(html.dark) .description,
+  :global(html.dark) .label,
+  :global(html.dark) .label-small,
+  :global(html.dark) .location-info,
+  :global(html.dark) .pagination-number,
+  :global(html.dark) .countdown-ended,
+  :global(html.dark) .user-card-date,
+  :global(html.dark) .empty-state .filter-detail {
+    color: #8A8F98;
+  }
+
+  :global(html.dark) .label-tiny {
+    color: #6b7280;
+  }
+
+  :global(html.dark) .pagination-number.active {
+    background-color: var(--color-accent, #5E6AD2);
+    border-color: var(--color-accent, #5E6AD2);
+    color: #fff;
+  }
+
+  :global(html.dark) .arrow-up-mini {
+    color: #8b93e0;
   }
 </style>

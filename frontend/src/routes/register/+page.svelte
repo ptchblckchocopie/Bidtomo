@@ -12,6 +12,8 @@
   let submitting = false;
   let error = '';
   let success = false;
+  let showPassword = false;
+  let showConfirmPassword = false;
 
   // Country codes list with common countries
   const countryCodes = [
@@ -37,8 +39,9 @@
     { code: '+974', country: 'Qatar', flag: '🇶🇦' },
   ];
 
-  // Get redirect URL from query params
-  const redirectUrl = $page.url.searchParams.get('redirect') || '/';
+  // Get redirect URL from query params — only allow safe relative paths
+  const rawRedirect = $page.url.searchParams.get('redirect') || '/';
+  const redirectUrl = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/';
 
   async function handleRegister(e: Event) {
     e.preventDefault();
@@ -140,7 +143,7 @@
   <title>Register - BidMo.to</title>
 </svelte:head>
 
-<div class="min-h-[calc(100vh-200px)] flex items-center justify-center p-4 sm:p-8 bg-bh-blue">
+<div class="register-page min-h-[calc(100vh-200px)] flex items-center justify-center p-4 sm:p-8 bg-bh-blue">
   <div class="card-bh p-5 sm:p-8 md:p-12 max-w-[500px] w-full">
     <h1 class="headline-bh text-2xl sm:text-4xl mb-2 text-center">Create Account</h1>
     <p class="text-bh-fg/60 text-center mb-8">Join our marketplace to buy and sell products</p>
@@ -211,28 +214,64 @@
 
       <div class="mb-6">
         <label for="password" class="block mb-2 font-bold text-bh-fg">Password</label>
-        <input
-          id="password"
-          type="password"
-          bind:value={password}
-          placeholder="Enter a strong password (min 6 characters)"
-          required
-          disabled={submitting || success}
-          class="input-bh"
-        />
+        <div class="relative">
+          <input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            bind:value={password}
+            placeholder="Enter a strong password (min 6 characters)"
+            required
+            disabled={submitting || success}
+            class="input-bh pr-12"
+          />
+          <button
+            type="button"
+            tabindex="-1"
+            onmousedown={() => showPassword = true}
+            onmouseup={() => showPassword = false}
+            onmouseleave={() => showPassword = false}
+            ontouchstart={() => showPassword = true}
+            ontouchend={() => showPassword = false}
+            class="absolute right-0 top-0 h-full px-3 flex items-center text-bh-fg/50 hover:text-bh-fg border-l-[3px] border-bh-border transition-colors select-none"
+          >
+            {#if showPassword}
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            {:else}
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            {/if}
+          </button>
+        </div>
       </div>
 
       <div class="mb-6">
         <label for="confirmPassword" class="block mb-2 font-bold text-bh-fg">Confirm Password</label>
-        <input
-          id="confirmPassword"
-          type="password"
-          bind:value={confirmPassword}
-          placeholder="Re-enter your password"
-          required
-          disabled={submitting || success}
-          class="input-bh"
-        />
+        <div class="relative">
+          <input
+            id="confirmPassword"
+            type={showConfirmPassword ? 'text' : 'password'}
+            bind:value={confirmPassword}
+            placeholder="Re-enter your password"
+            required
+            disabled={submitting || success}
+            class="input-bh pr-12"
+          />
+          <button
+            type="button"
+            tabindex="-1"
+            onmousedown={() => showConfirmPassword = true}
+            onmouseup={() => showConfirmPassword = false}
+            onmouseleave={() => showConfirmPassword = false}
+            ontouchstart={() => showConfirmPassword = true}
+            ontouchend={() => showConfirmPassword = false}
+            class="absolute right-0 top-0 h-full px-3 flex items-center text-bh-fg/50 hover:text-bh-fg border-l-[3px] border-bh-border transition-colors select-none"
+          >
+            {#if showConfirmPassword}
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            {:else}
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            {/if}
+          </button>
+        </div>
       </div>
 
       <button type="submit" disabled={submitting || success} class="btn-bh-red w-full text-lg py-3 mt-4">
@@ -255,3 +294,10 @@
     </div>
   </div>
 </div>
+
+<style>
+  /* Dark mode: remove the bright blue page background */
+  :global(html.dark) .register-page {
+    background: transparent !important;
+  }
+</style>

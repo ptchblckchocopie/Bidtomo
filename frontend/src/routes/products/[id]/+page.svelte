@@ -8,7 +8,7 @@
   import ImageSlider from '$lib/components/ImageSlider.svelte';
   import StarRating from '$lib/components/StarRating.svelte';
   import type { Product } from '$lib/api';
-  import { getProductSSE, disconnectProductSSE, queueBid as queueBidToRedis, type SSEEvent, type BidEvent } from '$lib/sse';
+  import { getProductSSE, disconnectProductSSE, queueBid as queueBidToRedis, type SSEEvent, type BidEvent, type ProductVisibilityEvent } from '$lib/sse';
   import { onMount, onDestroy } from 'svelte';
 
   let { data } = $props<{ data: PageData }>();
@@ -38,6 +38,29 @@
         return 'Back to Products';
     }
   });
+
+  // Admin hide/unhide modal
+  let adminModalOpen = $state(false);
+  let adminModalLoading = $state(false);
+
+  function openAdminModal() {
+    adminModalOpen = true;
+  }
+
+  function closeAdminModal() {
+    adminModalOpen = false;
+    adminModalLoading = false;
+  }
+
+  async function confirmToggleVisibility() {
+    adminModalLoading = true;
+    try {
+      const result = await updateProduct(String(data.product.id), { active: !data.product.active });
+      if (result) data.product.active = !data.product.active;
+    } finally {
+      closeAdminModal();
+    }
+  }
 
   let bidAmount = $state(0);
 
@@ -517,6 +540,12 @@
               acceptSuccess = false;
             }, 3000);
           }
+        } else if (event.type === 'product_visibility') {
+          const visEvent = event as ProductVisibilityEvent;
+          if (data.product) {
+            data.product.active = visEvent.active;
+            data = { ...data };
+          }
         }
       });
 
@@ -931,11 +960,8 @@
       {/if}
       {#if $authStore.user?.role === 'admin'}
         <button
-          class="admin-hide-btn"
-          onclick={async () => {
-            const result = await updateProduct(String(data.product.id), { active: !data.product.active });
-            if (result) data.product.active = !data.product.active;
-          }}
+          class="admin-hide-btn {data.product.active ? '' : 'admin-unhide-btn'}"
+          onclick={openAdminModal}
         >
           {data.product.active ? 'Hide Product' : 'Show Product'}
         </button>
@@ -1579,6 +1605,48 @@
   </div>
 {/if}
 
+<!-- Admin Hide/Unhide Confirmation Modal -->
+{#if adminModalOpen}
+  <div class="admin-modal-overlay" onclick={closeAdminModal}>
+    <div class="admin-modal-content" onclick={(e) => e.stopPropagation()}>
+      <button class="admin-modal-close" onclick={closeAdminModal}>&times;</button>
+
+      <div class="admin-modal-header">
+        <h2>{data.product.active ? 'Hide Product' : 'Unhide Product'}</h2>
+      </div>
+
+      <div class="admin-modal-body">
+        <p class="admin-modal-product-title">"{data.product.title}"</p>
+        <p class="admin-modal-description">
+          {#if data.product.active}
+            This item will be hidden from all users and moved to the <strong>Hidden Items</strong> tab. The seller will not be notified.
+          {:else}
+            This item will be restored and visible to all users again under <strong>Active Auctions</strong>.
+          {/if}
+        </p>
+
+        <div class="admin-modal-actions">
+          <button class="btn-admin-cancel" onclick={closeAdminModal} disabled={adminModalLoading}>
+            Cancel
+          </button>
+          <button
+            class="btn-admin-confirm {data.product.active ? 'btn-admin-hide' : 'btn-admin-unhide'}"
+            onclick={confirmToggleVisibility}
+            disabled={adminModalLoading}
+          >
+            {#if adminModalLoading}
+              <span class="admin-spinner"></span>
+              Processing...
+            {:else}
+              {data.product.active ? 'Hide Product' : 'Unhide Product'}
+            {/if}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   .error {
     text-align: center;
@@ -1608,7 +1676,7 @@
   .edit-product-btn {
     padding: 0.75rem 1.5rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
     font-size: 1rem;
@@ -1931,12 +1999,12 @@
 
   .status-active {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .status-ended {
     background-color: var(--color-red);
-    color: var(--color-white);
+    color: white;
   }
 
   .status-sold {
@@ -1946,7 +2014,7 @@
 
   .status-available {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .bid-section-header-wrapper {
@@ -2006,7 +2074,7 @@
   }
 
   .countdown-timer-inline .countdown-time {
-    color: var(--color-white);
+    color: white;
     font-size: 1.5rem;
     font-weight: 900;
     font-family: 'Courier New', monospace;
@@ -2028,7 +2096,7 @@
   }
 
   .highest-bid-container {
-    color: var(--color-white);
+    color: white;
     position: relative;
     width: 100%;
   }
@@ -2075,7 +2143,7 @@
   }
 
   .countdown-timer-badge .countdown-time {
-    color: var(--color-white);
+    color: white;
     font-weight: 900;
     letter-spacing: 1px;
     font-family: 'Courier New', monospace;
@@ -2094,7 +2162,7 @@
     font-size: 3.5rem;
     font-weight: 900;
     line-height: 1;
-    color: var(--color-white);
+    color: white;
     margin-bottom: 0;
   }
 
@@ -2111,7 +2179,7 @@
   }
 
   .arrow-up-icon {
-    color: var(--color-white);
+    color: white;
     animation: arrowBounce 1s ease-in-out infinite;
     flex-shrink: 0;
   }
@@ -2119,7 +2187,7 @@
   .percentage-text {
     font-size: 1.25rem;
     font-weight: 900;
-    color: var(--color-white);
+    color: white;
     letter-spacing: 0.5px;
   }
 
@@ -2207,7 +2275,7 @@
     font-weight: 900;
     letter-spacing: 3px;
     margin-bottom: 0.75rem;
-    color: var(--color-white);
+    color: white;
     background-color: rgba(255, 255, 255, 0.2);
     padding: 0.5rem 1.5rem;
     display: inline-block;
@@ -2218,7 +2286,7 @@
     font-size: 1.1rem;
     font-weight: 600;
     margin-top: 0.75rem;
-    color: var(--color-white);
+    color: white;
     opacity: 0.95;
   }
 
@@ -2305,7 +2373,7 @@
   }
 
   .outbid-alert .alert-text {
-    color: var(--color-white);
+    color: white;
     flex: 1;
   }
 
@@ -2381,12 +2449,12 @@
   .winner-alert-header .alert-text {
     font-size: 1.5rem;
     font-weight: 800;
-    color: var(--color-white);
+    color: white;
     letter-spacing: 0.5px;
   }
 
   .winner-alert-message {
-    color: var(--color-white);
+    color: white;
     font-size: 1rem;
     margin-bottom: 1rem;
     line-height: 1.5;
@@ -2462,7 +2530,7 @@
     background: var(--color-blue);
     border: var(--border-bh) solid var(--color-border);
     cursor: pointer;
-    color: var(--color-white);
+    color: white;
     font-weight: 600;
     font-size: 0.9rem;
     box-shadow: var(--shadow-bh-sm);
@@ -2548,7 +2616,7 @@
     align-items: center;
     gap: 0.25rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     padding: 0.375rem 0.75rem;
     font-size: 0.875rem;
     font-weight: 600;
@@ -2606,7 +2674,7 @@
     width: 100%;
     padding: 1rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     text-align: center;
     text-decoration: none;
     font-weight: 600;
@@ -2672,7 +2740,7 @@
 
   .bid-arrow-btn {
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     border: 2px solid var(--color-border);
     width: 48px;
     height: 48px;
@@ -2755,7 +2823,7 @@
     font-size: 1.1rem;
     font-weight: 700;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
     cursor: pointer;
@@ -2782,7 +2850,7 @@
 
   .success-message {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     padding: 1rem;
     margin-bottom: 1rem;
     animation: slideDown 0.3s ease-out;
@@ -2791,7 +2859,7 @@
 
   .error-message {
     background-color: var(--color-red);
-    color: var(--color-white);
+    color: white;
     padding: 1rem;
     margin-bottom: 1rem;
     animation: slideDown 0.3s ease-out;
@@ -2800,7 +2868,7 @@
 
   .info-message {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     padding: 1rem;
     margin-bottom: 1rem;
     text-align: center;
@@ -2845,7 +2913,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-white);
+    color: white;
     font-weight: 600;
     font-size: 1.25rem;
     border: 2px solid var(--color-border);
@@ -2969,7 +3037,7 @@
   .view-profile-btn:hover {
     background: var(--color-blue);
     border-color: var(--color-border);
-    color: var(--color-white);
+    color: white;
   }
 
   /* Price Analytics */
@@ -3183,7 +3251,7 @@
     top: -0.75rem;
     right: 1rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     padding: 0.375rem 0.875rem;
     font-size: 0.75rem;
     font-weight: 700;
@@ -3311,7 +3379,7 @@
 
   .btn-login {
     background-color: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-login:hover {
@@ -3321,7 +3389,7 @@
 
   .btn-register {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-register:hover {
@@ -3366,7 +3434,7 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 0.75rem;
-    color: var(--color-white);
+    color: white;
   }
 
   .confirm-row:last-child {
@@ -3457,7 +3525,7 @@
 
   .btn-confirm-bid {
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-confirm-bid:hover {
@@ -3565,7 +3633,7 @@
 
   .btn-save-edit {
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-save-edit:hover:not(:disabled) {
@@ -3618,7 +3686,7 @@
     font-size: 1.2rem;
     font-weight: 700;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-sm);
     cursor: pointer;
@@ -3655,7 +3723,7 @@
     border: var(--border-bh) solid var(--color-border);
     cursor: pointer;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
   }
 
   .btn-accept-bid:hover:not(:disabled) {
@@ -3746,7 +3814,7 @@
 
   .duration-btn:hover:not(:disabled) {
     background-color: var(--color-red);
-    color: var(--color-white);
+    color: white;
     transform: translateY(-2px);
     box-shadow: var(--shadow-bh-sm);
   }
@@ -3792,7 +3860,7 @@
   .apply-duration-btn {
     padding: 0.625rem 1.5rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: var(--border-bh) solid var(--color-border);
     font-size: 0.95rem;
     font-weight: 600;
@@ -3890,7 +3958,7 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    color: var(--color-white);
+    color: white;
     animation: iconPop 0.5s ease-out 0.2s both;
     border: 2px solid var(--color-border);
   }
@@ -3917,7 +3985,7 @@
   .toast-title {
     font-weight: 700;
     font-size: 1rem;
-    color: var(--color-white);
+    color: white;
   }
 
   .toast-subtitle {
@@ -3934,7 +4002,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: var(--color-white);
+    color: white;
     transition: all 0.2s;
     flex-shrink: 0;
   }
@@ -4137,7 +4205,7 @@
     top: 8px;
     right: 8px;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     padding: 0.25rem 0.625rem;
     font-size: 0.7rem;
     font-weight: 800;
@@ -4214,7 +4282,7 @@
     gap: 0.5rem;
     padding: 1rem 2rem;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     font-weight: 600;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
@@ -4263,7 +4331,7 @@
     width: 32px;
     height: 32px;
     background: var(--color-red);
-    color: var(--color-white);
+    color: white;
     border: 2px solid var(--color-border);
     font-size: 1.25rem;
     cursor: pointer;
@@ -4291,7 +4359,7 @@
     bottom: 0.5rem;
     left: 0.5rem;
     background: var(--color-fg);
-    color: var(--color-white);
+    color: white;
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
     font-weight: 600;
@@ -4302,7 +4370,7 @@
     top: 0.5rem;
     left: 0.5rem;
     background: var(--color-blue);
-    color: var(--color-white);
+    color: white;
     padding: 0.25rem 0.5rem;
     font-size: 0.7rem;
     font-weight: 600;
@@ -4313,5 +4381,181 @@
     .image-preview-grid {
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     }
+  }
+
+  /* Admin unhide button variant */
+  .admin-unhide-btn {
+    background: #198754 !important;
+  }
+
+  .admin-unhide-btn:hover {
+    background: #146c43 !important;
+  }
+
+  /* Admin Confirmation Modal */
+  .admin-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: adminOverlayFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 1rem;
+    backdrop-filter: blur(2px);
+  }
+
+  @keyframes adminOverlayFadeIn {
+    from { opacity: 0; backdrop-filter: blur(0); }
+    to { opacity: 1; backdrop-filter: blur(2px); }
+  }
+
+  .admin-modal-content {
+    background-color: var(--color-white);
+    max-width: 460px;
+    width: 90%;
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-md);
+    position: relative;
+    animation: adminModalSlideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes adminModalSlideUp {
+    from { transform: translateY(30px) scale(0.97); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  .admin-modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: 2px solid var(--color-border);
+    font-size: 2rem;
+    color: var(--color-fg);
+    opacity: 0.6;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+  }
+
+  .admin-modal-close:hover {
+    background-color: var(--color-muted);
+    opacity: 1;
+    transform: scale(1.05);
+  }
+
+  .admin-modal-header {
+    padding: 2rem 2rem 1rem 2rem;
+    text-align: center;
+  }
+
+  .admin-modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--color-fg);
+  }
+
+  .admin-modal-body {
+    padding: 0 2rem 2rem 2rem;
+    text-align: center;
+  }
+
+  .admin-modal-product-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-fg);
+    margin-bottom: 0.75rem;
+  }
+
+  .admin-modal-description {
+    font-size: 0.95rem;
+    color: var(--color-fg);
+    opacity: 0.7;
+    margin-bottom: 1.5rem;
+    line-height: 1.5;
+  }
+
+  .admin-modal-actions {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .btn-admin-cancel,
+  .btn-admin-confirm {
+    flex: 1;
+    padding: 0.85rem 1.5rem;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+                background-color 0.15s ease;
+    border: var(--border-bh) solid var(--color-border);
+  }
+
+  .btn-admin-cancel {
+    background-color: var(--color-muted);
+    color: var(--color-fg);
+  }
+
+  .btn-admin-cancel:hover {
+    background-color: var(--color-border);
+  }
+
+  .btn-admin-hide {
+    background: #dc3545;
+    color: white;
+  }
+
+  .btn-admin-hide:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-bh-md);
+    background: #b02a37;
+  }
+
+  .btn-admin-unhide {
+    background: #198754;
+    color: white;
+  }
+
+  .btn-admin-unhide:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-bh-md);
+    background: #146c43;
+  }
+
+  .btn-admin-confirm:disabled,
+  .btn-admin-cancel:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Loading spinner */
+  .admin-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: adminSpin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 0.4rem;
+  }
+
+  @keyframes adminSpin {
+    to { transform: rotate(360deg); }
   }
 </style>
