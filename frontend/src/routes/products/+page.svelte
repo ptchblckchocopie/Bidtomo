@@ -810,7 +810,7 @@
             <a href="/products/{product.id}?from=browse" class="product-card" class:ended-card={data.status === 'ended'}>
               <div class="product-image">
                 {#if product.images && product.images.length > 0 && product.images[0].image}
-                  <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" width="400" height="200" loading="lazy" decoding="async" />
+                  <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" width="400" height="200" loading="lazy" decoding="async" onload={(e) => e.currentTarget.classList.add('loaded')} />
                 {:else}
                   <div class="placeholder-image">
                     <span>No Image</span>

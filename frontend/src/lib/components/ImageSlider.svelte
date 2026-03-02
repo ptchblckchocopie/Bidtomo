@@ -160,6 +160,7 @@
               src={imageItem.image.url}
               alt={imageItem.image.alt || productTitle}
               loading={index === 0 ? 'eager' : 'lazy'}
+              onload={(e) => e.currentTarget.classList.add('loaded')}
               onclick={() => openLightbox(index)}
               class="clickable-image"
               role="button"
@@ -204,6 +205,7 @@
               src={imageItem.image.url}
               alt={imageItem.image.alt || productTitle}
               loading="lazy"
+              onload={(e) => e.currentTarget.classList.add('loaded')}
             />
           </button>
         {/each}
