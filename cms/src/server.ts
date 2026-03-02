@@ -9,6 +9,8 @@ import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotificat
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
 import { authenticateJWT } from './auth-helpers';
+import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
+import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema } from './middleware/validate';
 
 dotenv.config();
 
@@ -16,38 +18,6 @@ const app = express();
 app.set('trust proxy', 1); // Trust first proxy (Railway/reverse proxy) — required for express-rate-limit
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const isProduction = process.env.NODE_ENV === 'production';
-
-// Payload v2 hashes the secret before signing JWTs:
-//   crypto.createHash('sha256').update(secret).digest('hex').slice(0, 32)
-// Lazily computed to avoid issues with module load order.
-let _payloadJwtSecret = '';
-function getPayloadJwtSecret(): string {
-  if (!_payloadJwtSecret) {
-    const crypto = require('crypto');
-    _payloadJwtSecret = crypto.createHash('sha256').update(process.env.PAYLOAD_SECRET!).digest('hex').slice(0, 32);
-  }
-  return _payloadJwtSecret;
-}
-
-// Extract user ID from Express request via Payload's req.user or JWT header fallback
-function authenticateFromRequest(req: express.Request): string | number | null {
-  let userId: string | number | null = (req as any).user?.id || null;
-  if (!userId) {
-    const authHeader = req.headers.authorization;
-    if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-      const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-      try {
-        const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
-        if (decoded.id) userId = decoded.id;
-      } catch (err: any) {
-        console.error(`[Auth] JWT verify failed for ${req.method} ${req.path}:`, err.message);
-      }
-    } else {
-      console.warn(`[Auth] No Authorization header for ${req.method} ${req.path}`);
-    }
-  }
-  return userId;
-}
 
 // Configure CORS to allow requests from the frontend (including production URLs)
 const allowedOrigins: string[] = [
@@ -224,13 +194,9 @@ const start = async () => {
   // Registering here ensures Express matches our routes first.
   // The `payload` singleton is resolved at request time (after init).
 
-  app.get('/api/users/limits', async (req, res) => {
+  app.get('/api/users/limits', requireAuth, async (req, res) => {
     try {
-      const currentUserId = authenticateFromRequest(req);
-
-      if (!currentUserId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const currentUserId = (req as any).userId;
 
       // Define maximum limits
       const MAX_BIDS = 10;
@@ -324,13 +290,9 @@ const start = async () => {
     }
   });
 
-  app.post('/api/users/profile-picture', async (req, res) => {
+  app.post('/api/users/profile-picture', requireAuth, validate(profilePictureSchema), async (req, res) => {
     try {
-      const currentUserId = authenticateFromRequest(req);
-
-      if (!currentUserId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const currentUserId = (req as any).userId;
 
       // Get the current user to find old profile picture
       const currentUser = await payload.findByID({
@@ -344,12 +306,7 @@ const start = async () => {
           : currentUser.profilePicture)
         : null;
 
-      // The request body contains the new media ID (uploaded via /api/media first)
       const { mediaId } = req.body;
-
-      if (!mediaId) {
-        return res.status(400).json({ error: 'mediaId is required' });
-      }
 
       // Update user with new profile picture
       // overrideAccess bypasses access control but NOT field validation.
@@ -387,13 +344,9 @@ const start = async () => {
     }
   });
 
-  app.delete('/api/users/profile-picture', async (req, res) => {
+  app.delete('/api/users/profile-picture', requireAuth, async (req, res) => {
     try {
-      const currentUserId = authenticateFromRequest(req);
-
-      if (!currentUserId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const currentUserId = (req as any).userId;
 
       // Get the current user to find the profile picture
       const currentUser = await payload.findByID({
@@ -787,44 +740,10 @@ const start = async () => {
 
   // Queue bid endpoint - queues bid to Redis for processing by bid worker
   // This prevents race conditions by processing bids sequentially
-  app.post('/api/bid/queue', bidLimiter, async (req, res) => {
+  app.post('/api/bid/queue', bidLimiter, requireAuth, validate(bidQueueSchema), async (req, res) => {
     try {
-      // Authenticate via JWT token
-      let userId: number | null = null;
-
-      // Check if already authenticated via Payload middleware
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        // Check for JWT in Authorization header
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
-            if (decoded.id) {
-              userId = decoded.id;
-            }
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
+      const userId = (req as any).userId;
       const { productId, amount, censorName } = req.body;
-
-      if (!productId) {
-        return res.status(400).json({ error: 'Missing productId' });
-      }
-
-      // Strict bid amount validation — reject negative, zero, NaN, non-number
-      if (typeof amount !== 'number' || !isFinite(amount) || amount <= 0) {
-        return res.status(400).json({ error: 'Bid amount must be a positive number' });
-      }
 
       // Basic validation - get product to check status
       const product: any = await payload.findByID({
@@ -965,37 +884,10 @@ const start = async () => {
   });
 
   // Accept bid endpoint - queues accept action to Redis to prevent race conditions
-  app.post('/api/bid/accept', bidLimiter, async (req, res) => {
+  app.post('/api/bid/accept', bidLimiter, requireAuth, validate(bidAcceptSchema), async (req, res) => {
     try {
-      // Authenticate via JWT token
-      let userId: number | null = null;
-
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
-            if (decoded.id) {
-              userId = decoded.id;
-            }
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
+      const userId = (req as any).userId;
       const { productId } = req.body;
-
-      if (!productId) {
-        return res.status(400).json({ error: 'Missing productId' });
-      }
 
       // Get product to verify ownership and get highest bid
       const product: any = await payload.findByID({
@@ -1207,27 +1099,9 @@ const start = async () => {
   });
 
   // Elasticsearch: bulk sync all products (admin utility)
-  app.post('/api/elasticsearch/sync', async (req, res) => {
+  app.post('/api/elasticsearch/sync', requireAuth, async (req, res) => {
     try {
-      // Auth check — try Payload middleware first, then JWT fallback
-      let userId: number | string | null = (req as any).user?.id || null;
-
-      if (!userId) {
-        const authHeader = req.headers.authorization;
-        if (authHeader) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
-          if (token) {
-            try {
-              const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
-              userId = decoded.id;
-            } catch (jwtError) {
-              // Token invalid/expired
-            }
-          }
-        }
-      }
-      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
+      const userId = (req as any).userId;
       const user = await payload.findByID({ collection: 'users', id: userId });
       if ((user as any).role !== 'admin') return res.status(403).json({ error: 'Admin only' });
 
@@ -1249,34 +1123,10 @@ const start = async () => {
   // ============================================
 
   // Create void request
-  app.post('/api/void-request/create', async (req, res) => {
+  app.post('/api/void-request/create', requireAuth, validate(voidRequestCreateSchema), async (req, res) => {
     try {
-      // Authenticate user - check for existing auth first, then JWT
-      let userId: number | null = null;
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
-            if (decoded.id) userId = decoded.id;
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
+      const userId = (req as any).userId;
       const { transactionId, reason } = req.body;
-
-      if (!transactionId || !reason) {
-        return res.status(400).json({ error: 'Missing transactionId or reason' });
-      }
 
       // Get transaction with relationships
       const transaction: any = await payload.findByID({
@@ -1396,38 +1246,10 @@ const start = async () => {
   });
 
   // Respond to void request (approve/reject)
-  app.post('/api/void-request/respond', async (req, res) => {
+  app.post('/api/void-request/respond', requireAuth, validate(voidRequestRespondSchema), async (req, res) => {
     try {
-      // Authenticate user - check for existing auth first, then JWT
-      let userId: number | null = null;
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
-            if (decoded.id) userId = decoded.id;
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
+      const userId = (req as any).userId;
       const { voidRequestId, action, rejectionReason } = req.body;
-
-      if (!voidRequestId || !action) {
-        return res.status(400).json({ error: 'Missing voidRequestId or action' });
-      }
-
-      if (!['approve', 'reject'].includes(action)) {
-        return res.status(400).json({ error: 'Action must be approve or reject' });
-      }
 
       // Get void request with relationships
       const voidRequest: any = await payload.findByID({
@@ -1559,38 +1381,10 @@ const start = async () => {
   });
 
   // Seller choice after void approval
-  app.post('/api/void-request/seller-choice', async (req, res) => {
+  app.post('/api/void-request/seller-choice', requireAuth, validate(voidRequestSellerChoiceSchema), async (req, res) => {
     try {
-      // Authenticate user - check for existing auth first, then JWT
-      let userId: number | null = null;
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
-            if (decoded.id) userId = decoded.id;
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
+      const userId = (req as any).userId;
       const { voidRequestId, choice } = req.body;
-
-      if (!voidRequestId || !choice) {
-        return res.status(400).json({ error: 'Missing voidRequestId or choice' });
-      }
-
-      if (!['restart_bidding', 'offer_second_bidder'].includes(choice)) {
-        return res.status(400).json({ error: 'Choice must be restart_bidding or offer_second_bidder' });
-      }
 
       // Get void request
       const voidRequest: any = await payload.findByID({
@@ -1769,38 +1563,10 @@ const start = async () => {
   });
 
   // Second bidder response to offer
-  app.post('/api/void-request/second-bidder-response', async (req, res) => {
+  app.post('/api/void-request/second-bidder-response', requireAuth, validate(voidRequestSecondBidderSchema), async (req, res) => {
     try {
-      // Authenticate user - check for existing auth first, then JWT
-      let userId: number | null = null;
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
-            if (decoded.id) userId = decoded.id;
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
+      const userId = (req as any).userId;
       const { voidRequestId, action } = req.body;
-
-      if (!voidRequestId || !action) {
-        return res.status(400).json({ error: 'Missing voidRequestId or action' });
-      }
-
-      if (!['accept', 'decline'].includes(action)) {
-        return res.status(400).json({ error: 'Action must be accept or decline' });
-      }
 
       // Get void request
       const voidRequest: any = await payload.findByID({
@@ -1976,28 +1742,9 @@ const start = async () => {
   });
 
   // Get void request for a transaction
-  app.get('/api/void-request/:transactionId', async (req, res) => {
+  app.get('/api/void-request/:transactionId', requireAuth, async (req, res) => {
     try {
-      // Authenticate user - check for existing auth first, then JWT
-      let userId: number | null = null;
-      if ((req as any).user?.id) {
-        userId = (req as any).user.id;
-      } else {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
-            if (decoded.id) userId = decoded.id;
-          } catch (jwtError) {
-            console.error('JWT verification failed:', jwtError);
-          }
-        }
-      }
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const userId = (req as any).userId;
 
       const { transactionId } = req.params;
 
@@ -2042,28 +1789,10 @@ const start = async () => {
   const TYPING_TIMEOUT = 3000; // 3 seconds
 
   // Set typing status
-  app.post('/api/typing', async (req, res) => {
+  app.post('/api/typing', requireAuth, validate(typingSchema), async (req, res) => {
     try {
+      const userId = (req as any).userId;
       const { product, isTyping } = req.body;
-      let userId: number | null = (req as any).user?.id || null;
-
-      // JWT fallback for typing endpoint
-      if (!userId) {
-        const authHeader = req.headers.authorization;
-        if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
-          const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
-          try {
-            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
-            if (decoded.id) userId = decoded.id;
-          } catch (jwtError) {
-            // Token invalid
-          }
-        }
-      }
-
-      if (!userId || !product) {
-        return res.status(400).json({ error: 'Missing required fields' });
-      }
 
       const key = `${product}:${userId}`;
       const productId = typeof product === 'string' ? parseInt(product, 10) : product;
@@ -2087,14 +1816,10 @@ const start = async () => {
   });
 
   // Get typing status for a product
-  app.get('/api/typing/:productId', async (req, res) => {
+  app.get('/api/typing/:productId', requireAuth, async (req, res) => {
     try {
       const { productId } = req.params;
-      const currentUserId = (req as any).user?.id;
-
-      if (!currentUserId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
+      const currentUserId = (req as any).userId;
 
       const now = Date.now();
       const typingUsers: string[] = [];
