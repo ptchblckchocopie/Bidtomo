@@ -390,6 +390,23 @@ const start = async () => {
     }
   });
 
+  // Pre-init migration: fix raterRole column name BEFORE payload.init() tries to access it.
+  // Payload v2 expects camelCase for select fields but the column was created as snake_case.
+  try {
+    const { Pool: PrePool } = require('pg');
+    const prePool = new PrePool({ connectionString: process.env.DATABASE_URI });
+    await prePool.query(`
+      DO $$ BEGIN
+        ALTER TABLE "ratings" RENAME COLUMN "rater_role" TO "raterRole";
+      EXCEPTION WHEN undefined_column THEN null;
+               WHEN undefined_table THEN null;
+      END $$;
+    `);
+    await prePool.end();
+  } catch (e) {
+    console.log('Pre-init migration (raterRole rename) skipped:', (e as any).message);
+  }
+
   await payload.init({
     secret: process.env.PAYLOAD_SECRET!,
     express: app,
@@ -461,11 +478,6 @@ const start = async () => {
         "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
       );
 
-      -- Fix: rename rater_role -> raterRole if the old snake_case column exists
-      DO $$ BEGIN
-        ALTER TABLE "ratings" RENAME COLUMN "rater_role" TO "raterRole";
-      EXCEPTION WHEN undefined_column THEN null;
-      END $$;
       CREATE INDEX IF NOT EXISTS "ratings_created_at_idx" ON "ratings" USING btree ("created_at");
 
       CREATE TABLE IF NOT EXISTS "ratings_rels" (
