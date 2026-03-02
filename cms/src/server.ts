@@ -419,11 +419,18 @@ const start = async () => {
       );
     `);
 
-    // Fix legacy column name: score → rating (earlier code versions used "score")
+    // Fix legacy column: drop "score" if "rating" already exists, otherwise rename
     await prePool.query(`
-      DO $$ BEGIN
-        ALTER TABLE "ratings" RENAME COLUMN "score" TO "rating";
-      EXCEPTION WHEN undefined_column THEN null;
+      DO $$
+      DECLARE has_score boolean; has_rating boolean;
+      BEGIN
+        SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='ratings' AND column_name='score') INTO has_score;
+        SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='ratings' AND column_name='rating') INTO has_rating;
+        IF has_score AND has_rating THEN
+          ALTER TABLE "ratings" DROP COLUMN "score";
+        ELSIF has_score AND NOT has_rating THEN
+          ALTER TABLE "ratings" RENAME COLUMN "score" TO "rating";
+        END IF;
       END $$;
     `);
 
