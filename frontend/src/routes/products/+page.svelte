@@ -161,6 +161,7 @@
   }
 
   function changeTab(status: string) {
+    if (data.status === status) return;
     removedProductIds = [];
     loading = true;
     updateURL({
