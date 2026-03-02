@@ -1701,6 +1701,41 @@ const start = async () => {
       const buyer: any = await payload.findByID({ collection: 'users', id: userId });
 
       if (action === 'accept') {
+        // Atomically lock the product row and set to sold — prevents concurrent accepts
+        // from both succeeding (two users hitting "accept" simultaneously, or network retries)
+        const pool = (payload.db as any).pool;
+        const client = await pool.connect();
+
+        try {
+          await client.query('BEGIN');
+
+          const lockedProduct = await client.query(
+            `SELECT id, status FROM products WHERE id = $1 FOR UPDATE`,
+            [parseInt(productId, 10)]
+          );
+
+          if (lockedProduct.rows.length === 0 || lockedProduct.rows[0].status === 'sold') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Product is no longer available' });
+          }
+
+          await client.query(
+            `UPDATE products SET status = 'sold', updated_at = NOW() WHERE id = $1`,
+            [parseInt(productId, 10)]
+          );
+
+          await client.query('COMMIT');
+        } catch (lockError: any) {
+          await client.query('ROLLBACK').catch(() => {});
+          console.error('Error locking product for second bidder accept:', lockError);
+          return res.status(500).json({ error: isProduction ? 'Internal server error' : lockError.message });
+        } finally {
+          client.release();
+        }
+
+        // Product atomically sold — safe to use Payload ORM for remaining records
+        // (concurrent request will see status = 'sold' and bail at the lock above)
+
         // Update offer status
         await payload.update({
           collection: 'void-requests',
@@ -1714,14 +1749,7 @@ const start = async () => {
           },
         });
 
-        // Update product status to sold
-        await payload.update({
-          collection: 'products',
-          id: productId,
-          data: { status: 'sold' },
-        });
-
-        // Create new transaction
+        // Create new transaction (product already set to sold above via row lock)
         const newTransaction = await payload.create({
           collection: 'transactions',
           data: {

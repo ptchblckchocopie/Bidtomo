@@ -9,10 +9,10 @@
 
 | Status | Issue | Location |
 |--------|-------|----------|
-| OPEN | `cms/src/server.ts` is ~1,866 lines — monolithic file with 20+ endpoints; should be decomposed | `cms/src/server.ts` |
+| OPEN | `cms/src/server.ts` is ~1,964 lines — monolithic file with 20+ endpoints; should be decomposed | `cms/src/server.ts` |
 | RESOLVED | JWT token extraction duplicated in 10+ endpoints — now centralized via `requireAuth` middleware. 4 endpoints still use `authenticateJWT()` for admin-gated logic. | `cms/src/middleware/requireAuth.ts`, `cms/src/server.ts` |
 | OPEN | No unit/integration test runner — only k6 stress tests | repo-wide |
-| OPEN | 77 `any` type usages in `cms/src/server.ts` (reduced from 93) suppress type safety on DB return values | `cms/src/server.ts` |
+| OPEN | 81 `any` type usages in `cms/src/server.ts` (up from 77 — 4 new casts added for `(payload.db as any).pool` and `error: any` in fallback bid fix) | `cms/src/server.ts` |
 | OPEN | 9 `(global as any)` casts in `payload.config.ts` for cross-module function sharing — fragile pattern | `cms/src/payload.config.ts` |
 | OPEN | Dead code: `create-conversations-local.ts` and `sync-bids.js` reference MongoDB adapter — cannot work with PostgreSQL | `cms/src/create-conversations-local.ts:13`, `cms/sync-bids.js:12` |
 | OPEN | Dead code: `cms/src/s3Adapter.ts` — orphaned custom S3 adapter, not imported anywhere | `cms/src/s3Adapter.ts` |
@@ -21,9 +21,9 @@
 | OPEN | 8 `console.log` statements in `api.ts` leak bid amounts/timing data to browser devtools in production | `frontend/src/lib/api.ts:609,637,652,661,741,755,764,1128` |
 | OPEN | 3 debug `console.log` in bids access check leak user IDs/emails to server logs in production | `cms/src/payload.config.ts:661,667,671` |
 
-**Strengths:** Well-structured multi-service architecture, TypeScript throughout, strict mode in frontend, consistent bridge patterns (33 routes), ES2020/Node 20, clean bid-worker with full row-level locking, `requireAuth` middleware centralizes JWT extraction, `validate()` middleware with Zod schemas on all POST endpoints, `authenticateJWT` helper in `auth-helpers.ts` for admin-gated endpoints.
+**Strengths:** Well-structured multi-service architecture, TypeScript throughout, strict mode in frontend, consistent bridge patterns (33 routes), ES2020/Node 20, clean bid-worker with full row-level locking, `requireAuth` middleware centralizes JWT extraction, `validate()` middleware with Zod schemas on all POST endpoints, `authenticateJWT` helper in `auth-helpers.ts` for admin-gated endpoints. Fallback bid paths now use raw SQL with `FOR UPDATE` — mirrors bid-worker pattern.
 
-## 2. Security & Safety — Score: 7.5/10
+## 2. Security & Safety — Score: 8/10
 
 ### Critical
 
@@ -42,7 +42,7 @@
 | RESOLVED | Legacy SSE endpoint `/api/products/:id/stream` — removed (was no auth, no rate limit, no connection cap) | `cms/src/server.ts` |
 | RESOLVED | No CI/CD test or type-check gate — type-check job now required before deploy in both workflows | `.github/workflows/deploy-production.yml`, `.github/workflows/deploy-staging.yml` |
 | RESOLVED | JWT secret inconsistency: SSE service and CMS inline code now all use SHA-256-hashed `PAYLOAD_SECRET` via `getPayloadJwtSecret()` or equivalent derivation | `cms/src/middleware/requireAuth.ts:8-14`, `services/sse-service/src/index.ts:16` |
-| OPEN | Fallback bid path (Redis down) in `server.ts:805-871` does NOT use `FOR UPDATE` row locking — creates race condition window when Redis is unavailable | `cms/src/server.ts:805-871` |
+| RESOLVED | Fallback bid path (Redis down) now uses `SELECT ... FOR UPDATE` row locking — prevents race condition when Redis is unavailable | `cms/src/server.ts:805-926` |
 
 ### Medium
 
@@ -77,11 +77,11 @@
 - Server-side proxy pattern (bridge) prevents direct CMS access from browser
 - JWT-based auth with proper token handling via `requireAuth` middleware and `authenticateJWT()` helper
 - JWT secret consistently hashed (SHA-256) across ALL services — CMS, SSE service, and auth helpers
-- No SQL injection — all bid-worker SQL uses parameterized queries
+- No SQL injection — all SQL uses parameterized queries (bid-worker AND fallback paths)
 - All data-modifying endpoints require authentication
 - Zod input validation on all custom POST endpoints with structured error responses
 - Comprehensive email template escaping with `escHtml()`
-- Seller shill-bidding prevention in both CMS hooks and bid-worker
+- Seller shill-bidding prevention in both CMS hooks, bid-worker, AND fallback bid path
 - SSE user endpoint requires JWT token verification
 - Per-IP connection limiting on SSE service (20/IP)
 - Helmet security headers active
@@ -90,23 +90,26 @@
 - `/api/create-conversations` now admin-gated (previously unauthenticated)
 - `/api/sync-bids` now admin-gated (previously unauthenticated)
 - `.claude/settings.local.json` reduced to minimal permissions (single MCP tool)
+- Fallback bid/accept paths use `FOR UPDATE` row locking — consistent with bid-worker
 
-## 3. Financial & Auction Integrity — Score: 8/10
+## 3. Financial & Auction Integrity — Score: 8.5/10
 
 | Status | Issue | Location |
 |--------|-------|----------|
-| OPEN | Second bidder acceptance creates new transaction without `FOR UPDATE` lock on product status | `cms/src/server.ts:1566-1737` |
+| RESOLVED | Second bidder acceptance now uses `SELECT ... FOR UPDATE` on product row before setting status to `sold` — prevents concurrent accepts from creating duplicate transactions | `cms/src/server.ts:1703-1734` |
 | OPEN | Transaction status not re-validated when void request is approved | `cms/src/server.ts:1332` |
 | OPEN | `fetchMyPurchases()` N+1 query — 1 + N HTTP calls per page load | `frontend/src/lib/api.ts:790-826` |
-| OPEN | Fallback direct bid creation (Redis-down path) lacks row-level locking — two concurrent bids could both succeed | `cms/src/server.ts:805-871` |
-| OPEN | Fallback accept bid (Redis-down path) uses Payload ORM re-fetch without row lock — TOCTOU window | `cms/src/server.ts:936-978` |
+| RESOLVED | Fallback direct bid creation (Redis-down path) now uses raw SQL with `SELECT ... FOR UPDATE` row-level locking — prevents concurrent bids from both succeeding | `cms/src/server.ts:805-926` |
+| RESOLVED | Fallback accept bid (Redis-down path) now uses raw SQL with `SELECT ... FOR UPDATE` — prevents double-acceptance TOCTOU | `cms/src/server.ts:990-1090` |
 
 **Strengths:**
 - Bid-worker uses `SELECT ... FOR UPDATE` row locking — prevents double-winning
+- **Fallback bid/accept paths now also use `FOR UPDATE` row locking** — all bid paths are race-condition safe regardless of Redis availability
+- **Second bidder acceptance** now locks product row with `FOR UPDATE` before setting status to `sold` — prevents duplicate transactions from concurrent accepts
 - Bid amount validation complete: `>= currentBid + bidInterval`, NaN/negative checks, Zod `z.number().positive().finite()` on input
 - Auction end date enforced inside the locked transaction — race-condition safe
 - Auction end 2-second buffer prevents bids that can't be processed in time (`server.ts:773`)
-- Seller cannot bid on own product — checked in both CMS `beforeValidate` and bid-worker SQL
+- Seller cannot bid on own product — checked in CMS `beforeValidate`, bid-worker SQL, AND fallback bid path
 - Crash recovery via `pending_bids` PostgreSQL table — in-flight bids re-queued on restart
 - Complete 5-endpoint void/dispute flow with cooldowns (1hr post-transaction, 5/user/24hr)
 - Transaction status transitions properly guarded in `beforeChange` hook
@@ -126,7 +129,7 @@
 - Redis channel names consistent across all services (`sse:product:{id}`, `sse:user:{id}`, `sse:global`)
 - Per-IP connection limiting (20/IP) on SSE service
 - Elasticsearch gracefully degrades — returns empty results, frontend falls back to Payload queries
-- Redis failure triggers direct bid creation fallback in CMS (graceful degradation)
+- Redis failure triggers direct bid creation fallback in CMS (graceful degradation) — now with proper row-level locking
 - Legacy in-process SSE removed — single SSE path via Redis pub/sub
 - 15-second heartbeat prevents proxy/load-balancer timeout disconnections
 - JWT verification consistent between CMS and SSE service
@@ -171,7 +174,7 @@
 | RESOLVED | PM2 ecosystem config credentials removed | `ecosystem.config.js` |
 | OPEN | No CODEOWNERS, CONTRIBUTING, or PR templates | repo-wide |
 | OPEN | 3 dead/orphaned files should be removed | `cms/src/create-conversations-local.ts`, `cms/sync-bids.js`, `cms/src/s3Adapter.ts` |
-| NEW | `.claude/settings.local.json` reduced to minimal single MCP permission — major improvement from previous broad allowlist | `.claude/settings.local.json` |
+| RESOLVED | `.claude/settings.local.json` reduced to minimal single MCP permission — major improvement from previous broad allowlist | `.claude/settings.local.json` |
 
 **Strengths:** Clean git history with focused commits, current dependencies with no known CVEs, sensitive files properly untracked, good `.gitignore` coverage, minimal permissions in Claude Code settings.
 
@@ -225,12 +228,12 @@
 | Hardcoded credentials in source | Resolved in code, still in git history | `ecosystem.config.js` fixed; history not scrubbed |
 | Unauthenticated data-modifying endpoints | Resolved | `/api/create-conversations` and `/api/sync-bids` now admin-gated |
 | Missing rate limiting on auth/financial | Resolved | `express-rate-limit` on login, registration, bids |
-| Unvalidated user input in DB queries | No | All SQL parameterized, Payload ORM for collections, Zod on all POST bodies |
+| Unvalidated user input in DB queries | No | All SQL parameterized (bid-worker, fallback bid paths, fallback accept paths), Payload ORM for collections, Zod on all POST bodies |
 | Overly permissive CORS | Resolved | Hardcoded IPs removed, no wildcards |
 | Secrets in git history | Yes | DB passwords and Sentry token recoverable via `git log` |
 | `eval()` or dynamic code execution | No | — |
 | Unbounded queries | Low risk | Payload default pagination, search capped at 50 results |
-| Missing error handling on financial ops | No | Bid-worker has full try/catch with ROLLBACK |
+| Missing error handling on financial ops | No | Bid-worker has full try/catch with ROLLBACK; fallback paths have try/catch/ROLLBACK/finally(release) |
 | Credential leakage in logs | Medium | 8 `console.log` in `api.ts` with bid data (browser-side), 3 debug logs in `payload.config.ts` leak user IDs/emails to server logs |
 | Malware/spyware | No | — |
 | Supply-chain risks | Low | Well-known dependency publishers |
@@ -250,6 +253,7 @@
 | Environment variable names aligned | ✓ | ✓ | ✓ |
 | `crypto.randomBytes` for IDs | ✓ | N/A | N/A |
 | JWT secret derivation (SHA-256 hash) | ✓ | ✓ | ✓ |
+| `FOR UPDATE` locking on bid paths | ✓ | N/A | N/A |
 
 ---
 
@@ -259,25 +263,25 @@
 
 | Category | Score | Weight | Change |
 |----------|-------|--------|--------|
-| Code Quality & Architecture | 7.5/10 | High | +0.5 |
-| Security & Safety | 7.5/10 | Critical | +0.5 |
-| Financial & Auction Integrity | 8/10 | Critical | — |
-| Real-Time System Reliability | 8.5/10 | High | +0.5 |
-| Documentation & Transparency | 8/10 | Medium | -0.5 |
+| Code Quality & Architecture | 7.5/10 | High | — |
+| Security & Safety | 8/10 | Critical | +0.5 |
+| Financial & Auction Integrity | 8.5/10 | Critical | +0.5 |
+| Real-Time System Reliability | 8.5/10 | High | — |
+| Documentation & Transparency | 8/10 | Medium | — |
 | Testing & Quality Assurance | 4/10 | High | — |
 | DevOps & Deployment | 7/10 | Medium | — |
 | Repository Hygiene & Maintenance | 7/10 | Low | — |
 
-### Weighted Overall Score: 7.2 / 10
+### Weighted Overall Score: 7.4 / 10
 
 ### Recommendation: Production-ready with caveats
 
-Well-architected auction marketplace with solid financial integrity and steadily improving security posture. Since last evaluation: extracted `requireAuth` Express middleware centralizing JWT auth, added Zod input validation schemas on all custom POST endpoints, JWT secret now consistently SHA-256-hashed across all services (CMS, SSE, bid-worker), typing endpoint auth inconsistency fixed, and Claude Code settings reduced to minimal permissions.
+Well-architected auction marketplace with solid financial integrity and steadily improving security posture. Since last evaluation: both Redis-down fallback paths (bid queue and bid accept) now use raw SQL with `SELECT ... FOR UPDATE` row-level locking, matching the bid-worker's proven pattern. All bid processing paths are now race-condition safe regardless of Redis availability.
 
 **Key remaining risks:**
-1. Fallback bid paths (Redis-down) lack row-level locking — race condition window
-2. No automated unit/integration tests — regressions only caught by type-checking
-3. Credential rotation still pending for git history exposure
+1. No automated unit/integration tests — regressions only caught by type-checking
+2. Credential rotation still pending for git history exposure
+3. Transaction status not re-validated at void approval time
 4. Tech-debt documentation increasingly stale (3+ items outdated)
 
 ---
@@ -291,8 +295,7 @@ Well-architected auction marketplace with solid financial integrity and steadily
 ### High Priority
 
 2. Add automated unit tests for bid-worker financial logic
-3. Add `FOR UPDATE` lock on fallback direct bid creation path (`server.ts:805-871`) and accept bid fallback (`server.ts:936-978`)
-4. Re-validate transaction status at void approval time
+3. Re-validate transaction status at void approval time
 
 ### Medium Priority
 
@@ -313,3 +316,4 @@ Well-architected auction marketplace with solid financial integrity and steadily
 | 2026-02-27 | 7.0/10 | 1 critical, 2 high, 4 medium, 5 low | High-priority fixes: CI/CD type-check gates added, legacy SSE endpoint removed, Math.random() fixed in bid-worker, media update restricted to admin, sensitive files untracked via git rm --cached. 4 more issues RESOLVED (total 14 resolved across 3 rounds). Score improved from 5.5 → 7.0 across all evaluations. |
 | 2026-03-02 | 7.1/10 | 1 critical, 3 high, 4 medium, 5 low | Maintenance round: CLAUDE.md documentation improved (+0.5 docs score), unauthenticated endpoints gated (create-conversations, sync-bids now admin-only), JWT hash fix in core auth paths, bridge auth hardened with SvelteKit cookies API, role validation fixed. 3 issues RESOLVED, 4 NEW issues found (JWT secret inconsistency across services, debug console.log in prod, fallback bid race condition, SSE JWT mismatch). |
 | 2026-03-02 | 7.2/10 | 1 critical, 2 high, 3 medium, 4 low | Security hardening round: extracted `requireAuth` middleware centralizing JWT auth across endpoints, added Zod input validation schemas on all POST endpoints (`validate()` middleware), JWT secret now consistently SHA-256-hashed across all 3 services (RESOLVED), typing endpoint auth fixed (RESOLVED), settings.local.json reduced to minimal permissions. 5 issues RESOLVED (JWT inconsistency, SSE JWT mismatch, no input validation, typing auth, JWT duplication partially). Multi-service consistency fully green. |
+| 2026-03-02 | 7.4/10 | 1 critical, 2 high, 3 medium, 4 low | Fallback bid race condition fix: both Redis-down fallback paths (bid queue and bid accept) now use raw SQL with `SELECT ... FOR UPDATE` row locking, matching bid-worker pattern. 2 financial/security issues RESOLVED. Security +0.5, Financial Integrity +0.5. All bid processing paths now race-condition safe. Remediation priority reordered (second-bidder acceptance now #3). |
