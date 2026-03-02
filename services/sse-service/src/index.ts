@@ -3,12 +3,17 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import Redis from 'ioredis';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || process.env.SSE_PORT || '3002', 10);
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const CORS_ORIGIN = process.env.SSE_CORS_ORIGIN || 'http://localhost:5173';
-const JWT_SECRET = process.env.PAYLOAD_SECRET || '';
+
+// Payload v2 hashes the secret with SHA-256 before signing JWTs:
+//   crypto.createHash('sha256').update(secret).digest('hex').slice(0, 32)
+// Must match the same derivation to verify tokens correctly.
+const JWT_SECRET = crypto.createHash('sha256').update(process.env.PAYLOAD_SECRET || '').digest('hex').slice(0, 32);
 
 // Connection managers
 const productConnections = new Map<string, Set<Response>>();

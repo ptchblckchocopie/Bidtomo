@@ -84,7 +84,11 @@ Three SSE endpoints on port 3002: `/events/products/:id` (public), `/events/user
 
 ### CMS Global Function Injection
 
-Collection hooks use `(global as any).broadcastProductUpdate` etc. because importing `ioredis` directly would crash the Payload Webpack admin bundle. Functions are assigned to `global` in `cms/src/server.ts` at startup.
+Collection hooks use globals because importing `ioredis` directly would crash the Payload Webpack admin bundle. Functions assigned in `cms/src/server.ts` at startup:
+- `(global as any).publishProductUpdate` — SSE product channel
+- `(global as any).publishMessageNotification` — SSE user channel
+- `(global as any).publishGlobalEvent` — SSE global channel
+- `(global as any).indexProduct` / `updateProductIndex` — Elasticsearch sync
 
 ### Custom CMS Endpoints (in `cms/src/server.ts`)
 
@@ -93,6 +97,43 @@ Express routes registered **before** `payload.init()` to avoid Payload's route i
 - `/api/users/limits`, `/api/users/profile-picture` — user-specific
 - `/api/search/products` — Elasticsearch with Payload fallback
 - `/api/void-request/*` — 4-step void flow (create → respond → seller-choice → second-bidder-response) using `overrideAccess: true`
+- `/api/health` — Health check
+- `/api/typing`, `/api/typing/:productId` — Typing indicators (POST to set, GET to poll)
+- `/api/create-conversations` — Auto-create conversation threads
+- `/api/elasticsearch/sync` — Manual Elasticsearch bulk sync
+- `/api/sync-bids` — Internal bid data sync
+
+### Redis Channels
+
+- **`bids:pending`** — Bid queue (produced by CMS, consumed by bid-worker)
+- **`sse:product:<id>`**, **`sse:user:<id>`**, **`sse:global`** — SSE pub/sub
+- **`email:queue`** — Email job queue (consumed by `cms/src/services/emailService.ts`)
+
+### CMS Collections
+
+All defined inline in `cms/src/payload.config.ts` except EmailTemplates (`cms/src/collections/EmailTemplates.ts`):
+- **users** — Auth, roles (admin/seller/buyer), profile, PII stripping in afterRead hooks
+- **products** — Auction listings, media relationships, `status` + `active` fields
+- **bids** — Bid history, bidder/product relationships
+- **messages** — User-to-user messaging with conversation threads
+- **transactions** — Purchase/sale records, links to void-requests
+- **void-requests** — 4-step dispute/refund workflow
+- **media** — S3-backed file uploads (Supabase Storage)
+- **ratings** — User ratings and reviews
+- **EmailTemplates** — Transactional email templates
+
+### Email Service (`cms/src/services/emailService.ts`)
+
+Custom email service (not Payload's email adapter). Handles void request notifications, auction restarts, second bidder offers. Jobs queued via Redis `email:queue` channel with HTML templates and embedded assets.
+
+### Frontend Key Files
+
+- **`src/lib/api.ts`** (~46KB) — Client-side API layer; all calls go to `/api/bridge/*`
+- **`src/lib/sse.ts`** (~16KB) — SSE event handler for product/user/global channels
+- **`src/lib/server/cms.ts`** — Server-only `cmsRequest()` bridge; uses `$env/dynamic/private`
+- **`src/lib/stores/auth.ts`** — Auth store (Svelte 4 `writable`, not yet migrated to runes)
+- **`src/lib/stores/inbox.ts`** — Message inbox store
+- **`src/lib/stores/theme.ts`** — Theme store
 
 ## Important Conventions
 
@@ -102,7 +143,6 @@ Express routes registered **before** `payload.init()` to avoid Payload's route i
 - **No linting/formatting** — TypeScript strict mode is the primary quality tool. Run `svelte-check` (frontend) and `tsc --noEmit` (CMS) before deploying — these are the CI gates.
 - **CMS hooks auto-set fields** — Don't set manually: `seller` on Products, `bidder`/`bidTime` on Bids, `rater` on Ratings. Role is forced to `buyer` on registration.
 - **Type generation** — Run `npm run generate:types` in `cms/` after changing collections
-- **Collections are mostly inline** in `cms/src/payload.config.ts` (except `EmailTemplates`)
 - **Media storage** — S3-compatible via Supabase Storage (`cms/src/s3Adapter.ts`)
 - **Products `status` vs `active`** — Separate fields. `active` = visible on browse. `status` = sale lifecycle (`available/sold/ended`). A product can be `active: false, status: available` (hidden but not sold).
 - **Elasticsearch is optional** — When unavailable, search falls back to Payload's native query. All ES operations are gated by `isElasticAvailable()`.

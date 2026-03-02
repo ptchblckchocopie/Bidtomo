@@ -197,7 +197,7 @@ const start = async () => {
 
     try {
       const token = decodeURIComponent(tokenMatch[1]);
-      const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+      const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
 
       if (decoded?.id) {
         const user = await payload.findByID({
@@ -801,7 +801,7 @@ const start = async () => {
         if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
           const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
           try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
             if (decoded.id) {
               userId = decoded.id;
             }
@@ -977,7 +977,7 @@ const start = async () => {
         if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
           const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
           try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
             if (decoded.id) {
               userId = decoded.id;
             }
@@ -1218,7 +1218,7 @@ const start = async () => {
           const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
           if (token) {
             try {
-              const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET || '') as any;
+              const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
               userId = decoded.id;
             } catch (jwtError) {
               // Token invalid/expired
@@ -1260,7 +1260,7 @@ const start = async () => {
         if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
           const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
           try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
             if (decoded.id) userId = decoded.id;
           } catch (jwtError) {
             console.error('JWT verification failed:', jwtError);
@@ -1407,7 +1407,7 @@ const start = async () => {
         if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
           const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
           try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
             if (decoded.id) userId = decoded.id;
           } catch (jwtError) {
             console.error('JWT verification failed:', jwtError);
@@ -1570,7 +1570,7 @@ const start = async () => {
         if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
           const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
           try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
             if (decoded.id) userId = decoded.id;
           } catch (jwtError) {
             console.error('JWT verification failed:', jwtError);
@@ -1780,7 +1780,7 @@ const start = async () => {
         if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
           const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
           try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
             if (decoded.id) userId = decoded.id;
           } catch (jwtError) {
             console.error('JWT verification failed:', jwtError);
@@ -1987,7 +1987,7 @@ const start = async () => {
         if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
           const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
           try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
             if (decoded.id) userId = decoded.id;
           } catch (jwtError) {
             console.error('JWT verification failed:', jwtError);
@@ -2053,7 +2053,7 @@ const start = async () => {
         if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
           const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
           try {
-            const decoded = jwt.verify(token, process.env.PAYLOAD_SECRET!) as any;
+            const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
             if (decoded.id) userId = decoded.id;
           } catch (jwtError) {
             // Token invalid
