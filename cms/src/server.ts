@@ -440,6 +440,8 @@ const start = async () => {
     `);
 
     // Auto-migrate: create ratings enum + table if they don't exist
+    // NOTE: Payload v2 postgres adapter keeps select/enum field column names as camelCase
+    //       (e.g. "raterRole" not "rater_role"). Enum TYPE names are still snake_case.
     await pool.query(`
       DO $$ BEGIN
         CREATE TYPE "enum_ratings_rater_role" AS ENUM ('buyer', 'seller');
@@ -450,7 +452,7 @@ const start = async () => {
         "id" serial PRIMARY KEY NOT NULL,
         "rating" numeric NOT NULL,
         "comment" varchar,
-        "rater_role" "enum_ratings_rater_role" NOT NULL,
+        "raterRole" "enum_ratings_rater_role" NOT NULL,
         "follow_up_rating" numeric,
         "follow_up_comment" varchar,
         "follow_up_created_at" timestamp(3) with time zone,
@@ -458,6 +460,12 @@ const start = async () => {
         "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
         "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
       );
+
+      -- Fix: rename rater_role -> raterRole if the old snake_case column exists
+      DO $$ BEGIN
+        ALTER TABLE "ratings" RENAME COLUMN "rater_role" TO "raterRole";
+      EXCEPTION WHEN undefined_column THEN null;
+      END $$;
       CREATE INDEX IF NOT EXISTS "ratings_created_at_idx" ON "ratings" USING btree ("created_at");
 
       CREATE TABLE IF NOT EXISTS "ratings_rels" (
