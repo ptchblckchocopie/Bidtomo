@@ -390,11 +390,12 @@ const start = async () => {
     }
   });
 
-  // Pre-init migration: fix raterRole column name BEFORE payload.init() tries to access it.
-  // Payload v2 expects camelCase for select fields but the column was created as snake_case.
+  // Pre-init migration: fix schema issues BEFORE payload.init() tries to access them.
+  // Must run before init because Payload queries these columns during startup.
   try {
     const { Pool: PrePool } = require('pg');
     const prePool = new PrePool({ connectionString: process.env.DATABASE_URI });
+    // Fix 1: Rename rater_role → raterRole (Payload v2 keeps camelCase for select fields)
     await prePool.query(`
       DO $$ BEGIN
         ALTER TABLE "ratings" RENAME COLUMN "rater_role" TO "raterRole";
@@ -402,9 +403,13 @@ const start = async () => {
                WHEN undefined_table THEN null;
       END $$;
     `);
+    // Fix 2: Add missing "order" column to ratings_rels if it was created without it
+    await prePool.query(`
+      ALTER TABLE "ratings_rels" ADD COLUMN IF NOT EXISTS "order" integer;
+    `);
     await prePool.end();
   } catch (e) {
-    console.log('Pre-init migration (raterRole rename) skipped:', (e as any).message);
+    console.log('Pre-init migration skipped:', (e as any).message);
   }
 
   await payload.init({
