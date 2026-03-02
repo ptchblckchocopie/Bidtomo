@@ -439,6 +439,87 @@ const start = async () => {
       CREATE INDEX IF NOT EXISTS "transactions_rels_void_requests_id_idx" ON "transactions_rels" USING btree ("void_requests_id");
     `);
 
+    // Auto-migrate: create ratings enum + table if they don't exist
+    await pool.query(`
+      DO $$ BEGIN
+        CREATE TYPE "enum_ratings_rater_role" AS ENUM ('buyer', 'seller');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS "ratings" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "rating" numeric NOT NULL,
+        "comment" varchar,
+        "rater_role" "enum_ratings_rater_role" NOT NULL,
+        "follow_up_rating" numeric,
+        "follow_up_comment" varchar,
+        "follow_up_created_at" timestamp(3) with time zone,
+        "has_follow_up" boolean,
+        "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+        "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS "ratings_created_at_idx" ON "ratings" USING btree ("created_at");
+
+      CREATE TABLE IF NOT EXISTS "ratings_rels" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "order" integer,
+        "parent_id" integer NOT NULL REFERENCES "ratings"("id") ON DELETE CASCADE,
+        "path" varchar NOT NULL,
+        "transactions_id" integer REFERENCES "transactions"("id") ON DELETE CASCADE,
+        "users_id" integer REFERENCES "users"("id") ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS "ratings_rels_order_idx" ON "ratings_rels" USING btree ("order");
+      CREATE INDEX IF NOT EXISTS "ratings_rels_parent_idx" ON "ratings_rels" USING btree ("parent_id");
+      CREATE INDEX IF NOT EXISTS "ratings_rels_path_idx" ON "ratings_rels" USING btree ("path");
+      CREATE INDEX IF NOT EXISTS "ratings_rels_transactions_id_idx" ON "ratings_rels" USING btree ("transactions_id");
+      CREATE INDEX IF NOT EXISTS "ratings_rels_users_id_idx" ON "ratings_rels" USING btree ("users_id");
+    `);
+
+    // Auto-migrate: create email_templates enum + table if they don't exist
+    await pool.query(`
+      DO $$ BEGIN
+        CREATE TYPE "enum_email_templates_type" AS ENUM (
+          'bid_won_buyer', 'bid_won_seller', 'auction_restarted',
+          'second_bidder_offer', 'void_request_created', 'void_request_approved',
+          'void_request_rejected', 'new_bid_placed', 'outbid_notification'
+        );
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS "email_templates" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "name" varchar NOT NULL,
+        "type" "enum_email_templates_type" NOT NULL,
+        "subject" varchar NOT NULL,
+        "html_content" varchar NOT NULL,
+        "text_content" varchar,
+        "active" boolean DEFAULT true,
+        "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+        "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS "email_templates_created_at_idx" ON "email_templates" USING btree ("created_at");
+    `);
+
+    // Auto-migrate: add new columns on products table if missing
+    await pool.query(`
+      DO $$ BEGIN
+        CREATE TYPE "enum_products_delivery_options" AS ENUM ('delivery', 'meetup', 'both');
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+
+      ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "region" varchar;
+      ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "city" varchar;
+      ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "delivery_options" "enum_products_delivery_options";
+    `);
+
+    // Auto-migrate: add new columns on users table if missing
+    await pool.query(`
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "country_code" varchar;
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone_number" varchar;
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "censor_name" boolean;
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "profile_picture_id" integer REFERENCES "media"("id") ON DELETE SET NULL;
+    `);
+
     await pool.end();
     payload.logger.info('Database schema verified/migrated');
   } catch (migrationErr: any) {
