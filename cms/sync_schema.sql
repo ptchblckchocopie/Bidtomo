@@ -122,7 +122,7 @@ END $$;
 -- Ratings table
 CREATE TABLE IF NOT EXISTS "ratings" (
   "id" serial PRIMARY KEY NOT NULL,
-  "rater_role" "enum_ratings_rater_role" NOT NULL,
+  "raterRole" "enum_ratings_rater_role" NOT NULL,
   "rating" numeric NOT NULL,
   "comment" varchar,
   "follow_up_rating" numeric,

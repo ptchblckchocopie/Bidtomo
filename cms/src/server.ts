@@ -390,6 +390,22 @@ const start = async () => {
     }
   });
 
+  // Pre-init migration: fix rater_role → raterRole before Payload queries the column
+  try {
+    const { Pool: PrePool } = require('pg');
+    const prePool = new PrePool({ connectionString: process.env.DATABASE_URI });
+    await prePool.query(`
+      DO $$ BEGIN
+        ALTER TABLE "ratings" RENAME COLUMN "rater_role" TO "raterRole";
+      EXCEPTION WHEN undefined_column THEN null;
+               WHEN undefined_table THEN null;
+      END $$;
+    `);
+    await prePool.end();
+  } catch (preErr: any) {
+    console.error('Pre-init migration (raterRole rename) failed:', preErr.message);
+  }
+
   await payload.init({
     secret: process.env.PAYLOAD_SECRET!,
     express: app,

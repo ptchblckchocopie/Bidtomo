@@ -78,7 +78,7 @@ export async function up({ payload }: MigrateUpArgs): Promise<void> {
       "id" serial PRIMARY KEY NOT NULL,
       "rating" numeric NOT NULL,
       "comment" varchar,
-      "rater_role" "enum_ratings_rater_role" NOT NULL,
+      "raterRole" "enum_ratings_rater_role" NOT NULL,
       "follow_up_rating" numeric,
       "follow_up_comment" varchar,
       "follow_up_created_at" timestamp(3) with time zone,
