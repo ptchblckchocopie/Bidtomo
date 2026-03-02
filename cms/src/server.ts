@@ -803,72 +803,127 @@ const start = async () => {
       );
 
       if (!result.success) {
-        // If Redis is down, fall back to direct bid creation with full validation
+        // If Redis is down, fall back to direct bid creation with row-level locking
+        // Uses raw SQL with FOR UPDATE to prevent race conditions (mirrors bid-worker)
         console.warn('[CMS] Redis queue failed, falling back to direct bid creation');
 
-        // Validate bid amount is a valid positive number
-        if (typeof amount !== 'number' || !isFinite(amount) || amount <= 0) {
-          return res.status(400).json({ error: 'Invalid bid amount' });
-        }
+        const pool = (payload.db as any).pool;
+        const client = await pool.connect();
 
-        // Check auction end date
-        if (product.auctionEndDate && new Date(product.auctionEndDate) <= new Date()) {
-          return res.status(400).json({ error: 'Auction has ended' });
-        }
+        try {
+          await client.query('BEGIN');
 
-        // Validate minimum bid
-        const currentBid = Number(product.currentBid) || 0;
-        const bidInterval = Number(product.bidInterval) || 1;
-        const startingPrice = Number(product.startingPrice) || 0;
-        const minimumBid = currentBid > 0 ? currentBid + bidInterval : startingPrice;
+          // Lock the product row — prevents concurrent bids from both passing validation
+          const lockedResult = await client.query(
+            `SELECT id, current_bid, starting_price, bid_interval, status, active, auction_end_date
+             FROM products WHERE id = $1 FOR UPDATE`,
+            [parseInt(productId, 10)]
+          );
 
-        if (amount < minimumBid) {
-          return res.status(400).json({ error: `Bid must be at least ${minimumBid}` });
-        }
+          if (lockedResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Product not found' });
+          }
 
-        const bidTime = new Date().toISOString();
-        const bid = await payload.create({
-          collection: 'bids',
-          data: {
-            product: parseInt(productId, 10),
-            bidder: userId,
+          const locked = lockedResult.rows[0];
+
+          if (locked.status !== 'available') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: `Product is ${locked.status}` });
+          }
+
+          if (!locked.active) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Product is not active' });
+          }
+
+          if (new Date(locked.auction_end_date) <= new Date()) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Auction has ended' });
+          }
+
+          // Re-validate minimum bid against locked row data
+          const lockedCurrentBid = Number(locked.current_bid) || 0;
+          const lockedBidInterval = Number(locked.bid_interval) || 1;
+          const lockedStartingPrice = Number(locked.starting_price) || 0;
+          const lockedMinimumBid = lockedCurrentBid > 0
+            ? lockedCurrentBid + lockedBidInterval
+            : lockedStartingPrice;
+
+          if (amount < lockedMinimumBid) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: `Bid must be at least ${lockedMinimumBid}` });
+          }
+
+          // Shill-bidding check under lock
+          const sellerCheck = await client.query(
+            `SELECT users_id FROM products_rels WHERE parent_id = $1 AND path = 'seller'`,
+            [parseInt(productId, 10)]
+          );
+          if (sellerCheck.rows.length > 0 && sellerCheck.rows[0].users_id === userId) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'You cannot bid on your own product' });
+          }
+
+          // Create bid (Payload v2 schema — relationships in separate table)
+          const bidResult = await client.query(
+            `INSERT INTO bids (amount, bid_time, censor_name, created_at, updated_at)
+             VALUES ($1, NOW(), $2, NOW(), NOW()) RETURNING id`,
+            [amount, censorName || false]
+          );
+          const bidId = bidResult.rows[0].id;
+
+          await client.query(
+            `INSERT INTO bids_rels (parent_id, path, products_id) VALUES ($1, 'product', $2)`,
+            [bidId, parseInt(productId, 10)]
+          );
+          await client.query(
+            `INSERT INTO bids_rels (parent_id, path, users_id) VALUES ($1, 'bidder', $2)`,
+            [bidId, userId]
+          );
+
+          // Update product current bid
+          await client.query(
+            `UPDATE products SET current_bid = $1, updated_at = NOW() WHERE id = $2`,
+            [amount, parseInt(productId, 10)]
+          );
+
+          // Get bidder name for SSE event
+          const bidderResult = await client.query(
+            `SELECT name FROM users WHERE id = $1`,
+            [userId]
+          );
+
+          await client.query('COMMIT');
+
+          const bidTime = new Date().toISOString();
+          const bidderName = bidderResult.rows[0]?.name || 'Anonymous';
+
+          // Publish update via Redis if possible (with full bid data)
+          publishProductUpdate(parseInt(productId, 10), {
+            type: 'bid',
+            success: true,
+            bidId,
             amount,
+            bidderId: userId,
+            bidderName,
             censorName: censorName || false,
             bidTime,
-          },
-        });
+          });
 
-        // Update product current bid
-        await payload.update({
-          collection: 'products',
-          id: productId,
-          data: { currentBid: amount },
-        });
-
-        // Get bidder name for SSE event
-        const bidder = await payload.findByID({
-          collection: 'users',
-          id: userId,
-        });
-
-        // Publish update via Redis if possible (with full bid data)
-        publishProductUpdate(parseInt(productId, 10), {
-          type: 'bid',
-          success: true,
-          bidId: bid.id,
-          amount,
-          bidderId: userId,
-          bidderName: bidder?.name || 'Anonymous',
-          censorName: censorName || false,
-          bidTime,
-        });
-
-        return res.json({
-          success: true,
-          bidId: bid.id,
-          fallback: true,
-          message: 'Bid placed successfully (direct)',
-        });
+          return res.json({
+            success: true,
+            bidId,
+            fallback: true,
+            message: 'Bid placed successfully (direct)',
+          });
+        } catch (error: any) {
+          await client.query('ROLLBACK').catch(() => {});
+          console.error('[CMS] Fallback bid error:', error);
+          return res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+        } finally {
+          client.release();
+        }
       }
 
       res.json({
@@ -933,62 +988,105 @@ const start = async () => {
       );
 
       if (!result.success) {
-        // Fallback to direct update if Redis is down
+        // Fallback to direct update if Redis is down — use row-level locking
+        // Uses raw SQL with FOR UPDATE to prevent double-acceptance (mirrors bid-worker)
         console.warn('[CMS] Redis queue failed, falling back to direct accept');
 
-        // Re-fetch product to check status atomically (prevent double-acceptance race condition)
-        const freshProduct = await payload.findByID({
-          collection: 'products',
-          id: productId,
-        });
+        const pool = (payload.db as any).pool;
+        const client = await pool.connect();
 
-        if (freshProduct.status !== 'available') {
-          return res.status(400).json({ error: `Product is already ${freshProduct.status}` });
-        }
+        try {
+          await client.query('BEGIN');
 
-        await payload.update({
-          collection: 'products',
-          id: productId,
-          data: { status: 'sold' },
-        });
+          // Lock the product row — prevents two concurrent accepts from both succeeding
+          const freshResult = await client.query(
+            `SELECT id, title, status FROM products WHERE id = $1 FOR UPDATE`,
+            [parseInt(productId, 10)]
+          );
 
-        // Create congratulatory message from seller to buyer
-        await payload.create({
-          collection: 'messages',
-          data: {
-            product: Number(productId),
-            sender: sellerId,
-            receiver: highestBidderId,
-            message: `Congratulations! Your bid has been accepted for "${product.title}". Let's discuss the next steps for completing this transaction.`,
-            read: false,
-          },
-        });
+          if (freshResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Product not found' });
+          }
 
-        // Create transaction record
-        await payload.create({
-          collection: 'transactions',
-          data: {
-            product: Number(productId),
-            seller: sellerId,
-            buyer: highestBidderId,
+          const freshProduct = freshResult.rows[0];
+
+          if (freshProduct.status !== 'available') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: `Product is already ${freshProduct.status}` });
+          }
+
+          // Update product status to sold
+          await client.query(
+            `UPDATE products SET status = 'sold', updated_at = NOW() WHERE id = $1`,
+            [parseInt(productId, 10)]
+          );
+
+          // Create congratulatory message
+          const congratsMessage = `Congratulations! Your bid has been accepted for "${freshProduct.title}". Let's discuss the next steps for completing this transaction.`;
+          const messageResult = await client.query(
+            `INSERT INTO messages (message, read, created_at, updated_at)
+             VALUES ($1, false, NOW(), NOW()) RETURNING id`,
+            [congratsMessage]
+          );
+          const messageId = messageResult.rows[0].id;
+
+          await client.query(
+            `INSERT INTO messages_rels (parent_id, path, products_id) VALUES ($1, 'product', $2)`,
+            [messageId, parseInt(productId, 10)]
+          );
+          await client.query(
+            `INSERT INTO messages_rels (parent_id, path, users_id) VALUES ($1, 'sender', $2)`,
+            [messageId, sellerId]
+          );
+          await client.query(
+            `INSERT INTO messages_rels (parent_id, path, users_id) VALUES ($1, 'receiver', $2)`,
+            [messageId, highestBidderId]
+          );
+
+          // Create transaction record
+          const txNotes = `Transaction created for "${freshProduct.title}" with winning bid of ${highestBid.amount}`;
+          const txResult = await client.query(
+            `INSERT INTO transactions (amount, status, notes, created_at, updated_at)
+             VALUES ($1, 'pending', $2, NOW(), NOW()) RETURNING id`,
+            [highestBid.amount, txNotes]
+          );
+          const transactionId = txResult.rows[0].id;
+
+          await client.query(
+            `INSERT INTO transactions_rels (parent_id, path, products_id) VALUES ($1, 'product', $2)`,
+            [transactionId, parseInt(productId, 10)]
+          );
+          await client.query(
+            `INSERT INTO transactions_rels (parent_id, path, users_id) VALUES ($1, 'seller', $2)`,
+            [transactionId, sellerId]
+          );
+          await client.query(
+            `INSERT INTO transactions_rels (parent_id, path, users_id) VALUES ($1, 'buyer', $2)`,
+            [transactionId, highestBidderId]
+          );
+
+          await client.query('COMMIT');
+
+          publishProductUpdate(parseInt(productId, 10), {
+            type: 'accepted',
+            status: 'sold',
+            winnerId: highestBidderId,
             amount: highestBid.amount,
-            status: 'pending',
-            notes: `Transaction created for "${product.title}" with winning bid of ${highestBid.amount}`,
-          },
-        });
+          });
 
-        publishProductUpdate(parseInt(productId, 10), {
-          type: 'accepted',
-          status: 'sold',
-          winnerId: highestBidderId,
-          amount: highestBid.amount,
-        });
-
-        return res.json({
-          success: true,
-          fallback: true,
-          message: 'Bid accepted successfully (direct)',
-        });
+          return res.json({
+            success: true,
+            fallback: true,
+            message: 'Bid accepted successfully (direct)',
+          });
+        } catch (error: any) {
+          await client.query('ROLLBACK').catch(() => {});
+          console.error('[CMS] Fallback accept error:', error);
+          return res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+        } finally {
+          client.release();
+        }
       }
 
       res.json({
