@@ -68,7 +68,7 @@ Browser → /api/bridge/<resource> (+server.ts) → cmsRequest() → CMS :3001/a
 ```
 - `frontend/src/lib/server/cms.ts` contains `cmsRequest()` — **server-only**, uses `$env/dynamic/private`. Never import in client code.
 - Token extraction order: `Authorization: JWT` header → `Authorization: Bearer` header → `auth_token` httpOnly cookie.
-- `frontend/src/lib/api.ts` is the client-side API layer (~55KB). All calls go to `/api/bridge/*` relative paths.
+- `frontend/src/lib/api.ts` is the client-side API layer. All calls go to `/api/bridge/*` relative paths.
 
 ### Auth: Dual Token Storage
 
@@ -78,9 +78,17 @@ Login sets **both** an httpOnly `auth_token` cookie (for bridge routes, auto-sen
 
 Bids are queued to Redis (`bids:pending`), not written directly. The bid-worker (`services/bid-worker/`) consumes the queue and **writes SQL directly to PostgreSQL** (bypasses Payload ORM for performance). Payload v2 stores relationships in `<collection>_rels` tables with `parent_id`, `path`, and `<related_collection>_id` columns — the worker must follow this schema.
 
+**Race condition prevention:** All bid writes use `SELECT ... FOR UPDATE` row-level locks on the products table — in the bid-worker, the Redis-down fallback path, and the second-bidder acceptance endpoint. The worker retries up to 3 times with 1s delay, failing to `bids:failed` queue.
+
+**Redis fallback:** When Redis is unavailable, CMS falls back to writing bids directly to PostgreSQL in a `BEGIN/COMMIT/ROLLBACK` transaction with `FOR UPDATE` locking. This bypasses the queue entirely.
+
 ### SSE Real-Time Updates
 
 Three SSE endpoints on port 3002: `/events/products/:id` (public), `/events/users/:id` (auth via `?token=` query param), `/events/global` (public). Redis pub/sub channels: `sse:product:<id>`, `sse:user:<id>`, `sse:global`. Product events are also forwarded to `sse:global` for the browse page grid.
+
+### JWT Secret Sharing Across Services
+
+Payload v2 hashes `PAYLOAD_SECRET` with SHA-256 before signing JWTs. The SSE service and bid-worker must replicate this: `crypto.createHash('sha256').update(secret).digest('hex').slice(0, 32)`. If you change `PAYLOAD_SECRET`, all services need the same value.
 
 ### CMS Global Function Injection
 
@@ -92,7 +100,7 @@ Collection hooks use globals because importing `ioredis` directly would crash th
 
 ### Custom CMS Endpoints (in `cms/src/server.ts`)
 
-Express routes registered **before** `payload.init()` to avoid Payload's route interception:
+Express routes registered **before** `payload.init()` to avoid Payload's route interception. Most use `overrideAccess: true` to bypass collection access control — but this does NOT skip field validation, so all `required` fields must still be provided.
 - `/api/bid/queue`, `/api/bid/accept` — Redis bid queue
 - `/api/users/limits`, `/api/users/profile-picture` — user-specific
 - `/api/search/products` — Elasticsearch with Payload fallback
@@ -128,7 +136,7 @@ Custom email service (not Payload's email adapter). Handles void request notific
 
 ### Frontend Key Files
 
-- **`src/lib/api.ts`** (~46KB) — Client-side API layer; all calls go to `/api/bridge/*`
+- **`src/lib/api.ts`** — Client-side API layer; all calls go to `/api/bridge/*`
 - **`src/lib/sse.ts`** (~16KB) — SSE event handler for product/user/global channels
 - **`src/lib/server/cms.ts`** — Server-only `cmsRequest()` bridge; uses `$env/dynamic/private`
 - **`src/lib/stores/auth.ts`** — Auth store (Svelte 4 `writable`, not yet migrated to runes)
@@ -145,6 +153,7 @@ Custom email service (not Payload's email adapter). Handles void request notific
 - **Type generation** — Run `npm run generate:types` in `cms/` after changing collections
 - **Media storage** — S3-compatible via Supabase Storage (`cms/src/s3Adapter.ts`)
 - **Products `status` vs `active`** — Separate fields. `active` = visible on browse. `status` = sale lifecycle (`available/sold/ended`). A product can be `active: false, status: available` (hidden but not sold).
+- **Relationship depth** — All product list queries use `depth=1` to populate one level of relationships (e.g., media, seller) without infinite recursion. Missing `depth=1` is a common cause of broken images/data on the browse page.
 - **Elasticsearch is optional** — When unavailable, search falls back to Payload's native query. All ES operations are gated by `isElasticAvailable()`.
 - **Migrations** — Production uses Payload migrations (`npm run migrate`). Staging uses `DB_PUSH=true` for quick schema sync.
 
@@ -152,8 +161,9 @@ Custom email service (not Payload's email adapter). Handles void request notific
 
 - **`main`** → production (Railway + Vercel auto-deploy frontend)
 - **`staging`** / any non-main branch → Railway `staging-v2` environment
-- **Frontend deploys via Vercel** (not GitHub Actions). Backend services deploy via GitHub Actions to Railway.
+- **Frontend deploys via Vercel** (not GitHub Actions). Backend services (CMS, SSE, bid-worker) deploy via GitHub Actions (`.github/workflows/`) to Railway using Railway CLI.
 - **CI gate:** `tsc --noEmit` (CMS) + `npm run check` (frontend). No unit tests — only k6 stress tests in `tests/stress/`.
+- **GitHub Actions workflows** run type-checking before deploying. `deploy-staging.yml` triggers on non-main pushes; `deploy-production.yml` triggers on main pushes. Both run `npm ci && tsc --noEmit` for CMS and `npm ci && npm run check` for frontend before Railway deploy.
 - **Sentry** — Frontend only (`frontend/src/hooks.client.ts` and `hooks.server.ts`). Source maps uploaded via `sentrySvelteKit()` vite plugin.
 
 ## Slash Commands for Detailed Guides
