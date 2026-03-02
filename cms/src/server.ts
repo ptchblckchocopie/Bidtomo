@@ -419,6 +419,14 @@ const start = async () => {
       );
     `);
 
+    // Fix legacy column name: score → rating (earlier code versions used "score")
+    await prePool.query(`
+      DO $$ BEGIN
+        ALTER TABLE "ratings" RENAME COLUMN "score" TO "rating";
+      EXCEPTION WHEN undefined_column THEN null;
+      END $$;
+    `);
+
     // If table already exists but is missing columns, add them
     await prePool.query(`
       ALTER TABLE "ratings" ADD COLUMN IF NOT EXISTS "rating" numeric;
