@@ -392,8 +392,10 @@
   });
 
   onMount(() => {
-    updateCountdowns();
-    countdownInterval = setInterval(updateCountdowns, 1000);
+    if (data.status !== 'ended') {
+      updateCountdowns();
+      countdownInterval = setInterval(updateCountdowns, 1000);
+    }
     fetchUserBids();
 
     // Connect to global SSE for live bid updates and new product notifications
@@ -582,9 +584,10 @@
           oninput={handleSearchInput}
           placeholder={searchTypeInput === 'users' ? 'Search users by name...' : 'Search by title, description, or keywords...'}
           class="search-input input-bh"
+          aria-label="Search products"
         />
         {#if searchInput}
-          <button class="clear-search" onclick={() => { searchInput = ''; handleSearchInput(); }}>✕</button>
+          <button class="clear-search" aria-label="Clear search" onclick={() => { searchInput = ''; handleSearchInput(); }}>✕</button>
         {/if}
       </div>
 
@@ -594,6 +597,7 @@
             bind:value={regionInput}
             onchange={handleLocationInput}
             class="location-select"
+            aria-label="Filter by region"
           >
             <option value="">All Regions</option>
             {#each regions as region}
@@ -605,6 +609,7 @@
             onchange={handleLocationInput}
             class="location-select"
             disabled={!regionInput}
+            aria-label="Filter by city"
           >
             <option value="">All Cities</option>
             {#each availableCities as city}
@@ -625,8 +630,8 @@
     <!-- Items per page selector -->
     <div class="controls-container">
       <div class="items-per-page">
-        <label>Items per page:</label>
-        <select value={data.limit} onchange={(e) => changeItemsPerPage(parseInt(e.currentTarget.value))}>
+        <label for="items-per-page">Items per page:</label>
+        <select id="items-per-page" value={data.limit} onchange={(e) => changeItemsPerPage(parseInt(e.currentTarget.value))}>
           {#each itemsPerPageOptions as option}
             <option value={option}>{option}</option>
           {/each}
@@ -724,9 +729,11 @@
     {/if}
 
     <!-- Tabs - Always visible -->
-    <div class="tabs-container" id="products-section">
+    <div class="tabs-container" id="products-section" role="tablist">
     <button
       class="tab"
+      role="tab"
+      aria-selected={data.status === 'active'}
       class:active={data.status === 'active'}
       onclick={() => changeTab('active')}
     >
@@ -734,6 +741,8 @@
     </button>
     <button
       class="tab"
+      role="tab"
+      aria-selected={data.status === 'ended'}
       class:active={data.status === 'ended'}
       onclick={() => changeTab('ended')}
     >
@@ -741,6 +750,8 @@
     </button>
     <button
       class="tab"
+      role="tab"
+      aria-selected={data.status === 'my-bids'}
       class:active={data.status === 'my-bids'}
       onclick={() => changeTab('my-bids')}
     >
@@ -749,6 +760,8 @@
     {#if $authStore.user?.role === 'admin'}
       <button
         class="tab tab-admin"
+        role="tab"
+        aria-selected={data.status === 'hidden'}
         class:active={data.status === 'hidden'}
         onclick={() => changeTab('hidden')}
       >
@@ -769,7 +782,7 @@
 
   <!-- Products Grid -->
   {#if loading}
-    <section class="auction-section">
+    <section class="auction-section" role="tabpanel">
       <div class="products-grid">
         {#each Array(data.limit || 12) as _}
           <div class="product-card skeleton-card">
@@ -791,13 +804,13 @@
       </div>
     </section>
   {:else if sortedProducts.length > 0}
-      <section class="auction-section">
+      <section class="auction-section" role="tabpanel">
         <div class="products-grid">
           {#each sortedProducts as product}
             <a href="/products/{product.id}?from=browse" class="product-card" class:ended-card={data.status === 'ended'}>
               <div class="product-image">
                 {#if product.images && product.images.length > 0 && product.images[0].image}
-                  <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" />
+                  <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" width="400" height="200" loading="lazy" decoding="async" />
                 {:else}
                   <div class="placeholder-image">
                     <span>No Image</span>
@@ -816,7 +829,7 @@
 
                 {#if product.region || product.city}
                   <div class="location-info">
-                    <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                       <circle cx="12" cy="10" r="3"></circle>
                     </svg>
@@ -834,7 +847,7 @@
                         </div>
                         {#if product.currentBid > product.startingPrice}
                           <div class="percent-increase">
-                            <svg class="arrow-up-mini" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <svg class="arrow-up-mini" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
                               <polyline points="18 15 12 9 6 15"></polyline>
                             </svg>
                             <span>{Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%</span>
@@ -886,7 +899,7 @@
                   </div>
                   {#if data.status === 'active' || data.status === 'my-bids'}
                     <div class="countdown-badge countdown-{getUrgencyClass(product.auctionEndDate)}">
-                      <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <circle cx="12" cy="12" r="10"></circle>
                         <polyline points="12 6 12 12 16 14"></polyline>
                       </svg>
@@ -894,7 +907,7 @@
                     </div>
                   {:else}
                     <div class="countdown-badge countdown-ended">
-                      <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg class="countdown-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <circle cx="12" cy="12" r="10"></circle>
                         <polyline points="12 6 12 12 16 14"></polyline>
                       </svg>
@@ -1140,7 +1153,7 @@
 
   .items-per-page label {
     font-size: 0.95rem;
-    color: #666;
+    color: #555;
     font-weight: 500;
   }
 
@@ -1189,7 +1202,7 @@
     font-weight: 600;
     position: relative;
     font-size: 1rem;
-    color: #666;
+    color: #555;
     cursor: pointer;
     transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
                 border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
@@ -1280,7 +1293,7 @@
 
   .empty-state .filter-detail {
     font-size: 1rem;
-    color: #666;
+    color: #555;
     margin-bottom: 0.5rem;
   }
 
@@ -1399,7 +1412,7 @@
   }
 
   .description {
-    color: #666;
+    color: #555;
     margin-bottom: 0.75rem;
     flex: 1;
   }
@@ -1409,7 +1422,7 @@
     align-items: center;
     gap: 0.375rem;
     font-size: 0.85rem;
-    color: #666;
+    color: #555;
     margin-bottom: 0.75rem;
     padding: 0.375rem 0.5rem;
     background-color: var(--color-muted);
@@ -1466,12 +1479,12 @@
   }
 
   .label {
-    color: #666;
+    color: #555;
     font-size: 0.9rem;
   }
 
   .label-small {
-    color: #666;
+    color: #555;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1479,7 +1492,7 @@
   }
 
   .label-tiny {
-    color: #888;
+    color: #666;
     font-size: 0.7rem;
     font-weight: 500;
   }
@@ -1974,7 +1987,7 @@
     padding: 0.625rem 0.75rem;
     background-color: var(--color-white);
     border: 2px solid var(--color-border);
-    color: #666;
+    color: #555;
     font-weight: 600;
     cursor: pointer;
     transition: background-color 0.15s ease,
@@ -2273,8 +2286,7 @@
   }
 
   .skeleton-pulse {
-    background: linear-gradient(90deg, var(--color-muted) 25%, #e8e8e8 50%, var(--color-muted) 75%);
-    background-size: 200% 100%;
+    background: var(--color-muted);
     animation: skeleton-shimmer 1.5s ease-in-out infinite;
   }
 
@@ -2337,12 +2349,8 @@
   }
 
   @keyframes skeleton-shimmer {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
   }
 
   @media (max-width: 768px) {
@@ -2372,7 +2380,7 @@
     font-size: 0.9rem;
     border: 2px solid var(--color-border);
     background: var(--color-white);
-    color: #666;
+    color: #555;
     cursor: pointer;
     transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
                 color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
@@ -2501,7 +2509,7 @@
 
   .user-card-date {
     font-size: 0.8rem;
-    color: #888;
+    color: #666;
     white-space: nowrap;
   }
 
