@@ -123,14 +123,17 @@ const analyticsLimiter = rateLimit({
 app.post('/api/analytics/track', analyticsLimiter, validate(analyticsTrackSchema), async (req, res) => {
   try {
     // Extract user ID from JWT if present (optional auth)
+    // NOTE: Can't use authenticateJWT here — it needs req.payload which isn't
+    // available for routes registered before payload.init(). Decode JWT directly.
     let userId: number | string | undefined;
     const authHeader = req.headers.authorization;
-    if (authHeader) {
+    if (authHeader && (authHeader.startsWith('JWT ') || authHeader.startsWith('Bearer '))) {
       try {
-        const user = await authenticateJWT(req);
-        if (user) userId = (user as any).id;
+        const token = authHeader.startsWith('JWT ') ? authHeader.substring(4) : authHeader.substring(7);
+        const decoded = jwt.verify(token, getPayloadJwtSecret()) as any;
+        if (decoded.id) userId = decoded.id;
       } catch {
-        // Anonymous is fine
+        // Anonymous is fine — invalid/expired token treated as anonymous
       }
     }
 
