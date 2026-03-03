@@ -595,10 +595,42 @@ const start = async () => {
     `);
 
     // Auto-migrate: create user_events table for analytics collection
+    // Note: eventType is a select field — Payload v2 keeps camelCase for select/enum columns
+    // First, fix any old table that used wrong column name "event_type" instead of "eventType"
+    await pool.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'user_events' AND column_name = 'event_type'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'user_events' AND column_name = 'eventType'
+        ) THEN
+          ALTER TABLE "user_events" RENAME COLUMN "event_type" TO "eventType";
+          ALTER TABLE "user_events" ALTER COLUMN "eventType" TYPE varchar;
+        END IF;
+      END $$;
+    `);
+
+    // Create enum type for eventType select field
+    await pool.query(`
+      DO $$ BEGIN
+        CREATE TYPE "enum_user_events_event_type" AS ENUM (
+          'page_view', 'login', 'login_failed', 'logout', 'register',
+          'search', 'product_view', 'conversation_opened', 'user_profile_viewed', 'media_uploaded',
+          'bid_placed', 'product_created', 'product_updated', 'product_sold',
+          'message_sent', 'transaction_status_changed', 'rating_created', 'rating_follow_up',
+          'bid_accepted', 'void_request_created', 'void_request_responded',
+          'seller_choice_made', 'second_bidder_responded', 'profile_updated', 'profile_picture_changed'
+        );
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+    `);
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS "user_events" (
         "id" serial PRIMARY KEY NOT NULL,
-        "event_type" varchar,
+        "eventType" "enum_user_events_event_type",
         "page" varchar,
         "metadata" jsonb,
         "session_id" varchar,
@@ -608,10 +640,14 @@ const start = async () => {
         "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
         "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS "user_events_event_type_idx" ON "user_events" USING btree ("event_type");
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS "user_events_event_type_idx" ON "user_events" USING btree ("eventType");
       CREATE INDEX IF NOT EXISTS "user_events_session_id_idx" ON "user_events" USING btree ("session_id");
       CREATE INDEX IF NOT EXISTS "user_events_created_at_idx" ON "user_events" USING btree ("created_at");
+    `);
 
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS "user_events_rels" (
         "id" serial PRIMARY KEY NOT NULL,
         "order" integer,
@@ -619,6 +655,8 @@ const start = async () => {
         "path" varchar NOT NULL,
         "users_id" integer
       );
+    `);
+    await pool.query(`
       DO $$ BEGIN
         ALTER TABLE "user_events_rels" ADD CONSTRAINT "user_events_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."user_events"("id") ON DELETE cascade ON UPDATE no action;
       EXCEPTION WHEN duplicate_object THEN null;
