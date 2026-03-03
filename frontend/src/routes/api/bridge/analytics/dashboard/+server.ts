@@ -18,7 +18,12 @@ export const GET: RequestHandler = async ({ request, url }) => {
     const qs = params.toString();
     const path = `/api/analytics/dashboard${qs ? `?${qs}` : ''}`;
 
-    const data = await cmsRequest(path, { token });
+    const response = await cmsRequest(path, { token });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Failed to fetch analytics' }));
+      return jsonResponse(err, response.status);
+    }
+    const data = await response.json();
     return jsonResponse(data);
   } catch (error: any) {
     const status = error?.status || 500;
