@@ -155,7 +155,7 @@ Custom email service (not Payload's email adapter). Handles void request notific
 - **Products `status` vs `active`** — Separate fields. `active` = visible on browse. `status` = sale lifecycle (`available/sold/ended`). A product can be `active: false, status: available` (hidden but not sold).
 - **Relationship depth** — All product list queries use `depth=1` to populate one level of relationships (e.g., media, seller) without infinite recursion. Missing `depth=1` is a common cause of broken images/data on the browse page.
 - **Elasticsearch is optional** — When unavailable, search falls back to Payload's native query. All ES operations are gated by `isElasticAvailable()`.
-- **Migrations** — Production uses Payload migrations (`npm run migrate`). Staging uses `DB_PUSH=true` for quick schema sync.
+- **Migrations** — Automated via Railway `preDeployCommand` in `cms/railway.toml`. The `cms/scripts/run-migrations.js` script clears `DB_PUSH` sentinel rows then runs `payload migrate` non-interactively. Staging also has `DB_PUSH=true` for dev convenience, but migrations handle production schema changes.
 
 ## Deployment & CI
 

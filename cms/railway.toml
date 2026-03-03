@@ -3,6 +3,7 @@ builder = "NIXPACKS"
 buildCommand = "npm ci --legacy-peer-deps --include=dev && npm run build"
 
 [deploy]
+preDeployCommand = "node scripts/run-migrations.js"
 startCommand = "npm run serve"
 healthcheckPath = "/api/products"
 healthcheckTimeout = 100
