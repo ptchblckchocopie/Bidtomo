@@ -36,7 +36,7 @@ export async function getTimeSeries(pool: Pool, range: DateRange) {
   `, [range.from, range.to]);
 
   return {
-    labels: rows.map((r: any) => r.date.toISOString().slice(0, 10)),
+    labels: rows.map((r: any) => String(r.date).slice(0, 10)),
     registrations: rows.map((r: any) => r.registrations),
     bids: rows.map((r: any) => r.bids),
     productViews: rows.map((r: any) => r.productViews),
