@@ -1743,6 +1743,60 @@ export async function updateReport(
   return result.doc;
 }
 
+// Analytics Dashboard
+export interface AnalyticsDashboard {
+  period: { from: string; to: string };
+  overview: {
+    totalUsers: number;
+    activeUsers7d: number;
+    totalProducts: number;
+    productsSold: number;
+    totalBids: number;
+    totalSearches: number;
+  };
+  timeSeries: {
+    labels: string[];
+    registrations: number[];
+    bids: number[];
+    productViews: number[];
+    searches: number[];
+    productsSold: number[];
+  };
+  topSearchKeywords: { keyword: string; count: number }[];
+  topViewedProducts: { id: number; title: string; views: number }[];
+  topSoldProducts: { id: number; title: string; sales: number }[];
+  eventBreakdown: { eventType: string; count: number }[];
+}
+
+export async function fetchAnalyticsDashboard(params?: {
+  from?: string;
+  to?: string;
+}): Promise<AnalyticsDashboard> {
+  const searchParams = new URLSearchParams();
+  if (params?.from) searchParams.set('from', params.from);
+  if (params?.to) searchParams.set('to', params.to);
+
+  const qs = searchParams.toString();
+  const url = `${BRIDGE_URL}/api/bridge/analytics/dashboard${qs ? `?${qs}` : ''}`;
+
+  const response = await fetch(url, {
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  });
+
+  if (response.status === 401) {
+    handleExpiredToken();
+    throw new Error('Unauthorized');
+  }
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: 'Failed to fetch analytics' }));
+    throw new Error(err.error || 'Failed to fetch analytics');
+  }
+
+  return response.json();
+}
+
 export async function getVoidRequestsForTransaction(
   transactionId: string
 ): Promise<VoidRequest[]> {

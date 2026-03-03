@@ -27,6 +27,8 @@
     "@sveltejs/adapter-node": "^5.5.3",
     "@sveltejs/adapter-vercel": "^6.3.2",
     "@types/three": "^0.183.1",
+    "chart.js": "^4.5.1",
+    "exceljs": "^4.4.0",
     "three": "^0.183.1"
   }
 }

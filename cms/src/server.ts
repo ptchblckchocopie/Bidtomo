@@ -10,6 +10,7 @@ import rateLimit from 'express-rate-limit';
 import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
+import { getOverviewStats, getTimeSeries, getTopSearchKeywords, getTopViewedProducts, getTopSoldProducts, getEventBreakdown } from './services/analyticsQueries';
 import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress } from './services/backupService';
 import { authenticateJWT } from './auth-helpers';
 import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
@@ -124,6 +125,14 @@ const reportLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 5, // 5 reports per hour per user
   message: { error: 'Too many reports. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const analyticsDashboardLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'Too many analytics dashboard requests.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -1129,6 +1138,50 @@ const start = async () => {
     } catch (error: any) {
       console.error('Error creating report:', error);
       Sentry.captureException(error, { tags: { route: '/api/reports' } });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
+  });
+
+  // Analytics dashboard — admin-only aggregated stats
+  app.get('/api/analytics/dashboard', analyticsDashboardLimiter, requireAuth, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const user = await payload.findByID({ collection: 'users', id: userId, overrideAccess: true });
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const now = new Date();
+      const defaultFrom = new Date(now);
+      defaultFrom.setDate(defaultFrom.getDate() - 30);
+
+      const from = (req.query.from as string) || defaultFrom.toISOString();
+      const to = (req.query.to as string) || now.toISOString();
+      const range = { from, to };
+
+      const pool = (payload.db as any).pool;
+
+      const [overview, timeSeries, topSearchKeywords, topViewedProducts, topSoldProducts, eventBreakdown] = await Promise.all([
+        getOverviewStats(pool, range),
+        getTimeSeries(pool, range),
+        getTopSearchKeywords(pool, range),
+        getTopViewedProducts(pool, range),
+        getTopSoldProducts(pool, range),
+        getEventBreakdown(pool, range),
+      ]);
+
+      res.json({
+        period: { from, to },
+        overview,
+        timeSeries,
+        topSearchKeywords,
+        topViewedProducts,
+        topSoldProducts,
+        eventBreakdown,
+      });
+    } catch (error: any) {
+      console.error('Error fetching analytics dashboard:', error);
+      Sentry.captureException(error, { tags: { route: '/api/analytics/dashboard' } });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
