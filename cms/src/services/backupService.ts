@@ -1,4 +1,5 @@
-import { spawn } from 'child_process';
+import { createGzip } from 'zlib';
+import { PassThrough } from 'stream';
 import { S3Client, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import cron from 'node-cron';
@@ -21,16 +22,17 @@ function getS3Client(): S3Client {
   });
 }
 
-function parseDatabaseUri(uri: string) {
-  const url = new URL(uri);
-  return {
-    host: url.hostname,
-    port: url.port || '5432',
-    database: url.pathname.slice(1),
-    username: decodeURIComponent(url.username),
-    password: decodeURIComponent(url.password),
-    sslmode: url.searchParams.get('sslmode') || undefined,
-  };
+function escapeSqlString(val: string): string {
+  return val.replace(/'/g, "''");
+}
+
+function formatValue(val: any): string {
+  if (val === null || val === undefined) return 'NULL';
+  if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+  if (typeof val === 'number') return String(val);
+  if (val instanceof Date) return `'${val.toISOString()}'`;
+  if (typeof val === 'object') return `'${escapeSqlString(JSON.stringify(val))}'`;
+  return `'${escapeSqlString(String(val))}'`;
 }
 
 export async function runBackup(): Promise<{ success: boolean; key?: string; error?: string }> {
@@ -49,32 +51,18 @@ export async function runBackup(): Promise<{ success: boolean; key?: string; err
       throw new Error('DATABASE_URI not configured');
     }
 
-    const db = parseDatabaseUri(dbUri);
     console.log(`[BACKUP] Starting backup to ${key}`);
 
-    const pgDumpArgs = [
-      '-h', db.host,
-      '-p', db.port,
-      '-U', db.username,
-      '-d', db.database,
-      '-Z', '6',
-    ];
-
-    const env: Record<string, string> = {
-      ...process.env as Record<string, string>,
-      PGPASSWORD: db.password,
-    };
-
-    if (db.sslmode) {
-      env.PGSSLMODE = db.sslmode;
-    }
-
-    const pgDump = spawn('pg_dump', pgDumpArgs, { env, stdio: ['ignore', 'pipe', 'pipe'] });
-
-    let stderrOutput = '';
-    pgDump.stderr.on('data', (chunk: Buffer) => {
-      stderrOutput += chunk.toString();
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: dbUri,
+      ssl: dbUri.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined,
     });
+
+    // Set up gzip stream → S3 upload
+    const passthrough = new PassThrough();
+    const gzip = createGzip({ level: 6 });
+    gzip.pipe(passthrough);
 
     const bucket = process.env.S3_BUCKET || 'bidmo-media';
     const s3 = getS3Client();
@@ -84,23 +72,88 @@ export async function runBackup(): Promise<{ success: boolean; key?: string; err
       params: {
         Bucket: bucket,
         Key: key,
-        Body: pgDump.stdout,
+        Body: passthrough,
         ContentType: 'application/gzip',
       },
     });
 
-    // Wait for both pg_dump to finish and S3 upload to complete
-    const [exitCode] = await Promise.all([
-      new Promise<number>((resolve, reject) => {
-        pgDump.on('close', resolve);
-        pgDump.on('error', reject);
-      }),
-      upload.done(),
-    ]);
+    // Write SQL header
+    gzip.write(`-- Bidmo.to Database Backup\n`);
+    gzip.write(`-- Generated: ${new Date().toISOString()}\n`);
+    gzip.write(`-- Method: node-pg logical dump\n\n`);
+    gzip.write(`SET client_encoding = 'UTF8';\n`);
+    gzip.write(`SET standard_conforming_strings = on;\n\n`);
 
-    if (exitCode !== 0) {
-      throw new Error(`pg_dump exited with code ${exitCode}: ${stderrOutput}`);
+    // Get all user tables
+    const tablesResult = await pool.query(`
+      SELECT tablename FROM pg_tables
+      WHERE schemaname = 'public'
+      ORDER BY tablename
+    `);
+
+    for (const row of tablesResult.rows) {
+      const table = row.tablename;
+
+      // Get column info for the table
+      const colsResult = await pool.query(`
+        SELECT column_name, data_type, column_default, is_nullable,
+               character_maximum_length, udt_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = $1
+        ORDER BY ordinal_position
+      `, [table]);
+
+      if (colsResult.rows.length === 0) continue;
+
+      const columns = colsResult.rows.map((c: any) => `"${c.column_name}"`);
+
+      // Dump data in batches
+      const countResult = await pool.query(`SELECT COUNT(*) as cnt FROM "${table}"`);
+      const totalRows = parseInt(countResult.rows[0].cnt, 10);
+
+      if (totalRows === 0) continue;
+
+      gzip.write(`-- Data for table: ${table} (${totalRows} rows)\n`);
+
+      const batchSize = 500;
+      for (let offset = 0; offset < totalRows; offset += batchSize) {
+        const dataResult = await pool.query(
+          `SELECT * FROM "${table}" ORDER BY ctid LIMIT $1 OFFSET $2`,
+          [batchSize, offset]
+        );
+
+        for (const dataRow of dataResult.rows) {
+          const values = colsResult.rows.map((col: any) => formatValue(dataRow[col.column_name]));
+          gzip.write(`INSERT INTO "${table}" (${columns.join(', ')}) VALUES (${values.join(', ')});\n`);
+        }
+      }
+
+      gzip.write('\n');
     }
+
+    // Dump sequences
+    const seqResult = await pool.query(`
+      SELECT sequencename, last_value FROM pg_sequences
+      WHERE schemaname = 'public'
+    `);
+
+    if (seqResult.rows.length > 0) {
+      gzip.write('-- Sequences\n');
+      for (const seq of seqResult.rows) {
+        if (seq.last_value !== null) {
+          gzip.write(`SELECT setval('"${seq.sequencename}"', ${seq.last_value}, true);\n`);
+        }
+      }
+    }
+
+    // Finalize
+    await new Promise<void>((resolve, reject) => {
+      gzip.end(() => resolve());
+      gzip.on('error', reject);
+    });
+
+    await upload.done();
+    await pool.end();
 
     console.log(`[BACKUP] Backup completed successfully: ${key}`);
     return { success: true, key };
