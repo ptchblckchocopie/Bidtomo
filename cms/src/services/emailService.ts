@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import Redis from 'ioredis';
+import * as Sentry from '@sentry/node';
 import type { Payload } from 'payload';
 
 /** Escape HTML special characters to prevent injection in email templates */
@@ -239,6 +240,10 @@ async function processEmailQueue(): Promise<void> {
         } else {
           // Max retries reached, log failure
           console.error(`[EMAIL] Failed after 3 attempts: ${email.id} - ${email.lastError}`);
+          Sentry.captureException(new Error(`Email failed after 3 attempts: ${email.id}`), {
+            tags: { route: 'emailService.processQueue', emailId: email.id },
+            extra: { lastError: email.lastError, to: email.to, subject: email.subject },
+          });
           // Send alert to support
           await sendSupportAlert(email);
         }
@@ -307,6 +312,7 @@ function startEmailProcessor(): void {
 
   runProcessor().catch((error) => {
     console.error('[EMAIL] Processor crashed:', error);
+    Sentry.captureException(error, { tags: { route: 'emailService.processor' } });
     processorRunning = false;
     // Restart after delay
     setTimeout(startEmailProcessor, 5000);

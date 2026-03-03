@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import './instrument';
+import * as Sentry from '@sentry/node';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import Redis from 'ioredis';
@@ -399,12 +400,14 @@ async function setupRedisSubscriber() {
         }
       } catch (error) {
         console.error('[SSE] Error processing Redis message:', error);
+        Sentry.captureException(error, { tags: { route: 'sse.pmessage' }, extra: { channel } });
       }
     });
 
     console.log('[SSE] Redis subscriber ready');
   } catch (error) {
     console.error('[SSE] Failed to subscribe to Redis:', error);
+    Sentry.captureException(error, { tags: { route: 'sse.setupRedisSubscriber' } });
     setTimeout(setupRedisSubscriber, 5000);
   }
 }
@@ -456,20 +459,27 @@ async function start() {
     });
   } catch (error) {
     console.error('[SSE] Failed to start:', error);
+    Sentry.captureException(error);
+    await Sentry.flush(2000);
     process.exit(1);
   }
 }
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+// Sentry Express error handler — must be after all routes
+Sentry.setupExpressErrorHandler(app);
+
+process.on('SIGTERM', async () => {
   console.log('[SSE] Shutting down...');
   if (redis) redis.quit();
+  await Sentry.flush(2000);
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('[SSE] Shutting down...');
   if (redis) redis.quit();
+  await Sentry.flush(2000);
   process.exit(0);
 });
 

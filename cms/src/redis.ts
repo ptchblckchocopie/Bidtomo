@@ -1,5 +1,6 @@
 import Redis from 'ioredis';
 import crypto from 'crypto';
+import * as Sentry from '@sentry/node';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const BID_QUEUE_KEY = 'bids:pending';
@@ -102,6 +103,7 @@ export async function queueBid(
     return { success: true, jobId: job.jobId };
   } catch (error) {
     console.error('[CMS] Failed to queue bid:', error);
+    Sentry.captureException(error, { tags: { route: 'redis.queueBid' } });
     return { success: false, error: String(error) };
   }
 }
@@ -141,6 +143,7 @@ export async function queueAcceptBid(
     return { success: true, jobId: job.jobId };
   } catch (error) {
     console.error('[CMS] Failed to queue accept bid:', error);
+    Sentry.captureException(error, { tags: { route: 'redis.queueAcceptBid' } });
     return { success: false, error: String(error) };
   }
 }
