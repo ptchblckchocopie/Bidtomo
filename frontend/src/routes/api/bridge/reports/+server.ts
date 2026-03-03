@@ -13,7 +13,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
     const response = await cmsRequest('/api/reports', {
       method: 'POST',
-      body: { product: productId, reason, description },
+      body: { product: Number(productId), reason, description },
       token,
     });
 
