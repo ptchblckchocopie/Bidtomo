@@ -1,3 +1,5 @@
+import './instrument';
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import payload from 'payload';
 import dotenv from 'dotenv';
@@ -348,6 +350,11 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error fetching user limits:', error);
+      Sentry.withScope(scope => {
+        if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+        scope.setTag('route', '/api/users/limits');
+        Sentry.captureException(error);
+      });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -405,6 +412,11 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error updating profile picture:', error);
+      Sentry.withScope(scope => {
+        if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+        scope.setTag('route', '/api/users/profile-picture');
+        Sentry.captureException(error);
+      });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -451,6 +463,11 @@ const start = async () => {
       res.json({ success: true });
     } catch (error: any) {
       console.error('Error removing profile picture:', error);
+      Sentry.withScope(scope => {
+        if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+        scope.setTag('route', 'DELETE /api/users/profile-picture');
+        Sentry.captureException(error);
+      });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -543,6 +560,7 @@ const start = async () => {
     await prePool.end();
   } catch (preErr: any) {
     console.error('Pre-init migration (ratings) failed:', preErr.message);
+    Sentry.captureException(preErr, { tags: { route: 'startup.migration.ratings' } });
   }
 
   await payload.init({
@@ -678,6 +696,7 @@ const start = async () => {
     payload.logger.info('Database schema verified/migrated');
   } catch (migrationErr: any) {
     payload.logger.error('Failed to run startup migration: ' + migrationErr.message);
+    Sentry.captureException(migrationErr, { tags: { route: 'startup.migration.schema' } });
   }
 
   // Elasticsearch: ensure index exists on startup
@@ -733,6 +752,7 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('[BACKUP] Manual trigger failed:', error.message);
+      Sentry.captureException(error, { tags: { route: '/api/backup/trigger' } });
       if (!res.headersSent) {
         res.status(500).json({ error: 'Backup trigger failed' });
       }
@@ -875,6 +895,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error creating conversations:', error);
+      Sentry.captureException(error, { tags: { route: '/api/create-conversations' } });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -1014,6 +1035,7 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error syncing bids:', error);
+      Sentry.captureException(error, { tags: { route: '/api/sync-bids' } });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -1200,6 +1222,11 @@ const start = async () => {
         } catch (error: any) {
           await client.query('ROLLBACK').catch(() => {});
           console.error('[CMS] Fallback bid error:', error);
+          Sentry.withScope(scope => {
+            if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+            scope.setTag('route', '/api/bid/queue.fallback');
+            Sentry.captureException(error);
+          });
           return res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
         } finally {
           client.release();
@@ -1214,6 +1241,11 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error queuing bid:', error);
+      Sentry.withScope(scope => {
+        if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+        scope.setTag('route', '/api/bid/queue');
+        Sentry.captureException(error);
+      });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -1366,6 +1398,11 @@ const start = async () => {
         } catch (error: any) {
           await client.query('ROLLBACK').catch(() => {});
           console.error('[CMS] Fallback accept error:', error);
+          Sentry.withScope(scope => {
+            if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+            scope.setTag('route', '/api/bid/accept.fallback');
+            Sentry.captureException(error);
+          });
           return res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
         } finally {
           client.release();
@@ -1383,6 +1420,11 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error accepting bid:', error);
+      Sentry.withScope(scope => {
+        if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+        scope.setTag('route', '/api/bid/accept');
+        Sentry.captureException(error);
+      });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -1498,6 +1540,7 @@ const start = async () => {
       res.json({ success: true, ...result });
     } catch (error: any) {
       console.error('Elasticsearch sync error:', error);
+      Sentry.captureException(error, { tags: { route: '/api/elasticsearch/sync' } });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -1628,6 +1671,11 @@ const start = async () => {
       });
     } catch (error: any) {
       console.error('Error creating void request:', error);
+      Sentry.withScope(scope => {
+        if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+        scope.setTag('route', '/api/void-request/create');
+        Sentry.captureException(error);
+      });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -1769,6 +1817,11 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('Error responding to void request:', error);
+      Sentry.withScope(scope => {
+        if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+        scope.setTag('route', '/api/void-request/respond');
+        Sentry.captureException(error);
+      });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -1957,6 +2010,11 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('Error processing seller choice:', error);
+      Sentry.withScope(scope => {
+        if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+        scope.setTag('route', '/api/void-request/seller-choice');
+        Sentry.captureException(error);
+      });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -2029,6 +2087,11 @@ const start = async () => {
         } catch (lockError: any) {
           await client.query('ROLLBACK').catch(() => {});
           console.error('Error locking product for second bidder accept:', lockError);
+          Sentry.withScope(scope => {
+            if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+            scope.setTag('route', '/api/void-request/second-bidder-response.lock');
+            Sentry.captureException(lockError);
+          });
           return res.status(500).json({ error: isProduction ? 'Internal server error' : lockError.message });
         } finally {
           client.release();
@@ -2170,6 +2233,11 @@ const start = async () => {
       }
     } catch (error: any) {
       console.error('Error processing second bidder response:', error);
+      Sentry.withScope(scope => {
+        if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+        scope.setTag('route', '/api/void-request/second-bidder-response');
+        Sentry.captureException(error);
+      });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -2277,6 +2345,9 @@ const start = async () => {
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
+
+  // Sentry Express error handler — must be after all routes
+  Sentry.setupExpressErrorHandler(app);
 
   // Only start server if not in serverless environment
   if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {

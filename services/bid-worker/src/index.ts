@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import './instrument';
+import * as Sentry from '@sentry/node';
 import Redis from 'ioredis';
 import { Pool } from 'pg';
 import crypto from 'crypto';
@@ -133,6 +134,7 @@ async function savePendingBidToDb(job: BidJob): Promise<void> {
     console.log(`[WORKER] Saved pending ${job.type || 'bid'} to database: ${job.jobId}`);
   } catch (error) {
     console.error('[WORKER] Failed to save pending bid to database:', error);
+    Sentry.captureException(error, { tags: { route: 'worker.savePendingBidToDb' }, extra: { jobId: job.jobId, productId: job.productId } });
   }
 }
 
@@ -215,6 +217,7 @@ async function recoverPendingBids(): Promise<void> {
     }
   } catch (error) {
     console.error('[WORKER] Failed to recover pending bids:', error);
+    Sentry.captureException(error, { tags: { route: 'worker.recoverPendingBids' } });
   }
 }
 
@@ -332,6 +335,7 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('[WORKER] Error processing bid:', error);
+    Sentry.captureException(error, { tags: { route: 'worker.processBid' }, extra: { productId: job.productId, bidderId: job.bidderId, amount: job.amount } });
     return { success: false, error: String(error) };
   } finally {
     client.release();
@@ -516,6 +520,7 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
         console.log(`[WORKER] Published message notification to buyer ${job.bidderId}`);
       } catch (notifyError) {
         console.error('[WORKER] Failed to publish message notification:', notifyError);
+        Sentry.captureException(notifyError, { level: 'warning', tags: { route: 'worker.processAcceptBid.notify' } });
       }
     }
 
@@ -592,6 +597,7 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('[WORKER] Error processing accept bid:', error);
+    Sentry.captureException(error, { tags: { route: 'worker.processAcceptBid' }, extra: { productId: job.productId, sellerId: job.sellerId, bidderId: job.bidderId } });
     return { success: false, error: String(error) };
   } finally {
     client.release();
@@ -629,6 +635,7 @@ async function publishBidResult(
     console.log(`[WORKER] Published to ${channel}`);
   } catch (error) {
     console.error('[WORKER] Failed to publish bid result:', error);
+    Sentry.captureException(error, { level: 'warning', tags: { route: 'worker.publishBidResult' } });
   }
 }
 
@@ -652,6 +659,7 @@ async function publishAcceptResult(productId: number, result: { success: boolean
     console.log(`[WORKER] Published accept result to ${channel}`);
   } catch (error) {
     console.error('[WORKER] Failed to publish accept result:', error);
+    Sentry.captureException(error, { level: 'warning', tags: { route: 'worker.publishAcceptResult' } });
   }
 }
 
@@ -668,6 +676,7 @@ async function moveToFailedQueue(job: BidJob, error: string): Promise<void> {
     console.log(`[WORKER] Moved job ${job.jobId} to failed queue`);
   } catch (err) {
     console.error('[WORKER] Failed to move to failed queue:', err);
+    Sentry.captureException(err, { tags: { route: 'worker.moveToFailedQueue' }, extra: { jobId: job.jobId, error } });
   }
 }
 
@@ -737,8 +746,9 @@ async function drainAndDeduplicateQueue(firstJob: BidJob): Promise<BidJob[]> {
         const job: BidJob = JSON.parse(raw);
         if (!job.jobId) job.jobId = generateJobId();
         jobs.push(job);
-      } catch {
-        // Skip malformed jobs
+      } catch (parseErr) {
+        console.warn('[WORKER] Skipping malformed job in queue:', raw.substring(0, 200));
+        Sentry.captureException(parseErr, { level: 'warning', tags: { route: 'worker.drainAndDeduplicate' }, extra: { rawPreview: raw.substring(0, 200) } });
       }
     }
   }
@@ -976,6 +986,7 @@ async function runWorker() {
       }
     } catch (error) {
       console.error('[WORKER] Error in worker loop:', error);
+      Sentry.captureException(error, { tags: { route: 'worker.mainLoop' } });
       // Wait a bit before retrying
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
@@ -994,6 +1005,7 @@ async function shutdown() {
     console.error('[WORKER] Error during shutdown:', error);
   }
 
+  await Sentry.flush(2000);
   process.exit(0);
 }
 
@@ -1001,7 +1013,9 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 // Start the worker
-runWorker().catch((error) => {
+runWorker().catch(async (error) => {
   console.error('[WORKER] Fatal error:', error);
+  Sentry.captureException(error);
+  await Sentry.flush(2000);
   process.exit(1);
 });
