@@ -10,6 +10,8 @@
   import type { Product } from '$lib/api';
   import { getProductSSE, disconnectProductSSE, queueBid as queueBidToRedis, type SSEEvent, type BidEvent, type ProductVisibilityEvent } from '$lib/sse';
   import { trackProductView } from '$lib/analytics';
+  import { watchlistStore } from '$lib/stores/watchlist';
+  import WatchlistToggle from '$lib/components/WatchlistToggle.svelte';
   import { onMount, onDestroy } from 'svelte';
 
   let { data } = $props<{ data: PageData }>();
@@ -978,6 +980,9 @@
       <div class="product-gallery">
         <div class="title-container">
           <h1>{data.product.title}</h1>
+          {#if $authStore.isAuthenticated && $watchlistStore.loaded}
+            <WatchlistToggle productId={data.product.id} size="lg" />
+          {/if}
           <div
             class="live-indicator"
             class:updating={isUpdating}

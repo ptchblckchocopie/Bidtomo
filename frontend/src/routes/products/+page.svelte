@@ -7,6 +7,8 @@
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
   import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type BidUpdateEvent, type ProductVisibilityEvent } from '$lib/sse';
   import { updateProduct } from '$lib/api';
+  import { watchlistStore } from '$lib/stores/watchlist';
+  import WatchlistToggle from '$lib/components/WatchlistToggle.svelte';
 
   let { data, params }: { data: PageData; params?: any } = $props();
 
@@ -821,6 +823,11 @@
                     {product.status === 'sold' ? '✓ SOLD' : product.status.toUpperCase()}
                   </div>
                 {/if}
+                {#if $authStore.isAuthenticated && $watchlistStore.loaded}
+                  <div class="watchlist-btn">
+                    <WatchlistToggle productId={product.id} size="sm" />
+                  </div>
+                {/if}
               </div>
 
               <div class="product-info">
@@ -1397,6 +1404,13 @@
     background-color: var(--color-muted);
     color: #999;
     font-size: 1.2rem;
+  }
+
+  .watchlist-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 5;
   }
 
   .product-info {

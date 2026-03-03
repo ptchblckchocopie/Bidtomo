@@ -1658,6 +1658,73 @@ export default buildConfig({
         },
       ],
     },
+    // Watchlist / Favorites
+    {
+      slug: 'watchlist',
+      admin: {
+        group: 'User Data',
+        hidden: ({ user }: { user: any }) => user?.role !== 'admin',
+      },
+      access: {
+        create: ({ req }: any) => !!req.user,
+        read: ({ req }: any) => {
+          if (!req.user) return false;
+          if (req.user.role === 'admin') return true;
+          return { user: { equals: req.user.id } };
+        },
+        update: ({ req }: any) => req.user?.role === 'admin',
+        delete: ({ req }: any) => {
+          if (!req.user) return false;
+          if (req.user.role === 'admin') return true;
+          return { user: { equals: req.user.id } };
+        },
+      },
+      hooks: {
+        beforeValidate: [
+          ({ data, req, operation }: any) => {
+            if (operation === 'create' && req.user) {
+              data.user = req.user.id;
+            }
+            return data;
+          },
+        ],
+        beforeChange: [
+          async ({ data, req, operation }: any) => {
+            if (operation === 'create' && req.payload) {
+              const existing = await req.payload.find({
+                collection: 'watchlist',
+                where: {
+                  and: [
+                    { user: { equals: req.user.id } },
+                    { product: { equals: data.product } },
+                  ],
+                },
+                limit: 1,
+              });
+              if (existing.docs.length > 0) {
+                throw new Error('Product is already in your watchlist');
+              }
+            }
+            return data;
+          },
+        ],
+      },
+      fields: [
+        {
+          name: 'user',
+          type: 'relationship',
+          relationTo: 'users',
+          required: true,
+          admin: { readOnly: true },
+        },
+        {
+          name: 'product',
+          type: 'relationship',
+          relationTo: 'products',
+          required: true,
+        },
+      ],
+    },
     // Email Templates collection
     EmailTemplates,
   ],

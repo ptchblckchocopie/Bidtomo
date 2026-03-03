@@ -6,6 +6,7 @@
   import { logout as apiLogout, getUnreadMessageCount } from '$lib/api';
   import { onMount } from 'svelte';
   import { unreadCountStore } from '$lib/stores/inbox';
+  import { watchlistStore } from '$lib/stores/watchlist';
   import { themeStore } from '$lib/stores/theme';
   import { trackPageView } from '$lib/analytics';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -78,16 +79,21 @@
   }
 
   onMount(() => {
-    // Fetch unread count once on page load
+    // Fetch unread count and watchlist once on page load
     fetchUnreadCount();
+    if ($authStore.isAuthenticated) {
+      watchlistStore.load();
+    }
   });
 
   // Refetch when auth state changes
   $effect(() => {
     if ($authStore.isAuthenticated) {
       fetchUnreadCount();
+      watchlistStore.load();
     } else {
       unreadCountStore.reset();
+      watchlistStore.reset();
     }
   });
 
@@ -181,6 +187,13 @@
                     class="block px-4 py-2 text-sm text-bh-fg hover:bg-bh-muted transition-colors font-medium {currentPath === '/profile' ? 'bg-bh-muted font-bold' : ''}"
                   >
                     Profile
+                  </a>
+                  <a
+                    href="/watchlist"
+                    onclick={closeUserMenu}
+                    class="block px-4 py-2 text-sm text-bh-fg hover:bg-bh-muted transition-colors font-medium {currentPath === '/watchlist' ? 'bg-bh-muted font-bold' : ''}"
+                  >
+                    Watchlist
                   </a>
                   <div class="border-t-2 border-bh-border my-1"></div>
                   <button
@@ -288,6 +301,14 @@
               class="block px-3 py-2 text-base font-bold hover:bg-white/10 mt-2 {currentPath === '/profile' ? 'bg-bh-yellow text-bh-fg' : ''}"
             >
               Profile
+            </a>
+
+            <a
+              href="/watchlist"
+              onclick={closeMobileMenu}
+              class="block px-3 py-2 text-base font-bold hover:bg-white/10 mt-2 {currentPath === '/watchlist' ? 'bg-bh-yellow text-bh-fg' : ''}"
+            >
+              Watchlist
             </a>
 
             <!-- Mobile User Info -->
