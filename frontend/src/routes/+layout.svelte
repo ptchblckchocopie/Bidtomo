@@ -153,6 +153,18 @@
               {/if}
             </a>
 
+            {#if $authStore.user?.role === 'admin'}
+              <a
+                href="/admin/reports"
+                class="px-3 py-2 text-sm font-bold hover:bg-white/10 transition-colors {currentPath === '/admin/reports' ? 'bg-bh-yellow text-bh-fg' : ''}"
+                title="Reports"
+              >
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </a>
+            {/if}
+
             <a
               href="/sell"
               class="btn-bh-yellow text-sm {currentPath === '/sell' ? 'ring-2 ring-white/50' : ''}"
@@ -278,6 +290,16 @@
               </div>
               <span>Inbox</span>
             </a>
+
+            {#if $authStore.user?.role === 'admin'}
+              <a
+                href="/admin/reports"
+                onclick={closeMobileMenu}
+                class="block px-3 py-2 text-base font-bold hover:bg-white/10 mt-2 {currentPath === '/admin/reports' ? 'bg-bh-yellow text-bh-fg' : ''}"
+              >
+                Reports
+              </a>
+            {/if}
 
             <a
               href="/sell"

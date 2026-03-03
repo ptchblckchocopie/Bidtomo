@@ -1676,6 +1676,73 @@ export async function reportProduct(
   }
 }
 
+export interface Report {
+  id: string;
+  product: Product | string;
+  reporter: User | string;
+  reason: 'spam' | 'inappropriate' | 'scam' | 'counterfeit' | 'other';
+  description?: string;
+  status: 'pending' | 'reviewed' | 'resolved';
+  adminNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchReports(params?: {
+  status?: string;
+  page?: number;
+  limit?: number;
+  sort?: string;
+}): Promise<{ docs: Report[]; totalDocs: number; totalPages: number; page: number }> {
+  const searchParams = new URLSearchParams();
+  searchParams.set('depth', '1');
+  if (params?.status) searchParams.set('where[status][equals]', params.status);
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.sort) searchParams.set('sort', params.sort);
+
+  const response = await fetch(`${BRIDGE_URL}/api/bridge/reports?${searchParams.toString()}`, {
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  });
+
+  if (response.status === 401) {
+    handleExpiredToken();
+    throw new Error('Unauthorized');
+  }
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch reports');
+  }
+
+  return response.json();
+}
+
+export async function updateReport(
+  id: string,
+  data: { status?: string; adminNotes?: string }
+): Promise<Report> {
+  const response = await fetch(`${BRIDGE_URL}/api/bridge/reports/${id}`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+
+  if (response.status === 401) {
+    handleExpiredToken();
+    throw new Error('Unauthorized');
+  }
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error || 'Failed to update report');
+  }
+
+  const result = await response.json();
+  return result.doc;
+}
+
 export async function getVoidRequestsForTransaction(
   transactionId: string
 ): Promise<VoidRequest[]> {
