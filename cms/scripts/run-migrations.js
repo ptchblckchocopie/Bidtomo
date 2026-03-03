@@ -1,11 +1,11 @@
 /**
- * Non-interactive migration runner for CI/CD pre-deploy.
+ * Non-interactive migration runner for CI/CD and startup.
  *
  * Payload v2's `payload migrate` prompts interactively when it detects
  * DB_PUSH was used (batch = -1 rows in payload_migrations). This script
- * clears those sentinel rows first, then runs `payload migrate` so it
- * can proceed non-interactively. Already-applied migrations are skipped
- * by Payload based on their name.
+ * promotes those sentinel rows to a real batch number so Payload treats
+ * them as already-applied and skips them. Then runs `payload migrate`
+ * non-interactively to apply any new migration files.
  */
 const { execSync } = require('child_process');
 const { Client } = require('pg');
@@ -36,12 +36,21 @@ async function main() {
     `);
 
     if (tableCheck.rows[0].exists) {
-      // Clear dev-push sentinel rows (batch = -1) so payload migrate won't prompt
+      // Promote dev-push sentinel rows (batch = -1) to a real batch number
+      // so Payload treats them as already-applied instead of re-running them.
+      // Deleting them would cause Payload to re-run migrations on tables that
+      // already exist (from DB_PUSH), causing "already exists" errors.
+      const maxBatchResult = await client.query(
+        `SELECT COALESCE(MAX(batch), 0) as max_batch FROM payload_migrations WHERE batch > 0`
+      );
+      const nextBatch = maxBatchResult.rows[0].max_batch + 1;
+
       const result = await client.query(
-        `DELETE FROM payload_migrations WHERE batch = -1`
+        `UPDATE payload_migrations SET batch = $1 WHERE batch = -1`,
+        [nextBatch]
       );
       if (result.rowCount > 0) {
-        console.log(`[migrate] Cleared ${result.rowCount} dev-push sentinel row(s)`);
+        console.log(`[migrate] Promoted ${result.rowCount} dev-push sentinel row(s) to batch ${nextBatch}`);
       }
     }
 
