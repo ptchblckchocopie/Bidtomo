@@ -104,7 +104,7 @@
     }
 
     // Top search keywords bar chart
-    if (barCanvas && data.topSearchKeywords.length > 0) {
+    if (barCanvas && data.topSearchKeywords?.length > 0) {
       barChart = new Chart(barCanvas, {
         type: 'bar',
         data: {
@@ -128,7 +128,7 @@
     }
 
     // Event breakdown doughnut
-    if (doughnutCanvas && data.eventBreakdown.length > 0) {
+    if (doughnutCanvas && data.eventBreakdown?.length > 0) {
       doughnutChart = new Chart(doughnutCanvas, {
         type: 'doughnut',
         data: {
@@ -326,7 +326,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
       <div class="card-bh p-6">
         <h2 class="text-lg font-bold font-outfit mb-4">Top Search Keywords</h2>
-        {#if data.topSearchKeywords.length > 0}
+        {#if data.topSearchKeywords?.length > 0}
           <div style="height: 300px;">
             <canvas bind:this={barCanvas}></canvas>
           </div>
@@ -337,7 +337,7 @@
 
       <div class="card-bh p-6">
         <h2 class="text-lg font-bold font-outfit mb-4">Event Breakdown</h2>
-        {#if data.eventBreakdown.length > 0}
+        {#if data.eventBreakdown?.length > 0}
           <div style="height: 300px;">
             <canvas bind:this={doughnutCanvas}></canvas>
           </div>
@@ -351,7 +351,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <div class="card-bh p-6">
         <h2 class="text-lg font-bold font-outfit mb-4">Top Viewed Products</h2>
-        {#if data.topViewedProducts.length > 0}
+        {#if data.topViewedProducts?.length > 0}
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b-bh border-bh-border">
@@ -379,7 +379,7 @@
 
       <div class="card-bh p-6">
         <h2 class="text-lg font-bold font-outfit mb-4">Top Sold Products</h2>
-        {#if data.topSoldProducts.length > 0}
+        {#if data.topSoldProducts?.length > 0}
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b-bh border-bh-border">
