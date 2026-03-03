@@ -5,6 +5,7 @@
   import KeywordInput from './KeywordInput.svelte';
   import type { Product } from '$lib/api';
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
+  import { categories } from '$lib/data/categories';
 
   // Props
   let {
@@ -30,6 +31,7 @@
   let region = $state(product?.region || '');
   let city = $state(product?.city || '');
   let deliveryOptions: 'delivery' | 'meetup' | 'both' | '' = $state(product?.delivery_options || '');
+  let selectedCategories = $state<string[]>(product?.categories || []);
 
   // Image handling
   let existingImages = $state<Array<{ id: string; image: { id: string; url: string; alt?: string } }>>([]);
@@ -80,6 +82,7 @@
       region = product.region || '';
       city = product.city || '';
       deliveryOptions = product.delivery_options || '';
+      selectedCategories = product.categories || [];
 
       const formattedDate = formatDateForInput(product.auctionEndDate);
       auctionEndDate = formattedDate;
@@ -405,7 +408,8 @@
           images: allImageIds.map(id => ({ image: id })),
           region,
           city,
-          delivery_options: deliveryOptions || undefined
+          delivery_options: deliveryOptions || undefined,
+          categories: selectedCategories.length > 0 ? selectedCategories : undefined
         };
 
         if (!hasBids) {
@@ -453,7 +457,8 @@
           images: uploadedImageIds.map(imageId => ({ image: imageId })),
           region,
           city,
-          delivery_options: deliveryOptions || undefined
+          delivery_options: deliveryOptions || undefined,
+          categories: selectedCategories.length > 0 ? selectedCategories : undefined
         });
 
         if (result) {
@@ -590,6 +595,31 @@
       <option value="both">Both Delivery and Meetup</option>
     </select>
     <p class="field-hint">How will the buyer receive the product?</p>
+  </div>
+
+  <div class="form-group">
+    <label>Product Categories</label>
+    <div class="categories-grid">
+      {#each categories as category}
+        <label class="category-checkbox">
+          <input
+            type="checkbox"
+            value={category.value}
+            checked={selectedCategories.includes(category.value)}
+            onchange={(e) => {
+              if ((e.currentTarget as HTMLInputElement).checked) {
+                selectedCategories = [...selectedCategories, category.value];
+              } else {
+                selectedCategories = selectedCategories.filter(c => c !== category.value);
+              }
+            }}
+            disabled={submitting}
+          />
+          <span>{category.label}</span>
+        </label>
+      {/each}
+    </div>
+    <p class="field-hint">Select one or more categories that describe your product</p>
   </div>
 
   <div class="form-group">
@@ -826,6 +856,46 @@
 
   .form-group {
     margin-bottom: 1.5rem;
+  }
+
+  .categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.5rem;
+    margin: 0.5rem 0;
+  }
+
+  .category-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    border: 2px solid var(--color-border);
+    cursor: pointer;
+    background: var(--color-bg);
+    transition: border-color 0.15s;
+  }
+
+  .category-checkbox:hover {
+    border-color: var(--color-red);
+  }
+
+  .category-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--color-red);
+  }
+
+  .category-checkbox input[type="checkbox"]:checked + span {
+    font-weight: 700;
+    color: var(--color-red);
+  }
+
+  .category-checkbox span {
+    font-size: 0.85rem;
+    font-weight: 500;
   }
 
   .form-info {

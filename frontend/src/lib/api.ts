@@ -60,6 +60,7 @@ export interface Product {
   region?: string;
   city?: string;
   delivery_options?: 'delivery' | 'meetup' | 'both';
+  categories?: string[];
   seller: {
     id: string;
     name: string;
@@ -209,6 +210,7 @@ export async function fetchProducts(params?: {
   status?: string;
   region?: string;
   city?: string;
+  category?: string;
   customFetch?: typeof fetch;
 }): Promise<{ docs: Product[]; totalDocs: number; totalPages: number; page: number; limit: number }> {
   const empty = { docs: [], totalDocs: 0, totalPages: 0, page: 1, limit: params?.limit || 10 };
@@ -224,6 +226,7 @@ export async function fetchProducts(params?: {
         if (params.status) esParams.append('status', params.status);
         if (params.region) esParams.append('region', params.region);
         if (params.city) esParams.append('city', params.city);
+        if (params.category) esParams.append('categories', params.category);
         if (params.page) esParams.append('page', params.page.toString());
         if (params.limit) esParams.append('limit', params.limit.toString());
 
@@ -282,6 +285,12 @@ export async function fetchProducts(params?: {
     }
     if (params?.city && params.city.trim()) {
       queryParams.append(`where[and][${andIndex}][city][contains]`, params.city.trim());
+      andIndex++;
+    }
+
+    // Filter by category
+    if (params?.category && params.category.trim()) {
+      queryParams.append(`where[and][${andIndex}][categories][contains]`, params.category.trim());
       andIndex++;
     }
 
@@ -598,6 +607,7 @@ export async function createProduct(productData: {
   region?: string;
   city?: string;
   delivery_options?: 'delivery' | 'meetup' | 'both';
+  categories?: string[];
 }): Promise<Product | null> {
   try {
     const response = await fetch(`${BRIDGE_URL}/api/bridge/products`, {
@@ -639,6 +649,7 @@ export async function updateProduct(
     region?: string;
     city?: string;
     delivery_options?: 'delivery' | 'meetup' | 'both';
+    categories?: string[];
   }
 ): Promise<Product | null> {
   try {

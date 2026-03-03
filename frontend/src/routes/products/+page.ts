@@ -8,6 +8,7 @@ export const load: PageLoad = async ({ url, fetch }) => {
   let status = url.searchParams.get('status') || 'active';
   const region = url.searchParams.get('region') || '';
   const city = url.searchParams.get('city') || '';
+  const category = url.searchParams.get('category') || '';
   const searchType = url.searchParams.get('searchType') || 'products';
 
   // Only admins can view hidden products — silently fall back to active
@@ -38,6 +39,7 @@ export const load: PageLoad = async ({ url, fetch }) => {
       status,
       region,
       city,
+      category,
       searchType,
     };
   }
@@ -60,6 +62,7 @@ export const load: PageLoad = async ({ url, fetch }) => {
       status: 'hidden',
       region: region || undefined,
       city: city || undefined,
+      category: category || undefined,
       customFetch: fetch
     });
   } else {
@@ -70,6 +73,7 @@ export const load: PageLoad = async ({ url, fetch }) => {
       status,
       region: region || undefined,
       city: city || undefined,
+      category: category || undefined,
       customFetch: fetch
     });
   }
@@ -85,6 +89,7 @@ export const load: PageLoad = async ({ url, fetch }) => {
     status,
     region,
     city,
+    category,
     searchType,
   };
 };

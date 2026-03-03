@@ -12,6 +12,7 @@
   import { trackProductView } from '$lib/analytics';
   import { watchlistStore } from '$lib/stores/watchlist';
   import WatchlistToggle from '$lib/components/WatchlistToggle.svelte';
+  import { getCategoryLabel } from '$lib/data/categories';
   import { onMount, onDestroy } from 'svelte';
 
   let { data } = $props<{ data: PageData }>();
@@ -1125,6 +1126,16 @@
                   <circle cx="12" cy="10" r="3"></circle>
                 </svg>
                 <span>{data.product.city}{data.product.city && data.product.region ? ', ' : ''}{data.product.region}</span>
+              </div>
+            {/if}
+
+            {#if data.product.categories && data.product.categories.length > 0}
+              <div class="category-badges">
+                {#each data.product.categories as categoryValue}
+                  <a href="/products?category={categoryValue}" class="category-badge">
+                    {getCategoryLabel(categoryValue)}
+                  </a>
+                {/each}
               </div>
             {/if}
 
@@ -3030,6 +3041,30 @@
 
   .seller-location svg {
     color: var(--color-red);
+  }
+
+  .category-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .category-badge {
+    display: inline-block;
+    background: var(--color-blue, #2563eb);
+    color: white;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border: 2px solid var(--color-blue, #2563eb);
+    text-decoration: none;
+    transition: all 0.15s;
+  }
+
+  .category-badge:hover {
+    background: var(--color-red);
+    border-color: var(--color-red);
   }
 
   .view-profile-btn {

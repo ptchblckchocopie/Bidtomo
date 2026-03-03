@@ -461,7 +461,8 @@ export default buildConfig({
                 doc.status !== previousDoc.status ||
                 doc.active !== previousDoc.active ||
                 doc.region !== previousDoc.region ||
-                doc.city !== previousDoc.city;
+                doc.city !== previousDoc.city ||
+                JSON.stringify(doc.categories || []) !== JSON.stringify(previousDoc.categories || []);
               if (searchFieldsChanged) {
                 setImmediate(() => {
                   esUpdate(doc.id, {
@@ -473,6 +474,7 @@ export default buildConfig({
                     active: doc.active !== false,
                     region: doc.region || '',
                     city: doc.city || '',
+                    categories: doc.categories || [],
                     updatedAt: doc.updatedAt,
                   }).catch((err: Error) => console.error('ES update error:', err));
                 });
@@ -637,6 +639,35 @@ export default buildConfig({
           ],
           admin: {
             description: 'How the buyer can receive the product',
+          },
+        },
+        {
+          name: 'categories',
+          type: 'select',
+          hasMany: true,
+          options: [
+            { label: 'Electronics', value: 'electronics' },
+            { label: 'Fashion', value: 'fashion' },
+            { label: 'Home & Garden', value: 'home_garden' },
+            { label: 'Sports & Outdoors', value: 'sports_outdoors' },
+            { label: 'Collectibles', value: 'collectibles' },
+            { label: 'Vehicles', value: 'vehicles' },
+            { label: 'Books & Media', value: 'books_media' },
+            { label: 'Toys & Games', value: 'toys_games' },
+            { label: 'Art & Crafts', value: 'art_crafts' },
+            { label: 'Beauty & Health', value: 'beauty_health' },
+            { label: 'Jewelry & Watches', value: 'jewelry_watches' },
+            { label: 'Musical Instruments', value: 'musical_instruments' },
+            { label: 'Pet Supplies', value: 'pet_supplies' },
+            { label: 'Tools & Equipment', value: 'tools_equipment' },
+            { label: 'Food & Beverages', value: 'food_beverages' },
+            { label: 'Tickets & Vouchers', value: 'tickets_vouchers' },
+            { label: 'Real Estate', value: 'real_estate' },
+            { label: 'Services', value: 'services' },
+            { label: 'Other', value: 'other' },
+          ],
+          admin: {
+            description: 'Product categories (select one or more)',
           },
         },
         {
