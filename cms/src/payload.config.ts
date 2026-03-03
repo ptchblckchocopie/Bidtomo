@@ -479,6 +479,21 @@ export default buildConfig({
               }
             }
 
+            // Analytics tracking
+            const trackEvent = (global as any).trackEvent;
+            if (trackEvent) {
+              const sellerId = typeof doc.seller === 'object' && doc.seller ? (doc.seller as any).id : doc.seller;
+              if (operation === 'create') {
+                trackEvent('product_created', sellerId, { productId: doc.id, title: doc.title });
+              } else if (operation === 'update') {
+                if (doc.status === 'sold' && previousDoc?.status !== 'sold') {
+                  trackEvent('product_sold', sellerId, { productId: doc.id, title: doc.title, amount: doc.currentBid });
+                } else {
+                  trackEvent('product_updated', sellerId, { productId: doc.id, title: doc.title });
+                }
+              }
+            }
+
             return doc;
           },
         ],
@@ -788,6 +803,17 @@ export default buildConfig({
                 }
               });
             }
+
+            // Analytics tracking for bids
+            if (operation === 'create') {
+              const trackEvent = (global as any).trackEvent;
+              if (trackEvent) {
+                const bidderId = typeof doc.bidder === 'object' && doc.bidder ? (doc.bidder as any).id : doc.bidder;
+                const productId = typeof doc.product === 'object' && doc.product ? (doc.product as any).id : doc.product;
+                trackEvent('bid_placed', bidderId, { productId, amount: doc.amount });
+              }
+            }
+
             return doc;
           },
         ],
@@ -915,6 +941,14 @@ export default buildConfig({
               } catch (error) {
                 console.error('Error in message afterChange hook:', error);
               }
+
+              // Analytics tracking for messages
+              const trackEvent = (global as any).trackEvent;
+              if (trackEvent) {
+                const senderId = typeof doc.sender === 'object' ? doc.sender.id : doc.sender;
+                const productId = typeof doc.product === 'object' ? doc.product.id : doc.product;
+                trackEvent('message_sent', senderId, { productId });
+              }
             }
             return doc;
           },
@@ -1019,6 +1053,19 @@ export default buildConfig({
               }
             }
             return data;
+          },
+        ],
+        afterChange: [
+          ({ doc, operation }: any) => {
+            const trackEvent = (global as any).trackEvent;
+            if (trackEvent) {
+              const buyerId = typeof doc.buyer === 'object' ? doc.buyer?.id : doc.buyer;
+              const productId = typeof doc.product === 'object' ? doc.product?.id : doc.product;
+              if (operation === 'create' || operation === 'update') {
+                trackEvent('transaction_status_changed', buyerId, { productId, status: doc.status, transactionId: doc.id });
+              }
+            }
+            return doc;
           },
         ],
       },
@@ -1387,6 +1434,21 @@ export default buildConfig({
             return data;
           },
         ],
+        afterChange: [
+          ({ doc, operation }: any) => {
+            const trackEvent = (global as any).trackEvent;
+            if (trackEvent) {
+              const raterId = typeof doc.rater === 'object' ? doc.rater?.id : doc.rater;
+              const transactionId = typeof doc.transaction === 'object' ? doc.transaction?.id : doc.transaction;
+              if (operation === 'create') {
+                trackEvent('rating_created', raterId, { transactionId, rating: doc.rating });
+              } else if (operation === 'update' && doc.hasFollowUp) {
+                trackEvent('rating_follow_up', raterId, { transactionId, rating: doc.followUp?.rating });
+              }
+            }
+            return doc;
+          },
+        ],
       },
       fields: [
         {
@@ -1488,6 +1550,110 @@ export default buildConfig({
           admin: {
             readOnly: true,
             description: 'Whether a follow-up has been added',
+          },
+        },
+      ],
+    },
+    // User Events collection (Analytics)
+    {
+      slug: 'user-events',
+      admin: {
+        useAsTitle: 'eventType',
+        group: 'Analytics',
+      },
+      access: {
+        read: ({ req }) => req.user?.role === 'admin',
+        create: ({ req }) => req.user?.role === 'admin',
+        update: ({ req }) => req.user?.role === 'admin',
+        delete: ({ req }) => req.user?.role === 'admin',
+      },
+      fields: [
+        {
+          name: 'eventType',
+          type: 'select',
+          required: true,
+          index: true,
+          options: [
+            // Frontend-sourced
+            { label: 'Page View', value: 'page_view' },
+            { label: 'Login', value: 'login' },
+            { label: 'Login Failed', value: 'login_failed' },
+            { label: 'Logout', value: 'logout' },
+            { label: 'Register', value: 'register' },
+            { label: 'Search', value: 'search' },
+            { label: 'Product View', value: 'product_view' },
+            { label: 'Conversation Opened', value: 'conversation_opened' },
+            { label: 'User Profile Viewed', value: 'user_profile_viewed' },
+            { label: 'Media Uploaded', value: 'media_uploaded' },
+            // CMS hook-sourced
+            { label: 'Bid Placed', value: 'bid_placed' },
+            { label: 'Product Created', value: 'product_created' },
+            { label: 'Product Updated', value: 'product_updated' },
+            { label: 'Product Sold', value: 'product_sold' },
+            { label: 'Message Sent', value: 'message_sent' },
+            { label: 'Transaction Status Changed', value: 'transaction_status_changed' },
+            { label: 'Rating Created', value: 'rating_created' },
+            { label: 'Rating Follow Up', value: 'rating_follow_up' },
+            // CMS endpoint-sourced
+            { label: 'Bid Accepted', value: 'bid_accepted' },
+            { label: 'Void Request Created', value: 'void_request_created' },
+            { label: 'Void Request Responded', value: 'void_request_responded' },
+            { label: 'Seller Choice Made', value: 'seller_choice_made' },
+            { label: 'Second Bidder Responded', value: 'second_bidder_responded' },
+            { label: 'Profile Updated', value: 'profile_updated' },
+            { label: 'Profile Picture Changed', value: 'profile_picture_changed' },
+          ],
+        },
+        {
+          name: 'user',
+          type: 'relationship',
+          relationTo: 'users',
+          index: true,
+          admin: {
+            description: 'User who triggered this event (null for anonymous)',
+          },
+        },
+        {
+          name: 'page',
+          type: 'text',
+          admin: {
+            description: 'URL pathname where the event occurred',
+          },
+        },
+        {
+          name: 'metadata',
+          type: 'json',
+          admin: {
+            description: 'Event-specific data (productId, amount, query, etc.)',
+          },
+        },
+        {
+          name: 'sessionId',
+          type: 'text',
+          index: true,
+          admin: {
+            description: 'Browser tab session identifier',
+          },
+        },
+        {
+          name: 'deviceInfo',
+          type: 'json',
+          admin: {
+            description: 'User agent, screen size, viewport, platform, language, touch support',
+          },
+        },
+        {
+          name: 'referrer',
+          type: 'text',
+          admin: {
+            description: 'document.referrer at time of event',
+          },
+        },
+        {
+          name: 'ip',
+          type: 'text',
+          admin: {
+            description: 'Client IP address (extracted server-side)',
           },
         },
       ],

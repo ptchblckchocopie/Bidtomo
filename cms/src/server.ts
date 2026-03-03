@@ -10,7 +10,7 @@ import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRes
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
 import { authenticateJWT } from './auth-helpers';
 import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
-import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema } from './middleware/validate';
+import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema, analyticsTrackSchema } from './middleware/validate';
 
 dotenv.config();
 
@@ -107,6 +107,64 @@ app.use('/api/users', (req, res, next) => {
   // Only rate limit POST (registration), not GET (list users)
   if (req.method === 'POST') return registrationLimiter(req, res, next);
   next();
+});
+
+const analyticsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120, // 120 analytics requests per minute
+  message: { error: 'Too many analytics requests.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Analytics track endpoint — registered before payload.init()
+// Token is optional (anonymous page views allowed)
+app.post('/api/analytics/track', analyticsLimiter, validate(analyticsTrackSchema), async (req, res) => {
+  try {
+    // Extract user ID from JWT if present (optional auth)
+    let userId: number | string | undefined;
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      try {
+        const user = await authenticateJWT(req);
+        if (user) userId = (user as any).id;
+      } catch {
+        // Anonymous is fine
+      }
+    }
+
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip;
+    const { events } = req.body;
+
+    // Fire-and-forget: write events without blocking response
+    setImmediate(async () => {
+      for (const event of events) {
+        try {
+          await payload.create({
+            collection: 'user-events',
+            data: {
+              eventType: event.eventType,
+              user: userId || undefined,
+              page: event.page,
+              metadata: event.metadata,
+              sessionId: event.sessionId,
+              deviceInfo: event.deviceInfo,
+              referrer: event.referrer,
+              ip,
+            },
+            overrideAccess: true,
+          });
+        } catch {
+          // Silently swallow
+        }
+      }
+    });
+
+    res.json({ success: true });
+  } catch {
+    // Always return success — analytics should never fail visibly
+    res.json({ success: true });
+  }
 });
 
 const start = async () => {
@@ -333,6 +391,9 @@ const start = async () => {
           // Non-fatal: the new picture is already set
         }
       }
+
+      const trackEvent = (global as any).trackEvent;
+      if (trackEvent) trackEvent('profile_picture_changed', currentUserId, { mediaId });
 
       res.json({
         success: true,
@@ -773,6 +834,25 @@ const start = async () => {
   // Expose product update publisher for hooks (visibility changes, etc.)
   (global as any).publishProductUpdate = publishProductUpdate;
 
+  // Expose analytics event tracker for hooks (avoids webpack bundling issues)
+  (global as any).trackEvent = (eventType: string, userId?: number | string, metadata?: Record<string, any>) => {
+    setImmediate(async () => {
+      try {
+        await payload.create({
+          collection: 'user-events',
+          data: {
+            eventType,
+            user: userId || undefined,
+            metadata: metadata || undefined,
+          },
+          overrideAccess: true,
+        });
+      } catch (err) {
+        // Silently swallow — analytics should never break anything
+      }
+    });
+  };
+
   // Sync endpoint to update product currentBid with highest bid (admin only)
   app.post('/api/sync-bids', async (req, res) => {
     try {
@@ -1165,6 +1245,9 @@ const start = async () => {
             amount: highestBid.amount,
           });
 
+          const trackEvent = (global as any).trackEvent;
+          if (trackEvent) trackEvent('bid_accepted', sellerId, { productId, bidderId: highestBidderId, amount: highestBid.amount });
+
           return res.json({
             success: true,
             fallback: true,
@@ -1178,6 +1261,9 @@ const start = async () => {
           client.release();
         }
       }
+
+      const trackEvent = (global as any).trackEvent;
+      if (trackEvent) trackEvent('bid_accepted', userId, { productId, bidderId: highestBidderId, amount: highestBid.amount });
 
       res.json({
         success: true,
@@ -1422,6 +1508,9 @@ const start = async () => {
         });
       }
 
+      const trackEvent = (global as any).trackEvent;
+      if (trackEvent) trackEvent('void_request_created', userId, { productId, transactionId, voidRequestId: voidRequest.id });
+
       res.json({
         success: true,
         voidRequestId: voidRequest.id,
@@ -1518,6 +1607,9 @@ const start = async () => {
         // If user responding is the seller, they need to make the choice
         const isSeller = userId === sellerId;
 
+        const trackEvent = (global as any).trackEvent;
+        if (trackEvent) trackEvent('void_request_responded', userId, { voidRequestId, action: 'approve', productId });
+
         res.json({
           success: true,
           message: 'Void request approved',
@@ -1556,6 +1648,9 @@ const start = async () => {
             voidRequestId,
           });
         }
+
+        const trackEvent = (global as any).trackEvent;
+        if (trackEvent) trackEvent('void_request_responded', userId, { voidRequestId, action: 'reject', productId });
 
         res.json({
           success: true,
@@ -1671,6 +1766,9 @@ const start = async () => {
           auctionEndDate: newEndDate,
         });
 
+        const trackEvent = (global as any).trackEvent;
+        if (trackEvent) trackEvent('seller_choice_made', userId, { voidRequestId, choice: 'restart_bidding', productId });
+
         res.json({
           success: true,
           message: 'Auction restarted successfully',
@@ -1733,6 +1831,9 @@ const start = async () => {
             voidRequestId,
           });
         }
+
+        const trackEvent = (global as any).trackEvent;
+        if (trackEvent) trackEvent('seller_choice_made', userId, { voidRequestId, choice: 'offer_second_bidder', productId });
 
         res.json({
           success: true,
@@ -1903,6 +2004,9 @@ const start = async () => {
           });
         }
 
+        const trackEvent = (global as any).trackEvent;
+        if (trackEvent) trackEvent('second_bidder_responded', userId, { voidRequestId, action: 'accept', productId });
+
         res.json({
           success: true,
           message: 'Offer accepted successfully',
@@ -1944,6 +2048,9 @@ const start = async () => {
             `,
           });
         }
+
+        const trackEvent = (global as any).trackEvent;
+        if (trackEvent) trackEvent('second_bidder_responded', userId, { voidRequestId, action: 'decline', productId });
 
         res.json({
           success: true,

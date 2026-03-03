@@ -65,3 +65,14 @@ export const typingSchema = z.object({
   product: idField,
   isTyping: z.boolean(),
 });
+
+export const analyticsTrackSchema = z.object({
+  events: z.array(z.object({
+    eventType: z.string().min(1),
+    page: z.string().optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
+    sessionId: z.string().optional(),
+    deviceInfo: z.record(z.string(), z.any()).optional(),
+    referrer: z.string().optional(),
+  })).min(1).max(10),
+});
