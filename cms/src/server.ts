@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
+import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress } from './services/backupService';
 import { authenticateJWT } from './auth-helpers';
 import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
 import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema } from './middleware/validate';
@@ -491,6 +492,9 @@ const start = async () => {
 
   payloadReady = true;
 
+  // Start automated backup scheduler
+  startBackupScheduler();
+
   // Auto-migrate: create users_rels table if it doesn't exist (needed for profilePicture upload field)
   try {
     const { Pool } = require('pg');
@@ -566,6 +570,32 @@ const start = async () => {
         transactions: '/api/transactions',
       },
     });
+  });
+
+  // Manual backup trigger (admin-only)
+  app.post('/api/backup/trigger', async (req, res) => {
+    try {
+      const user = await authenticateJWT(req);
+      if (!user || (user as any).role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      if (isBackupInProgress()) {
+        return res.status(409).json({ error: 'Backup already in progress' });
+      }
+
+      res.json({ message: 'Backup started' });
+
+      const result = await runBackup();
+      if (result.success) {
+        await cleanupOldBackups();
+      }
+    } catch (error: any) {
+      console.error('[BACKUP] Manual trigger failed:', error.message);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Backup trigger failed' });
+      }
+    }
   });
 
   // Create conversations for sold products
