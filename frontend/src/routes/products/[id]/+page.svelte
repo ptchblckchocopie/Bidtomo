@@ -4743,7 +4743,8 @@
   }
 
   .report-modal-content {
-    background: var(--color-bg, white);
+    background: var(--color-bg);
+    color: var(--color-fg);
     border: var(--border-bh) solid var(--color-border);
     box-shadow: var(--shadow-bh-md);
     max-width: 480px;
@@ -4760,24 +4761,27 @@
     border: none;
     font-size: 1.5rem;
     cursor: pointer;
-    color: var(--color-text-secondary, #666);
+    color: var(--color-fg);
+    opacity: 0.5;
     line-height: 1;
     padding: 0.25rem;
   }
 
   .report-modal-close:hover {
-    color: var(--color-text, #000);
+    opacity: 1;
   }
 
   .report-modal-header h2 {
     font-size: 1.3rem;
     font-weight: 700;
     margin-bottom: 1rem;
+    color: var(--color-fg);
   }
 
   .report-modal-product-title {
     font-style: italic;
-    color: var(--color-text-secondary, #666);
+    color: var(--color-fg);
+    opacity: 0.6;
     margin-bottom: 1.25rem;
     font-size: 0.95rem;
   }
@@ -4787,6 +4791,7 @@
     font-weight: 600;
     margin-bottom: 0.4rem;
     font-size: 0.9rem;
+    color: var(--color-fg);
   }
 
   .report-select {
@@ -4795,8 +4800,8 @@
     border: var(--border-bh) solid var(--color-border);
     font-size: 0.95rem;
     margin-bottom: 1rem;
-    background: var(--color-bg, white);
-    color: var(--color-text, #000);
+    background: var(--color-bg);
+    color: var(--color-fg);
   }
 
   .report-textarea {
@@ -4807,8 +4812,8 @@
     margin-bottom: 1rem;
     resize: vertical;
     font-family: inherit;
-    background: var(--color-bg, white);
-    color: var(--color-text, #000);
+    background: var(--color-bg);
+    color: var(--color-fg);
   }
 
   .report-error {
@@ -4825,7 +4830,8 @@
 
   .report-success p {
     margin-bottom: 1.25rem;
-    color: var(--color-text-secondary, #666);
+    color: var(--color-fg);
+    opacity: 0.7;
   }
 
   .report-modal-actions {
@@ -4837,8 +4843,8 @@
 
   .btn-report-cancel {
     padding: 0.6rem 1.25rem;
-    background: var(--color-bg, white);
-    color: var(--color-text, #000);
+    background: var(--color-muted);
+    color: var(--color-fg);
     border: var(--border-bh) solid var(--color-border);
     font-weight: 600;
     cursor: pointer;
@@ -4846,7 +4852,7 @@
   }
 
   .btn-report-cancel:hover {
-    background: var(--color-bg-secondary, #f5f5f5);
+    opacity: 0.8;
   }
 
   .btn-report-submit,
