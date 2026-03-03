@@ -5,6 +5,7 @@
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
+  import { categories, getCategoryLabel } from '$lib/data/categories';
   import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type BidUpdateEvent, type ProductVisibilityEvent } from '$lib/sse';
   import { updateProduct } from '$lib/api';
 
@@ -24,6 +25,8 @@
   let lastDataSearch = $state(data.search || ''); // Track last known data.search value
   let lastDataRegion = $state(data.region || '');
   let lastDataCity = $state(data.city || '');
+  let categoryInput = $state(data.category || '');
+  let lastDataCategory = $state(data.category || '');
 
   // SSE state
   let sseUnsubscribe: (() => void) | null = $state(null);
@@ -106,6 +109,7 @@
         searchType: searchTypeInput,
         region: searchTypeInput === 'products' ? regionInput : '',
         city: searchTypeInput === 'products' ? cityInput : '',
+        category: searchTypeInput === 'products' ? categoryInput : '',
         page: '1',
         status: data.status,
         limit: data.limit.toString()
@@ -122,6 +126,7 @@
       search: searchInput,
       region: type === 'products' ? regionInput : '',
       city: type === 'products' ? cityInput : '',
+      category: type === 'products' ? categoryInput : '',
       page: '1',
       status: data.status,
       limit: data.limit.toString()
@@ -138,6 +143,7 @@
         searchType: searchTypeInput,
         region: regionInput,
         city: cityInput,
+        category: categoryInput,
         page: '1',
         status: data.status,
         limit: data.limit.toString()
@@ -149,11 +155,13 @@
     searchInput = '';
     regionInput = '';
     cityInput = '';
+    categoryInput = '';
     updateURL({
       search: '',
       searchType: searchTypeInput,
       region: '',
       city: '',
+      category: '',
       page: '1',
       status: data.status,
       limit: data.limit.toString()
@@ -171,6 +179,7 @@
       searchType: searchTypeInput,
       region: regionInput,
       city: cityInput,
+      category: categoryInput,
       limit: data.limit.toString()
     });
   }
@@ -183,6 +192,7 @@
       searchType: searchTypeInput,
       region: regionInput,
       city: cityInput,
+      category: categoryInput,
       limit: data.limit.toString()
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -196,7 +206,8 @@
       search: searchInput,
       searchType: searchTypeInput,
       region: regionInput,
-      city: cityInput
+      city: cityInput,
+      category: categoryInput
     });
   }
 
@@ -231,6 +242,16 @@
         cityInput = currentDataCity;
       }
       lastDataCity = currentDataCity;
+    }
+  });
+
+  $effect(() => {
+    const currentDataCategory = data.category || '';
+    if (currentDataCategory !== lastDataCategory) {
+      if (currentDataCategory !== categoryInput) {
+        categoryInput = currentDataCategory;
+      }
+      lastDataCategory = currentDataCategory;
     }
   });
 
@@ -616,14 +637,25 @@
               <option value={city}>{city}</option>
             {/each}
           </select>
-          {#if searchInput || regionInput || cityInput}
+          <select
+            bind:value={categoryInput}
+            onchange={handleLocationInput}
+            class="location-select"
+            aria-label="Filter by category"
+          >
+            <option value="">All Categories</option>
+            {#each categories as category}
+              <option value={category.value}>{category.label}</option>
+            {/each}
+          </select>
+          {#if searchInput || regionInput || cityInput || categoryInput}
             <button class="btn-clear-filters" onclick={clearFilters}>Clear All</button>
           {/if}
         </div>
       {/if}
     </div>
 
-    {#if (data.search || data.region || data.city) && data.totalDocs > 0}
+    {#if (data.search || data.region || data.city || data.category) && data.totalDocs > 0}
       <p class="search-results">Found {data.totalDocs} result{data.totalDocs !== 1 ? 's' : ''}</p>
     {/if}
 
@@ -834,6 +866,17 @@
                       <circle cx="12" cy="10" r="3"></circle>
                     </svg>
                     <span>{product.city}{product.city && product.region ? ', ' : ''}{product.region}</span>
+                  </div>
+                {/if}
+
+                {#if product.categories && product.categories.length > 0}
+                  <div class="category-tags">
+                    {#each product.categories.slice(0, 3) as categoryValue}
+                      <span class="category-tag">{getCategoryLabel(categoryValue)}</span>
+                    {/each}
+                    {#if product.categories.length > 3}
+                      <span class="category-tag category-overflow">+{product.categories.length - 3}</span>
+                    {/if}
                   </div>
                 {/if}
 
@@ -1432,6 +1475,29 @@
   .location-icon {
     color: var(--color-red);
     flex-shrink: 0;
+  }
+
+  .category-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .category-tag {
+    display: inline-block;
+    background: var(--color-blue, #2563eb);
+    color: white;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border: 2px solid var(--color-blue, #2563eb);
+    white-space: nowrap;
+  }
+
+  .category-tag.category-overflow {
+    background: transparent;
+    color: var(--color-blue, #2563eb);
   }
 
   .pricing {

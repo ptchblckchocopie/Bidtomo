@@ -41,7 +41,23 @@ export async function ensureProductIndex(): Promise<void> {
 
   try {
     const exists = await es.indices.exists({ index: INDEX_NAME });
-    if (exists) return;
+    if (exists) {
+      // Update mapping for existing indices (add new fields)
+      try {
+        await es.indices.putMapping({
+          index: INDEX_NAME,
+          properties: {
+            categories: { type: 'keyword' },
+          },
+        });
+      } catch (mapErr: any) {
+        // Ignore if mapping already exists or is compatible
+        if (!mapErr.message?.includes('mapper_parsing_exception')) {
+          console.error('[Elasticsearch] Error updating mapping:', mapErr.message);
+        }
+      }
+      return;
+    }
 
     await es.indices.create({
       index: INDEX_NAME,
@@ -105,6 +121,7 @@ export async function ensureProductIndex(): Promise<void> {
           auctionEndDate: { type: 'date' },
           createdAt: { type: 'date' },
           updatedAt: { type: 'date' },
+          categories: { type: 'keyword' },
         },
       },
     });
@@ -134,6 +151,7 @@ function buildProductDoc(product: any) {
     city: product.city || '',
     sellerId,
     sellerName,
+    categories: product.categories || [],
     auctionEndDate: product.auctionEndDate,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
@@ -193,6 +211,7 @@ export async function searchProducts(params: {
   active?: boolean;
   region?: string;
   city?: string;
+  categories?: string[];
   page?: number;
   limit?: number;
   sort?: string;
@@ -200,7 +219,7 @@ export async function searchProducts(params: {
   const es = getElasticClient();
   if (!es) return { ids: [], total: 0 };
 
-  const { query, status, active, region, city, page = 1, limit = 12, sort } = params;
+  const { query, status, active, region, city, categories, page = 1, limit = 12, sort } = params;
 
   const must: any[] = [];
   const filter: any[] = [];
@@ -229,6 +248,9 @@ export async function searchProducts(params: {
   }
   if (city) {
     filter.push({ term: { city } });
+  }
+  if (categories && categories.length > 0) {
+    filter.push({ terms: { categories } });
   }
 
   const from = (page - 1) * limit;

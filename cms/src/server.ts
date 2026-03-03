@@ -674,6 +674,33 @@ const start = async () => {
       CREATE INDEX IF NOT EXISTS "user_events_rels_users_id_idx" ON "user_events_rels" USING btree ("users_id");
     `);
 
+    // --- Products categories (hasMany select) ---
+    await pool.query(`
+      DO $$ BEGIN
+        CREATE TYPE "enum_products_categories" AS ENUM (
+          'electronics', 'fashion', 'home_garden', 'sports_outdoors', 'collectibles',
+          'vehicles', 'books_media', 'toys_games', 'art_crafts', 'beauty_health',
+          'jewelry_watches', 'musical_instruments', 'pet_supplies', 'tools_equipment',
+          'food_beverages', 'tickets_vouchers', 'real_estate', 'services', 'other'
+        );
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "products_categories" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "order" integer,
+        "parent_id" integer NOT NULL,
+        "value" "enum_products_categories"
+      );
+      DO $$ BEGIN
+        ALTER TABLE "products_categories" ADD CONSTRAINT "products_categories_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+      CREATE INDEX IF NOT EXISTS "products_categories_order_idx" ON "products_categories" USING btree ("order");
+      CREATE INDEX IF NOT EXISTS "products_categories_parent_idx" ON "products_categories" USING btree ("parent_id");
+    `);
+
     await pool.end();
     payload.logger.info('Database schema verified/migrated');
   } catch (migrationErr: any) {
@@ -1405,6 +1432,8 @@ const start = async () => {
       let status = req.query.status as string || 'available';
       const region = req.query.region as string || '';
       const city = req.query.city as string || '';
+      const categoriesParam = req.query.categories as string || '';
+      const categories = categoriesParam ? categoriesParam.split(',').filter(Boolean) : undefined;
       const page = parseInt(req.query.page as string || '1', 10);
       const limit = parseInt(req.query.limit as string || '12', 10);
 
@@ -1441,6 +1470,7 @@ const start = async () => {
         active: esActive,
         region: region || undefined,
         city: city || undefined,
+        categories,
         page,
         limit,
       });
