@@ -594,6 +594,45 @@ const start = async () => {
       CREATE INDEX IF NOT EXISTS "transactions_rels_void_requests_id_idx" ON "transactions_rels" USING btree ("void_requests_id");
     `);
 
+    // Auto-migrate: create user_events table for analytics collection
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "user_events" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "event_type" varchar,
+        "page" varchar,
+        "metadata" jsonb,
+        "session_id" varchar,
+        "device_info" jsonb,
+        "referrer" varchar,
+        "ip" varchar,
+        "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+        "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS "user_events_event_type_idx" ON "user_events" USING btree ("event_type");
+      CREATE INDEX IF NOT EXISTS "user_events_session_id_idx" ON "user_events" USING btree ("session_id");
+      CREATE INDEX IF NOT EXISTS "user_events_created_at_idx" ON "user_events" USING btree ("created_at");
+
+      CREATE TABLE IF NOT EXISTS "user_events_rels" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "order" integer,
+        "parent_id" integer NOT NULL,
+        "path" varchar NOT NULL,
+        "users_id" integer
+      );
+      DO $$ BEGIN
+        ALTER TABLE "user_events_rels" ADD CONSTRAINT "user_events_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."user_events"("id") ON DELETE cascade ON UPDATE no action;
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+      DO $$ BEGIN
+        ALTER TABLE "user_events_rels" ADD CONSTRAINT "user_events_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+      CREATE INDEX IF NOT EXISTS "user_events_rels_order_idx" ON "user_events_rels" USING btree ("order");
+      CREATE INDEX IF NOT EXISTS "user_events_rels_parent_idx" ON "user_events_rels" USING btree ("parent_id");
+      CREATE INDEX IF NOT EXISTS "user_events_rels_path_idx" ON "user_events_rels" USING btree ("path");
+      CREATE INDEX IF NOT EXISTS "user_events_rels_users_id_idx" ON "user_events_rels" USING btree ("users_id");
+    `);
+
     await pool.end();
     payload.logger.info('Database schema verified/migrated');
   } catch (migrationErr: any) {
