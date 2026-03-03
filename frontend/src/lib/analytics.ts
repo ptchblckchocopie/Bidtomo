@@ -3,6 +3,7 @@
 // All failures are silently swallowed to never impact user experience
 
 import { browser } from '$app/environment';
+import { getAuthToken } from './stores/auth';
 
 // Session ID: unique per browser tab, persisted in sessionStorage
 function getSessionId(): string {
@@ -56,19 +57,23 @@ function enqueue(event: AnalyticsEvent) {
   }
 }
 
-function flush() {
+function flush(useBeacon = false) {
   if (!browser || eventQueue.length === 0) return;
   const batch = eventQueue.splice(0, MAX_BATCH);
   try {
-    const payload = JSON.stringify({ events: batch });
-    // Try sendBeacon first (works during page unload)
-    const sent = navigator.sendBeacon('/api/bridge/analytics/track', new Blob([payload], { type: 'application/json' }));
-    if (!sent) {
-      // Fallback to fetch
+    const body = JSON.stringify({ events: batch });
+    const token = getAuthToken();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    if (useBeacon) {
+      // sendBeacon for page unload — can't set custom headers, token may be missing
+      navigator.sendBeacon('/api/bridge/analytics/track', new Blob([body], { type: 'application/json' }));
+    } else {
       fetch('/api/bridge/analytics/track', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payload,
+        headers,
+        body,
         credentials: 'include',
         keepalive: true,
       }).catch(() => {});
@@ -85,7 +90,7 @@ function init() {
   flushTimer = setInterval(flush, FLUSH_INTERVAL);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-      flush();
+      flush(true); // Use sendBeacon for page unload reliability
     }
   });
 }
