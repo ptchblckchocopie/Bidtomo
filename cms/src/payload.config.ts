@@ -1756,6 +1756,113 @@ export default buildConfig({
         },
       ],
     },
+    // Reports collection (product reports / moderation)
+    {
+      slug: 'reports',
+      admin: {
+        group: 'Moderation',
+        useAsTitle: 'id',
+      },
+      access: {
+        create: ({ req }: any) => !!req.user,
+        read: ({ req }: any) => req.user?.role === 'admin',
+        update: ({ req }: any) => req.user?.role === 'admin',
+        delete: ({ req }: any) => req.user?.role === 'admin',
+      },
+      hooks: {
+        beforeValidate: [
+          ({ data, req, operation }: any) => {
+            if (operation === 'create' && req.user) {
+              data.reporter = req.user.id;
+            }
+            return data;
+          },
+        ],
+        beforeChange: [
+          async ({ data, req, operation }: any) => {
+            if (operation === 'create' && req.payload && req.user) {
+              const existing = await req.payload.find({
+                collection: 'reports',
+                where: {
+                  and: [
+                    { reporter: { equals: req.user.id } },
+                    { product: { equals: data.product } },
+                  ],
+                },
+                limit: 1,
+                overrideAccess: true,
+              });
+              if (existing.docs.length > 0) {
+                throw new Error('You have already reported this product');
+              }
+            }
+            return data;
+          },
+        ],
+        afterChange: [
+          ({ doc, operation }: any) => {
+            const trackEvent = (global as any).trackEvent;
+            if (trackEvent && operation === 'create') {
+              const reporterId = typeof doc.reporter === 'object' ? doc.reporter?.id : doc.reporter;
+              const productId = typeof doc.product === 'object' ? doc.product?.id : doc.product;
+              trackEvent('report_created', reporterId, { productId, reason: doc.reason });
+            }
+            return doc;
+          },
+        ],
+      },
+      fields: [
+        {
+          name: 'product',
+          type: 'relationship',
+          relationTo: 'products',
+          required: true,
+        },
+        {
+          name: 'reporter',
+          type: 'relationship',
+          relationTo: 'users',
+          required: true,
+          admin: { readOnly: true },
+        },
+        {
+          name: 'reason',
+          type: 'select',
+          required: true,
+          options: [
+            { label: 'Spam', value: 'spam' },
+            { label: 'Inappropriate Content', value: 'inappropriate' },
+            { label: 'Scam', value: 'scam' },
+            { label: 'Counterfeit', value: 'counterfeit' },
+            { label: 'Other', value: 'other' },
+          ],
+        },
+        {
+          name: 'description',
+          type: 'textarea',
+        },
+        {
+          name: 'status',
+          type: 'select',
+          defaultValue: 'pending',
+          options: [
+            { label: 'Pending', value: 'pending' },
+            { label: 'Reviewed', value: 'reviewed' },
+            { label: 'Resolved', value: 'resolved' },
+          ],
+          admin: {
+            position: 'sidebar',
+          },
+        },
+        {
+          name: 'adminNotes',
+          type: 'textarea',
+          admin: {
+            description: 'Internal notes for moderation team',
+          },
+        },
+      ],
+    },
     // Email Templates collection
     EmailTemplates,
   ],

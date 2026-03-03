@@ -13,7 +13,7 @@ import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, b
 import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress } from './services/backupService';
 import { authenticateJWT } from './auth-helpers';
 import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
-import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema, analyticsTrackSchema } from './middleware/validate';
+import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema, analyticsTrackSchema, reportCreateSchema } from './middleware/validate';
 
 dotenv.config();
 
@@ -116,6 +116,14 @@ const analyticsLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 120, // 120 analytics requests per minute
   message: { error: 'Too many analytics requests.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const reportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 reports per hour per user
+  message: { error: 'Too many reports. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -1063,6 +1071,64 @@ const start = async () => {
     } catch (error: any) {
       console.error('Error syncing bids:', error);
       Sentry.captureException(error, { tags: { route: '/api/sync-bids' } });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
+  });
+
+  // Report product endpoint
+  app.post('/api/reports', reportLimiter, requireAuth, validate(reportCreateSchema), async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { productId, reason, description } = req.body;
+
+      // Verify the product exists and is active
+      const product = await payload.findByID({
+        collection: 'products',
+        id: productId,
+        overrideAccess: true,
+      });
+
+      if (!product) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+
+      if (!product.active) {
+        return res.status(400).json({ error: 'This product is already hidden' });
+      }
+
+      // Check for existing report from same user on same product
+      const existing = await payload.find({
+        collection: 'reports',
+        where: {
+          and: [
+            { reporter: { equals: userId } },
+            { product: { equals: productId } },
+          ],
+        },
+        limit: 1,
+        overrideAccess: true,
+      });
+
+      if (existing.docs.length > 0) {
+        return res.status(409).json({ error: 'You have already reported this product' });
+      }
+
+      const report = await payload.create({
+        collection: 'reports',
+        data: {
+          product: productId,
+          reporter: userId,
+          reason,
+          description: description || undefined,
+          status: 'pending',
+        },
+        overrideAccess: true,
+      });
+
+      res.json({ success: true, reportId: report.id });
+    } catch (error: any) {
+      console.error('Error creating report:', error);
+      Sentry.captureException(error, { tags: { route: '/api/reports' } });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });

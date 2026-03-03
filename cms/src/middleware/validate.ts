@@ -66,6 +66,12 @@ export const typingSchema = z.object({
   isTyping: z.boolean(),
 });
 
+export const reportCreateSchema = z.object({
+  productId: idField,
+  reason: z.enum(['spam', 'inappropriate', 'scam', 'counterfeit', 'other']),
+  description: z.string().max(1000).optional(),
+});
+
 export const analyticsTrackSchema = z.object({
   events: z.array(z.object({
     eventType: z.string().min(1),

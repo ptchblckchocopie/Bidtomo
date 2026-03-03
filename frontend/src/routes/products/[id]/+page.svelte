@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct, fetchUserRatings, calculateUserRatingStats, fetchUserProducts, type UserRatingStats } from '$lib/api';
+  import { placeBid, fetchProductBids, updateProduct, checkProductStatus, fetchProduct, fetchUserRatings, calculateUserRatingStats, fetchUserProducts, reportProduct, type UserRatingStats } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
@@ -63,6 +63,43 @@
       if (result) data.product.active = !data.product.active;
     } finally {
       closeAdminModal();
+    }
+  }
+
+  // Report modal
+  let showReportModal = $state(false);
+  let reportReason = $state('');
+  let reportDescription = $state('');
+  let submittingReport = $state(false);
+  let reportError = $state('');
+  let reportSuccess = $state(false);
+
+  function openReportModal() {
+    reportReason = '';
+    reportDescription = '';
+    reportError = '';
+    reportSuccess = false;
+    showReportModal = true;
+  }
+
+  function closeReportModal() {
+    showReportModal = false;
+  }
+
+  async function submitReport() {
+    if (!reportReason) {
+      reportError = 'Please select a reason';
+      return;
+    }
+    submittingReport = true;
+    reportError = '';
+    try {
+      await reportProduct(String(data.product.id), reportReason, reportDescription || undefined);
+      reportSuccess = true;
+    } catch (error: any) {
+      reportError = error.message || 'Failed to submit report';
+    } finally {
+      submittingReport = false;
     }
   }
 
@@ -975,6 +1012,11 @@
           {data.product.active ? 'Hide Product' : 'Show Product'}
         </button>
       {/if}
+      {#if $authStore.isAuthenticated && !isOwner}
+        <button class="report-btn" onclick={openReportModal}>
+          Report
+        </button>
+      {/if}
     </div>
 
     <div class="product-content">
@@ -1664,6 +1706,67 @@
             {/if}
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Report Product Modal -->
+{#if showReportModal}
+  <div class="report-modal-overlay" onclick={closeReportModal}>
+    <div class="report-modal-content" onclick={(e) => e.stopPropagation()}>
+      <button class="report-modal-close" onclick={closeReportModal}>&times;</button>
+
+      <div class="report-modal-header">
+        <h2>Report Product</h2>
+      </div>
+
+      <div class="report-modal-body">
+        {#if reportSuccess}
+          <div class="report-success">
+            <p>Thank you for your report. Our team will review it shortly.</p>
+            <button class="btn-report-done" onclick={closeReportModal}>Done</button>
+          </div>
+        {:else}
+          <p class="report-modal-product-title">"{data.product.title}"</p>
+
+          <label class="report-label" for="report-reason">Reason</label>
+          <select id="report-reason" class="report-select" bind:value={reportReason}>
+            <option value="" disabled>Select a reason...</option>
+            <option value="spam">Spam</option>
+            <option value="inappropriate">Inappropriate Content</option>
+            <option value="scam">Scam</option>
+            <option value="counterfeit">Counterfeit</option>
+            <option value="other">Other</option>
+          </select>
+
+          <label class="report-label" for="report-description">Details (optional)</label>
+          <textarea
+            id="report-description"
+            class="report-textarea"
+            bind:value={reportDescription}
+            placeholder="Provide additional details..."
+            maxlength="1000"
+            rows="4"
+          ></textarea>
+
+          {#if reportError}
+            <p class="report-error">{reportError}</p>
+          {/if}
+
+          <div class="report-modal-actions">
+            <button class="btn-report-cancel" onclick={closeReportModal} disabled={submittingReport}>
+              Cancel
+            </button>
+            <button class="btn-report-submit" onclick={submitReport} disabled={submittingReport}>
+              {#if submittingReport}
+                Submitting...
+              {:else}
+                Submit Report
+              {/if}
+            </button>
+          </div>
+        {/if}
       </div>
     </div>
   </div>
@@ -4603,5 +4706,169 @@
 
   @keyframes adminSpin {
     to { transform: rotate(360deg); }
+  }
+
+  /* Report button */
+  .report-btn {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    color: var(--color-text-secondary, #666);
+    border: var(--border-bh) solid var(--color-border);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s;
+  }
+
+  .report-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-bh-sm);
+    background: #dc3545;
+    color: white;
+  }
+
+  /* Report modal */
+  .report-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+  }
+
+  .report-modal-content {
+    background: var(--color-bg, white);
+    border: var(--border-bh) solid var(--color-border);
+    box-shadow: var(--shadow-bh-md);
+    max-width: 480px;
+    width: 100%;
+    position: relative;
+    padding: 2rem;
+  }
+
+  .report-modal-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--color-text-secondary, #666);
+    line-height: 1;
+    padding: 0.25rem;
+  }
+
+  .report-modal-close:hover {
+    color: var(--color-text, #000);
+  }
+
+  .report-modal-header h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+
+  .report-modal-product-title {
+    font-style: italic;
+    color: var(--color-text-secondary, #666);
+    margin-bottom: 1.25rem;
+    font-size: 0.95rem;
+  }
+
+  .report-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    font-size: 0.9rem;
+  }
+
+  .report-select {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: var(--border-bh) solid var(--color-border);
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+    background: var(--color-bg, white);
+    color: var(--color-text, #000);
+  }
+
+  .report-textarea {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: var(--border-bh) solid var(--color-border);
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+    resize: vertical;
+    font-family: inherit;
+    background: var(--color-bg, white);
+    color: var(--color-text, #000);
+  }
+
+  .report-error {
+    color: #dc3545;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+  }
+
+  .report-success {
+    text-align: center;
+    padding: 1rem 0;
+  }
+
+  .report-success p {
+    margin-bottom: 1.25rem;
+    color: var(--color-text-secondary, #666);
+  }
+
+  .report-modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+  }
+
+  .btn-report-cancel {
+    padding: 0.6rem 1.25rem;
+    background: var(--color-bg, white);
+    color: var(--color-text, #000);
+    border: var(--border-bh) solid var(--color-border);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .btn-report-cancel:hover {
+    background: var(--color-bg-secondary, #f5f5f5);
+  }
+
+  .btn-report-submit,
+  .btn-report-done {
+    padding: 0.6rem 1.25rem;
+    background: #dc3545;
+    color: white;
+    border: var(--border-bh) solid var(--color-border);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+  }
+
+  .btn-report-submit:hover,
+  .btn-report-done:hover {
+    background: #b02a37;
+    transform: translateY(-1px);
+  }
+
+  .btn-report-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
   }
 </style>

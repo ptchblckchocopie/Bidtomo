@@ -1646,6 +1646,36 @@ export async function respondToSecondBidderOffer(
 }
 
 // Get void requests for a transaction
+export async function reportProduct(
+  productId: string,
+  reason: string,
+  description?: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/reports`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify({ productId, reason, description }),
+    });
+
+    if (response.status === 401) {
+      handleExpiredToken();
+      return false;
+    }
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to submit report');
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error reporting product:', error);
+    throw error;
+  }
+}
+
 export async function getVoidRequestsForTransaction(
   transactionId: string
 ): Promise<VoidRequest[]> {
