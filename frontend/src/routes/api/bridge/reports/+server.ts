@@ -9,11 +9,11 @@ export const POST: RequestHandler = async ({ request }) => {
       return errorResponse('Unauthorized', 401);
     }
 
-    const body = await request.json();
+    const { productId, reason, description } = await request.json();
 
     const response = await cmsRequest('/api/reports', {
       method: 'POST',
-      body,
+      body: { product: productId, reason, description },
       token,
     });
 
