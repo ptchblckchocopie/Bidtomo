@@ -4,6 +4,7 @@
 import { browser } from '$app/environment';
 import { getAuthToken, authStore } from './stores/auth';
 import { goto } from '$app/navigation';
+import { trackLogin, trackLoginFailed, trackLogout, trackSearch } from './analytics';
 
 // Bridge API base URL - uses relative paths in browser, absolute for SSR
 function getBridgeUrl(): string {
@@ -311,13 +312,20 @@ export async function fetchProducts(params?: {
     }
 
     const data = await response.json();
-    return {
+    const result = {
       docs: data.docs || [],
       totalDocs: data.totalDocs || 0,
       totalPages: data.totalPages || 0,
       page: data.page || 1,
       limit: data.limit || 10
     };
+
+    // Track search queries
+    if (params?.search?.trim()) {
+      trackSearch(params.search.trim(), { status: params.status, region: params.region, city: params.city }, result.totalDocs);
+    }
+
+    return result;
   } catch (error) {
     console.error('Error fetching products:', error);
     return empty;
@@ -685,12 +693,16 @@ export async function login(email: string, password: string): Promise<{ user: Us
     });
 
     if (!response.ok) {
+      trackLoginFailed();
       throw new Error('Login failed');
     }
 
-    return await response.json();
+    const data = await response.json();
+    trackLogin();
+    return data;
   } catch (error) {
     console.error('Error logging in:', error);
+    trackLoginFailed();
     return null;
   }
 }
@@ -698,6 +710,7 @@ export async function login(email: string, password: string): Promise<{ user: Us
 // Logout
 export async function logout(): Promise<boolean> {
   try {
+    trackLogout();
     const response = await fetch(`${BRIDGE_URL}/api/bridge/users/logout`, {
       method: 'POST',
       headers: getAuthHeaders(),

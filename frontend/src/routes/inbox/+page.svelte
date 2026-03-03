@@ -9,6 +9,7 @@
   import KebabMenu from '$lib/components/KebabMenu.svelte';
   import { goto } from '$app/navigation';
   import { getUserSSE, disconnectUserSSE, getProductSSE, disconnectProductSSE, type SSEEvent, type MessageEvent as SSEMessageEvent, type TypingEvent } from '$lib/sse';
+  import { trackConversationOpened } from '$lib/analytics';
 
   function handleBackToList() {
     selectedProduct = null;
@@ -700,6 +701,7 @@
 
   async function selectConversation(product: Product) {
     loadingConversation = true;
+    trackConversationOpened(product.id);
 
     try {
       selectedProduct = product;

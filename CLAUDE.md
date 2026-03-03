@@ -166,6 +166,19 @@ Custom email service (not Payload's email adapter). Handles void request notific
 - **GitHub Actions workflows** run type-checking before deploying. `deploy-staging.yml` triggers on non-main pushes; `deploy-production.yml` triggers on main pushes. Both run `npm ci && tsc --noEmit` for CMS and `npm ci && npm run check` for frontend before Railway deploy.
 - **Sentry** — Frontend only (`frontend/src/hooks.client.ts` and `hooks.server.ts`). Source maps uploaded via `sentrySvelteKit()` vite plugin.
 
+## User Analytics Tracking
+
+**Status:** Implemented. Full spec in [`docs/analytics-spec.md`](docs/analytics-spec.md).
+
+**Summary:** `user-events` Payload collection (admin-only, "Analytics" group) tracking frontend events (page views, searches, logins) and CMS-side events (bids, messages, transactions) via batched bridge route + `afterChange` hooks. Uses the global function injection pattern (`(global as any).trackEvent`) and fire-and-forget `setImmediate` writes.
+
+**Key files:**
+- `frontend/src/lib/analytics.ts` — Client-side batching (3s flush, sendBeacon on unload)
+- `frontend/src/routes/api/bridge/analytics/track/+server.ts` — Bridge route (anonymous OK)
+- `cms/src/server.ts` — `POST /api/analytics/track` endpoint (120/min rate limit) + `(global as any).trackEvent`
+- `cms/src/middleware/validate.ts` — `analyticsTrackSchema`
+- `cms/src/payload.config.ts` — `user-events` collection + `afterChange` hooks on products, bids, messages, transactions, ratings
+
 ## Slash Commands for Detailed Guides
 
 Use these project commands to load detailed context on-demand:

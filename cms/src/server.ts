@@ -11,7 +11,7 @@ import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, b
 import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress } from './services/backupService';
 import { authenticateJWT } from './auth-helpers';
 import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
-import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema } from './middleware/validate';
+import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema, analyticsTrackSchema } from './middleware/validate';
 
 dotenv.config();
 
@@ -108,6 +108,64 @@ app.use('/api/users', (req, res, next) => {
   // Only rate limit POST (registration), not GET (list users)
   if (req.method === 'POST') return registrationLimiter(req, res, next);
   next();
+});
+
+const analyticsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120, // 120 analytics requests per minute
+  message: { error: 'Too many analytics requests.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Analytics track endpoint — registered before payload.init()
+// Token is optional (anonymous page views allowed)
+app.post('/api/analytics/track', analyticsLimiter, validate(analyticsTrackSchema), async (req, res) => {
+  try {
+    // Extract user ID from JWT if present (optional auth)
+    let userId: number | string | undefined;
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      try {
+        const user = await authenticateJWT(req);
+        if (user) userId = (user as any).id;
+      } catch {
+        // Anonymous is fine
+      }
+    }
+
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip;
+    const { events } = req.body;
+
+    // Fire-and-forget: write events without blocking response
+    setImmediate(async () => {
+      for (const event of events) {
+        try {
+          await payload.create({
+            collection: 'user-events',
+            data: {
+              eventType: event.eventType,
+              user: userId || undefined,
+              page: event.page,
+              metadata: event.metadata,
+              sessionId: event.sessionId,
+              deviceInfo: event.deviceInfo,
+              referrer: event.referrer,
+              ip,
+            },
+            overrideAccess: true,
+          });
+        } catch {
+          // Silently swallow
+        }
+      }
+    });
+
+    res.json({ success: true });
+  } catch {
+    // Always return success — analytics should never fail visibly
+    res.json({ success: true });
+  }
 });
 
 const start = async () => {
@@ -335,6 +393,9 @@ const start = async () => {
         }
       }
 
+      const trackEvent = (global as any).trackEvent;
+      if (trackEvent) trackEvent('profile_picture_changed', currentUserId, { mediaId });
+
       res.json({
         success: true,
         user: updatedUser,
@@ -531,6 +592,83 @@ const start = async () => {
       EXCEPTION WHEN duplicate_object THEN null;
       END $$;
       CREATE INDEX IF NOT EXISTS "transactions_rels_void_requests_id_idx" ON "transactions_rels" USING btree ("void_requests_id");
+    `);
+
+    // Auto-migrate: create user_events table for analytics collection
+    // Note: eventType is a select field — Payload v2 keeps camelCase for select/enum columns
+    // First, fix any old table that used wrong column name "event_type" instead of "eventType"
+    await pool.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'user_events' AND column_name = 'event_type'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'user_events' AND column_name = 'eventType'
+        ) THEN
+          ALTER TABLE "user_events" RENAME COLUMN "event_type" TO "eventType";
+          ALTER TABLE "user_events" ALTER COLUMN "eventType" TYPE varchar;
+        END IF;
+      END $$;
+    `);
+
+    // Create enum type for eventType select field
+    await pool.query(`
+      DO $$ BEGIN
+        CREATE TYPE "enum_user_events_event_type" AS ENUM (
+          'page_view', 'login', 'login_failed', 'logout', 'register',
+          'search', 'product_view', 'conversation_opened', 'user_profile_viewed', 'media_uploaded',
+          'bid_placed', 'product_created', 'product_updated', 'product_sold',
+          'message_sent', 'transaction_status_changed', 'rating_created', 'rating_follow_up',
+          'bid_accepted', 'void_request_created', 'void_request_responded',
+          'seller_choice_made', 'second_bidder_responded', 'profile_updated', 'profile_picture_changed'
+        );
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "user_events" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "eventType" "enum_user_events_event_type",
+        "page" varchar,
+        "metadata" jsonb,
+        "session_id" varchar,
+        "device_info" jsonb,
+        "referrer" varchar,
+        "ip" varchar,
+        "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+        "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+      );
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS "user_events_event_type_idx" ON "user_events" USING btree ("eventType");
+      CREATE INDEX IF NOT EXISTS "user_events_session_id_idx" ON "user_events" USING btree ("session_id");
+      CREATE INDEX IF NOT EXISTS "user_events_created_at_idx" ON "user_events" USING btree ("created_at");
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "user_events_rels" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "order" integer,
+        "parent_id" integer NOT NULL,
+        "path" varchar NOT NULL,
+        "users_id" integer
+      );
+    `);
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE "user_events_rels" ADD CONSTRAINT "user_events_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."user_events"("id") ON DELETE cascade ON UPDATE no action;
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+      DO $$ BEGIN
+        ALTER TABLE "user_events_rels" ADD CONSTRAINT "user_events_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+      EXCEPTION WHEN duplicate_object THEN null;
+      END $$;
+      CREATE INDEX IF NOT EXISTS "user_events_rels_order_idx" ON "user_events_rels" USING btree ("order");
+      CREATE INDEX IF NOT EXISTS "user_events_rels_parent_idx" ON "user_events_rels" USING btree ("parent_id");
+      CREATE INDEX IF NOT EXISTS "user_events_rels_path_idx" ON "user_events_rels" USING btree ("path");
+      CREATE INDEX IF NOT EXISTS "user_events_rels_users_id_idx" ON "user_events_rels" USING btree ("users_id");
     `);
 
     await pool.end();
@@ -802,6 +940,25 @@ const start = async () => {
 
   // Expose product update publisher for hooks (visibility changes, etc.)
   (global as any).publishProductUpdate = publishProductUpdate;
+
+  // Expose analytics event tracker for hooks (avoids webpack bundling issues)
+  (global as any).trackEvent = (eventType: string, userId?: number | string, metadata?: Record<string, any>) => {
+    setImmediate(async () => {
+      try {
+        await payload.create({
+          collection: 'user-events',
+          data: {
+            eventType,
+            user: userId || undefined,
+            metadata: metadata || undefined,
+          },
+          overrideAccess: true,
+        });
+      } catch (err) {
+        // Silently swallow — analytics should never break anything
+      }
+    });
+  };
 
   // Sync endpoint to update product currentBid with highest bid (admin only)
   app.post('/api/sync-bids', async (req, res) => {
@@ -1195,6 +1352,9 @@ const start = async () => {
             amount: highestBid.amount,
           });
 
+          const trackEvent = (global as any).trackEvent;
+          if (trackEvent) trackEvent('bid_accepted', sellerId, { productId, bidderId: highestBidderId, amount: highestBid.amount });
+
           return res.json({
             success: true,
             fallback: true,
@@ -1208,6 +1368,9 @@ const start = async () => {
           client.release();
         }
       }
+
+      const trackEvent = (global as any).trackEvent;
+      if (trackEvent) trackEvent('bid_accepted', userId, { productId, bidderId: highestBidderId, amount: highestBid.amount });
 
       res.json({
         success: true,
@@ -1452,6 +1615,9 @@ const start = async () => {
         });
       }
 
+      const trackEvent = (global as any).trackEvent;
+      if (trackEvent) trackEvent('void_request_created', userId, { productId, transactionId, voidRequestId: voidRequest.id });
+
       res.json({
         success: true,
         voidRequestId: voidRequest.id,
@@ -1548,6 +1714,9 @@ const start = async () => {
         // If user responding is the seller, they need to make the choice
         const isSeller = userId === sellerId;
 
+        const trackEvent = (global as any).trackEvent;
+        if (trackEvent) trackEvent('void_request_responded', userId, { voidRequestId, action: 'approve', productId });
+
         res.json({
           success: true,
           message: 'Void request approved',
@@ -1586,6 +1755,9 @@ const start = async () => {
             voidRequestId,
           });
         }
+
+        const trackEvent = (global as any).trackEvent;
+        if (trackEvent) trackEvent('void_request_responded', userId, { voidRequestId, action: 'reject', productId });
 
         res.json({
           success: true,
@@ -1701,6 +1873,9 @@ const start = async () => {
           auctionEndDate: newEndDate,
         });
 
+        const trackEvent = (global as any).trackEvent;
+        if (trackEvent) trackEvent('seller_choice_made', userId, { voidRequestId, choice: 'restart_bidding', productId });
+
         res.json({
           success: true,
           message: 'Auction restarted successfully',
@@ -1763,6 +1938,9 @@ const start = async () => {
             voidRequestId,
           });
         }
+
+        const trackEvent = (global as any).trackEvent;
+        if (trackEvent) trackEvent('seller_choice_made', userId, { voidRequestId, choice: 'offer_second_bidder', productId });
 
         res.json({
           success: true,
@@ -1933,6 +2111,9 @@ const start = async () => {
           });
         }
 
+        const trackEvent = (global as any).trackEvent;
+        if (trackEvent) trackEvent('second_bidder_responded', userId, { voidRequestId, action: 'accept', productId });
+
         res.json({
           success: true,
           message: 'Offer accepted successfully',
@@ -1974,6 +2155,9 @@ const start = async () => {
             `,
           });
         }
+
+        const trackEvent = (global as any).trackEvent;
+        if (trackEvent) trackEvent('second_bidder_responded', userId, { voidRequestId, action: 'decline', productId });
 
         res.json({
           success: true,

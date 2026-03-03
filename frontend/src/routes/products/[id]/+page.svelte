@@ -9,6 +9,7 @@
   import StarRating from '$lib/components/StarRating.svelte';
   import type { Product } from '$lib/api';
   import { getProductSSE, disconnectProductSSE, queueBid as queueBidToRedis, type SSEEvent, type BidEvent, type ProductVisibilityEvent } from '$lib/sse';
+  import { trackProductView } from '$lib/analytics';
   import { onMount, onDestroy } from 'svelte';
 
   let { data } = $props<{ data: PageData }>();
@@ -425,6 +426,11 @@
   }
 
   onMount(() => {
+    // Track product view
+    if (data.product?.id) {
+      trackProductView(data.product.id, data.product.title);
+    }
+
     // Load last known state from localStorage if available
     const savedState = localStorage.getItem(`product_${data.product?.id}_state`);
     if (savedState) {

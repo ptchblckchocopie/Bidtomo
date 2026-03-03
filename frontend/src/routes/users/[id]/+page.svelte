@@ -2,8 +2,16 @@
   import type { PageData } from './$types';
   import StarRating from '$lib/components/StarRating.svelte';
   import type { Rating } from '$lib/api';
+  import { trackUserProfileViewed } from '$lib/analytics';
+  import { onMount } from 'svelte';
 
   let { data } = $props<{ data: PageData }>();
+
+  onMount(() => {
+    if (data.user?.id) {
+      trackUserProfileViewed(data.user.id);
+    }
+  });
 
   // Format date helper
   function formatDate(dateString: string): string {

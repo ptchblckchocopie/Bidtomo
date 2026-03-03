@@ -1,12 +1,13 @@
 <script lang="ts">
   import '../app.css';
   import { authStore } from '$lib/stores/auth';
-  import { goto } from '$app/navigation';
+  import { goto, afterNavigate } from '$app/navigation';
   import { page } from '$app/stores';
   import { logout as apiLogout, getUnreadMessageCount } from '$lib/api';
   import { onMount } from 'svelte';
   import { unreadCountStore } from '$lib/stores/inbox';
   import { themeStore } from '$lib/stores/theme';
+  import { trackPageView } from '$lib/analytics';
   import ThemeToggle from '$lib/components/ThemeToggle.svelte';
   import ThemeTransition from '$lib/components/ThemeTransition.svelte';
   import ThreeBackground from '$lib/components/ThreeBackground.svelte';
@@ -88,6 +89,11 @@
     } else {
       unreadCountStore.reset();
     }
+  });
+
+  // Track page views on navigation
+  afterNavigate(() => {
+    trackPageView();
   });
 </script>
 
