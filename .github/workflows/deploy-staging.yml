@@ -34,31 +34,17 @@ jobs:
     needs: type-check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy CMS to staging
-        run: railway up --service cms --detach --environment staging-v2
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-
-      - name: Deploy SSE service to staging
-        run: railway up --service sse-service --detach --environment staging-v2
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-
-      - name: Deploy bid-worker to staging
-        run: railway up --service bid-worker --detach --environment staging-v2
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-
-      - name: Done
-        run: |
-          echo "Staging deployed!"
-          echo "CMS: https://cms-staging-v2.up.railway.app"
-          echo "SSE: https://sse-service-staging-v2.up.railway.app"
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /opt/bidtomo
+            git fetch origin
+            git checkout staging
+            git pull origin staging
+            docker compose -f docker-compose.prod.yml build
+            docker compose -f docker-compose.prod.yml up -d
+            echo "Staging deployed!"
