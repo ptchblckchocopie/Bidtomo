@@ -2,7 +2,7 @@ import { cmsRequest, jsonResponse, errorResponse } from '$lib/server/cms';
 import type { RequestHandler } from './$types';
 
 // POST /api/bridge/users/login
-export const POST: RequestHandler = async ({ request, cookies }) => {
+export const POST: RequestHandler = async ({ request, cookies, url }) => {
   try {
     const body = await request.json();
 
@@ -17,8 +17,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     if (response.ok && data.token) {
       cookies.set('auth_token', data.token, {
         httpOnly: true,
-        secure: true,
-        sameSite: 'strict',
+        secure: url.protocol === 'https:',
+        sameSite: 'lax',
         path: '/',
         maxAge: 60 * 60 * 24 * 30, // 30 days
       });

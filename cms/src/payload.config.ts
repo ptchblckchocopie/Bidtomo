@@ -38,8 +38,8 @@ export default buildConfig({
     'https://www.bidmo.to',
     'https://bidmo.to',
     'https://app.bidmo.to',
-    'https://cms-production-d0f7.up.railway.app',
     ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+    ...(process.env.SERVER_URL ? [process.env.SERVER_URL] : []),
   ],
   csrf: [
     'http://localhost:5173',
@@ -47,8 +47,8 @@ export default buildConfig({
     'https://www.bidmo.to',
     'https://bidmo.to',
     'https://app.bidmo.to',
-    'https://cms-production-d0f7.up.railway.app',
     ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+    ...(process.env.SERVER_URL ? [process.env.SERVER_URL] : []),
   ],
   admin: {
     user: 'users',
