@@ -1,0 +1,161 @@
+services:
+  # Caddy reverse proxy — automatic HTTPS via Let's Encrypt
+  caddy:
+    image: caddy:2-alpine
+    container_name: bidtomo-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    depends_on:
+      cms:
+        condition: service_started
+      sse-service:
+        condition: service_started
+    networks:
+      - bidtomo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # PostgreSQL — internal only, no exposed port
+  postgres:
+    image: postgres:15-alpine
+    container_name: bidtomo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-marketplace}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bidtomo-network
+
+  # Redis — internal only, no exposed port
+  redis:
+    image: redis:7-alpine
+    container_name: bidtomo-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --appendfsync everysec
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bidtomo-network
+
+  # PayloadCMS Backend
+  cms:
+    build:
+      context: ./cms
+      dockerfile: Dockerfile
+      args:
+        SERVER_URL: ${SERVER_URL:-http://localhost:3001}
+        DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
+        PAYLOAD_SECRET: ${PAYLOAD_SECRET:?PAYLOAD_SECRET is required}
+    container_name: bidtomo-cms
+    restart: unless-stopped
+    environment:
+      DATABASE_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET}
+      PORT: 3001
+      SERVER_URL: ${SERVER_URL}
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      FRONTEND_URL: ${FRONTEND_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_REGION: ${S3_REGION:-sgp1}
+      S3_ENDPOINT: ${S3_ENDPOINT:-https://sgp1.digitaloceanspaces.com}
+      S3_BUCKET: ${S3_BUCKET:-veent}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
+      BACKUP_CRON_SCHEDULE: ${BACKUP_CRON_SCHEDULE:-0 3 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      DB_PUSH: ${DB_PUSH:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - bidtomo-network
+
+  # SSE Service for real-time updates
+  sse-service:
+    build:
+      context: ./services/sse-service
+      dockerfile: Dockerfile
+    container_name: bidtomo-sse
+    restart: unless-stopped
+    environment:
+      PORT: 3002
+      SSE_PORT: 3002
+      REDIS_URL: redis://redis:6379
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET}
+      SSE_CORS_ORIGIN: ${FRONTEND_URL}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3002/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - bidtomo-network
+
+  # Bid Worker — no port, processes Redis queue
+  bid-worker:
+    build:
+      context: ./services/bid-worker
+      dockerfile: Dockerfile
+    container_name: bidtomo-bid-worker
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bidtomo-network
+
+networks:
+  bidtomo-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

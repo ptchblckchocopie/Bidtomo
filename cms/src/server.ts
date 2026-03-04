@@ -40,9 +40,8 @@ const allowedOrigins: string[] = [
   'http://bidmo.to',
   'http://www.bidmo.to',
   'http://app.bidmo.to',
-  'https://cms-production-d0f7.up.railway.app',
-  'https://cms-staging-v2.up.railway.app',
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+  ...(process.env.SERVER_URL ? [process.env.SERVER_URL] : []),
 ];
 
 app.use(cors({
@@ -61,11 +60,16 @@ app.use(cors({
     }
 
     if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      return callback(null, true);
     }
+
+    // Allow Vercel preview/staging deployments
+    if (origin.endsWith('.vercel.app') && origin.startsWith('https://')) {
+      return callback(null, true);
+    }
+
+    console.warn(`CORS blocked origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

@@ -50,11 +50,17 @@ Each service: `npm run build` to build, `npm start` to run.
 
 ```bash
 docker compose -f docker-compose.local.yml up -d  # Local dev: Postgres :5433, Redis :6380
+docker compose -f docker-compose.prod.yml up -d    # Production: Caddy + all services (internal ports only)
 ./start.sh.local     # Full local dev: starts Docker + all 4 services with health checks & colored logs
 ./start-docker.sh    # Full stack: all containers (Docker only)
 ./stop-docker.sh     # Stop all
 pm2 start ecosystem.config.js  # Alternative: PM2 process manager for all 4 services
 ```
+
+**Docker Compose files:**
+- `docker-compose.local.yml` — Local dev (Postgres :5433, Redis :6380, no app containers)
+- `docker-compose.prod.yml` — Production (Caddy reverse proxy + all 4 app services + Postgres + Redis, internal ports only)
+- `docker-compose.yml` — **Stale/legacy**, do not use for production
 
 **Ports:** Frontend 5173 | CMS 3001 | SSE 3002 | Postgres 5433 | Redis 6379/6380
 
@@ -84,7 +90,7 @@ Bids are queued to Redis (`bids:pending`), not written directly. The bid-worker 
 
 ### SSE Real-Time Updates
 
-Three SSE endpoints on port 3002: `/events/products/:id` (public), `/events/users/:id` (auth via `?token=` query param), `/events/global` (public). Redis pub/sub channels: `sse:product:<id>`, `sse:user:<id>`, `sse:global`. Product events are also forwarded to `sse:global` for the browse page grid.
+Three SSE endpoints on port 3002: `/events/products/:id` (public), `/events/users/:id` (auth via `?token=` query param), `/events/global` (public). Redis pub/sub channels: `sse:product:<id>`, `sse:user:<id>`, `sse:global`. Product events are also forwarded to `sse:global` for the browse page grid. Per-IP connection limit: 20 max.
 
 ### JWT Secret Sharing Across Services
 
@@ -108,7 +114,7 @@ Route modules:
 - `analytics.ts` — `POST /api/analytics/track`, `GET /api/analytics/dashboard` (admin-only)
 - `bids.ts` — `/api/bid/queue`, `/api/bid/accept` (Redis bid queue)
 - `health.ts` — `/api/health`
-- `misc.ts` — `/api/create-conversations`, `/api/elasticsearch/sync`, `/api/sync-bids`
+- `misc.ts` — `/api/create-conversations`, `/api/elasticsearch/sync`, `/api/sync-bids`, `/api/backup/trigger`
 - `products.ts` — Product-specific endpoints
 - `search.ts` — `/api/search/products` (Elasticsearch with Payload fallback)
 - `typing.ts` — `/api/typing`, `/api/typing/:productId` (POST to set, GET to poll)
@@ -129,13 +135,14 @@ Centralized `express-rate-limit` instances. All limiters are **disabled in devel
 
 - **`bids:pending`** — Bid queue (produced by CMS, consumed by bid-worker)
 - **`sse:product:<id>`**, **`sse:user:<id>`**, **`sse:global`** — SSE pub/sub
+- **`bids:processing`** — Bid currently being processed by worker
 - **`email:queue`** — Email job queue (consumed by `cms/src/services/emailService.ts`)
 
 ### CMS Collections
 
 All defined inline in `cms/src/payload.config.ts` except EmailTemplates (`cms/src/collections/EmailTemplates.ts`):
 - **users** — Auth, roles (admin/seller/buyer), profile, PII stripping in afterRead hooks
-- **products** — Auction listings, media relationships, `status` + `active` fields
+- **products** — Auction listings, media relationships, `status` + `active` fields, multi-select `categories` field
 - **bids** — Bid history, bidder/product relationships
 - **messages** — User-to-user messaging with conversation threads
 - **transactions** — Purchase/sale records, links to void-requests
@@ -146,9 +153,13 @@ All defined inline in `cms/src/payload.config.ts` except EmailTemplates (`cms/sr
 - **user-events** — Analytics tracking (admin-only, "Analytics" group)
 - **EmailTemplates** — Transactional email templates
 
+### CMS Redis Module (`cms/src/redis.ts`)
+
+Standalone module managing the CMS Redis connection. Exports: `isRedisConnected()`, `queueBid()`, `queueAcceptBid()`, `publishMessageNotification()`, `publishProductUpdate()`, `publishTypingStatus()`, `publishGlobalEvent()`, `closeRedis()`. The `queueAcceptBid()` pushes `accept_bid` type jobs to the same `bids:pending` queue. Redis retries up to 3 times before giving up.
+
 ### Email Service (`cms/src/services/emailService.ts`)
 
-Custom email service (not Payload's email adapter). Handles void request notifications, auction restarts, second bidder offers. Jobs queued via Redis `email:queue` channel with HTML templates and embedded assets.
+Uses **Resend** (`resend` npm package) as email provider. Handles void request notifications, auction restarts, second bidder offers. Jobs queued via Redis `email:queue` channel with HTML templates and embedded assets. Rate-limited to 2 emails/second internally. Falls back to direct send if Redis is unavailable.
 
 ### Frontend Key Files
 
@@ -157,7 +168,9 @@ Custom email service (not Payload's email adapter). Handles void request notific
 - **`src/lib/server/cms.ts`** — Server-only `cmsRequest()` bridge; uses `$env/dynamic/private`
 - **`src/lib/stores/auth.ts`** — Auth store (Svelte 4 `writable`, not yet migrated to runes)
 - **`src/lib/stores/inbox.ts`** — Message inbox store
-- **`src/lib/stores/theme.ts`** — Theme store
+- **`src/lib/stores/theme.ts`** — Theme store (`light | dark | system`, persisted to `localStorage`)
+- **`src/lib/stores/watchlist.ts`** — Watchlist store with `Map<productId, watchlistItemId>` for O(1) lookup
+- **`src/lib/data/categories.ts`** — 19 product categories, exports `CategoryValue` type and `getCategoryLabel()`
 
 ## Important Conventions
 
@@ -171,16 +184,35 @@ Custom email service (not Payload's email adapter). Handles void request notific
 - **Products `status` vs `active`** — Separate fields. `active` = visible on browse. `status` = sale lifecycle (`available/sold/ended`). A product can be `active: false, status: available` (hidden but not sold).
 - **Relationship depth** — All product list queries use `depth=1` to populate one level of relationships (e.g., media, seller) without infinite recursion. Missing `depth=1` is a common cause of broken images/data on the browse page.
 - **Elasticsearch is optional** — When unavailable, search falls back to Payload's native query. All ES operations are gated by `isElasticAvailable()`.
-- **Migrations** — Two-phase: **pre-init** (`cms/src/migrations/preInit.ts`) runs raw SQL before `payload.init()` to ensure tables exist with correct schema (prevents bootstrap errors), **post-init** (`cms/src/migrations/postInit.ts`) runs after init. Production migrations automated via Railway `preDeployCommand` in `cms/railway.toml` — `cms/scripts/run-migrations.js` clears `DB_PUSH` sentinel rows then runs `payload migrate`. Staging uses `DB_PUSH=true` for convenience.
+- **Migrations** — Two-phase: **pre-init** (`cms/src/migrations/preInit.ts`) runs raw SQL before `payload.init()` to ensure tables exist with correct schema (prevents bootstrap errors), **post-init** (`cms/src/migrations/postInit.ts`) runs after init. Production runs `payload migrate` via GitHub Actions post-deploy. The `cms/scripts/run-migrations.js` script clears `DB_PUSH` sentinel rows then runs `payload migrate` non-interactively. Staging uses `DB_PUSH=true` for dev convenience.
+- **Legacy docs at root** — `README.md`, `QUICKSTART.md`, `SETUP.md`, `AUTHENTICATION.md`, `DOCKER.md`, `PLANNING.md`, `progress.md` are outdated (refer to old 3-service setup, Node 18, Railway, all-localStorage auth). **Do not trust these** — use this CLAUDE.md and the slash commands instead.
 
 ## Deployment & CI
 
-- **`main`** → production (Railway + Vercel auto-deploy frontend)
-- **`staging`** / any non-main branch → Railway `staging-v2` environment
-- **Frontend deploys via Vercel** (not GitHub Actions). Backend services (CMS, SSE, bid-worker) deploy via GitHub Actions (`.github/workflows/`) to Railway using Railway CLI.
+### Current Setup (March 2026)
+
+**Railway expired** — all Railway deployments removed, database lost. Backend migrated to **DigitalOcean**.
+
+- **Frontend** → Vercel (auto-deploy, unchanged)
+- **Backend (CMS, SSE, bid-worker, Postgres, Redis)** → DigitalOcean droplet with `docker-compose.prod.yml` (Caddy reverse proxy for automatic HTTPS)
+- **App directory on droplet:** `/opt/bidtomo`
+- **Database starts fresh** — no data from Railway was recovered
+
+### Production Infrastructure
+
+- **`docker-compose.prod.yml`** — Caddy + all 4 app services + Postgres + Redis. Caddy routes: `/sse/*` → SSE service (strips prefix), `/api/*` + `/admin/*` + `/media/*` → CMS, default → CMS.
+- **`Caddyfile`** — Uses `{$DOMAIN:localhost}` env var for the domain.
+- **`scripts/setup-droplet.sh`** — Initial droplet setup: installs Docker, fail2ban, UFW (allow SSH/HTTP/HTTPS only).
+- **`.env.production.example`** — Root-level production env template for `docker-compose.prod.yml`.
+- **`deploy.sh`** — Blue/green deployment with atomic symlink swaps (`build_blue`/`build_green`), runs SQL migrations via `psql`, reloads via `pm2`.
+
+### CI/CD
+
 - **CI gate:** `tsc --noEmit` (CMS) + `npm run check` (frontend). No unit tests — only k6 stress tests in `tests/stress/`.
-- **GitHub Actions workflows** run type-checking before deploying. `deploy-staging.yml` triggers on non-main pushes; `deploy-production.yml` triggers on main pushes. Both run `npm ci && tsc --noEmit` for CMS and `npm ci && npm run check` for frontend before Railway deploy.
-- **Sentry** — Frontend (`frontend/src/hooks.client.ts` and `hooks.server.ts`, source maps via `sentrySvelteKit()`) and CMS (`cms/src/instrument.ts` with `@sentry/node`). Exceptions captured in route error handlers.
+- **GitHub Actions workflows** — `deploy-staging.yml` (non-main pushes) and `deploy-production.yml` (main pushes). Both deploy via SSH (`appleboy/ssh-action@v1`) to the droplet. Production runs `npm run migrate` after deploy; staging does not (uses `DB_PUSH=true`).
+- **GitHub Secrets required:** `DROPLET_IP`, `SSH_USER`, `SSH_PRIVATE_KEY`.
+- **Sentry** — All services: Frontend (`frontend/src/hooks.client.ts`, `hooks.server.ts`, source maps via `sentrySvelteKit()` vite plugin), CMS (`@sentry/node` in `server.ts`), bid-worker, and SSE service.
+- **DigitalOcean MCP** is configured in `.claude.json` for this project. Use `/mcp` to connect.
 
 ## User Analytics Tracking
 
