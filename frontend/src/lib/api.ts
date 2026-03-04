@@ -1345,7 +1345,7 @@ export async function searchUsers(params?: {
 // Fetch public user profile
 export async function fetchUserProfile(userId: string): Promise<PublicUserProfile | null> {
   try {
-    const response = await fetch(`${BRIDGE_URL}/api/bridge/users/${userId}`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/users/${userId}?depth=1`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
