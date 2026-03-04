@@ -1,3 +1,4 @@
+# HTTPS domain (browser access, auto Let's Encrypt)
 {$DOMAIN:localhost} {
     # SSE service — strip /sse prefix before proxying
     handle /sse/* {
@@ -19,6 +20,30 @@
     }
 
     # Default fallback to CMS
+    handle {
+        reverse_proxy cms:3001
+    }
+}
+
+# HTTP-only on port 80 for server-to-server bridge calls (no TLS)
+:80 {
+    handle /sse/* {
+        uri strip_prefix /sse
+        reverse_proxy sse-service:3002
+    }
+
+    handle /api/* {
+        reverse_proxy cms:3001
+    }
+
+    handle /admin/* {
+        reverse_proxy cms:3001
+    }
+
+    handle /media/* {
+        reverse_proxy cms:3001
+    }
+
     handle {
         reverse_proxy cms:3001
     }
