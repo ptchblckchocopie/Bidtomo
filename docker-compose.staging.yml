@@ -1,38 +1,10 @@
 services:
-  # Caddy reverse proxy — automatic HTTPS via Let's Encrypt
-  # Routes to both production and staging by hostname
-  caddy:
-    image: caddy:2-alpine
-    container_name: prod-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    environment:
-      DOMAIN: ${DOMAIN:-localhost}
-      STAGING_DOMAIN: ${STAGING_DOMAIN:-staging.localhost}
-    depends_on:
-      cms:
-        condition: service_started
-      sse-service:
-        condition: service_started
-    networks:
-      - bidtomo-shared
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:80 || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+  # No Caddy — uses production's Caddy via bidtomo-shared network
 
-  # PostgreSQL — internal only, no exposed port
+  # PostgreSQL — staging-internal only
   postgres:
     image: postgres:15-alpine
-    container_name: prod-postgres
+    container_name: staging-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-marketplace}
@@ -46,12 +18,12 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - prod-internal
+      - staging-internal
 
-  # Redis — internal only, no exposed port
+  # Redis — staging-internal only
   redis:
     image: redis:7-alpine
-    container_name: prod-redis
+    container_name: staging-redis
     restart: unless-stopped
     volumes:
       - redis_data:/data
@@ -62,9 +34,9 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - prod-internal
+      - staging-internal
 
-  # PayloadCMS Backend
+  # PayloadCMS Backend — staging
   cms:
     build:
       context: ./cms
@@ -74,7 +46,7 @@ services:
         DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
         PAYLOAD_SECRET: ${PAYLOAD_SECRET:?PAYLOAD_SECRET is required}
         GIT_SHA: ${GIT_SHA:-unknown}
-    container_name: prod-cms
+    container_name: staging-cms
     restart: unless-stopped
     environment:
       DATABASE_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
@@ -91,11 +63,11 @@ services:
       S3_ENDPOINT: ${S3_ENDPOINT:-https://sgp1.digitaloceanspaces.com}
       S3_BUCKET: ${S3_BUCKET:-veent}
       SENTRY_DSN: ${SENTRY_DSN:-}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
-      BACKUP_CRON_SCHEDULE: ${BACKUP_CRON_SCHEDULE:-0 3 * * *}
-      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
-      DB_PUSH: ${DB_PUSH:-false}
+      RESEND_API_KEY: ""
+      BACKUP_ENABLED: "false"
+      BACKUP_CRON_SCHEDULE: "0 3 * * *"
+      BACKUP_RETENTION_DAYS: "7"
+      DB_PUSH: ${DB_PUSH:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,16 +81,16 @@ services:
       start_period: 60s
     networks:
       - bidtomo-shared
-      - prod-internal
+      - staging-internal
 
-  # SSE Service for real-time updates
+  # SSE Service — staging
   sse-service:
     build:
       context: ./services/sse-service
       dockerfile: Dockerfile
       args:
         GIT_SHA: ${GIT_SHA:-unknown}
-    container_name: prod-sse
+    container_name: staging-sse
     restart: unless-stopped
     environment:
       PORT: 3002
@@ -139,16 +111,16 @@ services:
       start_period: 10s
     networks:
       - bidtomo-shared
-      - prod-internal
+      - staging-internal
 
-  # Bid Worker — no port, processes Redis queue
+  # Bid Worker — staging
   bid-worker:
     build:
       context: ./services/bid-worker
       dockerfile: Dockerfile
       args:
         GIT_SHA: ${GIT_SHA:-unknown}
-    container_name: prod-bid-worker
+    container_name: staging-bid-worker
     restart: unless-stopped
     environment:
       REDIS_URL: redis://redis:6379
@@ -163,16 +135,14 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - prod-internal
+      - staging-internal
 
 networks:
   bidtomo-shared:
     external: true
-  prod-internal:
+  staging-internal:
     driver: bridge
 
 volumes:
   postgres_data:
   redis_data:
-  caddy_data:
-  caddy_config:

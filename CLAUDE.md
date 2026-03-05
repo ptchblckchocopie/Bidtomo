@@ -59,7 +59,8 @@ pm2 start ecosystem.config.js  # Alternative: PM2 process manager for all 4 serv
 
 **Docker Compose files:**
 - `docker-compose.local.yml` — Local dev (Postgres :5433, Redis :6380, no app containers)
-- `docker-compose.prod.yml` — Production (Caddy reverse proxy + all 4 app services + Postgres + Redis, internal ports only)
+- `docker-compose.prod.yml` — Production (Caddy + `prod-*` containers, `bidtomo-shared` + `prod-internal` networks)
+- `docker-compose.staging.yml` — Staging (`staging-*` containers, no Caddy, `bidtomo-shared` + `staging-internal` networks)
 - `docker-compose.yml` — **Stale/legacy**, do not use for production
 
 **Ports:** Frontend 5173 | CMS 3001 | SSE 3002 | Postgres 5433 | Redis 6379/6380
@@ -215,13 +216,41 @@ Logical PostgreSQL dump streamed as gzip to DigitalOcean Spaces. Scheduled via `
 
 ### Vercel Environment Variables
 
+**Production** (scope: Production):
 - `CMS_URL` = `http://188.166.216.176` (server-to-server, HTTP via Caddy `:80` listener)
 - `PUBLIC_SSE_URL` = `https://188-166-216-176.sslip.io/sse` (browser-facing, HTTPS required)
 
+**Staging** (scope: Preview):
+- `CMS_URL` = `http://staging.188-166-216-176.sslip.io` (Host header routes to staging via Caddy `:80`)
+- `PUBLIC_SSE_URL` = `https://staging.188-166-216-176.sslip.io/sse`
+- `PUBLIC_SENTRY_ENVIRONMENT` = `staging`
+
+### Staging Environment
+
+Fully isolated staging on the same droplet. Separate git clone, Docker networks, databases, and secrets.
+
+- **Staging backend HTTPS:** `https://staging.188-166-216-176.sslip.io`
+- **Staging admin:** `https://staging.188-166-216-176.sslip.io/admin`
+- **Staging SSE:** `https://staging.188-166-216-176.sslip.io/sse`
+- **App directory:** `/opt/bidtomo-staging/` (branch: `staging`)
+- **Compose file:** `docker-compose.staging.yml`
+- **Containers:** `staging-cms`, `staging-sse`, `staging-postgres`, `staging-redis`, `staging-bid-worker`
+
+**Architecture:** One Caddy (`prod-caddy`) routes both envs by hostname via `bidtomo-shared` external Docker network. Each env has its own internal network (`prod-internal` / `staging-internal`) isolating postgres and redis.
+
+**Developer workflow:**
+```
+feature/x → staging → main
+  (dev)      (test)   (production)
+```
+Push to `staging` branch triggers `deploy-staging.yml` → deploys to `/opt/bidtomo-staging/`. Push to `main` triggers `deploy-production.yml` → deploys to `/opt/bidtomo/`.
+
+**Key differences from production:** `DB_PUSH=true` (no migrations), `RESEND_API_KEY=""` (emails disabled), `BACKUP_ENABLED=false`, different `PAYLOAD_SECRET`.
+
 ### Production Infrastructure
 
-- **`docker-compose.prod.yml`** — Caddy + all 4 app services + Postgres + Redis (7 containers total). Caddy routes: `/sse/*` → SSE service (strips prefix), `/api/*` + `/admin/*` + `/media/*` → CMS, default → CMS.
-- **`Caddyfile`** — Dual listener: HTTPS on `{$DOMAIN}` (browser access, auto Let's Encrypt) + HTTP on `:80` (server-to-server bridge calls from Vercel, no TLS). Both route identically.
+- **`docker-compose.prod.yml`** — Caddy + 5 prod containers + Postgres + Redis (7 total). Container names: `prod-caddy`, `prod-cms`, `prod-sse`, `prod-postgres`, `prod-redis`, `prod-bid-worker`. Uses `bidtomo-shared` (external) + `prod-internal` networks.
+- **`Caddyfile`** — Three blocks: HTTPS `{$DOMAIN}` → prod, HTTPS `{$STAGING_DOMAIN}` → staging, HTTP `:80` with host-based routing (bare IP → prod, staging hostname → staging). Uses container names (`prod-cms`, `staging-cms`) not service names.
 - **`scripts/setup-droplet.sh`** — Initial droplet setup: installs Docker, fail2ban, UFW (allow SSH/HTTP/HTTPS only).
 - **`.env.production.example`** — Root-level production env template for `docker-compose.prod.yml`.
 - **`deploy.sh`** — Blue/green deployment with atomic symlink swaps (`build_blue`/`build_green`), runs SQL migrations via `psql`, reloads via `pm2`.
@@ -234,7 +263,7 @@ DigitalOcean DNS zone for `bidmo.to` is fully configured (A records for `@` and 
 ### CI/CD
 
 - **CI gate:** `tsc --noEmit` (CMS) + `npm run check` (frontend). No unit tests — only k6 stress tests in `tests/stress/`.
-- **GitHub Actions workflows** — `deploy-staging.yml` (non-main pushes) and `deploy-production.yml` (main pushes). Both deploy via SSH (`appleboy/ssh-action@v1`) to the droplet. Production runs `npm run migrate` after deploy; staging does not (uses `DB_PUSH=true`).
+- **GitHub Actions workflows** — `deploy-staging.yml` (`staging` branch → `/opt/bidtomo-staging/`) and `deploy-production.yml` (`main` branch → `/opt/bidtomo/`). Both deploy via SSH (`appleboy/ssh-action@v1`) with concurrency groups. Production runs `npm run migrate` after deploy; staging uses `DB_PUSH=true`.
 - **GitHub Secrets required:** `DROPLET_IP`, `SSH_USER`, `SSH_PRIVATE_KEY`.
 - **Sentry** — All 4 services report errors. Release tracking via `GIT_SHA` build arg (injected in Dockerfiles + GitHub Actions). Frontend uses `sentrySvelteKit()` vite plugin for source maps + Session Replay on errors. Backend services use `@sentry/node` with `instrument.ts` files. Environment tags distinguish staging vs production. User ID attached to frontend errors via `authStore.subscribe()`. Key files: `frontend/src/hooks.client.ts`, `frontend/src/instrumentation.server.ts`, `cms/src/instrument.ts`, `services/*/src/instrument.ts`.
 - **DigitalOcean MCP** is configured in `.claude.json` for this project. Use `/mcp` to connect.

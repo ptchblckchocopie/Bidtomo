@@ -1,50 +1,98 @@
-# HTTPS domain (browser access, auto Let's Encrypt)
+# Production HTTPS (browser access, auto Let's Encrypt)
 {$DOMAIN:localhost} {
-    # SSE service — strip /sse prefix before proxying
     handle /sse/* {
         uri strip_prefix /sse
-        reverse_proxy sse-service:3002
+        reverse_proxy prod-sse:3002
     }
 
-    # CMS API, admin panel, and media
     handle /api/* {
-        reverse_proxy cms:3001
+        reverse_proxy prod-cms:3001
     }
 
     handle /admin/* {
-        reverse_proxy cms:3001
+        reverse_proxy prod-cms:3001
     }
 
     handle /media/* {
-        reverse_proxy cms:3001
+        reverse_proxy prod-cms:3001
     }
 
-    # Default fallback to CMS
     handle {
-        reverse_proxy cms:3001
+        reverse_proxy prod-cms:3001
     }
 }
 
-# HTTP-only on port 80 for server-to-server bridge calls (no TLS)
-:80 {
+# Staging HTTPS (auto Let's Encrypt — sslip.io subdomains resolve correctly)
+{$STAGING_DOMAIN:staging.localhost} {
     handle /sse/* {
         uri strip_prefix /sse
-        reverse_proxy sse-service:3002
+        reverse_proxy staging-sse:3002
     }
 
     handle /api/* {
-        reverse_proxy cms:3001
+        reverse_proxy staging-cms:3001
     }
 
     handle /admin/* {
-        reverse_proxy cms:3001
+        reverse_proxy staging-cms:3001
     }
 
     handle /media/* {
-        reverse_proxy cms:3001
+        reverse_proxy staging-cms:3001
     }
 
     handle {
-        reverse_proxy cms:3001
+        reverse_proxy staging-cms:3001
+    }
+}
+
+# HTTP :80 — server-to-server bridge calls from Vercel
+:80 {
+    @staging_host host {$STAGING_DOMAIN:staging.localhost}
+
+    # Staging requests (Vercel Preview sends Host: staging.188-166-216-176.sslip.io)
+    handle @staging_host {
+        handle /sse/* {
+            uri strip_prefix /sse
+            reverse_proxy staging-sse:3002
+        }
+
+        handle /api/* {
+            reverse_proxy staging-cms:3001
+        }
+
+        handle /admin/* {
+            reverse_proxy staging-cms:3001
+        }
+
+        handle /media/* {
+            reverse_proxy staging-cms:3001
+        }
+
+        handle {
+            reverse_proxy staging-cms:3001
+        }
+    }
+
+    # Default (bare IP from Vercel Production) → production
+    handle /sse/* {
+        uri strip_prefix /sse
+        reverse_proxy prod-sse:3002
+    }
+
+    handle /api/* {
+        reverse_proxy prod-cms:3001
+    }
+
+    handle /admin/* {
+        reverse_proxy prod-cms:3001
+    }
+
+    handle /media/* {
+        reverse_proxy prod-cms:3001
+    }
+
+    handle {
+        reverse_proxy prod-cms:3001
     }
 }
