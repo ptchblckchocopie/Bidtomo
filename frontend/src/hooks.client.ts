@@ -44,5 +44,19 @@ authStore.subscribe((state) => {
 });
 
 export const handleError: HandleClientError = Sentry.handleErrorWithSentry(({ error, event }) => {
+  // Auto-reload on stale chunk errors (old tab after a deploy)
+  if (
+    error instanceof TypeError &&
+    error.message?.includes('Failed to fetch dynamically imported module')
+  ) {
+    const key = 'stale_chunk_reload';
+    const last = sessionStorage.getItem(key);
+    // Only reload once per 30 seconds to prevent infinite loops
+    if (!last || Date.now() - Number(last) > 30_000) {
+      sessionStorage.setItem(key, String(Date.now()));
+      window.location.reload();
+      return;
+    }
+  }
   console.error('Client error:', error, event);
 });

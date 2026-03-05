@@ -13,7 +13,7 @@ Bidmo.to is a full-stack auction marketplace with real-time bidding. Independent
 
 ## Initial Setup
 
-**Node.js 20+** required (CMS `engines` field enforces this; nixpacks deploys with `nodejs_20`).
+**Node.js 20+** required (CMS `engines` field enforces this).
 
 Each service has its own `package.json` — run `npm install` in each directory independently. Copy `.env.example` files before starting:
 
@@ -161,8 +161,14 @@ Standalone module managing the CMS Redis connection. Exports: `isRedisConnected(
 
 Uses **Resend** (`resend` npm package) as email provider. Handles void request notifications, auction restarts, second bidder offers. Jobs queued via Redis `email:queue` channel with HTML templates and embedded assets. Rate-limited to 2 emails/second internally. Falls back to direct send if Redis is unavailable.
 
+### Backup Service (`cms/src/services/backupService.ts`)
+
+Logical PostgreSQL dump streamed as gzip to DigitalOcean Spaces. Scheduled via `node-cron` (default: daily at 3 AM). Controlled by env vars: `BACKUP_ENABLED`, `BACKUP_CRON_SCHEDULE`, `BACKUP_RETENTION_DAYS` (default 7). Triggered manually via `POST /api/backup/trigger` (admin-only).
+
 ### Frontend Key Files
 
+- **`src/hooks.server.ts`** — CSRF protection middleware: validates `Origin` header on mutating requests to `/api/bridge/*`, blocks cross-origin POSTs. Also initializes server-side Sentry.
+- **`src/hooks.client.ts`** — Client-side Sentry init with environment tags, user identification via `authStore.subscribe()`, Session Replay on errors
 - **`src/lib/api.ts`** — Client-side API layer; all calls go to `/api/bridge/*`
 - **`src/lib/sse.ts`** (~16KB) — SSE event handler for product/user/global channels
 - **`src/lib/server/cms.ts`** — Server-only `cmsRequest()` bridge; uses `$env/dynamic/private`
@@ -180,7 +186,7 @@ Uses **Resend** (`resend` npm package) as email provider. Handles void request n
 - **No linting/formatting** — TypeScript strict mode is the primary quality tool. Run `svelte-check` (frontend) and `tsc --noEmit` (CMS) before deploying — these are the CI gates.
 - **CMS hooks auto-set fields** — Don't set manually: `seller` on Products, `bidder`/`bidTime` on Bids, `rater` on Ratings. Role is forced to `buyer` on registration.
 - **Type generation** — Run `npm run generate:types` in `cms/` after changing collections
-- **Media storage** — S3-compatible via Supabase Storage (`cms/src/s3Adapter.ts`)
+- **Media storage** — DigitalOcean Spaces (S3-compatible) via `cms/src/s3Adapter.ts`. Bucket: `veent`, region: `sgp1`, prefix: `bidmoto`. Public URL: `https://veent.sgp1.digitaloceanspaces.com/bidmoto/{filename}`.
 - **Products `status` vs `active`** — Separate fields. `active` = visible on browse. `status` = sale lifecycle (`available/sold/ended`). A product can be `active: false, status: available` (hidden but not sold).
 - **Relationship depth** — All product list queries use `depth=1` to populate one level of relationships (e.g., media, seller) without infinite recursion. Missing `depth=1` is a common cause of broken images/data on the browse page.
 - **Elasticsearch is optional** — When unavailable, search falls back to Payload's native query. All ES operations are gated by `isElasticAvailable()`.
@@ -230,7 +236,7 @@ DigitalOcean DNS zone for `bidmo.to` is fully configured (A records for `@` and 
 - **CI gate:** `tsc --noEmit` (CMS) + `npm run check` (frontend). No unit tests — only k6 stress tests in `tests/stress/`.
 - **GitHub Actions workflows** — `deploy-staging.yml` (non-main pushes) and `deploy-production.yml` (main pushes). Both deploy via SSH (`appleboy/ssh-action@v1`) to the droplet. Production runs `npm run migrate` after deploy; staging does not (uses `DB_PUSH=true`).
 - **GitHub Secrets required:** `DROPLET_IP`, `SSH_USER`, `SSH_PRIVATE_KEY`.
-- **Sentry** — All services: Frontend (`frontend/src/hooks.client.ts`, `hooks.server.ts`, source maps via `sentrySvelteKit()` vite plugin), CMS (`@sentry/node` in `server.ts`), bid-worker, and SSE service.
+- **Sentry** — All 4 services report errors. Release tracking via `GIT_SHA` build arg (injected in Dockerfiles + GitHub Actions). Frontend uses `sentrySvelteKit()` vite plugin for source maps + Session Replay on errors. Backend services use `@sentry/node` with `instrument.ts` files. Environment tags distinguish staging vs production. User ID attached to frontend errors via `authStore.subscribe()`. Key files: `frontend/src/hooks.client.ts`, `frontend/src/instrumentation.server.ts`, `cms/src/instrument.ts`, `services/*/src/instrument.ts`.
 - **DigitalOcean MCP** is configured in `.claude.json` for this project. Use `/mcp` to connect.
 
 ## User Analytics Tracking
