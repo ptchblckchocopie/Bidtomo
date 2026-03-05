@@ -115,8 +115,8 @@ const bidLimiter = rateLimit({
 // Apply rate limiters to Payload's built-in auth endpoints
 app.use('/api/users/login', loginLimiter);
 app.use('/api/users', (req, res, next) => {
-  // Only rate limit POST (registration), not GET (list users)
-  if (req.method === 'POST') return registrationLimiter(req, res, next);
+  // Only rate limit POST (registration), not GET or login/logout/other sub-routes
+  if (req.method === 'POST' && req.path === '/') return registrationLimiter(req, res, next);
   next();
 });
 

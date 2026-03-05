@@ -221,7 +221,7 @@ Logical PostgreSQL dump streamed as gzip to DigitalOcean Spaces. Scheduled via `
 - `PUBLIC_SSE_URL` = `https://188-166-216-176.sslip.io/sse` (browser-facing, HTTPS required)
 
 **Staging** (scope: Preview):
-- `CMS_URL` = `http://staging.188-166-216-176.sslip.io` (Host header routes to staging via Caddy `:80`)
+- `CMS_URL` = `https://staging.188-166-216-176.sslip.io` (HTTPS required — Caddy auto-redirects HTTP→HTTPS with 308, which strips Authorization headers per Fetch spec)
 - `PUBLIC_SSE_URL` = `https://staging.188-166-216-176.sslip.io/sse`
 - `PUBLIC_SENTRY_ENVIRONMENT` = `staging`
 
