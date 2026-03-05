@@ -71,6 +71,7 @@ services:
         SERVER_URL: ${SERVER_URL:-http://localhost:3001}
         DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
         PAYLOAD_SECRET: ${PAYLOAD_SECRET:?PAYLOAD_SECRET is required}
+        GIT_SHA: ${GIT_SHA:-unknown}
     container_name: bidtomo-cms
     restart: unless-stopped
     environment:
@@ -111,6 +112,8 @@ services:
     build:
       context: ./services/sse-service
       dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     container_name: bidtomo-sse
     restart: unless-stopped
     environment:
@@ -119,6 +122,8 @@ services:
       REDIS_URL: redis://redis:6379
       PAYLOAD_SECRET: ${PAYLOAD_SECRET}
       SSE_CORS_ORIGIN: ${FRONTEND_URL}
+      NODE_ENV: production
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       redis:
         condition: service_healthy
@@ -136,12 +141,16 @@ services:
     build:
       context: ./services/bid-worker
       dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     container_name: bidtomo-bid-worker
     restart: unless-stopped
     environment:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
       PAYLOAD_SECRET: ${PAYLOAD_SECRET}
+      NODE_ENV: production
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       postgres:
         condition: service_healthy

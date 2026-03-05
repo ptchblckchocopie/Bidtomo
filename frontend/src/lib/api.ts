@@ -5,6 +5,7 @@ import { browser } from '$app/environment';
 import { getAuthToken, authStore } from './stores/auth';
 import { goto } from '$app/navigation';
 import { trackLogin, trackLoginFailed, trackLogout, trackSearch } from './analytics';
+import * as Sentry from '@sentry/sveltekit';
 
 // Bridge API base URL - uses relative paths in browser, absolute for SSR
 function getBridgeUrl(): string {
@@ -710,6 +711,7 @@ export async function login(email: string, password: string): Promise<{ user: Us
 
     const data = await response.json();
     trackLogin();
+    Sentry.addBreadcrumb({ category: 'auth', message: 'User logged in', level: 'info' });
     return data;
   } catch (error) {
     console.error('Error logging in:', error);
@@ -722,6 +724,7 @@ export async function login(email: string, password: string): Promise<{ user: Us
 export async function logout(): Promise<boolean> {
   try {
     trackLogout();
+    Sentry.addBreadcrumb({ category: 'auth', message: 'User logged out', level: 'info' });
     const response = await fetch(`${BRIDGE_URL}/api/bridge/users/logout`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -786,6 +789,7 @@ export async function placeBid(productId: string, amount: number, censorName: bo
 
     const data = await response.json();
     console.log('Bid placed successfully:', data);
+    Sentry.addBreadcrumb({ category: 'auction', message: 'Bid placed', level: 'info', data: { productId, amount } });
     // PayloadCMS returns { message: "...", doc: { ... } }
     // Return only the doc (the actual bid object)
     return data.doc || data;

@@ -5,11 +5,10 @@ if (process.env.SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
     environment: process.env.NODE_ENV || 'development',
-    release: process.env.RAILWAY_GIT_COMMIT_SHA || undefined,
+    release: process.env.GIT_SHA && process.env.GIT_SHA !== 'unknown' ? process.env.GIT_SHA : undefined,
     tracesSampleRate: 0.2,
     serverName: 'bidtomo-cms',
     integrations: [Sentry.httpIntegration()],
-    enableLogs: true,
     beforeSend(event) {
       // Strip PII from user context (consistent with afterRead hooks)
       if (event.user) {

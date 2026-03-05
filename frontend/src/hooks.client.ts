@@ -1,16 +1,15 @@
 import * as Sentry from '@sentry/sveltekit';
 import type { HandleClientError } from '@sveltejs/kit';
+import { env } from '$env/dynamic/public';
 import { authStore } from '$lib/stores/auth';
 
-// If you don't want to use Session Replay, remove the `Replay` integration,
-// `replaysSessionSampleRate` and `replaysOnErrorSampleRate` options.
 Sentry.init({
     dsn: "https://556b7249278fb084d64b001ea16a7628@o4510938072219648.ingest.us.sentry.io/4510938165346304",
-    tracesSampleRate: 1,
+    environment: env.PUBLIC_SENTRY_ENVIRONMENT || 'development',
+    tracesSampleRate: 0.2,
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1,
     integrations: [Sentry.replayIntegration()],
-    enableLogs: true,
     sendDefaultPii: false
 })
 
@@ -34,6 +33,15 @@ if (typeof window !== 'undefined') {
     }
   }
 }
+
+// Track user identity in Sentry when auth state changes
+authStore.subscribe((state) => {
+  if (state.isAuthenticated && state.user?.id) {
+    Sentry.setUser({ id: state.user.id });
+  } else {
+    Sentry.setUser(null);
+  }
+});
 
 export const handleError: HandleClientError = Sentry.handleErrorWithSentry(({ error, event }) => {
   console.error('Client error:', error, event);
