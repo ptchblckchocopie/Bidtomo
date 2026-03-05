@@ -318,7 +318,11 @@ export default buildConfig({
                 throw new Error('Cannot edit products that have been sold');
               }
 
-              // Prevent editing startingPrice, auctionEndDate, or status if there are already bids
+              // Non-admins can never set currentBid directly — only the bid-worker/queue can
+              if (data?.currentBid !== undefined && data.currentBid !== originalDoc?.currentBid) {
+                throw new Error('Cannot set currentBid directly');
+              }
+
               // Prevent editing startingPrice, auctionEndDate, or status if there are already bids
               const hasStartingPriceChange = data?.startingPrice !== undefined && data.startingPrice !== originalDoc?.startingPrice;
               const hasEndDateChange = data?.auctionEndDate !== undefined && data.auctionEndDate !== originalDoc?.auctionEndDate;
@@ -959,10 +963,18 @@ export default buildConfig({
       },
       hooks: {
         beforeChange: [
-          ({ req, data }) => {
-            // Automatically set sender to the logged-in user
-            if (req.user && !data.sender) {
+          ({ req, data, operation }) => {
+            // Always force sender to authenticated user — prevent impersonation
+            if (req.user) {
               data.sender = req.user.id;
+            }
+            // On update, only allow 'read' field to be changed (mark-as-read)
+            if (operation === 'update' && req.user?.role !== 'admin') {
+              const allowed = { read: data.read };
+              Object.keys(data).forEach(key => {
+                if (key !== 'read') delete data[key];
+              });
+              data.read = allowed.read;
             }
             return data;
           },

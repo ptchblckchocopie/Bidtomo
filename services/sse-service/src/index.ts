@@ -91,8 +91,11 @@ app.use(cors({
     if (origin === 'https://bidmo.to' || origin === 'https://www.bidmo.to' || origin === 'https://app.bidmo.to') {
       return callback(null, true);
     }
-    // Allow Vercel preview/staging deployments
-    if (origin.endsWith('.vercel.app') && origin.startsWith('https://')) {
+    // Allow only our Vercel deployments (not any *.vercel.app)
+    if (origin.startsWith('https://') && (
+      origin === 'https://bidtomo.vercel.app' ||
+      origin.startsWith('https://bidtomo-') && origin.endsWith('.vercel.app')
+    )) {
       return callback(null, true);
     }
     callback(new Error('Not allowed by CORS'));
