@@ -308,6 +308,7 @@ function startEmailProcessor(): void {
       await processEmailQueue();
     }
     console.log('[EMAIL] Email queue processor stopped');
+    processorRunning = false;
   };
 
   runProcessor().catch((error) => {

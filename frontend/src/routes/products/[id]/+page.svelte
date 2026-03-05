@@ -151,7 +151,8 @@
   let countdownInterval: ReturnType<typeof setInterval> | null = $state(null);
 
   // Check if auction has ended by time (not just status)
-  let hasAuctionEnded = $derived(data.product?.auctionEndDate
+  // Updated by updateCountdown() every second — not $derived because new Date() doesn't trigger reactivity
+  let hasAuctionEnded = $state(data.product?.auctionEndDate
     ? new Date().getTime() > new Date(data.product.auctionEndDate).getTime()
     : false);
 
@@ -303,6 +304,7 @@
 
     if (distance < 0) {
       timeRemaining = 'Auction Ended';
+      hasAuctionEnded = true;
       if (countdownInterval) clearInterval(countdownInterval);
 
       // Auto-close auction if it's still active and time has ended

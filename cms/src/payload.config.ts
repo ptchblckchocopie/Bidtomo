@@ -146,7 +146,12 @@ export default buildConfig({
         admin: ({ req }) => req.user?.role === 'admin',
         read: () => true,
         create: () => true,
-        update: ({ req }) => !!req.user,
+        update: ({ req }) => {
+          if (!req.user) return false;
+          if (req.user.role === 'admin') return true;
+          // Non-admins can only update their own profile
+          return { id: { equals: req.user.id } };
+        },
         delete: ({ req }) => req.user?.role === 'admin',
       },
       hooks: {
