@@ -13,18 +13,22 @@ import { cloudStorage } from '@payloadcms/plugin-cloud-storage';
 import { authenticateJWT } from './auth-helpers';
 import { EmailTemplates } from './collections/EmailTemplates';
 
-// Configure S3 adapter for Supabase Storage
+// Configure S3 adapter for DigitalOcean Spaces (or Supabase Storage fallback)
+const s3Region = process.env.S3_REGION || 'sgp1';
+const s3Endpoint = process.env.S3_ENDPOINT || `https://${s3Region}.digitaloceanspaces.com`;
+const s3Bucket = process.env.S3_BUCKET || 'veent';
+
 const adapter = s3Adapter({
   config: {
     credentials: {
       accessKeyId: (process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID)!,
       secretAccessKey: (process.env.AWS_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY)!
     },
-    region: process.env.S3_REGION || 'ap-northeast-2',
-    endpoint: process.env.S3_ENDPOINT || 'https://htcdkqplcmdbyjlvzono.storage.supabase.co/storage/v1/s3',
+    region: s3Region,
+    endpoint: s3Endpoint,
     forcePathStyle: true,
   },
-  bucket: process.env.S3_BUCKET || 'bidmo-media',
+  bucket: s3Bucket,
   acl: 'public-read'
 });
 
@@ -1874,9 +1878,7 @@ export default buildConfig({
           prefix: 'bidmoto',
           disableLocalStorage: true,
           generateFileURL: ({ filename, prefix }) => {
-            const bucket = process.env.S3_BUCKET || 'bidmo-media';
-            const supabaseUrl = process.env.SUPABASE_URL || 'https://htcdkqplcmdbyjlvzono.supabase.co';
-            return `${supabaseUrl}/storage/v1/object/public/${bucket}/${prefix}/${filename}`;
+            return `https://${s3Bucket}.${s3Region}.digitaloceanspaces.com/${prefix}/${filename}`;
           },
         }
       }
