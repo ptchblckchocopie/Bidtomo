@@ -103,20 +103,33 @@ Collection hooks use globals because importing `ioredis` directly would crash th
 - `(global as any).publishMessageNotification` — SSE user channel
 - `(global as any).publishGlobalEvent` — SSE global channel
 - `(global as any).indexProduct` / `updateProductIndex` — Elasticsearch sync
+- `(global as any).trackEvent` — Analytics event tracking (fire-and-forget via `setImmediate`)
 
-### Custom CMS Endpoints (in `cms/src/server.ts`)
+### CMS Route Architecture (`cms/src/routes/`)
 
-Express routes registered **before** `payload.init()` to avoid Payload's route interception. Most use `overrideAccess: true` to bypass collection access control — but this does NOT skip field validation, so all `required` fields must still be provided.
-- `/api/bid/queue`, `/api/bid/accept` — Redis bid queue
-- `/api/users/limits`, `/api/users/profile-picture` — user-specific
-- `/api/search/products` — Elasticsearch with Payload fallback
-- `/api/void-request/*` — 4-step void flow (create → respond → seller-choice → second-bidder-response) using `overrideAccess: true`
-- `/api/health` — Health check
-- `/api/typing`, `/api/typing/:productId` — Typing indicators (POST to set, GET to poll)
-- `/api/create-conversations` — Auto-create conversation threads
-- `/api/elasticsearch/sync` — Manual Elasticsearch bulk sync
-- `/api/sync-bids` — Internal bid data sync
-- `/api/backup/trigger` — Manual database backup (`cms/src/services/backupService.ts`)
+Custom endpoints are organized into **modular route files**, each exporting a factory function that receives `(app, payload, pool)` and registers Express routes. All routes are registered **before** `payload.init()` in `cms/src/server.ts` to avoid Payload's route interception. Most use `overrideAccess: true` to bypass collection access control — but this does NOT skip field validation, so all `required` fields must still be provided.
+
+Route modules:
+- `admin.ts` — Admin route shadowing
+- `analytics.ts` — `POST /api/analytics/track`, `GET /api/analytics/dashboard` (admin-only)
+- `bids.ts` — `/api/bid/queue`, `/api/bid/accept` (Redis bid queue)
+- `health.ts` — `/api/health`
+- `misc.ts` — `/api/create-conversations`, `/api/elasticsearch/sync`, `/api/sync-bids`, `/api/backup/trigger`
+- `products.ts` — Product-specific endpoints
+- `search.ts` — `/api/search/products` (Elasticsearch with Payload fallback)
+- `typing.ts` — `/api/typing`, `/api/typing/:productId` (POST to set, GET to poll)
+- `users.ts` — `/api/users/limits`, `/api/users/profile-picture`, auth endpoints
+- `voidRequests.ts` — `/api/void-request/*` (4-step void flow)
+
+### Rate Limiting (`cms/src/limiters.ts`)
+
+Centralized `express-rate-limit` instances. All limiters are **disabled in development** (max set to 999999) and only enforce in production:
+- `loginLimiter` — 10/15min
+- `registrationLimiter` — 5/hour
+- `bidLimiter` — 30/min
+- `analyticsLimiter` — 120/min
+- `reportLimiter` — 5/hour
+- `analyticsDashboardLimiter` — 10/min
 
 ### Redis Channels
 
@@ -136,6 +149,8 @@ All defined inline in `cms/src/payload.config.ts` except EmailTemplates (`cms/sr
 - **void-requests** — 4-step dispute/refund workflow
 - **media** — S3-backed file uploads (Supabase Storage)
 - **ratings** — User ratings and reviews
+- **reports** — Product moderation reports with status workflow (pending/reviewed/dismissed)
+- **user-events** — Analytics tracking (admin-only, "Analytics" group)
 - **EmailTemplates** — Transactional email templates
 
 ### CMS Redis Module (`cms/src/redis.ts`)
@@ -169,7 +184,7 @@ Uses **Resend** (`resend` npm package) as email provider. Handles void request n
 - **Products `status` vs `active`** — Separate fields. `active` = visible on browse. `status` = sale lifecycle (`available/sold/ended`). A product can be `active: false, status: available` (hidden but not sold).
 - **Relationship depth** — All product list queries use `depth=1` to populate one level of relationships (e.g., media, seller) without infinite recursion. Missing `depth=1` is a common cause of broken images/data on the browse page.
 - **Elasticsearch is optional** — When unavailable, search falls back to Payload's native query. All ES operations are gated by `isElasticAvailable()`.
-- **Migrations** — Production runs `payload migrate` via GitHub Actions post-deploy. The `cms/scripts/run-migrations.js` script clears `DB_PUSH` sentinel rows then runs `payload migrate` non-interactively. Staging uses `DB_PUSH=true` for dev convenience.
+- **Migrations** — Two-phase: **pre-init** (`cms/src/migrations/preInit.ts`) runs raw SQL before `payload.init()` to ensure tables exist with correct schema (prevents bootstrap errors), **post-init** (`cms/src/migrations/postInit.ts`) runs after init. Production runs `payload migrate` via GitHub Actions post-deploy. The `cms/scripts/run-migrations.js` script clears `DB_PUSH` sentinel rows then runs `payload migrate` non-interactively. Staging uses `DB_PUSH=true` for dev convenience.
 - **Legacy docs at root** — `README.md`, `QUICKSTART.md`, `SETUP.md`, `AUTHENTICATION.md`, `DOCKER.md`, `PLANNING.md`, `progress.md` are outdated (refer to old 3-service setup, Node 18, Railway, all-localStorage auth). **Do not trust these** — use this CLAUDE.md and the slash commands instead.
 
 ## Deployment & CI

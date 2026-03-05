@@ -18,7 +18,8 @@ const s3Region = process.env.S3_REGION || 'sgp1';
 const s3Endpoint = process.env.S3_ENDPOINT || `https://${s3Region}.digitaloceanspaces.com`;
 const s3Bucket = process.env.S3_BUCKET || 'veent';
 
-const adapter = s3Adapter({
+const hasS3Credentials = !!(process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID);
+const adapter = hasS3Credentials ? s3Adapter({
   config: {
     credentials: {
       accessKeyId: (process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID)!,
@@ -30,7 +31,7 @@ const adapter = s3Adapter({
   },
   bucket: s3Bucket,
   acl: 'public-read'
-});
+}) : null;
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -59,7 +60,10 @@ export default buildConfig({
     bundler: webpackBundler(),
     disable: process.env.VERCEL === '1', // Disable admin UI on Vercel serverless
     webpack: (config) => {
-      // Provide browser-compatible fallbacks for Node.js built-in modules
+      // Use eval to prevent webpack from bundling the webpack module itself
+      const _require = eval('require');
+      const wp = _require('webpack');
+      const mockModulePath = path.resolve(__dirname, './emptyModule.js');
       config.resolve = {
         ...config.resolve,
         alias: {
@@ -67,24 +71,42 @@ export default buildConfig({
           // Override Payload's built-in Unauthorized view with custom redirect version
           [path.resolve(__dirname, '../node_modules/payload/dist/admin/components/views/Unauthorized/index')]:
             path.resolve(__dirname, '../src/components/UnauthorizedView.tsx'),
+          // Mock server-only modules that payload.config.ts imports
+          '@payloadcms/plugin-cloud-storage/s3': mockModulePath,
+          '@payloadcms/plugin-cloud-storage': mockModulePath,
+          [path.resolve(__dirname, 'auth-helpers')]: mockModulePath,
+          '@payloadcms/richtext-lexical': mockModulePath,
         },
         fallback: {
           ...config.resolve?.fallback,
           fs: false,
-          path: require.resolve('path-browserify'),
+          path: _require.resolve('path-browserify'),
           crypto: false,
           stream: false,
           os: false,
           util: false,
           buffer: false,
+          assert: false,
+          vm: false,
+          url: false,
+          zlib: false,
+          tty: false,
+          querystring: false,
+          constants: false,
+          child_process: false,
+          worker_threads: false,
+          module: false,
+          inspector: false,
         },
       };
-      // Externalize server-only modules that shouldn't be in browser bundle
-      config.externals = [
-        ...(Array.isArray(config.externals) ? config.externals : []),
-        'jsonwebtoken',
-        'jwa',
-        'jws',
+      // Polyfill process.getuid/getgid for Windows (Unix-only APIs used by some dependencies)
+      config.plugins = [
+        ...(config.plugins || []),
+        new wp.BannerPlugin({
+          banner: 'if(typeof process!=="undefined"){if(!process.getuid)process.getuid=function(){return 0};if(!process.getgid)process.getgid=function(){return 0}}',
+          raw: true,
+          entryOnly: false,
+        }),
       ];
       return config;
     },
@@ -111,8 +133,10 @@ export default buildConfig({
     {
       slug: 'users',
       auth: {
+        depth: 1,
         verify: false,
-        maxLoginAttempts: 5,
+        maxLoginAttempts: process.env.NODE_ENV === 'production' ? 10 : 0, // 0 = disabled locally
+        lockTime: 5 * 60 * 1000, // Auto-unlock after 5 minutes (production only, since local disables locking)
       },
       admin: {
         useAsTitle: 'email',
@@ -1336,6 +1360,7 @@ export default buildConfig({
     {
       slug: 'media',
       upload: {
+        staticDir: path.resolve(__dirname, '../media'),
         mimeTypes: ['image/*'],
         imageSizes: [
           {
@@ -1871,7 +1896,8 @@ export default buildConfig({
     EmailTemplates,
   ],
   plugins: [
-    cloudStorage({
+    // Only use cloud storage when S3 credentials are available; fall back to local filesystem for dev
+    ...(adapter ? [cloudStorage({
       collections: {
         media: {
           adapter: adapter,
@@ -1882,10 +1908,11 @@ export default buildConfig({
           },
         }
       }
-    })
+    })] : [])
   ],
   typescript: {
     outputFile: path.resolve(__dirname, 'payload-types.ts'),
+    declare: false,
   },
   graphQL: {
     schemaOutputFile: path.resolve(__dirname, 'generated-schema.graphql'),

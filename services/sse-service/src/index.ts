@@ -78,8 +78,8 @@ app.use(cors({
       const isProduction = process.env.NODE_ENV === 'production';
       return callback(null, !isProduction); // allow in dev, reject in prod
     }
-    // Exact match for localhost dev ports
-    if (origin === 'http://localhost:5173' || origin === 'http://localhost:3001' || origin === 'http://localhost:3000') {
+    // Allow any localhost port in dev
+    if (/^http:\/\/localhost:\d+$/.test(origin)) {
       return callback(null, true);
     }
     if (origin.match(/^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/)) {

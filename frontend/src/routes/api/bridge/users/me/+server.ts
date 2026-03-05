@@ -9,7 +9,7 @@ export const GET: RequestHandler = async ({ request, cookies }) => {
       return errorResponse('Unauthorized', 401);
     }
 
-    const response = await cmsRequest('/api/users/me', {
+    const response = await cmsRequest('/api/users/me?depth=1', {
       token,
     });
 

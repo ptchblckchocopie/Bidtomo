@@ -35,6 +35,30 @@
     green: 'rgb(34, 139, 34)',
   };
 
+  const DARK_COLORS = {
+    red: 'rgb(94, 106, 210)',
+    blue: 'rgb(139, 147, 224)',
+    yellow: 'rgb(212, 180, 74)',
+    fg: 'rgb(237, 237, 239)',
+    green: 'rgb(90, 232, 121)',
+  };
+
+  function isDark(): boolean {
+    return document.documentElement.classList.contains('dark');
+  }
+
+  function chartColors() {
+    return isDark() ? DARK_COLORS : COLORS;
+  }
+
+  function chartTextColor() {
+    return isDark() ? '#EDEDEF' : '#121212';
+  }
+
+  function chartGridColor() {
+    return isDark() ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.1)';
+  }
+
   const DOUGHNUT_COLORS = [
     COLORS.red, COLORS.blue, COLORS.yellow, COLORS.green, COLORS.fg,
     '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#ea580c',
@@ -62,18 +86,22 @@
     error = '';
     try {
       data = await fetchAnalyticsDashboard({ from: fromDate, to: toDate });
-      // Wait for DOM to update before rendering charts
-      await new Promise(r => setTimeout(r, 0));
-      renderCharts();
     } catch (e: any) {
       error = e.message || 'Failed to load analytics';
     } finally {
       loading = false;
     }
+    // Wait for DOM to mount canvas elements (they're inside {:else if data} which needs loading=false)
+    await new Promise(r => setTimeout(r, 0));
+    renderCharts();
   }
 
   function renderCharts() {
     if (!data) return;
+
+    // Snapshot data to plain objects — Chart.js uses Object.defineProperty
+    // on arrays which conflicts with Svelte 5's $state proxy
+    const d = $state.snapshot(data) as AnalyticsDashboard;
 
     // Destroy existing charts
     lineChart?.destroy();
@@ -81,40 +109,48 @@
     doughnutChart?.destroy();
 
     // Time series line chart
+    const c = chartColors();
+    const textColor = chartTextColor();
+    const gridColor = chartGridColor();
+
     if (lineCanvas) {
+      const blueFill = isDark() ? 'rgba(94, 106, 210, 0.15)' : 'rgba(16, 64, 192, 0.1)';
       lineChart = new Chart(lineCanvas, {
         type: 'line',
         data: {
-          labels: data.timeSeries.labels,
+          labels: d.timeSeries.labels,
           datasets: [
-            { label: 'Product Views', data: data.timeSeries.productViews, borderColor: COLORS.blue, backgroundColor: 'rgba(16, 64, 192, 0.1)', fill: true, tension: 0.3 },
-            { label: 'Searches', data: data.timeSeries.searches, borderColor: COLORS.yellow, backgroundColor: 'transparent', tension: 0.3 },
-            { label: 'Bids', data: data.timeSeries.bids, borderColor: COLORS.red, backgroundColor: 'transparent', tension: 0.3 },
-            { label: 'Registrations', data: data.timeSeries.registrations, borderColor: COLORS.green, backgroundColor: 'transparent', tension: 0.3 },
-            { label: 'Products Sold', data: data.timeSeries.productsSold, borderColor: COLORS.fg, backgroundColor: 'transparent', tension: 0.3, borderDash: [5, 5] },
+            { label: 'Product Views', data: d.timeSeries.productViews, borderColor: c.blue, backgroundColor: blueFill, fill: true, tension: 0.3 },
+            { label: 'Searches', data: d.timeSeries.searches, borderColor: c.yellow, backgroundColor: 'transparent', tension: 0.3 },
+            { label: 'Bids', data: d.timeSeries.bids, borderColor: c.red, backgroundColor: 'transparent', tension: 0.3 },
+            { label: 'Registrations', data: d.timeSeries.registrations, borderColor: c.green, backgroundColor: 'transparent', tension: 0.3 },
+            { label: 'Products Sold', data: d.timeSeries.productsSold, borderColor: c.fg, backgroundColor: 'transparent', tension: 0.3, borderDash: [5, 5] },
           ],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { position: 'bottom' } },
-          scales: { y: { beginAtZero: true } },
+          plugins: { legend: { position: 'bottom', labels: { color: textColor } } },
+          scales: {
+            y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } },
+            x: { ticks: { color: textColor }, grid: { color: gridColor } },
+          },
         },
       });
     }
 
     // Top search keywords bar chart
-    if (barCanvas && data.topSearchKeywords?.length > 0) {
+    if (barCanvas && d.topSearchKeywords?.length > 0) {
       barChart = new Chart(barCanvas, {
         type: 'bar',
         data: {
-          labels: data.topSearchKeywords.map(k => k.keyword),
+          labels: d.topSearchKeywords.map(k => k.keyword),
           datasets: [{
             label: 'Searches',
-            data: data.topSearchKeywords.map(k => k.count),
-            backgroundColor: COLORS.blue,
-            borderColor: COLORS.fg,
-            borderWidth: 2,
+            data: d.topSearchKeywords.map(k => k.count),
+            backgroundColor: c.blue,
+            borderColor: isDark() ? 'rgba(255, 255, 255, 0.1)' : c.fg,
+            borderWidth: isDark() ? 1 : 2,
           }],
         },
         options: {
@@ -122,28 +158,31 @@
           maintainAspectRatio: false,
           indexAxis: 'y',
           plugins: { legend: { display: false } },
-          scales: { x: { beginAtZero: true } },
+          scales: {
+            x: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } },
+            y: { ticks: { color: textColor }, grid: { color: gridColor } },
+          },
         },
       });
     }
 
     // Event breakdown doughnut
-    if (doughnutCanvas && data.eventBreakdown?.length > 0) {
+    if (doughnutCanvas && d.eventBreakdown?.length > 0) {
       doughnutChart = new Chart(doughnutCanvas, {
         type: 'doughnut',
         data: {
-          labels: data.eventBreakdown.map(e => formatEventType(e.eventType)),
+          labels: d.eventBreakdown.map(e => formatEventType(e.eventType)),
           datasets: [{
-            data: data.eventBreakdown.map(e => e.count),
-            backgroundColor: DOUGHNUT_COLORS.slice(0, data.eventBreakdown.length),
-            borderColor: COLORS.fg,
-            borderWidth: 2,
+            data: d.eventBreakdown.map(e => e.count),
+            backgroundColor: DOUGHNUT_COLORS.slice(0, d.eventBreakdown.length),
+            borderColor: isDark() ? 'rgba(255, 255, 255, 0.08)' : c.fg,
+            borderWidth: isDark() ? 1 : 2,
           }],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8 } } },
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, color: textColor } } },
         },
       });
     }
@@ -290,27 +329,27 @@
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
       <div class="card-bh p-4 text-center">
         <div class="text-2xl font-bold font-outfit">{data.overview.totalUsers.toLocaleString()}</div>
-        <div class="text-sm text-bh-muted font-bold mt-1">Total Users</div>
+        <div class="text-sm text-bh-fg/50 font-bold mt-1">Total Users</div>
       </div>
       <div class="card-bh p-4 text-center">
         <div class="text-2xl font-bold font-outfit">{data.overview.activeUsers7d.toLocaleString()}</div>
-        <div class="text-sm text-bh-muted font-bold mt-1">Active (7d)</div>
+        <div class="text-sm text-bh-fg/50 font-bold mt-1">Active (7d)</div>
       </div>
       <div class="card-bh p-4 text-center">
         <div class="text-2xl font-bold font-outfit">{data.overview.totalProducts.toLocaleString()}</div>
-        <div class="text-sm text-bh-muted font-bold mt-1">Products</div>
+        <div class="text-sm text-bh-fg/50 font-bold mt-1">Products</div>
       </div>
       <div class="card-bh p-4 text-center">
         <div class="text-2xl font-bold font-outfit">{data.overview.productsSold.toLocaleString()}</div>
-        <div class="text-sm text-bh-muted font-bold mt-1">Sold</div>
+        <div class="text-sm text-bh-fg/50 font-bold mt-1">Sold</div>
       </div>
       <div class="card-bh p-4 text-center">
         <div class="text-2xl font-bold font-outfit">{data.overview.totalBids.toLocaleString()}</div>
-        <div class="text-sm text-bh-muted font-bold mt-1">Bids</div>
+        <div class="text-sm text-bh-fg/50 font-bold mt-1">Bids</div>
       </div>
       <div class="card-bh p-4 text-center">
         <div class="text-2xl font-bold font-outfit">{data.overview.totalSearches.toLocaleString()}</div>
-        <div class="text-sm text-bh-muted font-bold mt-1">Searches</div>
+        <div class="text-sm text-bh-fg/50 font-bold mt-1">Searches</div>
       </div>
     </div>
 
@@ -331,7 +370,7 @@
             <canvas bind:this={barCanvas}></canvas>
           </div>
         {:else}
-          <p class="text-bh-muted text-sm text-center py-8">No search data in this period</p>
+          <p class="text-bh-fg/50 text-sm text-center py-8">No search data in this period</p>
         {/if}
       </div>
 
@@ -342,7 +381,7 @@
             <canvas bind:this={doughnutCanvas}></canvas>
           </div>
         {:else}
-          <p class="text-bh-muted text-sm text-center py-8">No events in this period</p>
+          <p class="text-bh-fg/50 text-sm text-center py-8">No events in this period</p>
         {/if}
       </div>
     </div>
@@ -363,7 +402,7 @@
             <tbody>
               {#each data.topViewedProducts as product, i}
                 <tr class="border-b border-bh-border/30">
-                  <td class="py-2 text-bh-muted">{i + 1}</td>
+                  <td class="py-2 text-bh-fg/50">{i + 1}</td>
                   <td class="py-2">
                     <a href="/product/{product.id}" class="hover:text-bh-red font-bold">{product.title}</a>
                   </td>
@@ -373,7 +412,7 @@
             </tbody>
           </table>
         {:else}
-          <p class="text-bh-muted text-sm text-center py-8">No view data in this period</p>
+          <p class="text-bh-fg/50 text-sm text-center py-8">No view data in this period</p>
         {/if}
       </div>
 
@@ -391,7 +430,7 @@
             <tbody>
               {#each data.topSoldProducts as product, i}
                 <tr class="border-b border-bh-border/30">
-                  <td class="py-2 text-bh-muted">{i + 1}</td>
+                  <td class="py-2 text-bh-fg/50">{i + 1}</td>
                   <td class="py-2">
                     <a href="/product/{product.id}" class="hover:text-bh-red font-bold">{product.title}</a>
                   </td>
@@ -401,7 +440,7 @@
             </tbody>
           </table>
         {:else}
-          <p class="text-bh-muted text-sm text-center py-8">No sales in this period</p>
+          <p class="text-bh-fg/50 text-sm text-center py-8">No sales in this period</p>
         {/if}
       </div>
     </div>
