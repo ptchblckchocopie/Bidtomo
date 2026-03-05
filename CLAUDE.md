@@ -193,18 +193,37 @@ Uses **Resend** (`resend` npm package) as email provider. Handles void request n
 
 **Railway expired** — all Railway deployments removed, database lost. Backend migrated to **DigitalOcean**.
 
-- **Frontend** → Vercel (auto-deploy, unchanged)
-- **Backend (CMS, SSE, bid-worker, Postgres, Redis)** → DigitalOcean droplet with `docker-compose.prod.yml` (Caddy reverse proxy for automatic HTTPS)
+- **Frontend** → Vercel at `www.bidmo.to` (auto-deploy from `main` branch)
+- **Backend** → DigitalOcean droplet `188.166.216.176` with `docker-compose.prod.yml`
 - **App directory on droplet:** `/opt/bidtomo`
 - **Database starts fresh** — no data from Railway was recovered
 
+### URLs
+
+- **Frontend (production):** https://www.bidmo.to
+- **Backend HTTPS:** https://188-166-216-176.sslip.io (sslip.io provides free auto-HTTPS via Let's Encrypt, temporary until `api.bidmo.to` DNS is configured)
+- **Backend HTTP (internal):** http://188.166.216.176 (used by Vercel bridge routes server-to-server)
+- **CMS Admin Panel:** https://188-166-216-176.sslip.io/admin
+- **Portainer (Docker UI):** https://188.166.216.176:9443
+- **SSE endpoint:** https://188-166-216-176.sslip.io/sse
+
+### Vercel Environment Variables
+
+- `CMS_URL` = `http://188.166.216.176` (server-to-server, HTTP via Caddy `:80` listener)
+- `PUBLIC_SSE_URL` = `https://188-166-216-176.sslip.io/sse` (browser-facing, HTTPS required)
+
 ### Production Infrastructure
 
-- **`docker-compose.prod.yml`** — Caddy + all 4 app services + Postgres + Redis. Caddy routes: `/sse/*` → SSE service (strips prefix), `/api/*` + `/admin/*` + `/media/*` → CMS, default → CMS.
-- **`Caddyfile`** — Uses `{$DOMAIN:localhost}` env var for the domain.
+- **`docker-compose.prod.yml`** — Caddy + all 4 app services + Postgres + Redis (7 containers total). Caddy routes: `/sse/*` → SSE service (strips prefix), `/api/*` + `/admin/*` + `/media/*` → CMS, default → CMS.
+- **`Caddyfile`** — Dual listener: HTTPS on `{$DOMAIN}` (browser access, auto Let's Encrypt) + HTTP on `:80` (server-to-server bridge calls from Vercel, no TLS). Both route identically.
 - **`scripts/setup-droplet.sh`** — Initial droplet setup: installs Docker, fail2ban, UFW (allow SSH/HTTP/HTTPS only).
 - **`.env.production.example`** — Root-level production env template for `docker-compose.prod.yml`.
 - **`deploy.sh`** — Blue/green deployment with atomic symlink swaps (`build_blue`/`build_green`), runs SQL migrations via `psql`, reloads via `pm2`.
+- **Portainer** — Docker web UI running on port 9443 for container monitoring, logs, and resource graphs.
+
+### DNS (pending)
+
+DigitalOcean DNS zone for `bidmo.to` is fully configured (A records for `@` and `api` → droplet, CNAME `www` → Vercel, MX + SPF records). Nameservers need to be changed at Namecheap from `registrar-servers.com` to `ns1/ns2/ns3.digitalocean.com`. Once done, update droplet `.env` to `DOMAIN=api.bidmo.to` and Vercel env vars to use `api.bidmo.to`.
 
 ### CI/CD
 
