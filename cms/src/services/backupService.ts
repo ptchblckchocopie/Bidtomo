@@ -16,8 +16,8 @@ function getS3Client(): S3Client {
       accessKeyId: (process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID)!,
       secretAccessKey: (process.env.AWS_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY)!,
     },
-    region: process.env.S3_REGION || 'ap-northeast-2',
-    endpoint: process.env.S3_ENDPOINT || 'https://htcdkqplcmdbyjlvzono.storage.supabase.co/storage/v1/s3',
+    region: process.env.S3_REGION || 'sgp1',
+    endpoint: process.env.S3_ENDPOINT || `https://${process.env.S3_REGION || 'sgp1'}.digitaloceanspaces.com`,
     forcePathStyle: true,
   });
 }
@@ -64,7 +64,7 @@ export async function runBackup(): Promise<{ success: boolean; key?: string; err
     const gzip = createGzip({ level: 6 });
     gzip.pipe(passthrough);
 
-    const bucket = process.env.S3_BUCKET || 'bidmo-media';
+    const bucket = process.env.S3_BUCKET || 'veent';
     const s3 = getS3Client();
 
     const upload = new Upload({
@@ -168,7 +168,7 @@ export async function runBackup(): Promise<{ success: boolean; key?: string; err
 export async function cleanupOldBackups(): Promise<number> {
   const retentionDays = parseInt(process.env.BACKUP_RETENTION_DAYS || '7', 10);
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-  const bucket = process.env.S3_BUCKET || 'bidmo-media';
+  const bucket = process.env.S3_BUCKET || 'veent';
   const s3 = getS3Client();
 
   try {

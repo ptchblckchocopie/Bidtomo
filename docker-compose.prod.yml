@@ -22,7 +22,7 @@ services:
     networks:
       - bidtomo-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80 || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -89,6 +89,7 @@ services:
       S3_ENDPOINT: ${S3_ENDPOINT:-https://sgp1.digitaloceanspaces.com}
       S3_BUCKET: ${S3_BUCKET:-veent}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
       BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
       BACKUP_CRON_SCHEDULE: ${BACKUP_CRON_SCHEDULE:-0 3 * * *}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
@@ -149,6 +150,7 @@ services:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
       PAYLOAD_SECRET: ${PAYLOAD_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL}
       NODE_ENV: production
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
