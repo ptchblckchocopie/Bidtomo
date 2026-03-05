@@ -553,7 +553,7 @@ export async function fetchEndedProductsBySeller(sellerId: string, customFetch?:
 export async function fetchProduct(id: string, customFetch?: typeof fetch): Promise<Product | null> {
   try {
     const fetchFn = customFetch || fetch;
-    const response = await fetchFn(`${BRIDGE_URL}/api/bridge/products/${id}`, {
+    const response = await fetchFn(`${BRIDGE_URL}/api/bridge/products/${id}?depth=1`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
