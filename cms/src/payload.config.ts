@@ -1779,7 +1779,8 @@ export default buildConfig({
                 limit: 1,
               });
               if (existing.docs.length > 0) {
-                throw new Error('Product is already in your watchlist');
+                const { APIError } = require('payload/errors');
+                throw new APIError('Product is already in your watchlist', 400);
               }
             }
             return data;
