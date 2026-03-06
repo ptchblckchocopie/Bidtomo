@@ -1,10 +1,11 @@
 <script lang="ts">
   import { watchlistStore } from '$lib/stores/watchlist';
 
-  let { productId, size = 'md' }: { productId: string; size?: 'sm' | 'md' | 'lg' } = $props();
+  let { productId, size = 'md' }: { productId: string | number; size?: 'sm' | 'md' | 'lg' } = $props();
 
+  let pid = $derived(String(productId));
   let loading = $state(false);
-  let isWatched = $derived($watchlistStore.items.has(productId));
+  let isWatched = $derived($watchlistStore.items.has(pid));
 
   const sizeMap = {
     sm: 'w-5 h-5',
@@ -26,9 +27,9 @@
     loading = true;
     try {
       if (isWatched) {
-        await watchlistStore.remove(productId);
+        await watchlistStore.remove(pid);
       } else {
-        await watchlistStore.add(productId);
+        await watchlistStore.add(pid);
       }
     } finally {
       loading = false;

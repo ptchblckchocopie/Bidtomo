@@ -1506,7 +1506,7 @@ export async function addToWatchlist(productId: string): Promise<{ id: string } 
       method: 'POST',
       headers: getAuthHeaders(),
       credentials: 'include',
-      body: JSON.stringify({ product: productId }),
+      body: JSON.stringify({ product: Number(productId) }),
     });
 
     if (response.status === 401) {
