@@ -224,20 +224,68 @@
     const ExcelJS = await import('exceljs');
     const workbook = new ExcelJS.Workbook();
 
+    // Shared styles
+    const headerFill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FF1A1A2E' } };
+    const headerFont = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    const numberFmt = '#,##0';
+    const pctFmt = '0.00%';
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function styleHeader(sheet: any) {
+      const row = sheet.getRow(1);
+      row.font = headerFont;
+      row.fill = headerFill;
+      row.alignment = { vertical: 'middle', horizontal: 'center' };
+      row.height = 22;
+      sheet.autoFilter = { from: 'A1', to: `${String.fromCharCode(64 + sheet.columnCount)}1` };
+      sheet.views = [{ state: 'frozen', ySplit: 1 }];
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function numCol(sheet: any, colKeys: string[]) {
+      for (const key of colKeys) {
+        const col = sheet.getColumn(key);
+        if (col) col.numFmt = numberFmt;
+      }
+    }
+
+    // Computed metrics
+    const dayCount = data.timeSeries.labels.length || 1;
+    const totalViews = data.timeSeries.productViews.reduce((a, b) => a + b, 0);
+    const totalBids = data.overview.totalBids;
+    const conversionRate = totalViews > 0 ? totalBids / totalViews : 0;
+    const avgBidsPerDay = totalBids / dayCount;
+    const avgViewsPerDay = totalViews / dayCount;
+    const avgSearchesPerDay = data.overview.totalSearches / dayCount;
+    const avgRegistrationsPerDay = data.timeSeries.registrations.reduce((a, b) => a + b, 0) / dayCount;
+
     // Sheet 1: Overview
     const overview = workbook.addWorksheet('Overview');
     overview.columns = [
-      { header: 'Metric', key: 'metric', width: 25 },
-      { header: 'Value', key: 'value', width: 15 },
+      { header: 'Metric', key: 'metric', width: 30 },
+      { header: 'Value', key: 'value', width: 18 },
     ];
     overview.addRow({ metric: 'Period', value: `${fromDate} to ${toDate}` });
+    overview.addRow({ metric: 'Days in Period', value: dayCount });
+    overview.addRow({ metric: '', value: '' });
     overview.addRow({ metric: 'Total Users', value: data.overview.totalUsers });
     overview.addRow({ metric: 'Active Users (7d)', value: data.overview.activeUsers7d });
+    overview.addRow({ metric: 'Avg Registrations / Day', value: Math.round(avgRegistrationsPerDay * 100) / 100 });
+    overview.addRow({ metric: '', value: '' });
     overview.addRow({ metric: 'Total Products', value: data.overview.totalProducts });
     overview.addRow({ metric: 'Products Sold', value: data.overview.productsSold });
-    overview.addRow({ metric: 'Total Bids', value: data.overview.totalBids });
+    overview.addRow({ metric: '', value: '' });
+    overview.addRow({ metric: 'Total Bids', value: totalBids });
+    overview.addRow({ metric: 'Avg Bids / Day', value: Math.round(avgBidsPerDay * 100) / 100 });
+    overview.addRow({ metric: '', value: '' });
+    overview.addRow({ metric: 'Total Product Views', value: totalViews });
+    overview.addRow({ metric: 'Avg Views / Day', value: Math.round(avgViewsPerDay * 100) / 100 });
+    overview.addRow({ metric: 'Bid Conversion Rate (Bids / Views)', value: conversionRate });
+    overview.getCell('B16').numFmt = pctFmt;
+    overview.addRow({ metric: '', value: '' });
     overview.addRow({ metric: 'Total Searches', value: data.overview.totalSearches });
-    overview.getRow(1).font = { bold: true };
+    overview.addRow({ metric: 'Avg Searches / Day', value: Math.round(avgSearchesPerDay * 100) / 100 });
+    styleHeader(overview);
 
     // Sheet 2: Daily Trends
     const trends = workbook.addWorksheet('Daily Trends');
@@ -259,9 +307,55 @@
         productsSold: data!.timeSeries.productsSold[i],
       });
     });
-    trends.getRow(1).font = { bold: true };
+    // Totals row
+    const totalsRow = trends.addRow({
+      date: 'TOTAL',
+      registrations: data.timeSeries.registrations.reduce((a, b) => a + b, 0),
+      bids: data.timeSeries.bids.reduce((a, b) => a + b, 0),
+      productViews: totalViews,
+      searches: data.timeSeries.searches.reduce((a, b) => a + b, 0),
+      productsSold: data.timeSeries.productsSold.reduce((a, b) => a + b, 0),
+    });
+    totalsRow.font = { bold: true };
+    totalsRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+    // Averages row
+    const avgRow = trends.addRow({
+      date: 'AVG / DAY',
+      registrations: Math.round(data.timeSeries.registrations.reduce((a, b) => a + b, 0) / dayCount * 100) / 100,
+      bids: Math.round(data.timeSeries.bids.reduce((a, b) => a + b, 0) / dayCount * 100) / 100,
+      productViews: Math.round(totalViews / dayCount * 100) / 100,
+      searches: Math.round(data.timeSeries.searches.reduce((a, b) => a + b, 0) / dayCount * 100) / 100,
+      productsSold: Math.round(data.timeSeries.productsSold.reduce((a, b) => a + b, 0) / dayCount * 100) / 100,
+    });
+    avgRow.font = { bold: true, italic: true };
+    avgRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+    numCol(trends, ['registrations', 'bids', 'productViews', 'searches', 'productsSold']);
+    styleHeader(trends);
 
-    // Sheet 3: Top Products
+    // Sheet 3: Event Breakdown
+    const events = workbook.addWorksheet('Event Breakdown');
+    events.columns = [
+      { header: 'Event Type', key: 'eventType', width: 30 },
+      { header: 'Count', key: 'count', width: 15 },
+      { header: '% of Total', key: 'pct', width: 15 },
+    ];
+    const totalEvents = data.eventBreakdown.reduce((a, b) => a + b.count, 0);
+    const sorted = [...data.eventBreakdown].sort((a, b) => b.count - a.count);
+    sorted.forEach(e => {
+      events.addRow({
+        eventType: formatEventType(e.eventType),
+        count: e.count,
+        pct: totalEvents > 0 ? e.count / totalEvents : 0,
+      });
+    });
+    const eventTotalRow = events.addRow({ eventType: 'TOTAL', count: totalEvents, pct: 1 });
+    eventTotalRow.font = { bold: true };
+    eventTotalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+    events.getColumn('count').numFmt = numberFmt;
+    events.getColumn('pct').numFmt = pctFmt;
+    styleHeader(events);
+
+    // Sheet 4: Top Products
     const products = workbook.addWorksheet('Top Products');
     products.columns = [
       { header: 'Type', key: 'type', width: 12 },
@@ -275,9 +369,10 @@
     data.topSoldProducts.forEach(p => {
       products.addRow({ type: 'Sold', id: p.id, title: p.title, count: p.sales });
     });
-    products.getRow(1).font = { bold: true };
+    numCol(products, ['count']);
+    styleHeader(products);
 
-    // Sheet 4: Search Keywords
+    // Sheet 5: Search Keywords
     const keywords = workbook.addWorksheet('Search Keywords');
     keywords.columns = [
       { header: 'Keyword', key: 'keyword', width: 30 },
@@ -286,7 +381,22 @@
     data.topSearchKeywords.forEach(k => {
       keywords.addRow({ keyword: k.keyword, count: k.count });
     });
-    keywords.getRow(1).font = { bold: true };
+    numCol(keywords, ['count']);
+    styleHeader(keywords);
+
+    // Sheet 6: Export Metadata
+    const meta = workbook.addWorksheet('Metadata');
+    meta.columns = [
+      { header: 'Property', key: 'prop', width: 25 },
+      { header: 'Value', key: 'val', width: 40 },
+    ];
+    const user = $authStore?.user;
+    meta.addRow({ prop: 'Generated At', val: new Date().toISOString() });
+    meta.addRow({ prop: 'Exported By', val: user?.name || user?.email || 'Unknown' });
+    meta.addRow({ prop: 'Period', val: `${fromDate} to ${toDate}` });
+    meta.addRow({ prop: 'Days in Period', val: dayCount });
+    meta.addRow({ prop: 'Source', val: 'Bidmo.to Analytics Dashboard' });
+    styleHeader(meta);
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
