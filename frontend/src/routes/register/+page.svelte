@@ -14,6 +14,8 @@
   let success = false;
   let showPassword = false;
   let showConfirmPassword = false;
+  let errorEl: HTMLDivElement;
+  let errorFlash = false;
 
   // Country codes list with common countries
   const countryCodes = [
@@ -39,6 +41,16 @@
     { code: '+974', country: 'Qatar', flag: '🇶🇦' },
   ];
 
+  function showError(msg: string) {
+    error = msg;
+    errorFlash = false;
+    // Wait a tick for the DOM to render the error element
+    requestAnimationFrame(() => {
+      errorFlash = true;
+      errorEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
   // Get redirect URL from query params — only allow safe relative paths
   const rawRedirect = $page.url.searchParams.get('redirect') || '/';
   const redirectUrl = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/';
@@ -51,24 +63,24 @@
 
     // Validation
     if (!name || !email || !password || !confirmPassword || !phoneNumber) {
-      error = 'Please fill in all fields';
+      showError('Please fill in all fields');
       return;
     }
 
     if (password !== confirmPassword) {
-      error = 'Passwords do not match';
+      showError('Passwords do not match');
       return;
     }
 
     if (password.length < 6) {
-      error = 'Password must be at least 6 characters';
+      showError('Password must be at least 6 characters');
       return;
     }
 
     // Phone number validation - basic check for digits only
     const cleanPhone = phoneNumber.replace(/\D/g, '');
     if (cleanPhone.length < 7 || cleanPhone.length > 15) {
-      error = 'Please enter a valid phone number';
+      showError('Please enter a valid phone number');
       return;
     }
 
@@ -93,7 +105,15 @@
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.errors?.[0]?.message || 'Registration failed');
+        // Payload nests specific field errors in data[].message
+        const fieldMsg = data.errors?.[0]?.data?.[0]?.message || '';
+        const topMsg = data.errors?.[0]?.message || data.message || '';
+        const raw = fieldMsg || topMsg;
+        // Map Payload's errors to user-friendly messages
+        if (/already registered/i.test(raw)) {
+          throw new Error('An account with this email already exists. Try logging in instead.');
+        }
+        throw new Error(raw || 'Registration failed. Please try again.');
       }
 
       success = true;
@@ -132,7 +152,7 @@
         }
       }, 1500);
     } catch (err: any) {
-      error = err.message || 'Registration failed. Please try again.';
+      showError(err.message || 'Registration failed. Please try again.');
     } finally {
       submitting = false;
     }
@@ -155,7 +175,13 @@
     {/if}
 
     {#if error}
-      <div class="bg-bh-red text-white border-2 border-bh-border p-4 mb-6 text-center font-bold">
+      <div
+        bind:this={errorEl}
+        class="error-banner mb-6 p-4 text-center font-bold"
+        class:error-flash={errorFlash}
+        onanimationend={() => errorFlash = false}
+      >
+        <svg class="inline-block w-5 h-5 mr-2 -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         {error}
       </div>
     {/if}
@@ -299,5 +325,32 @@
   /* Dark mode: remove the bright blue page background */
   :global(html.dark) .register-page {
     background: transparent !important;
+  }
+
+  /* Error banner — light mode */
+  .error-banner {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 2px solid #dc2626;
+  }
+
+  /* Error banner — dark mode */
+  :global(html.dark) .error-banner {
+    background: rgba(220, 38, 38, 0.15);
+    color: #fca5a5;
+    border: 1px solid rgba(220, 38, 38, 0.4);
+    border-radius: 8px !important;
+  }
+
+  /* Flash/highlight animation */
+  .error-flash {
+    animation: errorPulse 0.6s ease-out;
+  }
+
+  @keyframes errorPulse {
+    0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.5); }
+    30%  { transform: scale(1.02); box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.2); }
+    60%  { transform: scale(0.99); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+    100% { transform: scale(1); box-shadow: none; }
   }
 </style>
