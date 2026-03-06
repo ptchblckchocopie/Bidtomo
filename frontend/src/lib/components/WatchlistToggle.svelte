@@ -61,23 +61,22 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: var(--bh-bg, #fff);
-    border: 2px solid var(--bh-border, #1a1a1a);
-    color: var(--bh-muted-fg, #666);
+    background: none;
+    border: none;
+    color: var(--bh-muted-fg, #999);
     cursor: pointer;
     transition: all 0.15s ease;
     z-index: 10;
+    padding: 0.25rem;
   }
 
   .watchlist-toggle:hover {
     color: var(--bh-red, #dc2626);
-    border-color: var(--bh-red, #dc2626);
+    transform: scale(1.15);
   }
 
   .watchlist-toggle.watched {
     color: var(--bh-red, #dc2626);
-    border-color: var(--bh-red, #dc2626);
-    background: var(--bh-bg, #fff);
   }
 
   .watchlist-toggle:disabled {

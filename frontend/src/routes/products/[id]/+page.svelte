@@ -1001,47 +1001,61 @@
   <div class="product-detail">
     <div class="product-header">
       <a href={backLink} class="back-link">&larr; {backLinkText}</a>
-      {#if isOwner}
-        <button class="edit-product-btn" onclick={openEditModal}>
-          ✏️ Edit Product
-        </button>
-      {/if}
-      {#if $authStore.user?.role === 'admin'}
-        <button
-          class="admin-hide-btn {data.product.active ? '' : 'admin-unhide-btn'}"
-          onclick={openAdminModal}
-        >
-          {data.product.active ? 'Hide Product' : 'Show Product'}
-        </button>
-      {/if}
-      {#if $authStore.isAuthenticated && !isOwner}
-        <button class="report-btn" onclick={openReportModal}>
-          Report
-        </button>
-      {/if}
     </div>
 
     <div class="product-content">
       <div class="product-gallery">
         <div class="title-container">
           <h1>{data.product.title}</h1>
-          {#if $authStore.isAuthenticated && $watchlistStore.loaded}
-            <WatchlistToggle productId={data.product.id} size="lg" />
-          {/if}
-          <div
-            class="live-indicator"
-            class:updating={isUpdating}
-            class:connected={connectionStatus === 'connected'}
-            title="Real-time updates active (SSE + fallback polling)"
-          >
-            <span class="live-dot"></span>
-            <span class="live-text">LIVE</span>
+          <div class="title-badges">
+            <div class="status-badge status-{data.product.status}">
+              {data.product.status}
+            </div>
+            {#if $authStore.isAuthenticated && $watchlistStore.loaded}
+              <WatchlistToggle productId={data.product.id} size="lg" />
+            {/if}
+            <div
+              class="live-indicator"
+              class:updating={isUpdating}
+              class:connected={connectionStatus === 'connected'}
+              title="Real-time updates active (SSE + fallback polling)"
+            >
+              <span class="live-dot"></span>
+              <span class="live-text">LIVE</span>
+            </div>
           </div>
         </div>
 
-        <div class="status-badge status-{data.product.status}">
-          {data.product.status}
-        </div>
+        {#if isOwner || $authStore.user?.role === 'admin' || ($authStore.isAuthenticated && !isOwner)}
+          <div class="product-actions">
+            {#if isOwner}
+              <button class="action-btn action-edit" onclick={openEditModal}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Edit
+              </button>
+            {/if}
+            {#if $authStore.user?.role === 'admin'}
+              <button
+                class="action-btn {data.product.active ? 'action-hide' : 'action-show'}"
+                onclick={openAdminModal}
+              >
+                {#if data.product.active}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  Hide
+                {:else}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Show
+                {/if}
+              </button>
+            {/if}
+            {#if $authStore.isAuthenticated && !isOwner}
+              <button class="action-btn action-report" onclick={openReportModal}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+                Report
+              </button>
+            {/if}
+          </div>
+        {/if}
 
         <ImageSlider images={data.product.images || []} productTitle={data.product.title} />
 
@@ -1794,54 +1808,72 @@
   }
 
   .product-header {
-    margin-bottom: 2rem;
+    margin-bottom: 0.75rem;
     display: flex;
-    justify-content: space-between;
     align-items: center;
   }
 
-  .edit-product-btn {
-    padding: 0.75rem 1.5rem;
-    background: var(--color-red);
-    color: white;
-    border: 2px solid var(--color-border);
-    box-shadow: none;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 150ms ease-out, color 150ms ease-out;
-  }
-
-  .edit-product-btn:hover {
-    background: var(--color-fg);
-    color: var(--color-bg);
-  }
-
-  .admin-hide-btn {
-    padding: 0.75rem 1.5rem;
-    background: var(--color-red);
-    color: white;
-    border: 2px solid var(--color-border);
-    box-shadow: none;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 150ms ease-out, color 150ms ease-out;
-  }
-
-  .admin-hide-btn:hover {
-    background: var(--color-fg);
-    color: var(--color-bg);
-  }
-
   .back-link {
-    color: var(--color-blue);
+    color: var(--color-fg);
     text-decoration: none;
-    font-size: 1.1rem;
+    font-size: 0.9rem;
+    opacity: 0.5;
+    transition: opacity 150ms ease;
   }
 
   .back-link:hover {
-    text-decoration: underline;
+    opacity: 1;
+  }
+
+  .product-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1.5px solid var(--color-border);
+    background: transparent;
+    color: var(--color-fg);
+    opacity: 0.65;
+    transition: all 150ms ease;
+    border-radius: 4px;
+  }
+
+  .action-btn:hover {
+    opacity: 1;
+  }
+
+  .action-btn svg {
+    flex-shrink: 0;
+  }
+
+  .action-edit:hover {
+    border-color: var(--color-blue);
+    color: var(--color-blue);
+  }
+
+  .action-hide:hover {
+    border-color: #dc2626;
+    color: #dc2626;
+  }
+
+  .action-show:hover {
+    border-color: #16a34a;
+    color: #16a34a;
+  }
+
+  .action-report:hover {
+    border-color: #f59e0b;
+    color: #f59e0b;
   }
 
   .product-content {
@@ -1886,24 +1918,15 @@
     }
 
     .product-header {
-      margin-bottom: 0.5rem;
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: stretch !important;
-      gap: 0.4rem;
+      margin-bottom: 0.4rem;
     }
 
     .back-link {
-      font-size: 0.95rem;
+      font-size: 0.85rem;
     }
 
-    .edit-product-btn,
-    .admin-hide-btn {
-      padding: 0.4rem 0.75rem;
-      font-size: 0.8rem;
-      width: 100%;
-      text-align: center;
-      box-shadow: 2px 2px 0px var(--color-border);
+    .product-actions {
+      margin-bottom: 0.75rem;
     }
 
     .product-content {
@@ -1913,13 +1936,19 @@
     }
 
     .title-container {
-      flex-wrap: wrap;
-      gap: 0.5rem;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.4rem;
       margin-bottom: 0.5rem;
     }
 
     .title-container h1 {
       font-size: 1.3rem;
+      width: 100%;
+    }
+
+    .title-badges {
+      padding-top: 0;
     }
 
     /* Make modals scrollable on mobile */
@@ -2116,11 +2145,14 @@
 
   .status-badge {
     display: inline-block;
-    padding: 0.5rem 1rem;
-    font-weight: bold;
+    padding: 0.25rem 0.6rem;
+    font-weight: 700;
+    font-size: 0.7rem;
     text-transform: uppercase;
-    margin-bottom: 1.5rem;
-    border: 2px solid var(--color-border);
+    letter-spacing: 0.5px;
+    border: 1.5px solid var(--color-border);
+    border-radius: 3px;
+    margin: 0;
   }
 
   .status-active {
@@ -4046,56 +4078,72 @@
   /* Live Update Indicator */
   .title-container {
     display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1rem;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
   }
 
   .title-container h1 {
     margin: 0;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .title-badges {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    padding-top: 0.35rem;
   }
 
   .live-indicator {
     display: flex;
     align-items: center;
-    gap: 0.375rem;
-    padding: 0.375rem 0.625rem;
-    font-size: 0.75rem;
+    gap: 0.35rem;
+    padding: 0;
+    font-size: 0.65rem;
     font-weight: 700;
     transition: all 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: none;
+    background: none;
+    opacity: 0.6;
   }
 
-  /* Connected state - Blue (always active with polling) */
+  /* Connected state */
   .live-indicator.connected {
-    background: var(--color-muted);
-    color: var(--color-blue);
+    color: #22c55e;
+    opacity: 0.8;
   }
 
   .live-indicator.connected .live-dot {
-    background: var(--color-blue);
+    background: #22c55e;
+    box-shadow: 0 0 6px #22c55e;
     animation: pulse-dot 2s ease-in-out infinite;
   }
 
-  /* Updating state - Red (when actively fetching data) */
+  /* Updating state */
   .live-indicator.updating {
-    background: var(--color-muted);
-    border-color: var(--color-red);
     color: var(--color-red);
+    opacity: 1;
   }
 
   .live-indicator.updating .live-dot {
     background: var(--color-red);
+    box-shadow: 0 0 6px var(--color-red);
     animation: pulse-dot 0.5s ease-in-out infinite;
   }
 
   .live-dot {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
   }
 
   .live-text {
     letter-spacing: 0.05em;
+    text-transform: uppercase;
   }
 
   @keyframes pulse-dot {
@@ -4346,14 +4394,7 @@
     }
   }
 
-  /* Admin unhide button variant */
-  .admin-unhide-btn {
-    background: #198754 !important;
-  }
-
-  .admin-unhide-btn:hover {
-    background: #146c43 !important;
-  }
+  /* Admin unhide button variant (now uses .action-show) */
 
   /* Admin Confirmation Modal */
   .admin-modal-overlay {
@@ -4517,22 +4558,7 @@
     to { transform: rotate(360deg); }
   }
 
-  /* Report button */
-  .report-btn {
-    padding: 0.5rem 1rem;
-    background: transparent;
-    color: var(--color-text-secondary, #666);
-    border: 2px solid var(--color-border);
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 150ms ease-out, color 150ms ease-out;
-  }
-
-  .report-btn:hover {
-    background: var(--color-fg);
-    color: var(--color-bg);
-  }
+  /* Report button (legacy — now uses .action-btn .action-report) */
 
   /* Report modal */
   .report-modal-overlay {
@@ -4715,7 +4741,7 @@
   }
 
   :global(html.dark) .live-indicator {
-    border-color: rgba(255, 255, 255, 0.1);
+    opacity: 0.9;
   }
 
   :global(html.dark) .chart-container,
