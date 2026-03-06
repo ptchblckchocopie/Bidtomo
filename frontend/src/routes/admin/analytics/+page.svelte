@@ -54,16 +54,12 @@
     return isDark() ? DARK_COLORS : COLORS;
   }
 
-  function getComputedVar(name: string): string {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  }
-
   function chartTextColor() {
-    return getComputedVar('--color-fg') || '#111111';
+    return isDark() ? '#EDEDEF' : '#000000';
   }
 
   function chartGridColor() {
-    return 'rgba(128, 128, 128, 0.12)';
+    return isDark() ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
   }
 
   const DOUGHNUT_COLORS = [
@@ -124,9 +120,9 @@
     doughnutChart?.destroy();
 
     // Time series line chart
+    const c = chartColors();
     const textColor = chartTextColor();
     const gridColor = chartGridColor();
-    const c = chartColors();
 
     if (lineCanvas) {
       const viewsFill = isDark() ? 'rgba(96, 165, 250, 0.12)' : 'rgba(59, 130, 246, 0.1)';
@@ -419,36 +415,33 @@
 
 <div class="max-w-7xl mx-auto px-4 py-8">
   <!-- Header -->
-  <div class="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 mb-8 border-t-4 border-[var(--color-fg)] pt-4">
-    <div>
-      <h1 class="font-display text-3xl mb-1 tracking-tight">Analytics</h1>
-      <p class="font-mono text-xs uppercase tracking-widest opacity-50">Dashboard overview</p>
-    </div>
+  <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+    <h1 class="text-3xl font-bold uppercase tracking-widest">Analytics</h1>
     <div class="flex flex-wrap items-center gap-3">
       <div class="flex items-center gap-2">
-        <label for="from" class="font-mono text-xs uppercase tracking-widest opacity-50">From</label>
+        <label for="from" class="text-sm font-bold">From</label>
         <input
           id="from"
           type="date"
           bind:value={fromDate}
           onchange={handleDateChange}
-          class="input-bh !w-auto"
+          class="border-2 border-bh-border bg-bh-bg text-bh-fg px-2 py-1 text-sm"
         />
       </div>
       <div class="flex items-center gap-2">
-        <label for="to" class="font-mono text-xs uppercase tracking-widest opacity-50">To</label>
+        <label for="to" class="text-sm font-bold">To</label>
         <input
           id="to"
           type="date"
           bind:value={toDate}
           onchange={handleDateChange}
-          class="input-bh !w-auto"
+          class="border-2 border-bh-border bg-bh-bg text-bh-fg px-2 py-1 text-sm"
         />
       </div>
       <button
         onclick={exportExcel}
         disabled={!data || loading}
-        class="btn-bh-red text-sm disabled:opacity-40"
+        class="px-4 py-2 font-bold border-2 border-black bg-[#FF3000] text-white hover:bg-black hover:text-white transition-colors duration-150 text-sm disabled:opacity-50"
       >
         Export Excel
       </button>
@@ -457,34 +450,45 @@
 
   {#if loading}
     <div class="flex justify-center py-20">
-      <div class="w-8 h-8 border-2 border-[var(--color-border)] border-t-[var(--color-fg)] rounded-full animate-spin"></div>
+      <div class="w-8 h-8 border-4 border-bh-fg border-t-transparent rounded-full animate-spin"></div>
     </div>
   {:else if error}
-    <div class="card-bh p-8 text-center">
-      <p class="font-mono text-[var(--color-red)] font-semibold">{error}</p>
-      <button onclick={loadData} class="btn-bh-red mt-4">Retry</button>
+    <div class="card-bh p-6 text-center">
+      <p class="text-bh-red font-bold">{error}</p>
+      <button onclick={loadData} class="px-4 py-2 font-bold border-2 border-black bg-[#FF3000] text-white hover:bg-black hover:text-white transition-colors duration-150 text-sm mt-4">Retry</button>
     </div>
   {:else if data}
     <!-- Overview Cards -->
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
-      {#each [
-        { value: data.overview.totalUsers, label: 'Total Users' },
-        { value: data.overview.activeUsers7d, label: 'Active (7d)' },
-        { value: data.overview.totalProducts, label: 'Products' },
-        { value: data.overview.productsSold, label: 'Sold' },
-        { value: data.overview.totalBids, label: 'Bids' },
-        { value: data.overview.totalSearches, label: 'Searches' },
-      ] as stat}
-        <div class="border border-[var(--color-fg)] bg-[var(--color-surface)] p-4 text-center">
-          <div class="font-mono text-2xl font-bold">{stat.value.toLocaleString()}</div>
-          <div class="font-mono text-xs uppercase tracking-widest opacity-50 mt-1">{stat.label}</div>
-        </div>
-      {/each}
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+      <div class="card-bh p-4 text-center">
+        <div class="text-2xl font-bold">{data.overview.totalUsers.toLocaleString()}</div>
+        <div class="text-sm text-bh-fg/50 font-bold mt-1">Total Users</div>
+      </div>
+      <div class="card-bh p-4 text-center">
+        <div class="text-2xl font-bold">{data.overview.activeUsers7d.toLocaleString()}</div>
+        <div class="text-sm text-bh-fg/50 font-bold mt-1">Active (7d)</div>
+      </div>
+      <div class="card-bh p-4 text-center">
+        <div class="text-2xl font-bold">{data.overview.totalProducts.toLocaleString()}</div>
+        <div class="text-sm text-bh-fg/50 font-bold mt-1">Products</div>
+      </div>
+      <div class="card-bh p-4 text-center">
+        <div class="text-2xl font-bold">{data.overview.productsSold.toLocaleString()}</div>
+        <div class="text-sm text-bh-fg/50 font-bold mt-1">Sold</div>
+      </div>
+      <div class="card-bh p-4 text-center">
+        <div class="text-2xl font-bold">{data.overview.totalBids.toLocaleString()}</div>
+        <div class="text-sm text-bh-fg/50 font-bold mt-1">Bids</div>
+      </div>
+      <div class="card-bh p-4 text-center">
+        <div class="text-2xl font-bold">{data.overview.totalSearches.toLocaleString()}</div>
+        <div class="text-sm text-bh-fg/50 font-bold mt-1">Searches</div>
+      </div>
     </div>
 
     <!-- Time Series Chart -->
-    <div class="border border-[var(--color-fg)] bg-[var(--color-surface)] p-6 mb-8">
-      <h2 class="font-display text-lg font-bold mb-4">Daily Activity</h2>
+    <div class="card-bh p-6 mb-8">
+      <h2 class="text-lg font-bold mb-4">Daily Activity</h2>
       <div style="height: 350px;">
         <canvas bind:this={lineCanvas}></canvas>
       </div>
@@ -506,85 +510,85 @@
     </div>
 
     <!-- Two-column: Search Keywords + Event Breakdown -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-      <div class="border border-[var(--color-fg)] bg-[var(--color-surface)] p-6">
-        <h2 class="font-display text-lg font-bold mb-4">Top Search Keywords</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <div class="card-bh p-6">
+        <h2 class="text-lg font-bold mb-4">Top Search Keywords</h2>
         {#if data.topSearchKeywords?.length > 0}
           <div style="height: 300px;">
             <canvas bind:this={barCanvas}></canvas>
           </div>
         {:else}
-          <p class="font-mono text-xs uppercase tracking-widest opacity-50 text-center py-8">No search data in this period</p>
+          <p class="text-bh-fg/50 text-sm text-center py-8">No search data in this period</p>
         {/if}
       </div>
 
-      <div class="border border-[var(--color-fg)] bg-[var(--color-surface)] p-6">
-        <h2 class="font-display text-lg font-bold mb-4">Event Breakdown</h2>
+      <div class="card-bh p-6">
+        <h2 class="text-lg font-bold mb-4">Event Breakdown</h2>
         {#if data.eventBreakdown?.length > 0}
           <div style="height: 300px;">
             <canvas bind:this={doughnutCanvas}></canvas>
           </div>
         {:else}
-          <p class="font-mono text-xs uppercase tracking-widest opacity-50 text-center py-8">No events in this period</p>
+          <p class="text-bh-fg/50 text-sm text-center py-8">No events in this period</p>
         {/if}
       </div>
     </div>
 
     <!-- Two-column: Top Viewed + Top Sold -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="border border-[var(--color-fg)] bg-[var(--color-surface)] p-6">
-        <h2 class="font-display text-lg font-bold mb-4">Top Viewed Products</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div class="card-bh p-6">
+        <h2 class="text-lg font-bold mb-4">Top Viewed Products</h2>
         {#if data.topViewedProducts?.length > 0}
           <table class="w-full text-sm">
             <thead>
-              <tr class="border-b border-[var(--color-border)]">
-                <th class="text-left py-2 font-mono text-xs uppercase tracking-widest opacity-50">#</th>
-                <th class="text-left py-2 font-mono text-xs uppercase tracking-widest opacity-50">Product</th>
-                <th class="text-right py-2 font-mono text-xs uppercase tracking-widest opacity-50">Views</th>
+              <tr class="border-b-2 border-bh-border">
+                <th class="text-left py-2 font-bold">#</th>
+                <th class="text-left py-2 font-bold">Product</th>
+                <th class="text-right py-2 font-bold">Views</th>
               </tr>
             </thead>
             <tbody>
               {#each data.topViewedProducts as product, i}
-                <tr class="border-b border-[var(--color-fg)]/20">
-                  <td class="py-2 font-mono opacity-40">{i + 1}</td>
+                <tr class="border-b border-bh-border/30">
+                  <td class="py-2 text-bh-fg/50">{i + 1}</td>
                   <td class="py-2">
-                    <a href="/product/{product.id}" class="hover:text-[var(--color-fg)] font-semibold">{product.title}</a>
+                    <a href="/product/{product.id}" class="hover:text-bh-red font-bold">{product.title}</a>
                   </td>
-                  <td class="py-2 text-right font-mono font-bold">{product.views.toLocaleString()}</td>
+                  <td class="py-2 text-right font-bold">{product.views.toLocaleString()}</td>
                 </tr>
               {/each}
             </tbody>
           </table>
         {:else}
-          <p class="font-mono text-xs uppercase tracking-widest opacity-50 text-center py-8">No view data in this period</p>
+          <p class="text-bh-fg/50 text-sm text-center py-8">No view data in this period</p>
         {/if}
       </div>
 
-      <div class="border border-[var(--color-fg)] bg-[var(--color-surface)] p-6">
-        <h2 class="font-display text-lg font-bold mb-4">Top Sold Products</h2>
+      <div class="card-bh p-6">
+        <h2 class="text-lg font-bold mb-4">Top Sold Products</h2>
         {#if data.topSoldProducts?.length > 0}
           <table class="w-full text-sm">
             <thead>
-              <tr class="border-b border-[var(--color-border)]">
-                <th class="text-left py-2 font-mono text-xs uppercase tracking-widest opacity-50">#</th>
-                <th class="text-left py-2 font-mono text-xs uppercase tracking-widest opacity-50">Product</th>
-                <th class="text-right py-2 font-mono text-xs uppercase tracking-widest opacity-50">Sales</th>
+              <tr class="border-b-2 border-bh-border">
+                <th class="text-left py-2 font-bold">#</th>
+                <th class="text-left py-2 font-bold">Product</th>
+                <th class="text-right py-2 font-bold">Sales</th>
               </tr>
             </thead>
             <tbody>
               {#each data.topSoldProducts as product, i}
-                <tr class="border-b border-[var(--color-fg)]/20">
-                  <td class="py-2 font-mono opacity-40">{i + 1}</td>
+                <tr class="border-b border-bh-border/30">
+                  <td class="py-2 text-bh-fg/50">{i + 1}</td>
                   <td class="py-2">
-                    <a href="/product/{product.id}" class="hover:text-[var(--color-fg)] font-semibold">{product.title}</a>
+                    <a href="/product/{product.id}" class="hover:text-bh-red font-bold">{product.title}</a>
                   </td>
-                  <td class="py-2 text-right font-mono font-bold">{product.sales.toLocaleString()}</td>
+                  <td class="py-2 text-right font-bold">{product.sales.toLocaleString()}</td>
                 </tr>
               {/each}
             </tbody>
           </table>
         {:else}
-          <p class="font-mono text-xs uppercase tracking-widest opacity-50 text-center py-8">No sales in this period</p>
+          <p class="text-bh-fg/50 text-sm text-center py-8">No sales in this period</p>
         {/if}
       </div>
     </div>

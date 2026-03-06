@@ -37,9 +37,9 @@
   };
 
   const statusColors: Record<string, string> = {
-    pending: 'bg-[var(--color-red)] text-white',
+    pending: 'bg-[#FF3000] text-white',
     reviewed: 'bg-blue-500 text-white',
-    resolved: 'bg-[var(--color-green)] text-white',
+    resolved: 'bg-green-600 text-white',
   };
 
   onMount(() => {
@@ -179,95 +179,85 @@
   <title>Admin Reports | BidMo.to</title>
 </svelte:head>
 
-<div class="max-w-5xl mx-auto px-4 py-8">
-  <!-- Header with heavy top border -->
-  <div class="border-t-4 border-[var(--color-fg)] pt-4 mb-8">
-    <h1 class="font-display text-3xl mb-1 tracking-tight">Product Reports</h1>
-    <p class="font-mono text-xs uppercase tracking-widest opacity-50">{totalDocs} report{totalDocs !== 1 ? 's' : ''} total</p>
-  </div>
+<div class="py-8">
+  <h1 class="text-3xl font-black mb-6 uppercase tracking-widest">Product Reports</h1>
 
   <!-- Filter Tabs -->
-  <div class="flex flex-wrap gap-2 mb-6">
+  <div class="flex gap-2 mb-6 flex-wrap">
     {#each (['all', 'pending', 'reviewed', 'resolved'] as const) as filter}
       <button
         onclick={() => setFilter(filter)}
-        class="px-4 py-2 text-sm font-semibold transition-all border border-[var(--color-fg)]           {activeFilter === filter
-            ? 'bg-[var(--color-fg)] text-white border-[var(--color-fg)]'
-            : 'bg-transparent text-[var(--color-fg)] hover:bg-[var(--color-muted)]'}"
+        class="px-4 py-2 text-sm font-bold border-2 border-bh-border transition-colors
+          {activeFilter === filter ? 'bg-bh-fg text-bh-bg ' : 'bg-bh-bg text-bh-fg hover:bg-bh-muted'}"
       >
         {filter === 'all' ? 'All' : filter.charAt(0).toUpperCase() + filter.slice(1)}
       </button>
     {/each}
+    <span class="self-center text-sm text-bh-fg/60 ml-2">{totalDocs} report{totalDocs !== 1 ? 's' : ''}</span>
   </div>
 
   {#if error}
-    <div class="border-l-4 border-[var(--color-red)] bg-[var(--color-red)]/5 p-4 mb-4">
-      <p class="font-mono text-sm text-[var(--color-red)]">{error}</p>
-    </div>
+    <div class="card-bh bg-red-50 border-red-500 text-red-700 p-4 mb-4 font-bold">{error}</div>
   {/if}
 
   {#if loading}
-    <div class="text-center py-16">
-      <div class="w-6 h-6 border-2 border-[var(--color-border)] border-t-[var(--color-fg)] rounded-full animate-spin mx-auto mb-3"></div>
-      <p class="text-xs opacity-50">Loading reports...</p>
-    </div>
+    <div class="text-center py-12 text-bh-fg/60 font-bold">Loading reports...</div>
   {:else if reports.length === 0}
-    <div class="card-bh p-12 text-center">
-      <p class="text-lg font-semibold opacity-50">No reports found</p>
+    <div class="card-bh p-8 text-center text-bh-fg/60">
+      <p class="text-lg font-bold">No reports found</p>
     </div>
   {:else}
-    <!-- Reports Table -->
-    <div class="border-t-4 border-[var(--color-fg)]">
+    <div class="space-y-3">
       {#each reports as report (report.id)}
         {@const product = getProduct(report)}
         {@const thumb = getProductThumb(report)}
         {@const isSaving = savingId === report.id}
 
         <!-- Report Row -->
-        <div class="border-b border-[var(--color-fg)] {expandedId === report.id ? 'bg-[var(--color-muted)]' : ''}">
+        <div class="card-bh overflow-hidden">
           <button
             onclick={() => toggleExpand(report.id)}
-            class="w-full text-left p-4 flex items-center gap-4 hover:bg-[var(--color-muted)] transition-colors"
+            class="w-full text-left p-4 flex items-center gap-4 hover:bg-bh-muted/50 transition-colors"
           >
             <!-- Thumbnail -->
-            <div class="w-12 h-12 flex-shrink-0 border border-[var(--color-fg)] overflow-hidden">
+            <div class="w-12 h-12 flex-shrink-0 border-2 border-bh-border bg-bh-muted overflow-hidden">
               {#if thumb}
-                <img src={thumb} alt="" class="w-full h-full object-cover newsprint-img" />
+                <img src={thumb} alt="" class="w-full h-full object-cover" />
               {:else}
-                <div class="w-full h-full flex items-center justify-center opacity-30 text-xs font-mono">N/A</div>
+                <div class="w-full h-full flex items-center justify-center text-bh-fg/30 text-xs">N/A</div>
               {/if}
             </div>
 
             <!-- Product Title -->
             <div class="flex-1 min-w-0">
-              <div class="font-semibold truncate">
+              <div class="font-bold truncate">
                 {product?.title || 'Unknown Product'}
               </div>
-              <div class="font-mono text-xs uppercase tracking-widest opacity-50 mt-0.5 normal-case tracking-normal">
-                by {getReporterName(report)} &middot; <span class="font-mono">{formatDate(report.createdAt)}</span>
+              <div class="text-sm text-bh-fg/60">
+                by {getReporterName(report)} &middot; {formatDate(report.createdAt)}
               </div>
             </div>
 
             <!-- Reason Badge -->
-            <span class="badge-bh text-white {reasonColors[report.reason] || 'bg-gray-500'}">
+            <span class="px-2 py-1 text-xs font-bold text-white {reasonColors[report.reason] || 'bg-gray-500'}">
               {reasonLabels[report.reason] || report.reason}
             </span>
 
             <!-- Status Badge -->
-            <span class="badge-bh font-mono {statusColors[report.status] || ''}">
+            <span class="px-2 py-1 text-xs font-bold {statusColors[report.status] || ''}">
               {report.status}
             </span>
 
             <!-- Product Visibility -->
             {#if product}
-              <span class="badge-bh {product.active ? 'bg-[var(--color-green)]/10 text-[var(--color-green)] border border-[var(--color-green)]/30' : 'bg-[var(--color-red)]/10 text-[var(--color-red)] border border-[var(--color-red)]/30'}">
+              <span class="px-2 py-1 text-xs font-bold border-2 border-bh-border {product.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
                 {product.active ? 'Visible' : 'Hidden'}
               </span>
             {/if}
 
             <!-- Expand Arrow -->
             <svg
-              class="w-5 h-5 transition-transform flex-shrink-0 opacity-40 {expandedId === report.id ? 'rotate-180' : ''}"
+              class="w-5 h-5 transition-transform flex-shrink-0 {expandedId === report.id ? 'rotate-180' : ''}"
               fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
             >
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
@@ -276,12 +266,12 @@
 
           <!-- Expanded Details -->
           {#if expandedId === report.id}
-            <div class="border-t border-[var(--color-fg)] p-6 space-y-4">
+            <div class="border-t-2 border-bh-border p-4 bg-bh-muted/30 space-y-4">
               <!-- Description -->
               {#if report.description}
                 <div>
-                  <div class="font-mono text-xs uppercase tracking-widest opacity-50 mb-1">Description</div>
-                  <p class="text-sm leading-relaxed">{report.description}</p>
+                  <div class="text-xs font-bold text-bh-fg/60 mb-1 uppercase">Description</div>
+                  <p class="text-sm">{report.description}</p>
                 </div>
               {/if}
 
@@ -290,7 +280,7 @@
                 <div>
                   <a
                     href="/products/{product.id}"
-                    class="text-sm font-semibold text-[var(--color-fg)] hover:underline font-mono"
+                    class="text-sm font-bold text-bh-red hover:underline"
                   >
                     View Product Page &rarr;
                   </a>
@@ -299,26 +289,26 @@
 
               <!-- Admin Notes -->
               <div>
-                <label for="notes-{report.id}" class="font-mono text-xs uppercase tracking-widest opacity-50 mb-1 block">
+                <label for="notes-{report.id}" class="text-xs font-bold text-bh-fg/60 mb-1 uppercase block">
                   Admin Notes
                 </label>
                 <textarea
                   id="notes-{report.id}"
                   bind:value={notesMap[report.id]}
                   rows="3"
-                  class="input-bh w-full resize-y !border !border-[var(--color-fg)]"
+                  class="w-full p-2 border-2 border-bh-border bg-bh-bg text-bh-fg text-sm font-medium resize-y focus:outline-none focus:border-bh-red"
                   placeholder="Add internal notes..."
                 ></textarea>
               </div>
 
               <!-- Actions -->
-              <div class="flex flex-wrap gap-2 pt-2 border-t border-[var(--color-fg)]">
+              <div class="flex flex-wrap gap-2">
                 {#if product}
                   <button
                     onclick={() => handleToggleVisibility(report)}
                     disabled={isSaving}
-                    class="btn-bh-red text-sm !py-2 disabled:opacity-40
-                      {product.active ? '!bg-[var(--color-red)] !border-[var(--color-red)]' : '!bg-[var(--color-green)] !border-[var(--color-green)]'}"
+                    class="px-4 py-2 text-sm font-bold border-2 border-bh-border  transition-colors disabled:opacity-50
+                      {product.active ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-green-600 text-white hover:bg-green-700'}"
                   >
                     {product.active ? 'Hide Product' : 'Unhide Product'}
                   </button>
@@ -328,7 +318,7 @@
                   <button
                     onclick={() => handleStatusChange(report, 'reviewed')}
                     disabled={isSaving}
-                    class="btn-bh text-sm !py-2 disabled:opacity-40"
+                    class="px-4 py-2 text-sm font-bold border-2 border-bh-border bg-blue-500 text-white  hover:bg-blue-600 transition-colors disabled:opacity-50"
                   >
                     Mark Reviewed
                   </button>
@@ -338,7 +328,7 @@
                   <button
                     onclick={() => handleStatusChange(report, 'resolved')}
                     disabled={isSaving}
-                    class="btn-bh text-sm !py-2 !bg-[var(--color-green)] !border-[var(--color-green)] !text-white disabled:opacity-40"
+                    class="px-4 py-2 text-sm font-bold border-2 border-bh-border bg-green-600 text-white  hover:bg-green-700 transition-colors disabled:opacity-50"
                   >
                     Mark Resolved
                   </button>
@@ -347,13 +337,13 @@
                 <button
                   onclick={() => handleSaveNotes(report)}
                   disabled={isSaving}
-                  class="btn-bh-outline text-sm !py-2 disabled:opacity-40"
+                  class="px-4 py-2 text-sm font-bold border-2 border-bh-border bg-bh-bg text-bh-fg  hover:bg-bh-muted transition-colors disabled:opacity-50"
                 >
                   Save Notes
                 </button>
 
                 {#if isSaving}
-                  <span class="self-center font-mono text-xs uppercase tracking-widest opacity-50">Saving...</span>
+                  <span class="self-center text-sm text-bh-fg/60">Saving...</span>
                 {/if}
               </div>
             </div>
@@ -364,11 +354,11 @@
 
     <!-- Pagination -->
     {#if totalPages > 1}
-      <div class="flex justify-center items-center gap-2 mt-8 pt-4 border-t border-[var(--color-fg)]">
+      <div class="flex justify-center gap-2 mt-6">
         <button
           onclick={() => goToPage(currentPage - 1)}
           disabled={currentPage <= 1}
-          class="btn-bh text-sm !py-1.5 !px-3 disabled:opacity-30"
+          class="px-3 py-2 text-sm font-bold border-2 border-bh-border bg-bh-bg hover:bg-bh-muted disabled:opacity-30 transition-colors"
         >
           Prev
         </button>
@@ -377,21 +367,20 @@
           {#if p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)}
             <button
               onclick={() => goToPage(p)}
-              class="px-3 py-1.5 text-sm font-mono font-semibold transition-colors border                 {p === currentPage
-                  ? 'bg-[var(--color-fg)] text-white border-[var(--color-fg)]'
-                  : 'bg-transparent border-[var(--color-fg)] text-[var(--color-fg)] hover:bg-[var(--color-muted)]'}"
+              class="px-3 py-2 text-sm font-bold border-2 border-bh-border transition-colors
+                {p === currentPage ? 'bg-bh-fg text-bh-bg' : 'bg-bh-bg hover:bg-bh-muted'}"
             >
               {p}
             </button>
           {:else if p === currentPage - 3 || p === currentPage + 3}
-            <span class="opacity-40 font-mono">...</span>
+            <span class="self-center text-bh-fg/40">...</span>
           {/if}
         {/each}
 
         <button
           onclick={() => goToPage(currentPage + 1)}
           disabled={currentPage >= totalPages}
-          class="btn-bh text-sm !py-1.5 !px-3 disabled:opacity-30"
+          class="px-3 py-2 text-sm font-bold border-2 border-bh-border bg-bh-bg hover:bg-bh-muted disabled:opacity-30 transition-colors"
         >
           Next
         </button>

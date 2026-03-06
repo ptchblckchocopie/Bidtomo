@@ -1208,19 +1208,19 @@
 
 <div class="inbox-page">
   {#if !selectedProduct}
-    <h1 class="headline-bh text-4xl mb-6 border-b-4 border-[var(--color-border)] pb-3">Inbox</h1>
+    <h1>Inbox</h1>
   {:else}
-    <h1 class="desktop-only-heading headline-bh text-4xl mb-6 border-b-4 border-[var(--color-border)] pb-3">Inbox</h1>
+    <h1 class="desktop-only-heading">Inbox</h1>
   {/if}
 
   {#if loading}
-    <div class="text-center py-12 opacity-60 label-bh text-base">Loading conversations...</div>
+    <div class="loading">Loading conversations...</div>
   {:else if conversations.length === 0}
-    <div class="card-bh p-12 text-center">
-      <div class="text-5xl mb-4 opacity-30">📬</div>
-      <h2 class="headline-bh text-2xl mb-2">No Messages Yet</h2>
-      <p class="text-sm opacity-60 max-w-sm mx-auto mb-6">Your conversations with buyers and sellers will appear here.</p>
-      <a href="/products" class="btn-bh-red no-underline">Browse Products</a>
+    <div class="empty-state">
+      <div class="empty-icon">📬</div>
+      <h2>No Messages Yet</h2>
+      <p>Your conversations with buyers and sellers will appear here.</p>
+      <a href="/products" class="btn-browse">Browse Products</a>
     </div>
   {:else}
     <div class="inbox-container">
@@ -1251,7 +1251,7 @@
 
         {#if displayedConversations.length === 0}
           <div class="no-conversations">
-            <p class="label-bh">No conversations yet</p>
+            <p>No conversations yet</p>
           </div>
         {/if}
 
@@ -1267,7 +1267,7 @@
           >
             <div class="conversation-image">
               {#if conv.product.images && conv.product.images.length > 0 && conv.product.images[0].image}
-                <img src={conv.product.images[0].image.url} alt={conv.product.title} class="newsprint-img" />
+                <img src={conv.product.images[0].image.url} alt={conv.product.title} />
               {:else}
                 <div class="no-image">📦</div>
               {/if}
@@ -1298,7 +1298,7 @@
                   No messages yet
                 {/if}
               </p>
-              <span class="timestamp font-mono">{formatDate(conv.lastMessage.createdAt)}</span>
+              <span class="timestamp">{formatDate(conv.lastMessage.createdAt)}</span>
             </div>
 
             {#if conv.unreadCount > 0}
@@ -1316,20 +1316,20 @@
               ← Back
             </button>
             <div class="product-summary">
-              <h3 class="font-sans">{selectedProduct.title}</h3>
+              <h3>{selectedProduct.title}</h3>
               <p class="product-price">
-                <span class="font-mono">{formatPrice(selectedProduct.currentBid || selectedProduct.startingPrice, selectedProduct.seller.currency)}</span>
+                {formatPrice(selectedProduct.currentBid || selectedProduct.startingPrice, selectedProduct.seller.currency)}
                 •
                 <span class="status-badge status-{selectedProduct.status}">{selectedProduct.status}</span>
               </p>
               <div class="transaction-parties">
                 <div class="party-info">
-                  <span class="party-label label-bh !text-xs !tracking-normal !normal-case">Seller:</span>
+                  <span class="party-label">Seller:</span>
                   <a href="/users/{selectedProduct.seller.id}" class="party-name">{sellerName || selectedProduct.seller?.name || 'Unknown'}</a>
                 </div>
                 {#if buyerName || (selectedProduct.status === 'sold' && transaction)}
                   <div class="party-info">
-                    <span class="party-label label-bh !text-xs !tracking-normal !normal-case">Buyer:</span>
+                    <span class="party-label">Buyer:</span>
                     {#if transaction && typeof transaction.buyer === 'object' && transaction.buyer}
                       <a href="/users/{transaction.buyer.id}" class="party-name">{buyerName || 'Unknown'}</a>
                     {:else}
@@ -1352,13 +1352,13 @@
             {#if loadingConversation}
               <div class="loading-conversation">
                 <div class="loading-spinner"></div>
-                <span class="label-bh">Loading conversation...</span>
+                <span>Loading conversation...</span>
               </div>
             {:else}
               {#if loadingOlderMessages}
                 <div class="loading-older">
                   <div class="loading-spinner"></div>
-                  <span class="label-bh">Loading older messages...</span>
+                  <span>Loading older messages...</span>
                 </div>
               {/if}
 
@@ -1373,7 +1373,7 @@
                     <span class="message-sender">{sender.name}</span>
                   {/if}
                   <p>{message.message}</p>
-                  <span class="message-time font-mono">{formatDate(message.createdAt)}</span>
+                  <span class="message-time">{formatDate(message.createdAt)}</span>
                 </div>
               </div>
             {/each}
@@ -1385,14 +1385,14 @@
                     <span class="dot"></span>
                     <span class="dot"></span>
                   </div>
-                  <span class="typing-text font-mono">typing...</span>
+                  <span class="typing-text">typing...</span>
                 </div>
               {/if}
             {/if}
           </div>
 
           {#if error}
-            <div class="error-message font-mono">{error}</div>
+            <div class="error-message">{error}</div>
           {/if}
 
           <!-- Compact Rating Bar -->
@@ -1404,7 +1404,7 @@
                   <span>Rate {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'the buyer') : (sellerName || 'the seller')}</span>
                 </button>
               {:else}
-                <div class="rating-bar-done font-mono">
+                <div class="rating-bar-done">
                   <span class="rating-bar-star filled">★</span>
                   <span class="rating-bar-label">You rated {myRating.rating}/5</span>
                   {#if otherPartyRating}
@@ -1420,7 +1420,7 @@
             <div class="chat-blocked-message">
               <div class="blocked-icon">🔒</div>
               <p class="blocked-text">{chatBlockedReason}</p>
-              <a href="/products/{selectedProduct.id}?from=inbox" class="btn-bh no-underline">
+              <a href="/products/{selectedProduct.id}?from=inbox" class="view-product-btn">
                 View Product Page
               </a>
             </div>
@@ -1442,7 +1442,7 @@
           {/if}
         {:else}
           <div class="no-conversation-selected">
-            <p class="label-bh text-base">Select a conversation to start messaging</p>
+            <p>Select a conversation to start messaging</p>
           </div>
         {/if}
       </main>
@@ -1455,7 +1455,7 @@
   <div class="modal-overlay" onclick={() => showRatingModal = false} onkeydown={(e) => e.key === 'Escape' && (showRatingModal = false)} role="button" tabindex="0">
     <div class="modal-content" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
       <button class="modal-close" onclick={() => showRatingModal = false}>&times;</button>
-      <h2 class="headline-bh text-xl">Rate Your {$authStore.user?.id === selectedProduct.seller.id ? 'Buyer' : 'Seller'}</h2>
+      <h2>Rate Your {$authStore.user?.id === selectedProduct.seller.id ? 'Buyer' : 'Seller'}</h2>
       <p class="modal-subtitle">
         {#if $authStore.user?.id === selectedProduct.seller.id}
           How was your experience with {buyerName || 'the buyer'}?
@@ -1471,28 +1471,27 @@
           size="large"
           onChange={(detail) => ratingValue = detail.rating}
         />
-        <span class="font-mono text-sm opacity-60">{ratingValue > 0 ? `${ratingValue}/5` : 'Select rating'}</span>
+        <span class="rating-value-display">{ratingValue > 0 ? `${ratingValue}/5` : 'Select rating'}</span>
       </div>
 
       <div class="comment-input">
-        <label for="rating-comment" class="label-bh !text-sm">Comment (optional)</label>
+        <label for="rating-comment">Comment (optional)</label>
         <textarea
           id="rating-comment"
           bind:value={ratingComment}
           placeholder="Share your experience..."
           rows="3"
-          class="input-bh mt-2"
         ></textarea>
       </div>
 
       {#if ratingError}
-        <div class="text-[var(--color-red)] text-sm font-mono mb-4 text-center">{ratingError}</div>
+        <div class="rating-error">{ratingError}</div>
       {/if}
 
       <div class="modal-actions">
-        <button class="btn-bh-outline" onclick={() => showRatingModal = false}>Cancel</button>
+        <button class="btn-cancel" onclick={() => showRatingModal = false}>Cancel</button>
         <button
-          class="btn-bh-red"
+          class="btn-submit"
           onclick={submitRating}
           disabled={submittingRating || ratingValue === 0}
         >
@@ -1506,22 +1505,21 @@
 <!-- Void Request Modal -->
 {#if showVoidModal}
   <div class="modal-overlay" onclick={closeVoidModal}>
-    <div class="modal-content void-modal" onclick={(e) => e.stopPropagation()}>
+    <div class="modal void-modal" onclick={(e) => e.stopPropagation()}>
       <button class="modal-close" onclick={closeVoidModal}>&times;</button>
-      <h2 class="headline-bh text-xl">Request Void</h2>
+      <h2>Request Void</h2>
       <p class="void-description">
         You are requesting to void the transaction for <strong>{selectedProduct?.title}</strong>.
         The other party will need to approve this request.
       </p>
 
       <div class="form-group">
-        <label for="voidReason" class="label-bh !text-sm mb-2 block">Reason for void request <span class="text-[var(--color-red)]">*</span></label>
+        <label for="voidReason">Reason for void request <span class="required">*</span></label>
         <textarea
           id="voidReason"
           bind:value={voidReason}
           placeholder="Please explain why you want to void this transaction..."
           rows="4"
-          class="input-bh"
         ></textarea>
       </div>
 
@@ -1530,9 +1528,9 @@
       {/if}
 
       <div class="modal-actions">
-        <button class="btn-bh-outline" onclick={closeVoidModal}>Cancel</button>
+        <button class="btn-cancel" onclick={closeVoidModal}>Cancel</button>
         <button
-          class="btn-bh-red"
+          class="btn-submit btn-danger"
           onclick={handleSubmitVoidRequest}
           disabled={submittingVoid || !voidReason.trim()}
         >
@@ -1546,27 +1544,26 @@
 <!-- Void Approval Modal -->
 {#if showVoidApprovalModal && pendingVoidRequest}
   <div class="modal-overlay" onclick={closeVoidApprovalModal}>
-    <div class="modal-content void-modal" onclick={(e) => e.stopPropagation()}>
+    <div class="modal void-modal" onclick={(e) => e.stopPropagation()}>
       <button class="modal-close" onclick={closeVoidApprovalModal}>&times;</button>
-      <h2 class="headline-bh text-xl">Void Request</h2>
+      <h2>Void Request</h2>
       <p class="void-description">
         <strong>{typeof pendingVoidRequest.initiator === 'object' ? pendingVoidRequest.initiator.name : 'User'}</strong>
         has requested to void the transaction for <strong>{selectedProduct?.title}</strong>.
       </p>
 
       <div class="void-reason-display">
-        <label class="label-bh !text-xs">Their reason:</label>
+        <label>Their reason:</label>
         <p>{pendingVoidRequest.reason}</p>
       </div>
 
       <div class="form-group rejection-reason" style="display: none;" id="rejectionReasonGroup">
-        <label for="voidRejectionReason" class="label-bh !text-sm mb-2 block">Reason for rejection <span class="text-[var(--color-red)]">*</span></label>
+        <label for="voidRejectionReason">Reason for rejection <span class="required">*</span></label>
         <textarea
           id="voidRejectionReason"
           bind:value={voidRejectionReason}
           placeholder="Please explain why you are rejecting this void request..."
           rows="3"
-          class="input-bh"
         ></textarea>
       </div>
 
@@ -1575,9 +1572,9 @@
       {/if}
 
       <div class="modal-actions three-buttons">
-        <button class="btn-bh-outline" onclick={closeVoidApprovalModal}>Cancel</button>
+        <button class="btn-cancel" onclick={closeVoidApprovalModal}>Cancel</button>
         <button
-          class="btn-bh"
+          class="btn-reject"
           onclick={() => {
             const group = document.getElementById('rejectionReasonGroup');
             if (group && group.style.display === 'none') {
@@ -1591,7 +1588,7 @@
           {submittingVoid ? 'Processing...' : 'Reject'}
         </button>
         <button
-          class="btn-bh-red"
+          class="btn-submit btn-success"
           onclick={() => handleRespondToVoid('approve')}
           disabled={submittingVoid}
         >
@@ -1605,9 +1602,9 @@
 <!-- Seller Choice Modal -->
 {#if showSellerChoiceModal}
   <div class="modal-overlay" onclick={() => showSellerChoiceModal = false}>
-    <div class="modal-content void-modal seller-choice-modal" onclick={(e) => e.stopPropagation()}>
+    <div class="modal void-modal seller-choice-modal" onclick={(e) => e.stopPropagation()}>
       <button class="modal-close" onclick={() => showSellerChoiceModal = false}>&times;</button>
-      <h2 class="headline-bh text-xl">Transaction Voided</h2>
+      <h2>Transaction Voided</h2>
       <p class="void-description">
         The void request for <strong>{selectedProduct?.title}</strong> has been approved.
         As the seller, please choose what to do next:
@@ -1621,7 +1618,7 @@
         >
           <div class="choice-icon">🔄</div>
           <div class="choice-content">
-            <h3 class="font-sans">Restart Bidding</h3>
+            <h3>Restart Bidding</h3>
             <p>Reopen the auction and let all bidders participate again</p>
           </div>
         </button>
@@ -1633,7 +1630,7 @@
         >
           <div class="choice-icon">🥈</div>
           <div class="choice-content">
-            <h3 class="font-sans">Offer to 2nd Highest Bidder</h3>
+            <h3>Offer to 2nd Highest Bidder</h3>
             <p>Give the second highest bidder a chance to purchase at their bid amount</p>
           </div>
         </button>
@@ -1649,9 +1646,9 @@
 <!-- Second Bidder Offer Modal -->
 {#if showSecondBidderOfferModal && pendingVoidRequest?.secondBidderOffer}
   <div class="modal-overlay" onclick={() => showSecondBidderOfferModal = false}>
-    <div class="modal-content void-modal" onclick={(e) => e.stopPropagation()}>
+    <div class="modal void-modal" onclick={(e) => e.stopPropagation()}>
       <button class="modal-close" onclick={() => showSecondBidderOfferModal = false}>&times;</button>
-      <h2 class="headline-bh text-xl">Purchase Offer</h2>
+      <h2>Purchase Offer</h2>
       <p class="void-description">
         You have been offered the chance to purchase <strong>{selectedProduct?.title}</strong>
         as the second highest bidder!
@@ -1659,10 +1656,10 @@
 
       <div class="offer-details">
         <div class="offer-amount">
-          <label class="label-bh !text-xs">Your bid amount:</label>
-          <span class="font-mono text-2xl font-bold">{formatPrice(pendingVoidRequest.secondBidderOffer.offerAmount, selectedProduct?.seller?.currency || 'PHP')}</span>
+          <label>Your bid amount:</label>
+          <span class="amount">{formatPrice(pendingVoidRequest.secondBidderOffer.offerAmount, selectedProduct?.seller?.currency || 'PHP')}</span>
         </div>
-        <p class="text-sm opacity-70 leading-relaxed">
+        <p class="offer-note">
           The original winner has voided their purchase. Would you like to buy this item at your bid amount?
         </p>
       </div>
@@ -1673,14 +1670,14 @@
 
       <div class="modal-actions">
         <button
-          class="btn-bh-outline"
+          class="btn-cancel"
           onclick={() => handleSecondBidderResponse('decline')}
           disabled={submittingVoid}
         >
           {submittingVoid ? 'Processing...' : 'Decline'}
         </button>
         <button
-          class="btn-bh-red"
+          class="btn-submit btn-success"
           onclick={() => handleSecondBidderResponse('accept')}
           disabled={submittingVoid}
         >
@@ -1698,46 +1695,107 @@
     padding: 2rem 0;
   }
 
-  /* ── Inbox Container: Two-panel layout ── */
+  h1 {
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+    color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .loading {
+    text-align: center;
+    padding: 3rem;
+    color: var(--color-fg);
+    opacity: 0.7;
+    font-size: 1.2rem;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    background-color: var(--color-muted);
+    border: 2px solid var(--color-border);
+  }
+
+  .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+  }
+
+  .empty-state h2 {
+    font-size: 1.8rem;
+    color: var(--color-fg);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .empty-state p {
+    color: var(--color-fg);
+    opacity: 0.7;
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+  }
+
+  .btn-browse {
+    display: inline-block;
+    padding: 0.75rem 2rem;
+    background: var(--color-fg);
+    color: white;
+    text-decoration: none;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 2px solid var(--color-fg);
+    transition: background 150ms ease-out, color 150ms ease-out;
+  }
+
+  .btn-browse:hover {
+    background: var(--color-red);
+    border-color: var(--color-red);
+    color: white;
+  }
+
   .inbox-container {
     display: grid;
     grid-template-columns: 350px 1fr;
+    gap: 1.5rem;
     height: calc(100vh - 250px);
     min-height: 600px;
-    border: 1px solid var(--color-border);
   }
 
-  /* ── Conversations List (Left Panel) ── */
   .conversations-list {
-    border-right: 1px solid var(--color-border);
+    background: var(--color-white);
+    border: 2px solid var(--color-border);
     overflow-y: auto;
-    padding: 0;
+    padding: 1rem;
     display: flex;
     flex-direction: column;
-    background: var(--color-surface);
   }
 
   /* Tabs */
   .tabs {
     display: flex;
-    border-bottom: 1px solid var(--color-border);
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-bottom: 2px solid var(--color-border);
+    margin-bottom: 1rem;
   }
 
   .tab {
     flex: 1;
     padding: 0.75rem 1rem;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
+    background: var(--color-white);
+    border: 2px solid var(--color-border);
     font-weight: 600;
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     color: var(--color-fg);
-    opacity: 0.5;
+    opacity: 0.7;
     cursor: pointer;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-family: var(--font-data);
-    transition: all 150ms ease-out;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1745,56 +1803,61 @@
   }
 
   .tab:hover {
-    opacity: 0.8;
-    background: var(--color-muted);
+    background: var(--color-fg);
+    border-color: var(--color-fg);
+    color: white;
+    opacity: 1;
   }
 
   .tab.active {
+    background: var(--color-fg);
+    border-color: var(--color-fg);
+    color: white;
     opacity: 1;
-    border-bottom-color: var(--color-fg);
-    color: var(--color-fg);
   }
 
   .tab-badge {
-    background: var(--color-fg);
-    color: var(--color-bg);
-    padding: 0.1rem 0.4rem;
-    font-size: 0.65rem;
+    background: rgba(255, 255, 255, 0.3);
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
     font-weight: 700;
-    font-family: var(--font-data);
   }
 
   .tab.active .tab-badge {
-    background: var(--color-fg);
-    color: var(--color-bg);
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--color-fg);
   }
 
   .no-conversations {
     text-align: center;
-    padding: 3rem 1rem;
+    padding: 2rem 1rem;
+    color: var(--color-fg);
+    opacity: 0.6;
+    font-size: 0.95rem;
   }
 
   .conversation-item {
     width: 100%;
     display: flex;
     gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--color-border);
-    background: transparent;
+    padding: 0.75rem;
+    border: 2px solid var(--color-border);
+    background: var(--color-white);
     cursor: pointer;
-    transition: background-color 150ms ease-out;
+    transition: background-color 150ms ease-out, border-color 150ms ease-out;
+    margin-bottom: 0.5rem;
     text-align: left;
     position: relative;
-    border-left: 3px solid transparent;
   }
 
   .conversation-item:hover {
     background-color: var(--color-muted);
+    border-color: var(--color-fg);
   }
 
   .conversation-item.active {
     background-color: var(--color-muted);
-    border-left-color: var(--color-fg);
+    border-left: 4px solid var(--color-red);
   }
 
   .conversation-item.loading {
@@ -1808,12 +1871,11 @@
   }
 
   .conversation-image {
-    width: 50px;
-    height: 50px;
+    width: 60px;
+    height: 60px;
     flex-shrink: 0;
     overflow: hidden;
     background-color: var(--color-muted);
-    border: 1px solid var(--color-fg);
   }
 
   .conversation-image img {
@@ -1828,7 +1890,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.2rem;
+    font-size: 1.5rem;
   }
 
   .conversation-info {
@@ -1837,30 +1899,30 @@
   }
 
   .conversation-info h3 {
-    font-size: 0.9rem;
-    margin: 0 0 0.15rem 0;
+    font-size: 0.95rem;
+    margin: 0 0 0.25rem 0;
     color: var(--color-fg);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-weight: 600;
   }
 
   .seller-name {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--color-fg);
-    opacity: 0.5;
-    margin: 0 0 0.25rem 0;
+    opacity: 0.6;
+    margin: 0 0 0.35rem 0;
+    font-style: italic;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .last-message {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     color: var(--color-fg);
-    opacity: 0.6;
-    margin: 0 0 0.15rem 0;
+    opacity: 0.7;
+    margin: 0 0 0.25rem 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1872,86 +1934,102 @@
   }
 
   .timestamp {
-    font-size: 0.65rem;
+    font-size: 0.75rem;
     color: var(--color-fg);
-    opacity: 0.4;
+    opacity: 0.6;
   }
 
   .unread-badge {
     position: absolute;
     top: 0.75rem;
     right: 0.75rem;
-    background-color: var(--color-fg);
-    color: var(--color-bg);
-    padding: 0.1rem 0.4rem;
-    font-size: 0.65rem;
+    background-color: var(--color-red);
+    color: white;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
     font-weight: 700;
-    font-family: var(--font-data);
   }
 
-  /* ── Chat Area (Right Panel) ── */
   .chat-area {
-    background: var(--color-surface);
+    background: var(--color-white);
+    border: 2px solid var(--color-border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
 
   .chat-header {
-    padding: 1rem 1.25rem;
-    border-bottom: 1px solid var(--color-border);
+    padding: 1.25rem;
+    border-bottom: 2px solid var(--color-border);
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
 
   .product-summary h3 {
-    font-size: 1.1rem;
+    font-size: 1.25rem;
     margin: 0 0 0.25rem 0;
     color: var(--color-fg);
-    font-weight: 700;
   }
 
   .product-price {
     margin: 0;
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     color: var(--color-fg);
     opacity: 0.7;
   }
 
   .status-badge {
     display: inline-block;
-    padding: 0.1rem 0.4rem;
-    font-size: 0.65rem;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
-    font-family: var(--font-data);
-    letter-spacing: 0.05em;
   }
 
   .status-active {
     background-color: var(--color-fg);
-    color: var(--color-bg);
+    color: white;
   }
 
   .status-sold {
-    background-color: var(--color-fg);
-    color: var(--color-bg);
+    background-color: var(--color-red);
+    color: white;
   }
 
   .status-ended {
-    border: 1px solid var(--color-fg);
-    color: var(--color-fg);
+    background-color: var(--color-fg);
+    color: white;
   }
 
-  /* ── Messages ── */
+  :global(html.dark) .status-ended {
+    background: rgba(255, 85, 85, 0.15);
+    color: #ff7777;
+  }
+
+  :global(html.dark) .status-sold {
+    background: rgba(94, 106, 210, 0.2);
+    color: #8b93e0;
+  }
+
+  .view-product-link {
+    color: var(--color-fg);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 150ms ease-out;
+  }
+
+  .view-product-link:hover {
+    color: var(--color-red);
+  }
+
   .chat-messages {
     flex: 1;
     overflow-y: auto;
     padding: 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
   }
 
   .message {
@@ -1967,43 +2045,41 @@
     max-width: 60%;
     background-color: var(--color-muted);
     padding: 0.75rem 1rem;
-    border: 1px solid var(--color-border);
   }
 
   .message.mine .message-content {
     background: var(--color-fg);
-    color: var(--color-bg);
-    border-color: var(--color-fg);
+    color: white;
+  }
+
+  :global(html.dark) .message.mine .message-content {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
   }
 
   .message-sender {
     display: block;
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    margin-bottom: 0.2rem;
+    margin-bottom: 0.25rem;
     color: var(--color-fg);
-    opacity: 0.6;
-    font-family: var(--font-data);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    opacity: 0.7;
   }
 
   .message.mine .message-sender {
-    color: var(--color-bg);
-    opacity: 0.8;
+    color: rgba(255, 255, 255, 0.9);
   }
 
   .message-content p {
     margin: 0;
     line-height: 1.5;
-    font-size: 0.9rem;
   }
 
   .message-time {
     display: block;
-    font-size: 0.6rem;
+    font-size: 0.7rem;
     margin-top: 0.25rem;
-    opacity: 0.5;
+    opacity: 0.7;
   }
 
   /* New message float-up animation */
@@ -2012,35 +2088,37 @@
   }
 
   @keyframes floatUp {
-    0% { opacity: 0; transform: translateY(20px); }
-    100% { opacity: 1; transform: translateY(0); }
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .error-message {
-    padding: 0.5rem 1.25rem;
+    padding: 0.75rem 1.25rem;
+    background-color: var(--color-muted);
     color: var(--color-red);
     text-align: center;
-    border-top: 1px solid var(--color-border);
-    font-size: 0.85rem;
+    border-top: 2px solid var(--color-border);
   }
 
-  /* ── Chat Input ── */
   .chat-input-form {
     display: flex;
-    gap: 0.5rem;
-    padding: 1rem 1.25rem;
-    border-top: 1px solid var(--color-border);
+    gap: 0.75rem;
+    padding: 1.25rem;
+    border-top: 2px solid var(--color-border);
   }
 
   .chat-input {
     flex: 1;
-    padding: 0.6rem 1rem;
-    font-size: 0.9rem;
-    border: 1px solid var(--color-border);
-    border-bottom-width: 2px;
-    background: transparent;
-    font-family: var(--font-ui);
-    color: var(--color-fg);
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 2px solid var(--color-border);
+    font-family: inherit;
   }
 
   .chat-input:focus {
@@ -2049,25 +2127,25 @@
   }
 
   .send-btn {
-    padding: 0.6rem 1.5rem;
+    padding: 0.75rem 2rem;
     background: var(--color-fg);
-    color: var(--color-bg);
-    border: 1px solid var(--color-fg);
+    color: white;
+    border: 2px solid var(--color-fg);
     font-weight: 600;
-    font-size: 0.8rem;
+    font-size: 1rem;
     cursor: pointer;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-family: var(--font-data);
-    transition: all 150ms ease-out;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, border-color 150ms ease-out;
   }
 
   .send-btn:hover:not(:disabled) {
-    opacity: 0.85;
+    background: var(--color-red);
+    border-color: var(--color-red);
   }
 
   .send-btn:disabled {
-    opacity: 0.4;
+    opacity: 0.5;
     cursor: not-allowed;
   }
 
@@ -2076,56 +2154,79 @@
     align-items: center;
     justify-content: center;
     height: 100%;
+    color: var(--color-fg);
+    opacity: 0.6;
+    font-size: 1.1rem;
   }
 
-  /* ── Typing Indicator ── */
+  /* Typing Indicator */
   .typing-indicator {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 0;
+    padding: 0.75rem 1rem;
+    margin: 0.5rem 0;
   }
 
   .typing-dots {
     display: flex;
-    gap: 0.2rem;
-    padding: 0.4rem 0.6rem;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
     background-color: var(--color-muted);
-    border: 1px solid var(--color-border);
   }
 
   .dot {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
     background-color: var(--color-fg);
-    opacity: 0.4;
+    opacity: 0.5;
     border-radius: 50%;
     animation: typing 1.4s infinite;
   }
 
-  .dot:nth-child(1) { animation-delay: 0s; }
-  .dot:nth-child(2) { animation-delay: 0.2s; }
-  .dot:nth-child(3) { animation-delay: 0.4s; }
+  .dot:nth-child(1) {
+    animation-delay: 0s;
+  }
+
+  .dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
 
   @keyframes typing {
-    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-    30% { transform: translateY(-8px); opacity: 1; }
+    0%, 60%, 100% {
+      transform: translateY(0);
+      opacity: 0.5;
+    }
+    30% {
+      transform: translateY(-10px);
+      opacity: 1;
+    }
   }
 
   .typing-text {
-    font-size: 0.75rem;
-    opacity: 0.5;
+    font-size: 0.85rem;
+    color: var(--color-fg);
+    opacity: 0.6;
+    font-style: italic;
   }
 
-  /* ── Loading States ── */
+  /* Loading Older Messages */
   .loading-older {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.75rem;
     padding: 1rem;
+    color: var(--color-fg);
+    opacity: 0.7;
+    font-size: 0.9rem;
   }
 
+  /* Loading Conversation */
   .loading-conversation {
     display: flex;
     flex-direction: column;
@@ -2133,71 +2234,229 @@
     justify-content: center;
     gap: 1rem;
     padding: 3rem 1rem;
+    color: var(--color-fg);
+    opacity: 0.7;
+    font-size: 1rem;
     min-height: 200px;
   }
 
   .loading-spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid var(--color-border);
-    border-top-color: var(--color-fg);
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--color-border);
+    border-top-color: var(--color-red);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
 
   .loading-conversation .loading-spinner {
-    width: 28px;
-    height: 28px;
-    border-width: 3px;
+    width: 30px;
+    height: 30px;
+    border-width: 4px;
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
-  /* ── Chat Blocked ── */
+  /* Chat Blocked Message */
   .chat-blocked-message {
     padding: 2rem;
     text-align: center;
-    border-top: 1px solid var(--color-border);
+    background: var(--color-muted);
+    border-top: 2px solid var(--color-border);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 1rem;
   }
 
-  .blocked-icon { font-size: 2.5rem; opacity: 0.5; }
+  .blocked-icon {
+    font-size: 3rem;
+  }
 
   .blocked-text {
-    font-size: 0.9rem;
+    font-size: 1rem;
     color: var(--color-red);
     margin: 0;
     font-weight: 500;
   }
 
-  /* ── Back Button ── */
-  .back-btn {
-    display: none;
-    padding: 0.4rem 0.75rem;
-    background: transparent;
-    color: var(--color-fg);
-    border: 1px solid var(--color-fg);
+  .view-product-btn {
+    display: inline-block;
+    padding: 0.75rem 2rem;
+    background: var(--color-fg);
+    color: white;
+    text-decoration: none;
     font-weight: 600;
-    font-size: 0.8rem;
-    cursor: pointer;
-    font-family: var(--font-data);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    transition: all 150ms ease-out;
+    border: 2px solid var(--color-fg);
+    transition: background 150ms ease-out, border-color 150ms ease-out;
+    margin-top: 0.5rem;
+  }
+
+  .view-product-btn:hover {
+    background: var(--color-red);
+    border-color: var(--color-red);
+  }
+
+  /* Back button - hidden by default, shown on mobile */
+  .back-btn {
+    display: none;
+    padding: 0.5rem 1rem;
+    background: var(--color-white);
+    color: var(--color-fg);
+    border: 2px solid var(--color-fg);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, color 150ms ease-out;
   }
 
   .back-btn:hover:not(:disabled) {
-    background: var(--color-muted);
+    background: var(--color-fg);
+    color: white;
   }
 
-  .back-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .back-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 
-  /* ── Transaction Parties ── */
+  /* Mobile Responsive */
+  @media (max-width: 768px) {
+    .inbox-page {
+      padding: 0;
+      margin-left: -1rem;
+      margin-right: -1rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      padding: 0 1rem;
+    }
+
+    h1.desktop-only-heading {
+      display: none !important;
+    }
+
+    .inbox-container {
+      grid-template-columns: 1fr;
+      gap: 0;
+      height: calc(100vh - 80px);
+      min-height: 0;
+    }
+
+    /* Hide conversations list when chat is selected on mobile */
+    .conversations-list.hide-on-mobile {
+      display: none;
+    }
+
+    .conversations-list {
+      border: none;
+      box-shadow: none;
+    }
+
+    .chat-area {
+      display: none;
+    }
+
+    .chat-area.show-on-mobile {
+      display: flex;
+      border: none;
+      box-shadow: none;
+    }
+
+    /* Show back button on mobile */
+    .back-btn {
+      display: block;
+      order: 0;
+      padding: 0.375rem 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    .chat-header {
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.75rem;
+    }
+
+    /* Push kebab menu to end of first row */
+    .chat-header :global(.kebab-menu-container) {
+      order: 1;
+      margin-left: auto;
+    }
+
+    .product-summary {
+      flex: 1;
+      min-width: 100%;
+      order: 2;
+    }
+
+    .product-summary h3 {
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .product-price {
+      font-size: 0.8rem;
+    }
+
+    .transaction-parties {
+      font-size: 0.8rem;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+    }
+
+    .view-product-link {
+      order: 3;
+      width: 100%;
+      text-align: center;
+    }
+
+    .message-content {
+      max-width: 85%;
+    }
+
+    .chat-input-form {
+      padding: 0.75rem;
+      gap: 0.5rem;
+      border-top-width: 2px;
+    }
+
+    .chat-input {
+      padding: 0.6rem 0.75rem;
+      font-size: 0.9rem;
+      border-width: 2px;
+      min-width: 0;
+    }
+
+    .send-btn {
+      padding: 0.6rem 1rem;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      border-width: 2px;
+      box-shadow: none;
+    }
+
+    .tabs {
+      flex-direction: column;
+    }
+
+    .tab {
+      width: 100%;
+    }
+  }
+
+  /* Transaction Parties */
   .transaction-parties {
     display: flex;
     flex-wrap: wrap;
@@ -2209,76 +2468,86 @@
     display: flex;
     align-items: center;
     gap: 0.375rem;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
+  }
+
+  .party-label {
+    color: var(--color-fg);
+    opacity: 0.7;
   }
 
   .party-name {
     color: var(--color-fg);
     font-weight: 500;
     text-decoration: none;
-    font-size: 0.8rem;
   }
 
   .party-name:hover {
-    color: var(--color-fg);
+    color: var(--color-red);
     text-decoration: underline;
   }
 
-  /* ── Rating Bar ── */
-  .rating-bar {
-    border-top: 1px solid var(--color-border);
-    padding: 0.5rem 1.25rem;
-    background: var(--color-muted);
+  .my-rating-badge,
+  .other-rating-badge {
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 0.25rem;
   }
 
-  .rating-bar-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.3rem 0.8rem;
+  /* Submit Rating Button */
+  .submit-rating-btn {
+    margin-top: 0.75rem;
+    padding: 0.5rem 1rem;
     background: var(--color-fg);
-    color: var(--color-bg);
-    border: 1px solid var(--color-fg);
-    font-weight: 700;
-    font-size: 0.7rem;
-    font-family: var(--font-data);
-    cursor: pointer;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    transition: all 150ms ease-out;
-  }
-
-  .rating-bar-btn:hover { opacity: 0.85; }
-
-  .rating-bar-star { font-size: 0.85rem; color: var(--color-yellow); }
-  .rating-bar-star.filled { color: inherit; }
-
-  .rating-bar-done {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.75rem;
+    color: white;
+    border: 2px solid var(--color-fg);
     font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, border-color 150ms ease-out;
   }
 
-  .rating-bar-label { opacity: 0.8; }
-
-  .rating-bar-divider {
-    width: 3px;
-    height: 3px;
-    background: var(--color-fg);
-    opacity: 0.3;
-    border-radius: 50%;
-    flex-shrink: 0;
+  .submit-rating-btn:hover {
+    background: var(--color-red);
+    border-color: var(--color-red);
   }
 
-  /* ── Modals ── */
+  /* Rating Submitted */
+  .rating-submitted {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--color-muted);
+    font-size: 0.85rem;
+  }
+
+  .rating-label {
+    color: var(--color-red);
+    font-weight: 500;
+  }
+
+  .rating-comment {
+    font-style: italic;
+    color: var(--color-fg);
+    opacity: 0.7;
+    font-size: 0.8rem;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Modal Styles */
   .modal-overlay {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
@@ -2288,12 +2557,12 @@
   }
 
   .modal-content {
-    background: var(--color-surface);
+    background: var(--color-white);
     padding: 2rem;
     max-width: 450px;
     width: 100%;
     position: relative;
-    border: 1px solid var(--color-fg);
+    border: 2px solid var(--color-border);
   }
 
   .modal-close {
@@ -2305,24 +2574,34 @@
     font-size: 1.5rem;
     cursor: pointer;
     color: var(--color-fg);
-    opacity: 0.5;
+    opacity: 0.6;
     width: 32px;
     height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 150ms;
+    transition: background 150ms ease-out, color 150ms ease-out;
   }
 
   .modal-close:hover {
+    background: var(--color-fg);
+    color: white;
     opacity: 1;
+  }
+
+  .modal-content h2 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+    color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .modal-subtitle {
     color: var(--color-fg);
-    opacity: 0.6;
+    opacity: 0.7;
     margin: 0 0 1.5rem 0;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
   }
 
   .rating-selector {
@@ -2333,8 +2612,44 @@
     margin-bottom: 1.5rem;
   }
 
+  .rating-value-display {
+    font-size: 0.9rem;
+    color: var(--color-fg);
+    opacity: 0.7;
+    font-weight: 500;
+  }
+
   .comment-input {
     margin-bottom: 1.5rem;
+  }
+
+  .comment-input label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--color-fg);
+  }
+
+  .comment-input textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid var(--color-border);
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  .comment-input textarea:focus {
+    outline: none;
+    border-color: var(--color-fg);
+  }
+
+  .rating-error {
+    color: var(--color-red);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    text-align: center;
   }
 
   .modal-actions {
@@ -2343,55 +2658,298 @@
     justify-content: flex-end;
   }
 
+  .btn-cancel {
+    padding: 0.75rem 1.5rem;
+    background: var(--color-white);
+    color: var(--color-fg);
+    border: 2px solid var(--color-border);
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+  }
+
+  .btn-cancel:hover {
+    background: var(--color-fg);
+    border-color: var(--color-fg);
+    color: white;
+  }
+
+  .btn-submit {
+    padding: 0.75rem 1.5rem;
+    background: var(--color-red);
+    color: white;
+    border: 2px solid var(--color-red);
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, border-color 150ms ease-out;
+  }
+
+  .btn-submit:hover:not(:disabled) {
+    background: var(--color-fg);
+    border-color: var(--color-fg);
+  }
+
+  .btn-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Compact Rating Bar */
+  .rating-bar {
+    border-top: 2px solid var(--color-border);
+    padding: 0.5rem 1.25rem;
+    background: var(--color-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .rating-bar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 1rem;
+    background: var(--color-fg);
+    color: white;
+    border: 2px solid var(--color-fg);
+    font-weight: 700;
+    font-size: 0.8rem;
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: background 150ms ease-out, border-color 150ms ease-out;
+  }
+
+  :global(html.dark) .rating-bar-btn {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
+    border-color: var(--color-accent, #5E6AD2);
+  }
+
+  .rating-bar-btn:hover {
+    background: var(--color-red);
+    border-color: var(--color-red);
+  }
+
+  .rating-bar-star {
+    font-size: 0.9rem;
+    color: var(--color-red);
+  }
+
+  .rating-bar-star.filled {
+    color: var(--color-fg);
+  }
+
+  .rating-bar-done {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-fg);
+  }
+
+  .rating-bar-label {
+    opacity: 0.85;
+  }
+
+  .rating-bar-divider {
+    width: 3px;
+    height: 3px;
+    background: var(--color-fg);
+    opacity: 0.4;
+    flex-shrink: 0;
+  }
+
+  /* Mobile responsive for new elements */
+  @media (max-width: 768px) {
+    .transaction-parties {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .rating-submitted {
+      flex-wrap: wrap;
+    }
+
+    .rating-comment {
+      max-width: 100%;
+      width: 100%;
+    }
+
+    .modal-content {
+      padding: 1.5rem;
+    }
+
+    .modal-actions {
+      flex-direction: column-reverse;
+    }
+
+    .btn-cancel,
+    .btn-submit {
+      width: 100%;
+    }
+
+    .rating-bar {
+      padding: 0.4rem 0.75rem;
+    }
+  }
+
+  /* Base Modal Styles */
+  .modal {
+    background: var(--color-white);
+    padding: 2rem;
+    max-width: 450px;
+    width: 90%;
+    position: relative;
+    border: 2px solid var(--color-border);
+  }
+
+  .modal h2 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+    color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Void Modal Styles */
+  .void-modal {
+    max-width: 480px;
+  }
+
+  .void-modal .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .void-modal .form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--color-fg);
+  }
+
+  .void-modal .form-group .required {
+    color: var(--color-red);
+  }
+
+  .void-modal .form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid var(--color-border);
+    font-size: 0.95rem;
+    resize: vertical;
+    min-height: 100px;
+    font-family: inherit;
+  }
+
+  .void-modal .form-group textarea:focus {
+    outline: none;
+    border-color: var(--color-fg);
+  }
+
+  .void-description {
+    color: var(--color-fg);
+    opacity: 0.7;
+    margin-bottom: 1.5rem;
+    line-height: 1.5;
+  }
+
+  .void-error {
+    background: var(--color-muted);
+    color: var(--color-red);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+
+  .void-reason-display {
+    background: var(--color-muted);
+    padding: 1rem;
+    border: 2px solid var(--color-border);
+    margin-bottom: 1.5rem;
+  }
+
+  .void-reason-display label {
+    font-size: 0.85rem;
+    color: var(--color-fg);
+    opacity: 0.7;
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  .void-reason-display p {
+    color: var(--color-fg);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .btn-danger {
+    background: var(--color-red);
+    border-color: var(--color-red);
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background: var(--color-fg);
+    border-color: var(--color-fg);
+  }
+
+  .btn-success {
+    background: var(--color-fg);
+    border-color: var(--color-fg);
+  }
+
+  .btn-success:hover:not(:disabled) {
+    background: var(--color-red);
+    border-color: var(--color-red);
+  }
+
+  .btn-reject {
+    background: var(--color-muted);
+    color: var(--color-fg);
+    border: 2px solid var(--color-fg);
+    padding: 0.75rem 1.5rem;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, color 150ms ease-out;
+  }
+
+  .btn-reject:hover:not(:disabled) {
+    background: var(--color-red);
+    color: white;
+    border-color: var(--color-red);
+  }
+
+  .btn-reject:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .modal-actions.three-buttons {
     display: flex;
     gap: 0.75rem;
     justify-content: flex-end;
   }
 
-  /* ── Void Modal ── */
-  .void-modal { max-width: 480px; }
-
-  .form-group { margin-bottom: 1.5rem; }
-
-  .void-description {
-    color: var(--color-fg);
-    opacity: 0.6;
-    margin-bottom: 1.5rem;
-    line-height: 1.5;
-    font-size: 0.9rem;
+  /* Seller Choice Modal */
+  .seller-choice-modal {
+    max-width: 520px;
   }
-
-  .void-error {
-    background: var(--color-muted);
-    color: var(--color-fg);
-    padding: 0.6rem 0.8rem;
-    margin-bottom: 1rem;
-    font-size: 0.85rem;
-    font-family: var(--font-data);
-    border-left: 3px solid var(--color-fg);
-  }
-
-  .void-reason-display {
-    background: var(--color-muted);
-    padding: 1rem;
-    border: 1px solid var(--color-border);
-    margin-bottom: 1.5rem;
-  }
-
-  .void-reason-display p {
-    color: var(--color-fg);
-    line-height: 1.5;
-    margin: 0.5rem 0 0;
-  }
-
-  /* ── Seller Choice ── */
-  .seller-choice-modal { max-width: 520px; }
 
   .choice-options {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
     margin-bottom: 1.5rem;
   }
 
@@ -2399,46 +2957,52 @@
     display: flex;
     align-items: flex-start;
     gap: 1rem;
-    padding: 1rem;
+    padding: 1.25rem;
     background: var(--color-muted);
-    border: 1px solid var(--color-border);
+    border: 2px solid var(--color-border);
     cursor: pointer;
-    transition: all 150ms ease-out;
+    transition: background 150ms ease-out, border-color 150ms ease-out;
     text-align: left;
     width: 100%;
   }
 
   .choice-option:hover:not(:disabled) {
     border-color: var(--color-fg);
-    background: var(--color-surface);
+    background: var(--color-white);
   }
 
-  .choice-option:disabled { opacity: 0.5; cursor: not-allowed; }
+  .choice-option:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 
-  .choice-icon { font-size: 1.8rem; flex-shrink: 0; }
+  .choice-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+  }
 
   .choice-content h3 {
-    margin: 0 0 0.35rem 0;
-    font-size: 1rem;
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
     color: var(--color-fg);
-    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .choice-content p {
     margin: 0;
     color: var(--color-fg);
-    opacity: 0.6;
-    font-size: 0.85rem;
+    opacity: 0.7;
+    font-size: 0.9rem;
     line-height: 1.4;
   }
 
-  /* ── Offer Details ── */
+  /* Second Bidder Offer Modal */
   .offer-details {
     background: var(--color-muted);
     padding: 1.25rem;
-    border: 1px solid var(--color-border);
+    border: 2px solid var(--color-border);
     margin-bottom: 1.5rem;
-    border-radius: 12px;
   }
 
   .offer-amount {
@@ -2448,72 +3012,146 @@
     margin-bottom: 0.75rem;
   }
 
-  /* ── Mobile ── */
-  @media (max-width: 768px) {
-    .inbox-page {
-      padding: 0;
-      margin-left: -1rem;
-      margin-right: -1rem;
-    }
-
-    .desktop-only-heading {
-      display: none !important;
-    }
-
-    .inbox-container {
-      grid-template-columns: 1fr;
-      height: calc(100vh - 80px);
-      min-height: 0;
-      border: none;
-    }
-
-    .conversations-list.hide-on-mobile { display: none; }
-    .conversations-list { border-right: none; }
-
-    .chat-area { display: none; }
-    .chat-area.show-on-mobile { display: flex; }
-
-    .back-btn {
-      display: block;
-      order: 0;
-    }
-
-    .chat-header {
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      padding: 0.75rem;
-    }
-
-    .chat-header :global(.kebab-menu-container) {
-      order: 1;
-      margin-left: auto;
-    }
-
-    .product-summary { flex: 1; min-width: 100%; order: 2; }
-    .product-summary h3 { font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-    .message-content { max-width: 85%; }
-
-    .chat-input-form { padding: 0.75rem; gap: 0.5rem; }
-    .chat-input { padding: 0.5rem 0.75rem; font-size: 0.9rem; }
-    .send-btn { padding: 0.5rem 0.8rem; font-size: 0.75rem; flex-shrink: 0; }
-
-    .tabs { flex-direction: column; }
-    .tab { width: 100%; }
-
-    .transaction-parties { flex-direction: column; gap: 0.25rem; }
-
-    .modal-content { padding: 1.5rem; }
-    .modal-actions { flex-direction: column-reverse; }
-    .modal-actions.three-buttons { flex-direction: column-reverse; }
-    .modal-actions.three-buttons button { width: 100%; }
-
-    .choice-option { flex-direction: column; text-align: center; }
-
-    .rating-bar { padding: 0.4rem 0.75rem; }
+  .offer-amount label {
+    color: var(--color-fg);
+    opacity: 0.8;
+    font-size: 0.9rem;
   }
 
-  .desktop-only-heading {
-    /* shown on desktop */
+  .offer-amount .amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-fg);
+  }
+
+  .offer-note {
+    color: var(--color-fg);
+    opacity: 0.8;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  @media (max-width: 768px) {
+    .modal-actions.three-buttons {
+      flex-direction: column-reverse;
+    }
+
+    .modal-actions.three-buttons button {
+      width: 100%;
+    }
+
+    .choice-option {
+      flex-direction: column;
+      text-align: center;
+    }
+  }
+
+  /* ── Dark mode fixes ── */
+
+  /* Chat input: needs dark bg + light text */
+  :global(html.dark) .chat-input {
+    background: #0F0F12;
+    color: var(--color-fg);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.10);
+    border-radius: 8px !important;
+  }
+
+  :global(html.dark) .chat-input:focus {
+    border-color: var(--color-accent, #5E6AD2);
+    box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+    outline: none;
+  }
+
+  /* Send button */
+  :global(html.dark) .send-btn {
+    background: var(--color-accent, #5E6AD2);
+    color: #fff;
+    border-color: var(--color-accent, #5E6AD2);
+    border-width: 1px;
+    border-radius: 8px !important;
+  }
+
+  /* All buttons that use color: var(--color-white) on accent bg */
+  :global(html.dark) .btn-browse,
+  :global(html.dark) .view-product-btn,
+  :global(html.dark) .btn-submit,
+  :global(html.dark) .submit-rating-btn {
+    color: #fff;
+  }
+
+  /* Inbox tabs */
+  :global(html.dark) .tab.active {
+    background: var(--color-accent, #5E6AD2);
+    border-color: var(--color-accent, #5E6AD2);
+    color: #fff;
+  }
+
+  /* Back button hover */
+  :global(html.dark) .back-btn:hover:not(:disabled) {
+    color: #fff;
+  }
+
+  /* Rating bar */
+  :global(html.dark) .rating-bar {
+    background: rgba(201, 168, 48, 0.10);
+    border-top-width: 1px;
+    border-top-color: rgba(255, 255, 255, 0.06);
+  }
+
+  /* Conversations list & chat area surfaces */
+  :global(html.dark) .conversations-list,
+  :global(html.dark) .chat-area,
+  :global(html.dark) .modal-content {
+    background: var(--color-bg);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.06);
+    border-radius: 12px !important;
+  }
+
+  /* Inbox tab surface */
+  :global(html.dark) .tab {
+    background: transparent;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.06);
+    border-radius: 8px !important;
+  }
+
+  :global(html.dark) .tab:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* Rating comment textarea */
+  :global(html.dark) .comment-input textarea {
+    background: #0F0F12;
+    color: var(--color-fg);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.10);
+    border-radius: 8px !important;
+  }
+
+  :global(html.dark) .comment-input textarea:focus {
+    border-color: var(--color-accent, #5E6AD2);
+    box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+  }
+
+  /* Modal input fields */
+  :global(html.dark) .modal-content input,
+  :global(html.dark) .modal-content textarea,
+  :global(html.dark) .modal-content select {
+    background: #0F0F12;
+    color: var(--color-fg);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.10);
+    border-radius: 8px !important;
+  }
+
+  :global(html.dark) .modal-content input:focus,
+  :global(html.dark) .modal-content textarea:focus,
+  :global(html.dark) .modal-content select:focus {
+    border-color: var(--color-accent, #5E6AD2);
+    box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.25);
+    outline: none;
   }
 </style>

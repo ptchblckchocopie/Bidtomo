@@ -511,10 +511,9 @@
   }
 </script>
 
-<form onsubmit={handleSubmit} class="w-full">
-  <!-- Title -->
-  <div class="mb-6">
-    <label for="title" class="label-bh block mb-2">Product Title *</label>
+<form onsubmit={handleSubmit} class="product-form">
+  <div class="form-group">
+    <label for="title">Product Title *</label>
     <input
       id="title"
       type="text"
@@ -526,9 +525,8 @@
     />
   </div>
 
-  <!-- Description -->
-  <div class="mb-6">
-    <label for="description" class="label-bh block mb-2">Description *</label>
+  <div class="form-group">
+    <label for="description">Description *</label>
     <textarea
       id="description"
       bind:value={description}
@@ -540,34 +538,41 @@
     ></textarea>
   </div>
 
-  <!-- Keywords -->
-  <div class="mb-6">
-    <label for="keywords" class="label-bh block mb-2">Keywords (for search & SEO)</label>
+  <div class="form-group">
+    <label for="keywords">Keywords (for search & SEO)</label>
     <KeywordInput bind:keywords disabled={submitting} />
   </div>
 
-  <!-- Region -->
-  <div class="mb-6">
-    <label for="region" class="label-bh block mb-2">Region</label>
-    <select id="region" bind:value={region} disabled={submitting} class="input-bh">
+  <div class="form-group">
+    <label for="region">Region</label>
+    <select
+      id="region"
+      bind:value={region}
+      disabled={submitting}
+      class="input-bh"
+    >
       <option value="">Select a region...</option>
       {#each regions as regionOption}
         <option value={regionOption}>{regionOption}</option>
       {/each}
     </select>
-    <p class="mt-1.5 text-xs text-bh-fg/50 italic font-sans">Where is your product located?</p>
+    <p class="field-hint">Where is your product located?</p>
   </div>
 
-  <!-- City -->
-  <div class="mb-6">
-    <label for="city" class="label-bh block mb-2">City/Municipality</label>
-    <select id="city" bind:value={city} disabled={submitting || !region} class="input-bh">
+  <div class="form-group">
+    <label for="city">City/Municipality</label>
+    <select
+      id="city"
+      bind:value={city}
+      disabled={submitting || !region}
+      class="input-bh"
+    >
       <option value="">Select a city...</option>
       {#each availableCities as cityOption}
         <option value={cityOption}>{cityOption}</option>
       {/each}
     </select>
-    <p class="mt-1.5 text-xs text-bh-fg/50 italic font-sans">
+    <p class="field-hint">
       {#if !region}
         Please select a region first
       {:else}
@@ -576,25 +581,27 @@
     </p>
   </div>
 
-  <!-- Delivery Options -->
-  <div class="mb-6">
-    <label for="deliveryOptions" class="label-bh block mb-2">Delivery Options</label>
-    <select id="deliveryOptions" bind:value={deliveryOptions} disabled={submitting} class="input-bh">
+  <div class="form-group">
+    <label for="deliveryOptions">Delivery Options</label>
+    <select
+      id="deliveryOptions"
+      bind:value={deliveryOptions}
+      disabled={submitting}
+      class="input-bh"
+    >
       <option value="">Select an option...</option>
       <option value="delivery">Delivery</option>
       <option value="meetup">Meetup</option>
       <option value="both">Both Delivery and Meetup</option>
     </select>
-    <p class="mt-1.5 text-xs text-bh-fg/50 italic font-sans">How will the buyer receive the product?</p>
+    <p class="field-hint">How will the buyer receive the product?</p>
   </div>
 
-  <!-- Categories -->
-  <div class="mb-6">
-    <label class="label-bh block mb-2">Product Categories</label>
-    <div class="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2 my-2">
+  <div class="form-group">
+    <label>Product Categories</label>
+    <div class="categories-grid">
       {#each categories as category}
-        <label class="category-checkbox flex items-center gap-2 px-3 py-2.5 cursor-pointer transition-colors
-                      border border-[var(--color-border)] bg-transparent                       hover:bg-[var(--color-muted)]">
+        <label class="category-checkbox">
           <input
             type="checkbox"
             value={category.value}
@@ -607,43 +614,38 @@
               }
             }}
             disabled={submitting}
-            class="w-4 h-4 cursor-pointer accent-[var(--color-fg)]"
           />
-          <span class="text-sm font-medium text-bh-fg">{category.label}</span>
+          <span>{category.label}</span>
         </label>
       {/each}
     </div>
-    <p class="mt-1.5 text-xs text-bh-fg/50 italic font-sans">Select one or more categories that describe your product</p>
+    <p class="field-hint">Select one or more categories that describe your product</p>
   </div>
 
-  <!-- Images -->
-  <div class="mb-6">
-    <label for="images" class="label-bh block mb-2">Product Images * (1-5 images)</label>
-    <div class="flex flex-col gap-4">
+  <div class="form-group">
+    <label for="images">Product Images * (1-5 images)</label>
+    <div class="image-upload-container">
       {#if (mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length) < 5}
-        <label class="inline-flex items-center gap-2 px-6 py-3 cursor-pointer transition-all font-bold text-base
-                      bg-[var(--color-fg)] text-white border border-[var(--color-fg)]                       hover:brightness-110
-                      {submitting ? 'opacity-60 cursor-not-allowed' : ''}">
+        <label class="image-upload-btn" class:disabled={submitting}>
           <input
             type="file"
             accept="image/*"
             multiple
             onchange={handleImageSelect}
             disabled={submitting}
-            class="hidden"
+            style="display: none;"
           />
-          <span class="text-2xl font-black">+</span>
+          <span class="upload-icon">+</span>
           <span>Add Images ({mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length}/5)</span>
         </label>
       {/if}
 
       {#if existingImages.length > 0 || imageFiles.length > 0}
-        <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-4 sm:grid-cols-[repeat(auto-fill,minmax(120px,1fr))]">
+        <div class="image-preview-grid">
           {#each existingImages as img, index}
             <div
-              class="image-preview relative aspect-square overflow-hidden cursor-grab transition-all
-                     border border-[var(--color-border)] bg-[var(--color-muted)]                      hover:border-[var(--color-fg)]
-                     {draggedIndex === index && draggingExisting ? 'opacity-50 scale-95' : ''}"
+              class="image-preview-item"
+              class:dragging={draggedIndex === index && draggingExisting}
               draggable="true"
               ondragstart={(e) => handleDragStart(e, index, true)}
               ondragover={handleDragOver}
@@ -652,33 +654,25 @@
               role="button"
               tabindex="0"
             >
-              <img src={img.image.url} alt="Preview {index + 1}" class="w-full h-full object-cover pointer-events-none" />
+              <img src={img.image.url} alt="Preview {index + 1}" />
               <button
                 type="button"
-                class="absolute top-2 right-2 w-8 h-8 flex items-center justify-center text-xl font-bold leading-none
-                       bg-[var(--color-red)] text-white  cursor-pointer transition-all
-                       hover:brightness-110 hover:scale-110
-                       disabled:opacity-50 disabled:cursor-not-allowed"
+                class="remove-image-btn"
                 onclick={() => removeExistingImage(img.image.id)}
                 disabled={submitting}
                 title="Remove image"
               >
-                &#10005;
+                ✕
               </button>
-              <span class="absolute bottom-2 left-2 px-2 py-0.5 text-xs font-bold
-                           bg-black/60 text-white rounded">{index + 1}</span>
-              <div class="drag-handle absolute bottom-2 left-1/2 -translate-x-1/2
-                          px-3 py-0.5 text-xl font-bold tracking-[-2px] pointer-events-none
-                          opacity-0 transition-opacity
-                          bg-black/60 text-white rounded">&#8942;&#8942;</div>
+              <span class="image-number">{index + 1}</span>
+              <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
             </div>
           {/each}
 
           {#each imageFiles as file, index}
             <div
-              class="image-preview relative aspect-square overflow-hidden cursor-grab transition-all
-                     border border-[var(--color-border)] bg-[var(--color-muted)]                      hover:border-[var(--color-fg)]
-                     {draggedIndex === index && !draggingExisting ? 'opacity-50 scale-95' : ''}"
+              class="image-preview-item"
+              class:dragging={draggedIndex === index && !draggingExisting}
               draggable="true"
               ondragstart={(e) => handleDragStart(e, index, false)}
               ondragover={handleDragOver}
@@ -687,47 +681,37 @@
               role="button"
               tabindex="0"
             >
-              <img src={getImagePreview(file)} alt="Preview {existingImages.length + index + 1}" class="w-full h-full object-cover pointer-events-none" />
+              <img src={getImagePreview(file)} alt="Preview {existingImages.length + index + 1}" />
               <button
                 type="button"
-                class="absolute top-2 right-2 w-8 h-8 flex items-center justify-center text-xl font-bold leading-none
-                       bg-[var(--color-red)] text-white  cursor-pointer transition-all
-                       hover:brightness-110 hover:scale-110
-                       disabled:opacity-50 disabled:cursor-not-allowed"
+                class="remove-image-btn"
                 onclick={() => removeImage(index)}
                 disabled={submitting}
                 title="Remove image"
               >
-                &#10005;
+                ✕
               </button>
-              <span class="absolute bottom-2 left-2 px-2 py-0.5 text-xs font-bold
-                           bg-black/60 text-white rounded">{existingImages.length + index + 1}</span>
-              <div class="drag-handle absolute bottom-2 left-1/2 -translate-x-1/2
-                          px-3 py-0.5 text-xl font-bold tracking-[-2px] pointer-events-none
-                          opacity-0 transition-opacity
-                          bg-black/60 text-white rounded">&#8942;&#8942;</div>
-              <span class="badge-bh absolute top-2 left-2 bg-[var(--color-fg)] text-white rounded">NEW</span>
+              <span class="image-number">{existingImages.length + index + 1}</span>
+              <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
+              <span class="new-badge">NEW</span>
             </div>
           {/each}
         </div>
-        <p class="mt-3 text-sm text-[var(--color-fg)] font-medium">
-          Drag images to reorder them. The first image will be the main product photo.
-        </p>
+        <p class="field-hint drag-hint">Drag images to reorder them. The first image will be the main product photo.</p>
       {/if}
     </div>
-    <p class="mt-1.5 text-xs text-bh-fg/50 italic font-sans">Upload 1-5 high-quality images of your product. Each image must be less than 10MB.</p>
+    <p class="field-hint">Upload 1-5 high-quality images of your product. Each image must be less than 10MB.</p>
   </div>
 
-  <!-- Starting Price -->
   {#if hasBids && mode === 'edit'}
-    <div class="mb-6 p-4 bg-[var(--color-fg)]/5 border border-[var(--color-fg)]/30 ">
-      <p class="mb-1"><strong>Starting Price:</strong> {startingPrice} {userCurrency}</p>
-      <p class="mb-1"><strong>Current Bid:</strong> {product?.currentBid} {userCurrency}</p>
-      <p class="text-sm text-[var(--color-fg)] italic mt-2">Note: Starting price cannot be changed after bids have been placed.</p>
+    <div class="form-info">
+      <p><strong>Starting Price:</strong> {startingPrice} {userCurrency}</p>
+      <p><strong>Current Bid:</strong> {product?.currentBid} {userCurrency}</p>
+      <p class="note">Note: Starting price cannot be changed after bids have been placed.</p>
     </div>
   {:else}
-    <div class="mb-6">
-      <label for="startingPrice" class="label-bh block mb-2">Starting Price ({userCurrency}) *</label>
+    <div class="form-group">
+      <label for="startingPrice">Starting Price ({userCurrency}) *</label>
       <input
         id="startingPrice"
         type="number"
@@ -739,13 +723,12 @@
         disabled={submitting}
         class="input-bh"
       />
-      <p class="mt-1.5 text-xs text-bh-fg/50 italic font-sans">Minimum starting price: 100 {userCurrency}</p>
+      <p class="field-hint">Minimum starting price: 100 {userCurrency}</p>
     </div>
   {/if}
 
-  <!-- Bid Increment -->
-  <div class="mb-6">
-    <label for="bidInterval" class="label-bh block mb-2">Bid Increment ({userCurrency}) *</label>
+  <div class="form-group">
+    <label for="bidInterval">Bid Increment ({userCurrency}) *</label>
     <input
       id="bidInterval"
       type="number"
@@ -757,14 +740,13 @@
       disabled={submitting}
       class="input-bh"
     />
-    <p class="mt-1.5 text-xs text-bh-fg/50 italic font-sans">Minimum amount each bid must increase by (default: {userCurrency === 'PHP' ? '50' : '1'} {userCurrency})</p>
+    <p class="field-hint">Minimum amount each bid must increase by (default: {userCurrency === 'PHP' ? '50' : '1'} {userCurrency})</p>
   </div>
 
-  <!-- Auction End Date -->
-  <div class="mb-6">
-    <label for="auctionEndDate" class="label-bh block mb-2">Auction End Date *</label>
+  <div class="form-group">
+    <label for="auctionEndDate">Auction End Date *</label>
 
-    <div class="mb-4">
+    <div class="duration-section">
       <input
         id="auctionEndDate"
         type="datetime-local"
@@ -776,67 +758,61 @@
       />
       {#if mode === 'edit' && product?.createdAt}
         {@const hoursSinceCreation = (new Date().getTime() - new Date(product.createdAt).getTime()) / (1000 * 60 * 60)}
-        <p class="mt-1.5 text-xs text-bh-fg/50 italic font-sans">
+        <p class="field-hint">
           {hoursSinceCreation > 1 ? 'Minimum 1 minute from now.' : 'Minimum 1 hour from creation time.'}
         </p>
       {:else}
-        <p class="mt-1.5 text-xs text-bh-fg/50 italic font-sans">Minimum 1 hour from now.</p>
+        <p class="field-hint">Minimum 1 hour from now.</p>
       {/if}
     </div>
 
-    <!-- Duration divider -->
-    <div class="flex items-center my-6">
-      <div class="flex-1 h-[2px] bg-[var(--color-border)]"></div>
-      <span class="px-4 text-xs font-bold uppercase tracking-widest text-bh-fg font-mono">Or set custom duration</span>
-      <div class="flex-1 h-[2px] bg-[var(--color-border)]"></div>
+    <div class="duration-divider">
+      <span>Or set custom duration</span>
     </div>
 
-    <div class="flex gap-3 items-end flex-wrap">
-      <div class="flex flex-col gap-1">
+    <div class="custom-duration-inputs">
+      <div class="duration-input-group">
         <input
           type="number"
           min="0"
           placeholder="0"
-          class="input-bh !w-20"
+          class="duration-input input-bh"
           bind:value={customDays}
           disabled={submitting}
         />
-        <span class="text-sm font-bold text-bh-fg">Days</span>
+        <span class="duration-unit">Days</span>
       </div>
-      <div class="flex flex-col gap-1">
+      <div class="duration-input-group">
         <input
           type="number"
           min="0"
           placeholder="0"
-          class="input-bh !w-20"
+          class="duration-input input-bh"
           bind:value={customHours}
           disabled={submitting}
         />
-        <span class="text-sm font-bold text-bh-fg">Hours</span>
+        <span class="duration-unit">Hours</span>
       </div>
     </div>
     {#if auctionEndDate}
-      <p class="mt-1.5 text-xs text-bh-fg/50 italic font-sans">Selected: {new Date(auctionEndDate).toLocaleString()}</p>
+      <p class="field-hint">Selected: {new Date(auctionEndDate).toLocaleString()}</p>
     {/if}
   </div>
 
-  <!-- Active checkbox (admin only, edit mode) -->
   {#if mode === 'edit' && $authStore.user?.role === 'admin'}
-    <div class="mb-6">
-      <label class="flex items-center gap-2 cursor-pointer">
+    <div class="form-group">
+      <label class="checkbox-label">
         <input
           type="checkbox"
           bind:checked={active}
           disabled={submitting}
-          class="w-4 h-4 accent-[var(--color-fg)]"
         />
-        <span class="text-sm font-medium text-bh-fg">Active (visible on Browse Products page)</span>
+        <span>Active (visible on Browse Products page)</span>
       </label>
     </div>
   {/if}
 
-  <!-- Actions -->
-  <div class="flex gap-4 mt-8 sm:flex-col">
+  <div class="form-actions">
     <button type="submit" class="btn-bh-red" disabled={submitting}>
       {submitting ? (mode === 'edit' ? 'Updating...' : 'Creating Listing...') : (mode === 'edit' ? 'Update Product' : 'Create Listing')}
     </button>
@@ -850,61 +826,474 @@
 
 <!-- Fullscreen Loading Overlay -->
 {#if submitting}
-  <div class="fixed inset-0 bg-black/90 flex items-center justify-center z-[9999] animate-fade-in">
-    <div class="text-center text-white max-w-[400px] px-8">
-      <div class="w-16 h-16 border-[6px] border-white/20 border-t-[var(--color-fg)]
-                  rounded-full animate-spin mx-auto mb-6"></div>
-      <p class="text-xl font-bold mb-2">{loadingMessage}</p>
-      <p class="text-sm text-white/70">Please wait, do not close this window...</p>
+  <div class="fullscreen-loader">
+    <div class="loader-content">
+      <div class="spinner"></div>
+      <p class="loader-message">{loadingMessage}</p>
+      <p class="loader-hint">Please wait, do not close this window...</p>
     </div>
   </div>
 {/if}
 
 <!-- Toast Notification -->
 {#if showToast}
-  <div class="fixed top-5 right-5 z-[10000] flex items-center gap-3 px-6 py-4 min-w-[300px] max-w-[500px]
-              border border-[var(--color-border)] text-base animate-slide-in               {toastType === 'success' ? 'bg-[var(--color-fg)] text-white' : 'bg-[var(--color-red)] text-white'}
-              sm:top-2.5 sm:right-2.5 sm:left-2.5 sm:min-w-0 sm:max-w-none">
-    <div class="w-7 h-7 flex items-center justify-center bg-white/20 flex-shrink-0 font-bold text-lg
-                ">
+  <div class="toast {toastType}" class:show={showToast}>
+    <div class="toast-icon">
       {#if toastType === 'success'}
         &#10003;
       {:else}
-        &#10005;
+        ✕
       {/if}
     </div>
-    <div class="flex-1 font-medium">{toastMessage}</div>
+    <div class="toast-message">{toastMessage}</div>
   </div>
 {/if}
 
 <style>
-  @keyframes fade-in {
+  .product-form {
+    width: 100%;
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.5rem;
+    margin: 0.5rem 0;
+  }
+
+  .category-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    border: 2px solid var(--color-border);
+    cursor: pointer;
+    background: var(--color-bg);
+    transition: border-color 0.15s;
+  }
+
+  .category-checkbox:hover {
+    border-color: var(--color-red);
+  }
+
+  .category-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--color-red);
+  }
+
+  .category-checkbox input[type="checkbox"]:checked + span {
+    font-weight: 700;
+    color: var(--color-red);
+  }
+
+  .category-checkbox span {
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .form-info {
+    background-color: var(--color-muted);
+    border: var(--border-bh) solid var(--color-blue);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .form-info p {
+    margin: 0.5rem 0;
+  }
+
+  .form-info .note {
+    font-size: 0.875rem;
+    color: var(--color-blue);
+    font-style: italic;
+    margin-top: 0.75rem;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 700;
+    color: var(--color-fg);
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+
+  .field-hint {
+    margin: 0.5rem 0 0 0;
+    font-size: 0.875rem;
+    color: var(--color-fg);
+    opacity: 0.6;
+    font-style: italic;
+  }
+
+  /* Duration Styles */
+  .duration-section {
+    margin-bottom: 1rem;
+  }
+
+  .duration-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 1.5rem 0;
+  }
+
+  .duration-divider::before,
+  .duration-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 2px solid var(--color-border);
+  }
+
+  .duration-divider span {
+    padding: 0 1rem;
+    color: var(--color-fg);
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .custom-duration-inputs {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .duration-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .duration-input {
+    width: 80px !important;
+  }
+
+  .duration-unit {
+    font-size: 0.875rem;
+    color: var(--color-fg);
+    font-weight: 700;
+  }
+
+  /* Image Upload Styles */
+  .image-upload-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .image-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 2rem;
+    background: var(--color-red);
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: var(--border-bh) solid var(--color-border);
+    font-size: 1rem;
+  }
+
+  .image-upload-btn:hover:not(.disabled) {
+    background: var(--color-fg);
+    color: white;
+  }
+
+  .image-upload-btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .upload-icon {
+    font-size: 1.5rem;
+    font-weight: 900;
+  }
+
+  .image-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+  }
+
+  .image-preview-item {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border: var(--border-bh) solid var(--color-border);
+    background: var(--color-muted);
+    cursor: grab;
+    transition: all 0.3s ease;
+  }
+
+  .image-preview-item:hover {
+    border-color: var(--color-red);
+  }
+
+  .image-preview-item.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+    transform: scale(0.95);
+  }
+
+  .image-preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+  }
+
+  .drag-handle {
+    position: absolute;
+    bottom: 0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-fg);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    font-size: 1.25rem;
+    font-weight: bold;
+    letter-spacing: -2px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  :global(html.dark) .drag-handle {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+
+  .image-preview-item:hover .drag-handle {
+    opacity: 1;
+  }
+
+  .drag-hint {
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+    color: var(--color-blue);
+    font-weight: 500;
+  }
+
+  .remove-image-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 32px;
+    height: 32px;
+    background: var(--color-red);
+    color: white;
+    border: 2px solid var(--color-border);
+    font-size: 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-weight: bold;
+    line-height: 1;
+  }
+
+  .remove-image-btn:hover:not(:disabled) {
+    background: var(--color-fg);
+    transform: scale(1.1);
+  }
+
+  :global(html.dark) .remove-image-btn:hover:not(:disabled) {
+    background: #ff5555;
+    color: #fff;
+  }
+
+  .remove-image-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .image-number {
+    position: absolute;
+    bottom: 0.5rem;
+    left: 0.5rem;
+    background: var(--color-fg);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  :global(html.dark) .image-number {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+
+  .new-badge {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    background: var(--color-blue);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border: 2px solid var(--color-border);
+  }
+
+  @media (max-width: 768px) {
+    .image-preview-grid {
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
+
+    .form-actions {
+      flex-direction: column;
+    }
+  }
+
+  /* Fullscreen Loader */
+  .fullscreen-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.3s ease-in;
+  }
+
+  @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
   }
-  .animate-fade-in {
-    animation: fade-in 0.3s ease-in;
+
+  .loader-content {
+    text-align: center;
+    color: white;
+    max-width: 400px;
+    padding: 2rem;
   }
 
-  @keyframes slide-in {
+  .spinner {
+    width: 64px;
+    height: 64px;
+    border: 6px solid rgba(255, 255, 255, 0.2);
+    border-top-color: var(--color-red);
+    border-radius: 50% !important;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1.5rem;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .loader-message {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: white;
+  }
+
+  .loader-hint {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+  }
+
+  /* Toast Notification */
+  .toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 24px;
+    border: var(--border-bh) solid var(--color-border);
+    z-index: 10000;
+    min-width: 300px;
+    max-width: 500px;
+    animation: slideInRight 0.3s ease-out, fadeOut 0.3s ease-in 3.7s;
+    font-size: 1rem;
+  }
+
+  @keyframes slideInRight {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
   }
-  .animate-slide-in {
-    animation: slide-in 0.3s ease-out, fade-out 0.3s ease-in 3.7s;
-  }
-  @keyframes fade-out {
+
+  @keyframes fadeOut {
     from { opacity: 1; }
     to { opacity: 0; }
   }
 
-  .image-preview:hover .drag-handle {
-    opacity: 1;
+  .toast.success {
+    background: var(--color-blue);
+    color: white;
   }
 
-  /* checked category styling */
-  .category-checkbox input[type="checkbox"]:checked + span {
-    font-weight: 700;
-    color: var(--color-fg);
+  .toast.error {
+    background: var(--color-red);
+    color: white;
+  }
+
+  :global(html.dark) .toast.error {
+    background: #ff5555;
+    color: #fff;
+  }
+
+  .toast-icon {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+
+  .toast-message {
+    flex: 1;
+    font-weight: 500;
+  }
+
+  @media (max-width: 768px) {
+    .toast {
+      top: 10px;
+      right: 10px;
+      left: 10px;
+      min-width: auto;
+      max-width: none;
+    }
   }
 </style>

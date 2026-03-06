@@ -23,27 +23,32 @@
 
 <style>
 	.theme-toggle {
-		width: 36px;
-		height: 36px;
+		width: 32px;
+		height: 32px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		background: transparent;
-		border: 1px solid var(--color-border);
-		color: var(--color-muted-fg);
+		border: none;
+		color: rgba(255, 255, 255, 0.5);
 		cursor: pointer;
-		transition: all 150ms;
-		border-radius: var(--radius-md);
+		transition: color 0.15s ease-out;
 	}
 
 	.theme-toggle:hover {
-		background: var(--color-surface-hover);
-		color: var(--color-fg);
-		border-color: var(--color-muted-fg);
+		color: rgba(255, 255, 255, 0.9);
 	}
 
 	.theme-toggle:focus-visible {
-		outline: 2px solid var(--color-accent);
+		outline: 1px solid rgba(255, 255, 255, 0.3);
 		outline-offset: 2px;
+	}
+
+	:global(html.dark) .theme-toggle {
+		color: rgba(255, 255, 255, 0.4);
+	}
+
+	:global(html.dark) .theme-toggle:hover {
+		color: rgba(255, 255, 255, 0.8);
 	}
 </style>

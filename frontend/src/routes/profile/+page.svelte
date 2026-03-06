@@ -290,36 +290,31 @@
   <title>Profile - BidMo.to</title>
 </svelte:head>
 
-<div class="max-w-[1000px] mx-auto py-8 sm:py-2 sm:px-4 sm:-mx-4">
-  <!-- Profile Header -->
-  <div class="flex items-center gap-8 mb-8 sm:flex-col sm:text-center sm:gap-4 sm:mb-4">
-    <!-- Avatar Section -->
-    <div class="flex flex-col items-center gap-3 flex-shrink-0">
-      <div class="relative w-[120px] h-[120px] overflow-hidden
-                  border border-[var(--color-border)] bg-[var(--color-muted)]
-                  sm:w-[100px] sm:h-[100px]">
+<div class="profile-page">
+  <div class="profile-header">
+    <div class="profile-avatar-section">
+      <div class="avatar-container">
         {#if getProfilePictureUrl()}
-          <img src={getProfilePictureUrl()} alt="Profile picture" class="w-full h-full object-cover block" />
+          <img src={getProfilePictureUrl()} alt="Profile picture" class="avatar-image" />
         {:else}
-          <div class="w-full h-full flex items-center justify-center text-5xl font-extrabold text-white bg-[var(--color-fg)] sm:text-4xl">
+          <div class="avatar-placeholder">
             {($authStore.user?.name || 'U').charAt(0).toUpperCase()}
           </div>
         {/if}
 
         {#if uploadingPicture}
-          <div class="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <div class="w-8 h-8 border-[3px] border-white/30 border-t-white rounded-full animate-spin"></div>
+          <div class="avatar-loading">
+            <div class="spinner-small"></div>
           </div>
         {/if}
       </div>
 
-      <div class="flex gap-2">
-        <button class="btn-bh-red text-xs !px-3 !py-1.5" onclick={triggerFileSelect} disabled={uploadingPicture}>
+      <div class="avatar-actions">
+        <button class="btn-upload" onclick={triggerFileSelect} disabled={uploadingPicture}>
           {getProfilePictureUrl() ? 'Change Photo' : 'Upload Photo'}
         </button>
         {#if getProfilePictureUrl()}
-          <button class="btn-bh-outline text-xs !px-3 !py-1.5 !text-[var(--color-red)]"
-                  onclick={removeProfilePicture} disabled={uploadingPicture}>
+          <button class="btn-remove-photo" onclick={removeProfilePicture} disabled={uploadingPicture}>
             Remove
           </button>
         {/if}
@@ -330,69 +325,58 @@
         type="file"
         accept="image/jpeg,image/png,image/gif,image/webp"
         onchange={handleFileSelect}
-        class="hidden"
+        class="file-input-hidden"
       />
     </div>
 
-    <!-- Header Text -->
-    <div class="flex-1 min-w-0">
-      <h1 class="headline-bh text-4xl mb-2 tracking-tight sm:text-2xl">
-        {$authStore.user?.name || 'My Profile'}
-      </h1>
-      <p class="label-bh text-sm truncate">{$authStore.user?.email || 'View and edit your account information'}</p>
+    <div class="header-text">
+      <h1>{$authStore.user?.name || 'My Profile'}</h1>
+      <p class="subtitle">{$authStore.user?.email || 'View and edit your account information'}</p>
     </div>
   </div>
 
-  <!-- Error/Success Messages -->
   {#if error}
-    <div class="mb-6 p-4 border border-[var(--color-red)]/20 bg-[var(--color-red)]/5 text-[var(--color-red)]
-                sm:mb-4 sm:p-3 sm:text-sm">
-      {error}
-    </div>
+    <div class="error-message">{error}</div>
   {/if}
 
   {#if success}
-    <div class="mb-6 p-4 border border-[var(--color-fg)] bg-[var(--color-muted)] text-[var(--color-fg)]
-                sm:mb-4 sm:p-3 sm:text-sm">
-      {success}
-    </div>
+    <div class="success-message">{success}</div>
   {/if}
 
-  <!-- Account Information Card -->
-  <div class="card-bh p-8 mb-8 sm:p-5 sm:mb-5">
-    <div class="flex items-center justify-between mb-6 sm:flex-col sm:items-start sm:gap-3 sm:mb-4">
-      <div class="flex items-center gap-3">
-        <span class="text-2xl sm:text-xl">&#128100;</span>
-        <h2 class="headline-bh text-xl sm:text-lg">Account Information</h2>
+  <!-- User Info Card -->
+  <div class="info-card">
+    <div class="card-header">
+      <div class="header-left">
+        <span class="icon">👤</span>
+        <h2>Account Information</h2>
       </div>
       {#if !isEditing}
-        <button class="btn-bh-red text-xs sm:w-full sm:text-center" onclick={startEditing}>Edit Profile</button>
+        <button class="btn-edit" onclick={startEditing}>Edit Profile</button>
       {/if}
     </div>
 
     {#if isEditing}
       <!-- Edit Form -->
-      <form onsubmit={(e) => { e.preventDefault(); saveProfile(); }} class="flex flex-col gap-6 sm:gap-4">
-        <div class="flex flex-col gap-2">
-          <label for="editName" class="label-bh">Full Name</label>
+      <form onsubmit={(e) => { e.preventDefault(); saveProfile(); }} class="edit-form">
+        <div class="form-group">
+          <label for="editName">Full Name</label>
           <input
             id="editName"
             type="text"
             bind:value={editName}
             placeholder="Enter your name"
             disabled={saving}
-            class="input-bh"
           />
         </div>
 
-        <div class="flex flex-col gap-2">
-          <label for="editPhone" class="label-bh">Phone Number</label>
-          <div class="flex gap-2 sm:flex-col">
+        <div class="form-group">
+          <label for="editPhone">Phone Number</label>
+          <div class="phone-input-group">
             <select
               id="editCountryCode"
               bind:value={editCountryCode}
               disabled={saving}
-              class="input-bh !w-[120px] flex-shrink-0 sm:!w-full"
+              class="country-code-select"
             >
               {#each countryCodes as { code, country, flag }}
                 <option value={code}>{flag} {code}</option>
@@ -404,50 +388,50 @@
               bind:value={editPhoneNumber}
               placeholder="9XX XXX XXXX"
               disabled={saving}
-              class="input-bh flex-1"
+              class="phone-input"
             />
           </div>
         </div>
 
-        <div class="flex flex-col gap-2">
-          <label class="label-bh">Email Address</label>
-          <div class="px-3 py-2.5 bg-[var(--color-muted)] text-[var(--color-fg)]/60">{$authStore.user?.email || 'N/A'}</div>
-          <span class="text-xs text-bh-fg/50">Email cannot be changed</span>
+        <div class="form-group readonly">
+          <label>Email Address</label>
+          <div class="readonly-value">{$authStore.user?.email || 'N/A'}</div>
+          <span class="readonly-hint">Email cannot be changed</span>
         </div>
 
-        <div class="flex gap-4 justify-end mt-4 sm:flex-col-reverse sm:gap-2">
-          <button type="button" class="btn-bh-outline sm:w-full" onclick={cancelEditing} disabled={saving}>
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" onclick={cancelEditing} disabled={saving}>
             Cancel
           </button>
-          <button type="submit" class="btn-bh-red sm:w-full" disabled={saving}>
+          <button type="submit" class="btn-save" disabled={saving}>
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </form>
     {:else}
       <!-- Display Mode -->
-      <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-6 sm:grid-cols-1 sm:gap-4">
-        <div class="flex flex-col gap-2">
-          <span class="label-bh">Name</span>
-          <span class="text-lg font-medium text-bh-fg sm:text-base">{$authStore.user?.name || 'N/A'}</span>
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="info-label">Name:</span>
+          <span class="info-value">{$authStore.user?.name || 'N/A'}</span>
         </div>
-        <div class="flex flex-col gap-2">
-          <span class="label-bh">Email</span>
-          <span class="text-lg font-medium text-bh-fg sm:text-base">{$authStore.user?.email || 'N/A'}</span>
+        <div class="info-item">
+          <span class="info-label">Email:</span>
+          <span class="info-value">{$authStore.user?.email || 'N/A'}</span>
         </div>
-        <div class="flex flex-col gap-2">
-          <span class="label-bh">Phone</span>
-          <span class="text-lg font-medium text-bh-fg sm:text-base">
+        <div class="info-item">
+          <span class="info-label">Phone:</span>
+          <span class="info-value">
             {formatPhoneNumber($authStore.user?.countryCode || '+63', $authStore.user?.phoneNumber || '')}
           </span>
         </div>
-        <div class="flex flex-col gap-2">
-          <span class="label-bh">Currency</span>
-          <span class="text-lg font-medium text-bh-fg sm:text-base">{$authStore.user?.currency || 'PHP'}</span>
+        <div class="info-item">
+          <span class="info-label">Currency:</span>
+          <span class="info-value">{$authStore.user?.currency || 'PHP'}</span>
         </div>
-        <div class="flex flex-col gap-2">
-          <span class="label-bh">Role</span>
-          <span class="text-lg font-medium text-bh-fg capitalize sm:text-base">{$authStore.user?.role || 'buyer'}</span>
+        <div class="info-item">
+          <span class="info-label">Role:</span>
+          <span class="info-value capitalize">{$authStore.user?.role || 'buyer'}</span>
         </div>
       </div>
     {/if}
@@ -455,125 +439,929 @@
 
   <!-- Activity Limits -->
   {#if loading}
-    <div class="text-center py-12 text-bh-fg/60">
-      <div class="w-10 h-10 border-4 border-bh-muted border-t-[var(--color-fg)]
-                  rounded-full animate-spin mx-auto mb-4"></div>
+    <div class="loading-state">
+      <div class="spinner"></div>
       <p>Loading your limits...</p>
     </div>
   {:else if userLimits}
-    <div class="mt-8 sm:mt-5">
-      <h2 class="headline-bh text-3xl mb-2 tracking-tight sm:text-xl">Activity Limits</h2>
-      <p class="label-bh text-sm mb-8 sm:mb-4">Track your usage of bidding and posting features</p>
+    <div class="limits-section">
+      <h2 class="section-title">Activity Limits</h2>
+      <p class="section-description">Track your usage of bidding and posting features</p>
 
-      <div class="grid grid-cols-[repeat(auto-fit,minmax(350px,1fr))] gap-8 mb-8
-                  sm:grid-cols-1 sm:gap-5 sm:mb-5">
+      <div class="limits-grid">
         <!-- Bidding Limits Card -->
-        <div class="card-bh overflow-hidden">
-          <div class="flex items-center gap-3 p-6
-                      bg-[var(--color-fg)] text-white sm:p-4">
-            <span class="text-2xl">&#128296;</span>
-            <h3 class="text-lg font-bold uppercase tracking-wide text-white sm:text-base">Bidding Limit</h3>
+        <div class="limit-card">
+          <div class="card-header">
+            <span class="icon">🔨</span>
+            <h3>Bidding Limit</h3>
           </div>
-          <div class="p-8 sm:p-5">
-            <div class="flex justify-between items-center mb-6 sm:mb-4">
-              <div class="flex flex-col items-center">
-                <span class="font-mono text-4xl font-black text-[var(--color-fg)] leading-none
-                             sm:text-3xl">{userLimits.bids.current}</span>
-                <span class="label-bh mt-1">of {userLimits.bids.max}</span>
+          <div class="limit-content">
+            <div class="limit-stats">
+              <div class="stat-large">
+                <span class="stat-number">{userLimits.bids.current}</span>
+                <span class="stat-label">of {userLimits.bids.max}</span>
               </div>
-              <div class="flex flex-col items-center p-4
-                          bg-[var(--color-muted)] sm:p-3
-                          {userLimits.bids.remaining === 1 ? '!bg-[var(--color-fg)] text-white' : ''}
-                          {userLimits.bids.remaining === 0 ? 'border-2 border-[var(--color-red)]' : ''}">
-                <span class="font-mono text-2xl font-bold leading-none sm:text-xl
-                             {userLimits.bids.remaining === 1 ? 'text-white' : userLimits.bids.remaining === 0 ? 'text-[var(--color-red)]' : 'text-[var(--color-fg)]'}">{userLimits.bids.remaining}</span>
-                <span class="label-bh mt-1 {userLimits.bids.remaining === 1 ? '!text-white/80' : ''}">remaining</span>
+              <div class="stat-remaining" class:warning={userLimits.bids.remaining === 1} class:danger={userLimits.bids.remaining === 0}>
+                <span class="remaining-number">{userLimits.bids.remaining}</span>
+                <span class="remaining-label">remaining</span>
               </div>
             </div>
 
-            <div class="w-full h-3 bg-[var(--color-muted)] mb-6 sm:h-2.5 sm:mb-4 overflow-hidden">
-              <div class="h-full bg-[var(--color-fg)] transition-all duration-300"
-                   style="width: {getProgressPercent(userLimits.bids.current, userLimits.bids.max)}%"></div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: {getProgressPercent(userLimits.bids.current, userLimits.bids.max)}%"></div>
             </div>
 
-            <p class="text-sm text-bh-fg/60 leading-relaxed mb-6 sm:mb-4">
+            <p class="limit-description">
               You can bid on up to {userLimits.bids.max} different products at a time.
               {#if userLimits.bids.remaining === 0}
-                <strong class="text-[var(--color-red)]">Limit reached!</strong> Wait for your auctions to end before bidding on new items.
+                <strong class="text-danger">Limit reached!</strong> Wait for your auctions to end before bidding on new items.
               {:else if userLimits.bids.remaining === 1}
-                <strong class="text-[var(--color-yellow)]">Only {userLimits.bids.remaining} slot left!</strong>
+                <strong class="text-warning">Only {userLimits.bids.remaining} slot left!</strong>
               {/if}
             </p>
 
-            <div class="flex gap-4 flex-wrap sm:flex-col sm:gap-2">
-              <a href="/products?status=my-bids" class="btn-bh-outline flex-1 text-center sm:w-full">View My Bids</a>
+            <div class="card-footer">
+              <a href="/products?status=my-bids" class="btn-secondary">View My Bids</a>
             </div>
           </div>
         </div>
 
         <!-- Posting Limits Card -->
-        <div class="card-bh overflow-hidden">
-          <div class="flex items-center gap-3 p-6
-                      bg-[var(--color-fg)] text-white sm:p-4">
-            <span class="text-2xl">&#128221;</span>
-            <h3 class="text-lg font-bold uppercase tracking-wide text-white sm:text-base">Posting Limit</h3>
+        <div class="limit-card">
+          <div class="card-header">
+            <span class="icon">📝</span>
+            <h3>Posting Limit</h3>
           </div>
-          <div class="p-8 sm:p-5">
-            <div class="flex justify-between items-center mb-6 sm:mb-4">
-              <div class="flex flex-col items-center">
-                <span class="font-mono text-4xl font-black text-[var(--color-fg)] leading-none
-                             sm:text-3xl">{userLimits.posts.current}</span>
-                <span class="label-bh mt-1">of {userLimits.posts.max}</span>
+          <div class="limit-content">
+            <div class="limit-stats">
+              <div class="stat-large">
+                <span class="stat-number">{userLimits.posts.current}</span>
+                <span class="stat-label">of {userLimits.posts.max}</span>
               </div>
-              <div class="flex flex-col items-center p-4
-                          bg-[var(--color-muted)] sm:p-3
-                          {userLimits.posts.remaining === 1 ? '!bg-[var(--color-fg)] text-white' : ''}
-                          {userLimits.posts.remaining === 0 ? 'border-2 border-[var(--color-red)]' : ''}">
-                <span class="font-mono text-2xl font-bold leading-none sm:text-xl
-                             {userLimits.posts.remaining === 1 ? 'text-white' : userLimits.posts.remaining === 0 ? 'text-[var(--color-red)]' : 'text-[var(--color-fg)]'}">{userLimits.posts.remaining}</span>
-                <span class="label-bh mt-1 {userLimits.posts.remaining === 1 ? '!text-white/80' : ''}">remaining</span>
+              <div class="stat-remaining" class:warning={userLimits.posts.remaining === 1} class:danger={userLimits.posts.remaining === 0}>
+                <span class="remaining-number">{userLimits.posts.remaining}</span>
+                <span class="remaining-label">remaining</span>
               </div>
             </div>
 
-            <div class="w-full h-3 bg-[var(--color-muted)] mb-6 sm:h-2.5 sm:mb-4 overflow-hidden">
-              <div class="h-full bg-[var(--color-fg)] transition-all duration-300"
-                   style="width: {getProgressPercent(userLimits.posts.current, userLimits.posts.max)}%"></div>
+            <div class="progress-bar">
+              <div class="progress-fill posts" style="width: {getProgressPercent(userLimits.posts.current, userLimits.posts.max)}%"></div>
             </div>
 
-            <p class="text-sm text-bh-fg/60 leading-relaxed mb-6 sm:mb-4">
+            <p class="limit-description">
               You can list up to {userLimits.posts.max} products for free.
               {#if userLimits.posts.remaining === 0}
-                <strong class="text-[var(--color-red)]">Limit reached!</strong> To list more, you'll need to add a deposit (coming soon).
+                <strong class="text-danger">Limit reached!</strong> To list more, you'll need to add a deposit (coming soon).
               {:else if userLimits.posts.remaining === 1}
-                <strong class="text-[var(--color-yellow)]">Only {userLimits.posts.remaining} slot left!</strong>
+                <strong class="text-warning">Only {userLimits.posts.remaining} slot left!</strong>
               {/if}
             </p>
 
-            <div class="flex gap-4 flex-wrap sm:flex-col sm:gap-2">
+            <div class="card-footer">
               {#if userLimits.posts.remaining > 0}
-                <a href="/sell" class="btn-bh-red flex-1 text-center sm:w-full">Create New Listing</a>
+                <a href="/sell" class="btn-primary">Create New Listing</a>
               {:else}
-                <button class="btn-bh flex-1 opacity-50 cursor-not-allowed sm:w-full" disabled>Limit Reached</button>
+                <button class="btn-disabled" disabled>Limit Reached</button>
               {/if}
-              <a href="/dashboard" class="btn-bh-outline flex-1 text-center sm:w-full">View My Products</a>
+              <a href="/dashboard" class="btn-secondary">View My Products</a>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Coming Soon Banner -->
-      <div class="flex items-start gap-4 p-5 border border-[var(--color-fg)] bg-[var(--color-muted)]
-                  sm:p-4 sm:gap-3">
-        <span class="text-2xl flex-shrink-0 sm:text-xl">&#8505;&#65039;</span>
-        <div class="text-sm leading-relaxed text-[var(--color-fg)] sm:text-xs">
+      <!-- Future Features Note -->
+      <div class="info-banner">
+        <span class="info-icon">ℹ️</span>
+        <div class="info-text">
           <strong>Coming Soon:</strong> Deposit system to unlock unlimited bidding and posting capabilities.
           With a refundable deposit, you'll be able to bid on unlimited products and list unlimited items!
         </div>
       </div>
     </div>
   {:else}
-    <div class="text-center py-12 text-bh-fg/60">
+    <div class="error-state">
       <p>Unable to load your limits. Please try again later.</p>
     </div>
   {/if}
 </div>
+
+<style>
+  .profile-page {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 2rem 0;
+  }
+
+  .profile-header {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .profile-avatar-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .avatar-container {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border: 2px solid var(--color-border);
+    overflow: hidden;
+    background: var(--color-muted);
+  }
+
+  .avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: 800;
+    color: white;
+    background: var(--color-red);
+  }
+
+  .avatar-loading {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .spinner-small {
+    width: 30px;
+    height: 30px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top: 3px solid var(--color-white);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  .avatar-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .btn-upload {
+    padding: 0.4rem 0.75rem;
+    background: var(--color-blue);
+    color: white;
+    border: 2px solid var(--color-border);
+    font-weight: 600;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .btn-upload:hover:not(:disabled) {
+    background: var(--color-fg);
+    color: var(--color-white);
+    border-color: var(--color-fg);
+  }
+
+  .btn-upload:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-remove-photo {
+    padding: 0.4rem 0.75rem;
+    background: var(--color-white);
+    color: var(--color-red);
+    border: 2px solid var(--color-border);
+    font-weight: 600;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .btn-remove-photo:hover:not(:disabled) {
+    background: var(--color-red);
+    color: white;
+  }
+
+  .btn-remove-photo:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .file-input-hidden {
+    display: none;
+  }
+
+  .header-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: -0.025em;
+  }
+
+  .subtitle {
+    color: var(--color-fg);
+    opacity: 0.6;
+    font-size: 1.1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .error-message {
+    background-color: var(--color-muted);
+    color: var(--color-red);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border: 2px solid var(--color-red);
+  }
+
+  .success-message {
+    background-color: var(--color-muted);
+    color: var(--color-blue);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border: 2px solid var(--color-blue);
+  }
+
+  .info-card {
+    background: var(--color-white);
+    border: 2px solid var(--color-border);
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .icon {
+    font-size: 1.75rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    margin: 0;
+    color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  h3 {
+    font-size: 1.25rem;
+    margin: 0;
+    color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .btn-edit {
+    padding: 0.5rem 1rem;
+    background: var(--color-red);
+    color: white;
+    border: 2px solid var(--color-border);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.85rem;
+  }
+
+  .btn-edit:hover {
+    background: var(--color-fg);
+    color: var(--color-white);
+    border-color: var(--color-fg);
+  }
+
+  /* Edit Form Styles */
+  .edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .form-group label {
+    font-weight: 600;
+    color: var(--color-fg);
+    font-size: 0.9rem;
+  }
+
+  .form-group input,
+  .form-group select {
+    padding: 0.75rem;
+    border: 2px solid var(--color-border);
+    font-size: 1rem;
+    transition: border-color 0.2s;
+  }
+
+  .form-group input:focus,
+  .form-group select:focus {
+    outline: none;
+    border-color: var(--color-blue);
+    box-shadow: 0 0 0 2px var(--color-blue);
+  }
+
+  .form-group input:disabled,
+  .form-group select:disabled {
+    background-color: var(--color-muted);
+    cursor: not-allowed;
+  }
+
+  .phone-input-group {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .country-code-select {
+    width: 120px;
+    flex-shrink: 0;
+  }
+
+  .phone-input {
+    flex: 1;
+  }
+
+  .form-group.readonly .readonly-value {
+    padding: 0.75rem;
+    background: var(--color-muted);
+    color: var(--color-fg);
+    opacity: 0.6;
+  }
+
+  .readonly-hint {
+    font-size: 0.8rem;
+    color: var(--color-fg);
+    opacity: 0.6;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+  }
+
+  .btn-cancel {
+    padding: 0.75rem 1.5rem;
+    background: var(--color-white);
+    color: var(--color-fg);
+    opacity: 0.6;
+    border: 2px solid var(--color-border);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-cancel:hover:not(:disabled) {
+    background: var(--color-muted);
+    opacity: 1;
+  }
+
+  .btn-save {
+    padding: 0.75rem 1.5rem;
+    background: var(--color-red);
+    color: white;
+    border: 2px solid var(--color-border);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .btn-save:hover:not(:disabled) {
+    background: var(--color-fg);
+    color: var(--color-white);
+    border-color: var(--color-fg);
+  }
+
+  .btn-save:disabled,
+  .btn-cancel:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .info-label {
+    font-size: 0.875rem;
+    color: var(--color-fg);
+    opacity: 0.6;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .info-value {
+    font-size: 1.1rem;
+    color: var(--color-fg);
+    font-weight: 500;
+  }
+
+  .capitalize {
+    text-transform: capitalize;
+  }
+
+  .loading-state,
+  .error-state {
+    text-align: center;
+    padding: 3rem;
+    color: var(--color-fg);
+    opacity: 0.6;
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--color-muted);
+    border-top: 4px solid var(--color-red);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .limits-section {
+    margin-top: 2rem;
+  }
+
+  .section-title {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: -0.025em;
+  }
+
+  .section-description {
+    color: var(--color-fg);
+    opacity: 0.6;
+    margin-bottom: 2rem;
+  }
+
+  .limits-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .limit-card {
+    background: var(--color-white);
+    border: 2px solid var(--color-border);
+    overflow: hidden;
+    transition: all 0.15s;
+  }
+
+  .limit-card:hover {
+    background: var(--color-muted);
+  }
+
+  .limit-card .card-header {
+    background: var(--color-red);
+    color: white;
+    padding: 1.5rem;
+    margin-bottom: 0;
+    justify-content: flex-start;
+    gap: 0.75rem;
+  }
+
+  .limit-card h3 {
+    color: white;
+  }
+
+  .limit-content {
+    padding: 2rem;
+  }
+
+  .limit-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .stat-large {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .stat-number {
+    font-size: 3rem;
+    font-weight: 900;
+    color: var(--color-red);
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 1rem;
+    color: var(--color-fg);
+    opacity: 0.6;
+    margin-top: 0.25rem;
+  }
+
+  .stat-remaining {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    background: var(--color-muted);
+  }
+
+  .stat-remaining.warning {
+    background: var(--color-red);
+    color: white;
+  }
+
+  .stat-remaining.danger {
+    background: var(--color-muted);
+    border: 2px solid var(--color-red);
+  }
+
+  .remaining-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-blue);
+  }
+
+  .stat-remaining.warning .remaining-number {
+    color: var(--color-fg);
+  }
+
+  .stat-remaining.danger .remaining-number {
+    color: var(--color-red);
+  }
+
+  .remaining-label {
+    font-size: 0.875rem;
+    color: var(--color-fg);
+    opacity: 0.6;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 12px;
+    background: var(--color-border);
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--color-red);
+    transition: width 0.3s ease;
+  }
+
+  .progress-fill.posts {
+    background: var(--color-blue);
+  }
+
+  .limit-description {
+    color: var(--color-fg);
+    opacity: 0.6;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+  }
+
+  .text-danger {
+    color: var(--color-red);
+  }
+
+  .text-warning {
+    color: var(--color-red);
+  }
+
+  .card-footer {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-disabled {
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.15s;
+    text-align: center;
+    border: none;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.875rem;
+  }
+
+  .btn-primary {
+    background: var(--color-red);
+    color: white;
+    border: 2px solid var(--color-border);
+  }
+
+  .btn-primary:hover {
+    background: var(--color-fg);
+    color: var(--color-white);
+    border-color: var(--color-fg);
+  }
+
+  .btn-secondary {
+    background: var(--color-white);
+    color: var(--color-red);
+    border: 2px solid var(--color-border);
+  }
+
+  .btn-secondary:hover {
+    background: var(--color-red);
+    color: white;
+  }
+
+  .btn-disabled {
+    background: var(--color-muted);
+    color: var(--color-fg);
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .info-banner {
+    background: var(--color-muted);
+    border: 2px solid var(--color-blue);
+    padding: 1.25rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .info-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+  }
+
+  .info-text {
+    color: var(--color-fg);
+    line-height: 1.6;
+  }
+
+  @media (max-width: 768px) {
+    .profile-page {
+      margin-left: -1rem;
+      margin-right: -1rem;
+      padding-left: 1rem;
+      padding-right: 1rem;
+      padding-top: 0.5rem;
+    }
+
+    .profile-header {
+      flex-direction: column;
+      text-align: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .avatar-container {
+      width: 100px;
+      height: 100px;
+      border-width: 2px;
+    }
+
+    .avatar-placeholder {
+      font-size: 2.5rem;
+    }
+
+    .header-text {
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+    }
+
+    .info-card {
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+      border-width: 2px;
+    }
+
+    .card-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .icon {
+      font-size: 1.5rem;
+    }
+
+    h2 {
+      font-size: 1.2rem;
+    }
+
+    .btn-edit {
+      width: 100%;
+      text-align: center;
+    }
+
+    .info-grid {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+
+    .info-label {
+      font-size: 0.8rem;
+    }
+
+    .info-value {
+      font-size: 1rem;
+    }
+
+    .edit-form {
+      gap: 1rem;
+    }
+
+    .phone-input-group {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .country-code-select {
+      width: 100%;
+    }
+
+    .form-actions {
+      flex-direction: column-reverse;
+      gap: 0.5rem;
+    }
+
+    .btn-cancel,
+    .btn-save {
+      width: 100%;
+      text-align: center;
+    }
+
+    .error-message,
+    .success-message {
+      font-size: 0.9rem;
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+      border-width: 2px;
+    }
+
+    .limits-section {
+      margin-top: 1.25rem;
+    }
+
+    .section-title {
+      font-size: 1.3rem;
+    }
+
+    .section-description {
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+
+    .limits-grid {
+      grid-template-columns: 1fr;
+      gap: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .limit-card {
+      border-width: 2px;
+    }
+
+    .limit-card:hover {
+      transform: none;
+    }
+
+    .limit-card .card-header {
+      padding: 1rem;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    h3 {
+      font-size: 1.1rem;
+    }
+
+    .limit-content {
+      padding: 1.25rem;
+    }
+
+    .limit-stats {
+      margin-bottom: 1rem;
+    }
+
+    .stat-number {
+      font-size: 2.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.85rem;
+    }
+
+    .stat-remaining {
+      padding: 0.75rem;
+    }
+
+    .remaining-number {
+      font-size: 1.5rem;
+    }
+
+    .progress-bar {
+      height: 10px;
+      margin-bottom: 1rem;
+    }
+
+    .limit-description {
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
+    }
+
+    .card-footer {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .btn-primary,
+    .btn-secondary,
+    .btn-disabled {
+      width: 100%;
+      padding: 0.7rem 1rem;
+      font-size: 0.9rem;
+    }
+
+    .info-banner {
+      padding: 1rem;
+      gap: 0.75rem;
+      border-width: 2px;
+    }
+
+    .info-icon {
+      font-size: 1.25rem;
+    }
+
+    .info-text {
+      font-size: 0.875rem;
+    }
+  }
+</style>

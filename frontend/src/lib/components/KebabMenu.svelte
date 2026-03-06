@@ -43,16 +43,14 @@
 
 <svelte:window onclick={handleClickOutside} onkeydown={handleKeydown} />
 
-<div class="kebab-menu-container relative inline-block">
+<div class="kebab-menu-container">
   <button
-    class="kebab-btn flex items-center justify-center w-8 h-8 p-0 bg-transparent border border-transparent
-           hover:border-[var(--color-border)] hover:bg-[var(--color-muted)]
-           cursor-pointer transition-all duration-150"
+    class="kebab-btn"
     onclick={toggle}
     aria-label="More options"
     aria-expanded={isOpen}
   >
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" class="text-[var(--color-fg)]">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
       <circle cx="10" cy="4" r="2" />
       <circle cx="10" cy="10" r="2" />
       <circle cx="10" cy="16" r="2" />
@@ -60,19 +58,17 @@
   </button>
 
   {#if isOpen}
-    <div class="absolute right-0 top-full mt-1 min-w-[160px] z-[100] animate-fade-in
-                border border-[var(--color-border)] bg-[var(--color-surface)] p-1">
+    <div class="dropdown-menu">
       {#each visibleItems as item}
         <button
-          class="flex items-center gap-2 w-full px-3 py-2.5 bg-transparent border-none cursor-pointer
-                 text-left text-sm font-medium transition-all duration-150
-                 {item.variant === 'danger' ? 'text-[var(--color-red)] hover:bg-[var(--color-red)]/5' : 'text-[var(--color-fg)] hover:bg-[var(--color-muted)]'}"
+          class="menu-item"
+          class:danger={item.variant === 'danger'}
           onclick={() => handleItemClick(item.action)}
         >
           {#if item.icon}
-            <span class="text-base w-5 text-center">{item.icon}</span>
+            <span class="item-icon">{item.icon}</span>
           {/if}
-          <span class="flex-1">{item.label}</span>
+          <span class="item-label">{item.label}</span>
         </button>
       {/each}
     </div>
@@ -80,11 +76,93 @@
 </div>
 
 <style>
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+  .kebab-menu-container {
+    position: relative;
+    display: inline-block;
   }
-  .animate-fade-in {
-    animation: fade-in 0.15s ease-out;
+
+  .kebab-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--color-fg);
+    transition: all 0.2s;
+  }
+
+  .kebab-btn:hover {
+    background: var(--color-muted);
+  }
+
+  .kebab-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-blue);
+  }
+
+  .dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 4px;
+    min-width: 160px;
+    background: var(--color-white);
+    border: 2px solid var(--color-border);
+    padding: 4px;
+    z-index: 100;
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    font-size: 14px;
+    color: var(--color-fg);
+    transition: all 0.15s;
+    font-weight: 500;
+  }
+
+  .menu-item:hover {
+    background: var(--color-muted);
+  }
+
+  .menu-item.danger {
+    color: var(--color-red);
+  }
+
+  .menu-item.danger:hover {
+    background: var(--color-muted);
+  }
+
+  .item-icon {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+  }
+
+  .item-label {
+    flex: 1;
   }
 </style>
