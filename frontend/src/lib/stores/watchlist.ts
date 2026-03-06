@@ -33,6 +33,7 @@ function createWatchlistStore() {
     },
 
     async add(productId: string) {
+      if (get({ subscribe }).items.has(productId)) return true;
       const result = await addToWatchlist(productId);
       if (result) {
         update((state) => {

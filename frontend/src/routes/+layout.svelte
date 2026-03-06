@@ -79,14 +79,11 @@
   }
 
   onMount(() => {
-    // Fetch unread count and watchlist once on page load
+    // Fetch unread count once on page load
     fetchUnreadCount();
-    if ($authStore.isAuthenticated) {
-      watchlistStore.load();
-    }
   });
 
-  // Refetch when auth state changes
+  // Refetch when auth state changes (also fires on mount)
   $effect(() => {
     if ($authStore.isAuthenticated) {
       fetchUnreadCount();
