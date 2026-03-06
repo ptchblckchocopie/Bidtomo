@@ -1,0 +1,46 @@
+{
+  "skill_name": "frontend-god",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Create a new ProductCard.svelte component that displays a product thumbnail, title, price, and countdown timer. It should match the dark theme, have a hover effect with the GlowingEffect border, and be responsive — stack vertically on mobile, show as a grid card on desktop.",
+      "expected_output": "A Svelte 5 component using $props(), existing design tokens (--color-surface, --color-border, etc.), .card-bh class, GlowingEffect integration, responsive layout. Visual verification via Playwriter showing dark theme compliance at mobile and desktop viewports.",
+      "expectations": [
+        "Component uses $props() with explicit TypeScript types",
+        "Uses existing CSS variables, not hardcoded colors",
+        "Uses .card-bh or equivalent dark-theme styling",
+        "Includes GlowingEffect component for hover border",
+        "Responsive: different layout at mobile vs desktop",
+        "Includes aria attributes on decorative elements",
+        "Visual loop was run with screenshots taken"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Add a subtle floating particle effect to the homepage background. Small white dots that drift slowly upward with slight horizontal oscillation. Keep the dark background. Make sure it respects prefers-reduced-motion.",
+      "expected_output": "A Three.js component or modification using RawShaderMaterial or PointsMaterial, proper cleanup and disposal, reduced motion check, WebGL fallback. Visual verification showing particles on dark background.",
+      "expectations": [
+        "Uses dynamic import for Three.js",
+        "Checks prefers-reduced-motion before animating",
+        "Checks WebGL availability",
+        "Disposes all GPU resources on destroy",
+        "Canvas has aria-hidden=true and pointer-events: none",
+        "Pixel ratio limited to Math.min(devicePixelRatio, 2)",
+        "Visual loop was run with screenshot verification"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "The product listing page has too much spacing between cards on mobile and the filter bar wraps awkwardly. Fix the responsive layout and add smooth fade-in animations when products load using the existing animate-in pattern.",
+      "expected_output": "Responsive fixes to the product listing page with proper grid/flex adjustments for mobile, scroll-triggered animations using the animate-in/visible class pattern with IntersectionObserver. Visual verification at 375px viewport showing no awkward wrapping.",
+      "expectations": [
+        "Uses existing .animate-in and .visible CSS classes",
+        "Uses IntersectionObserver for scroll-triggered reveals",
+        "Mobile layout fixed at 375px width",
+        "No backend files modified",
+        "Uses existing Tailwind breakpoint utilities",
+        "Visual loop was run at multiple viewports"
+      ]
+    }
+  ]
+}

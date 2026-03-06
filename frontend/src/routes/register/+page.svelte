@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
+  import { onMount } from 'svelte';
 
   let name = '';
   let email = '';
@@ -16,6 +17,7 @@
   let showConfirmPassword = false;
   let errorEl: HTMLDivElement;
   let errorFlash = false;
+  let mounted = $state(false);
 
   // Country codes list with common countries
   const countryCodes = [
@@ -44,7 +46,6 @@
   function showError(msg: string) {
     error = msg;
     errorFlash = false;
-    // Wait a tick for the DOM to render the error element
     requestAnimationFrame(() => {
       errorFlash = true;
       errorEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -54,6 +55,10 @@
   // Get redirect URL from query params — only allow safe relative paths
   const rawRedirect = $page.url.searchParams.get('redirect') || '/';
   const redirectUrl = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/';
+
+  onMount(() => {
+    setTimeout(() => mounted = true, 50);
+  });
 
   async function handleRegister(e: Event) {
     e.preventDefault();
@@ -163,13 +168,22 @@
   <title>Register - BidMo.to</title>
 </svelte:head>
 
-<div class="register-page min-h-[calc(100vh-200px)] flex items-center justify-center p-4 sm:p-8 bg-bh-blue">
-  <div class="card-bh p-5 sm:p-8 md:p-12 max-w-[500px] w-full">
+<div class="min-h-[calc(100vh-200px)] flex items-center justify-center p-4 sm:p-8">
+  <!-- Decorative orbs -->
+  <div class="register-orb orb-1" aria-hidden="true"></div>
+  <div class="register-orb orb-2" aria-hidden="true"></div>
+  <div class="register-orb orb-3" aria-hidden="true"></div>
+
+  <div class="register-card card-bh p-5 sm:p-8 md:p-12 max-w-[500px] w-full relative" class:register-visible={mounted}>
+    <!-- Gradient top accent -->
+    <div class="card-accent" aria-hidden="true"></div>
+
     <h1 class="headline-bh text-2xl sm:text-4xl mb-2 text-center uppercase tracking-tighter">Create Account</h1>
-    <p class="text-bh-fg/60 text-center mb-8">Join our marketplace to buy and sell products</p>
+    <p class="text-[var(--color-muted-fg)] text-center mb-8">Join our marketplace to buy and sell products</p>
 
     {#if success}
-      <div class="bg-bh-blue text-white border-2 border-bh-border p-4 mb-6 text-center font-bold">
+      <div class="success-banner mb-6 p-4 text-center font-bold">
+        <svg class="inline-block w-5 h-5 mr-2 -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         Account created successfully! Logging you in...
       </div>
     {/if}
@@ -187,8 +201,8 @@
     {/if}
 
     <form onsubmit={handleRegister}>
-      <div class="mb-6">
-        <label for="name" class="block mb-2 font-bold text-bh-fg">Full Name</label>
+      <div class="mb-6 form-field" style="animation-delay: 0.1s;">
+        <label for="name" class="block mb-2 font-bold text-[var(--color-fg)]">Full Name</label>
         <input
           id="name"
           type="text"
@@ -200,8 +214,8 @@
         />
       </div>
 
-      <div class="mb-6">
-        <label for="email" class="block mb-2 font-bold text-bh-fg">Email Address</label>
+      <div class="mb-6 form-field" style="animation-delay: 0.15s;">
+        <label for="email" class="block mb-2 font-bold text-[var(--color-fg)]">Email Address</label>
         <input
           id="email"
           type="email"
@@ -213,8 +227,8 @@
         />
       </div>
 
-      <div class="mb-6">
-        <label for="phone" class="block mb-2 font-bold text-bh-fg">Phone Number</label>
+      <div class="mb-6 form-field" style="animation-delay: 0.2s;">
+        <label for="phone" class="block mb-2 font-bold text-[var(--color-fg)]">Phone Number</label>
         <div class="flex gap-2">
           <select
             id="countryCode"
@@ -238,8 +252,8 @@
         </div>
       </div>
 
-      <div class="mb-6">
-        <label for="password" class="block mb-2 font-bold text-bh-fg">Password</label>
+      <div class="mb-6 form-field" style="animation-delay: 0.25s;">
+        <label for="password" class="block mb-2 font-bold text-[var(--color-fg)]">Password</label>
         <div class="relative">
           <input
             id="password"
@@ -258,7 +272,7 @@
             onmouseleave={() => showPassword = false}
             ontouchstart={() => showPassword = true}
             ontouchend={() => showPassword = false}
-            class="absolute right-0 top-0 h-full px-3 flex items-center text-bh-fg/50 hover:text-bh-fg border-l-2 border-bh-border transition-colors select-none"
+            class="absolute right-0 top-0 h-full px-3 flex items-center text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] border-l border-[var(--color-border)] transition-colors select-none"
           >
             {#if showPassword}
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -269,8 +283,8 @@
         </div>
       </div>
 
-      <div class="mb-6">
-        <label for="confirmPassword" class="block mb-2 font-bold text-bh-fg">Confirm Password</label>
+      <div class="mb-6 form-field" style="animation-delay: 0.3s;">
+        <label for="confirmPassword" class="block mb-2 font-bold text-[var(--color-fg)]">Confirm Password</label>
         <div class="relative">
           <input
             id="confirmPassword"
@@ -289,7 +303,7 @@
             onmouseleave={() => showConfirmPassword = false}
             ontouchstart={() => showConfirmPassword = true}
             ontouchend={() => showConfirmPassword = false}
-            class="absolute right-0 top-0 h-full px-3 flex items-center text-bh-fg/50 hover:text-bh-fg border-l-2 border-bh-border transition-colors select-none"
+            class="absolute right-0 top-0 h-full px-3 flex items-center text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] border-l border-[var(--color-border)] transition-colors select-none"
           >
             {#if showConfirmPassword}
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -300,21 +314,45 @@
         </div>
       </div>
 
-      <button type="submit" disabled={submitting || success} class="btn-bh-red w-full text-lg py-3 mt-4">
-        {submitting ? 'Creating Account...' : 'Create Account'}
-      </button>
+      <div class="form-field" style="animation-delay: 0.35s;">
+        <button type="submit" disabled={submitting || success} class="btn-bh-red w-full text-lg py-3 mt-4 group">
+          {#if submitting}
+            <span class="inline-flex items-center gap-2">
+              <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              Creating Account...
+            </span>
+          {:else}
+            <span class="inline-flex items-center gap-2">
+              Create Account
+              <svg class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+            </span>
+          {/if}
+        </button>
+      </div>
     </form>
 
-    <div class="mt-8 text-center">
-      <p class="text-bh-fg/60 mb-6">Already have an account? <a href="/login?redirect={encodeURIComponent(redirectUrl)}" class="text-bh-blue font-bold hover:underline">Login here</a></p>
+    <div class="mt-8 text-center form-field" style="animation-delay: 0.4s;">
+      <p class="text-[var(--color-muted-fg)] mb-6">Already have an account? <a href="/login?redirect={encodeURIComponent(redirectUrl)}" class="text-[var(--color-accent)] font-bold hover:underline transition-colors">Login here</a></p>
 
-      <div class="card-bh bg-bh-muted p-6 text-left">
-        <h3 class="font-bold text-lg text-bh-fg mb-4 uppercase tracking-wide">Why Join?</h3>
-        <ul class="list-none p-0 m-0 space-y-2 text-bh-fg/80">
-          <li>&#10003; Sell your products to a global audience</li>
-          <li>&#10003; Bid on unique items from sellers worldwide</li>
-          <li>&#10003; Track your bids and listings in one place</li>
-          <li>&#10003; Secure transactions and buyer protection</li>
+      <div class="why-join-card p-6 text-left">
+        <h3 class="font-bold text-lg text-[var(--color-fg)] mb-4 uppercase tracking-wide">Why Join?</h3>
+        <ul class="list-none p-0 m-0 space-y-3">
+          {#each [
+            'Sell your products to a global audience',
+            'Bid on unique items from sellers worldwide',
+            'Track your bids and listings in one place',
+            'Secure transactions and buyer protection'
+          ] as item, i}
+            <li class="flex items-center gap-3 text-[var(--color-muted-fg)]">
+              <span class="check-icon">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
+              {item}
+            </li>
+          {/each}
         </ul>
       </div>
     </div>
@@ -322,16 +360,97 @@
 </div>
 
 <style>
-  /* Dark mode: remove the bright blue page background */
-
-  /* Error banner — light mode */
-  .error-banner {
-    background: #fef2f2;
-    color: #991b1b;
-    border: 2px solid #dc2626;
+  /* Card entrance */
+  .register-card {
+    opacity: 0;
+    transform: translateY(30px) scale(0.97);
+    transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+  }
+  .register-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 
-  /* Error banner — dark mode */
+  /* Gradient accent bar at top of card */
+  .card-accent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--color-accent), rgba(100, 140, 200, 0.5), var(--color-accent));
+    opacity: 0.8;
+  }
+
+  /* Form field staggered entrance */
+  .form-field {
+    opacity: 0;
+    transform: translateY(15px);
+    animation: fieldIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  @keyframes fieldIn {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Floating orbs */
+  .register-orb {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(80px);
+    z-index: -1;
+  }
+  .orb-1 {
+    width: 300px;
+    height: 300px;
+    background: rgba(16, 185, 129, 0.05);
+    top: 15%;
+    left: 5%;
+    animation: orbFloat 10s ease-in-out infinite;
+  }
+  .orb-2 {
+    width: 250px;
+    height: 250px;
+    background: rgba(100, 140, 200, 0.05);
+    bottom: 15%;
+    right: 5%;
+    animation: orbFloat 12s ease-in-out infinite reverse;
+  }
+  .orb-3 {
+    width: 200px;
+    height: 200px;
+    background: rgba(139, 92, 246, 0.04);
+    top: 50%;
+    right: 20%;
+    animation: orbFloat 14s ease-in-out infinite;
+    animation-delay: 2s;
+  }
+
+  @keyframes orbFloat {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(25px, -25px); }
+    50% { transform: translate(-15px, 20px); }
+    75% { transform: translate(20px, 10px); }
+  }
+
+  /* Error banner */
+  .error-banner {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-red);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-md);
+    animation: errorSlide 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes errorSlide {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 
   /* Flash/highlight animation */
   .error-flash {
@@ -343,5 +462,42 @@
     30%  { transform: scale(1.02); box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.2); }
     60%  { transform: scale(0.99); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
     100% { transform: scale(1); box-shadow: none; }
+  }
+
+  /* Success banner */
+  .success-banner {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--color-green);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: var(--radius-md);
+    animation: errorSlide 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Why join card */
+  .why-join-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  .check-icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    border-radius: 50%;
+    padding: 3px;
+  }
+
+  /* Spin animation */
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .animate-spin {
+    animation: spin 1s linear infinite;
   }
 </style>
