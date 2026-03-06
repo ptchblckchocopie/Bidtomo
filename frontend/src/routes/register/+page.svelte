@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
 
@@ -16,6 +17,11 @@
   let showConfirmPassword = false;
   let errorEl: HTMLDivElement;
   let errorFlash = false;
+  let autoLoginTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  onDestroy(() => {
+    if (autoLoginTimeout) clearTimeout(autoLoginTimeout);
+  });
 
   // Country codes list with common countries
   const countryCodes = [
@@ -119,7 +125,7 @@
       success = true;
 
       // Automatically log them in after registration
-      setTimeout(async () => {
+      autoLoginTimeout = setTimeout(async () => {
         const loginResponse = await fetch('/api/bridge/users/login', {
           method: 'POST',
           headers: {
@@ -163,158 +169,192 @@
   <title>Register - BidMo.to</title>
 </svelte:head>
 
-<div class="register-page min-h-[calc(100vh-200px)] flex items-center justify-center p-4 sm:p-8 bg-bh-blue">
-  <div class="card-bh p-5 sm:p-8 md:p-12 max-w-[500px] w-full">
-    <h1 class="headline-bh text-2xl sm:text-4xl mb-2 text-center uppercase tracking-tighter">Create Account</h1>
-    <p class="text-bh-fg/60 text-center mb-8">Join our marketplace to buy and sell products</p>
+<div class="min-h-[calc(100vh-200px)] flex items-center justify-center p-4 sm:p-8">
+  <div class="w-full max-w-[500px]">
+    <!-- Card -->
+    <div class="glass-elevated p-6 sm:p-8 md:p-10">
 
-    {#if success}
-      <div class="bg-bh-blue text-white border-2 border-bh-border p-4 mb-6 text-center font-bold">
-        Account created successfully! Logging you in...
-      </div>
-    {/if}
-
-    {#if error}
-      <div
-        bind:this={errorEl}
-        class="error-banner mb-6 p-4 text-center font-bold"
-        class:error-flash={errorFlash}
-        onanimationend={() => errorFlash = false}
-      >
-        <svg class="inline-block w-5 h-5 mr-2 -mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        {error}
-      </div>
-    {/if}
-
-    <form onsubmit={handleRegister}>
-      <div class="mb-6">
-        <label for="name" class="block mb-2 font-bold text-bh-fg">Full Name</label>
-        <input
-          id="name"
-          type="text"
-          bind:value={name}
-          placeholder="John Doe"
-          required
-          disabled={submitting || success}
-          class="input-bh"
-        />
+      <!-- Header -->
+      <div class="text-center mb-8">
+        <span class="label-bh block mb-3">New Account</span>
+        <h1 class="headline-bh text-3xl sm:text-4xl mb-2">Create Account</h1>
+        <p class="text-sm" style="color: var(--color-fg); opacity: 0.6;">Join our marketplace to buy and sell products</p>
       </div>
 
-      <div class="mb-6">
-        <label for="email" class="block mb-2 font-bold text-bh-fg">Email Address</label>
-        <input
-          id="email"
-          type="email"
-          bind:value={email}
-          placeholder="your@email.com"
-          required
-          disabled={submitting || success}
-          class="input-bh"
-        />
-      </div>
+      <!-- Success -->
+      {#if success}
+        <div class="p-4 mb-6 text-sm text-center" style="border: 1px solid color-mix(in srgb, var(--color-green) 20%, transparent); background: color-mix(in srgb, var(--color-green) 5%, transparent); color: var(--color-green); ">
+          Account created successfully! Logging you in...
+        </div>
+      {/if}
 
-      <div class="mb-6">
-        <label for="phone" class="block mb-2 font-bold text-bh-fg">Phone Number</label>
-        <div class="flex gap-2">
-          <select
-            id="countryCode"
-            bind:value={countryCode}
-            disabled={submitting || success}
-            class="input-bh w-[110px]"
-          >
-            {#each countryCodes as { code, country, flag }}
-              <option value={code}>{flag} {code}</option>
-            {/each}
-          </select>
+      <!-- Error -->
+      {#if error}
+        <div
+          bind:this={errorEl}
+          class="p-4 mb-6 text-sm text-center"
+          class:error-flash={errorFlash}
+          onanimationend={() => errorFlash = false}
+          style="border: 1px solid color-mix(in srgb, var(--color-red) 20%, transparent); background: color-mix(in srgb, var(--color-red) 5%, transparent); color: var(--color-red);"
+        >
+          {error}
+        </div>
+      {/if}
+
+      <form onsubmit={handleRegister}>
+        <!-- Full Name -->
+        <div class="mb-5">
+          <label for="name" class="label-bh block mb-2">Full Name</label>
           <input
-            id="phone"
-            type="tel"
-            bind:value={phoneNumber}
-            placeholder="9XX XXX XXXX"
+            id="name"
+            type="text"
+            bind:value={name}
+            placeholder="John Doe"
             required
             disabled={submitting || success}
-            class="input-bh flex-1"
+            class="input-bh"
           />
         </div>
-      </div>
 
-      <div class="mb-6">
-        <label for="password" class="block mb-2 font-bold text-bh-fg">Password</label>
-        <div class="relative">
+        <!-- Email -->
+        <div class="mb-5">
+          <label for="email" class="label-bh block mb-2">Email Address</label>
           <input
-            id="password"
-            type={showPassword ? 'text' : 'password'}
-            bind:value={password}
-            placeholder="Enter a strong password (min 6 characters)"
+            id="email"
+            type="email"
+            bind:value={email}
+            placeholder="your@email.com"
             required
             disabled={submitting || success}
-            class="input-bh pr-12"
+            class="input-bh"
           />
-          <button
-            type="button"
-            tabindex="-1"
-            onmousedown={() => showPassword = true}
-            onmouseup={() => showPassword = false}
-            onmouseleave={() => showPassword = false}
-            ontouchstart={() => showPassword = true}
-            ontouchend={() => showPassword = false}
-            class="absolute right-0 top-0 h-full px-3 flex items-center text-bh-fg/50 hover:text-bh-fg border-l-2 border-bh-border transition-colors select-none"
-          >
-            {#if showPassword}
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            {:else}
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-            {/if}
-          </button>
         </div>
-      </div>
 
-      <div class="mb-6">
-        <label for="confirmPassword" class="block mb-2 font-bold text-bh-fg">Confirm Password</label>
-        <div class="relative">
-          <input
-            id="confirmPassword"
-            type={showConfirmPassword ? 'text' : 'password'}
-            bind:value={confirmPassword}
-            placeholder="Re-enter your password"
-            required
-            disabled={submitting || success}
-            class="input-bh pr-12"
-          />
-          <button
-            type="button"
-            tabindex="-1"
-            onmousedown={() => showConfirmPassword = true}
-            onmouseup={() => showConfirmPassword = false}
-            onmouseleave={() => showConfirmPassword = false}
-            ontouchstart={() => showConfirmPassword = true}
-            ontouchend={() => showConfirmPassword = false}
-            class="absolute right-0 top-0 h-full px-3 flex items-center text-bh-fg/50 hover:text-bh-fg border-l-2 border-bh-border transition-colors select-none"
-          >
-            {#if showConfirmPassword}
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            {:else}
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-            {/if}
-          </button>
+        <!-- Phone -->
+        <div class="mb-5">
+          <label for="phone" class="label-bh block mb-2">Phone Number</label>
+          <div class="flex gap-2">
+            <select
+              id="countryCode"
+              bind:value={countryCode}
+              disabled={submitting || success}
+              class="input-bh !w-[110px] !flex-none"
+            >
+              {#each countryCodes as { code, country, flag }}
+                <option value={code}>{flag} {code}</option>
+              {/each}
+            </select>
+            <input
+              id="phone"
+              type="tel"
+              bind:value={phoneNumber}
+              placeholder="9XX XXX XXXX"
+              required
+              disabled={submitting || success}
+              class="input-bh flex-1"
+            />
+          </div>
         </div>
-      </div>
 
-      <button type="submit" disabled={submitting || success} class="btn-bh-red w-full text-lg py-3 mt-4">
-        {submitting ? 'Creating Account...' : 'Create Account'}
-      </button>
-    </form>
+        <!-- Password -->
+        <div class="mb-5">
+          <label for="password" class="label-bh block mb-2">Password</label>
+          <div class="relative">
+            <input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              bind:value={password}
+              placeholder="Min 6 characters"
+              required
+              disabled={submitting || success}
+              class="input-bh !pr-12"
+            />
+            <button
+              type="button"
+              tabindex="-1"
+              onmousedown={() => showPassword = true}
+              onmouseup={() => showPassword = false}
+              onmouseleave={() => showPassword = false}
+              ontouchstart={() => showPassword = true}
+              ontouchend={() => showPassword = false}
+              class="absolute right-0 top-0 h-full px-3 flex items-center transition-colors select-none border-l" style="color: color-mix(in srgb, var(--color-fg) 40%, transparent); border-color: var(--color-border);"
+            >
+              {#if showPassword}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              {:else}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              {/if}
+            </button>
+          </div>
+        </div>
 
-    <div class="mt-8 text-center">
-      <p class="text-bh-fg/60 mb-6">Already have an account? <a href="/login?redirect={encodeURIComponent(redirectUrl)}" class="text-bh-blue font-bold hover:underline">Login here</a></p>
+        <!-- Confirm Password -->
+        <div class="mb-5">
+          <label for="confirmPassword" class="label-bh block mb-2">Confirm Password</label>
+          <div class="relative">
+            <input
+              id="confirmPassword"
+              type={showConfirmPassword ? 'text' : 'password'}
+              bind:value={confirmPassword}
+              placeholder="Re-enter your password"
+              required
+              disabled={submitting || success}
+              class="input-bh !pr-12"
+            />
+            <button
+              type="button"
+              tabindex="-1"
+              onmousedown={() => showConfirmPassword = true}
+              onmouseup={() => showConfirmPassword = false}
+              onmouseleave={() => showConfirmPassword = false}
+              ontouchstart={() => showConfirmPassword = true}
+              ontouchend={() => showConfirmPassword = false}
+              class="absolute right-0 top-0 h-full px-3 flex items-center transition-colors select-none border-l" style="color: color-mix(in srgb, var(--color-fg) 40%, transparent); border-color: var(--color-border);"
+            >
+              {#if showConfirmPassword}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              {:else}
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              {/if}
+            </button>
+          </div>
+        </div>
 
-      <div class="card-bh bg-bh-muted p-6 text-left">
-        <h3 class="font-bold text-lg text-bh-fg mb-4 uppercase tracking-wide">Why Join?</h3>
-        <ul class="list-none p-0 m-0 space-y-2 text-bh-fg/80">
-          <li>&#10003; Sell your products to a global audience</li>
-          <li>&#10003; Bid on unique items from sellers worldwide</li>
-          <li>&#10003; Track your bids and listings in one place</li>
-          <li>&#10003; Secure transactions and buyer protection</li>
+        <!-- Submit -->
+        <button type="submit" disabled={submitting || success} class="btn-bh-red w-full !py-3 !text-base mt-2">
+          {submitting ? 'Creating Account...' : 'Create Account'}
+        </button>
+      </form>
+
+      <!-- Divider -->
+      <div class="divider-bh"></div>
+
+      <!-- Footer -->
+      <p class="text-center text-sm mb-6" style="color: color-mix(in srgb, var(--color-fg) 60%, transparent);">
+        Already have an account?
+        <a href="/login?redirect={encodeURIComponent(redirectUrl)}" class="font-semibold hover:underline" style="color: var(--color-fg);">Login here</a>
+      </p>
+
+      <!-- Why Join box -->
+      <div class="glass-surface p-5">
+        <h3 class="label-bh mb-4">Why Join?</h3>
+        <ul class="list-none p-0 m-0 space-y-2.5 text-sm" style="color: color-mix(in srgb, var(--color-fg) 70%, transparent);">
+          <li class="flex items-start gap-2">
+            <span class="font-bold shrink-0" style="color: var(--color-green);">&#10003;</span>
+            <span>Sell your products to a global audience</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="font-bold shrink-0" style="color: var(--color-green);">&#10003;</span>
+            <span>Bid on unique items from sellers worldwide</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="font-bold shrink-0" style="color: var(--color-green);">&#10003;</span>
+            <span>Track your bids and listings in one place</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="font-bold shrink-0" style="color: var(--color-green);">&#10003;</span>
+            <span>Secure transactions and buyer protection</span>
+          </li>
         </ul>
       </div>
     </div>
@@ -322,27 +362,6 @@
 </div>
 
 <style>
-  /* Dark mode: remove the bright blue page background */
-  :global(html.dark) .register-page {
-    background: transparent !important;
-  }
-
-  /* Error banner — light mode */
-  .error-banner {
-    background: #fef2f2;
-    color: #991b1b;
-    border: 2px solid #dc2626;
-  }
-
-  /* Error banner — dark mode */
-  :global(html.dark) .error-banner {
-    background: rgba(220, 38, 38, 0.15);
-    color: #fca5a5;
-    border: 1px solid rgba(220, 38, 38, 0.4);
-    border-radius: 8px !important;
-  }
-
-  /* Flash/highlight animation */
   .error-flash {
     animation: errorPulse 0.6s ease-out;
   }

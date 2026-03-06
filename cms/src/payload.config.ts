@@ -824,52 +824,49 @@ export default buildConfig({
         afterChange: [
           async ({ req, doc, operation }) => {
             // Update product's currentBid when a new bid is created
-            // Run asynchronously without blocking response
             if (operation === 'create' && doc.product && doc.amount) {
-              setImmediate(async () => {
-                try {
-                  let productId: any = doc.product;
+              try {
+                let productId: any = doc.product;
 
-                  // Handle different product ID formats
-                  if (typeof productId === 'object' && productId.id) {
-                    productId = productId.id;
-                  }
+                // Handle different product ID formats
+                if (typeof productId === 'object' && productId.id) {
+                  productId = productId.id;
+                }
 
-                  // Ensure it's a valid number
-                  if (typeof productId === 'string') {
-                    productId = parseInt(productId, 10);
-                  }
+                // Ensure it's a valid number
+                if (typeof productId === 'string') {
+                  productId = parseInt(productId, 10);
+                }
 
-                  if (isNaN(productId) || !productId) {
-                    return;
-                  }
+                if (isNaN(productId) || !productId) {
+                  return doc;
+                }
 
-                  // Fetch the current product
-                  const product: any = await req.payload.findByID({
+                // Fetch the current product
+                const product: any = await req.payload.findByID({
+                  collection: 'products',
+                  id: productId,
+                });
+
+                // Update currentBid if this bid is higher
+                if (!product.currentBid || doc.amount > product.currentBid) {
+                  await req.payload.update({
                     collection: 'products',
                     id: productId,
+                    data: {
+                      currentBid: doc.amount,
+                    },
                   });
-
-                  // Update currentBid if this bid is higher
-                  if (!product.currentBid || doc.amount > product.currentBid) {
-                    await req.payload.update({
-                      collection: 'products',
-                      id: productId,
-                      data: {
-                        currentBid: doc.amount,
-                      },
-                    });
-                  }
-
-                  // Broadcast real-time update via SSE
-                  const broadcast = (global as any).broadcastProductUpdate;
-                  if (broadcast) {
-                    await broadcast(String(productId));
-                  }
-                } catch (error) {
-                  console.error('Background error updating currentBid:', error);
                 }
-              });
+
+                // Broadcast real-time update via SSE
+                const broadcast = (global as any).broadcastProductUpdate;
+                if (broadcast) {
+                  await broadcast(String(productId));
+                }
+              } catch (error) {
+                console.error('Error updating currentBid:', error);
+              }
             }
 
             // Analytics tracking for bids

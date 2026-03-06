@@ -7,11 +7,9 @@
   import { onMount } from 'svelte';
   import { unreadCountStore } from '$lib/stores/inbox';
   import { watchlistStore } from '$lib/stores/watchlist';
-  import { themeStore } from '$lib/stores/theme';
   import { trackPageView } from '$lib/analytics';
-  import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-  import ThemeTransition from '$lib/components/ThemeTransition.svelte';
   import ThreeBackground from '$lib/components/ThreeBackground.svelte';
+  import CustomCursor from '$lib/components/CustomCursor.svelte';
   import type { Snippet } from 'svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -20,21 +18,6 @@
 
   let mobileMenuOpen = $state(false);
   let userMenuOpen = $state(false);
-  let animating = $state(false);
-
-  function triggerThemeAnimation() {
-    if (animating) return;
-    animating = true;
-  }
-
-  function handleAnimationMidpoint() {
-    themeStore.toggle();
-  }
-
-  function handleAnimationComplete() {
-    animating = false;
-  }
-
   let unreadCount = $derived($unreadCountStore);
 
   function toggleMobileMenu() {
@@ -97,47 +80,48 @@
 <svelte:window onclick={handleClickOutside} />
 
 <ThreeBackground />
+<CustomCursor />
 
 <div class="min-h-screen flex flex-col relative z-[1]">
   <!-- Header -->
-  <header class="site-header bg-black text-white sticky top-0 z-50 border-b border-neutral-800">
-    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <header class="site-header sticky top-0 z-50">
+    <nav class="max-w-6xl mx-auto px-6 md:px-8 lg:px-12">
       <div class="flex justify-between items-center h-14">
         <!-- Logo -->
-        <a href="/" class="flex-shrink-0" onclick={closeMobileMenu}>
-          <img src="/bidmo.to.png" alt="BidMo.to" class="h-8 w-auto" />
+        <a href="/" class="flex-shrink-0 flex items-center gap-2.5" onclick={closeMobileMenu}>
+          <img src="/bidmo.to.png" alt="BidMo.to" class="h-7 w-auto" />
+          <span class="hidden sm:inline font-display text-base font-bold tracking-tight text-[var(--color-fg)]">BidMo.to</span>
         </a>
 
         <!-- Desktop Navigation -->
-        <div class="hidden md:flex md:items-center md:space-x-1">
+        <div class="hidden md:flex md:items-center md:gap-1">
           <a
             href="/products"
-            class="nav-link px-4 py-2 text-[13px] font-medium tracking-wide hover:text-white/70 transition-colors duration-150 {currentPath.startsWith('/products') ? 'text-white' : 'text-white/60'}"
+            class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors duration-150 {currentPath.startsWith('/products') ? 'text-[var(--color-fg)] bg-[var(--color-surface)]' : 'text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]'}"
           >
             Browse
           </a>
           <a
             href="/about-us"
-            class="nav-link px-4 py-2 text-[13px] font-medium tracking-wide hover:text-white/70 transition-colors duration-150 {currentPath === '/about-us' ? 'text-white' : 'text-white/60'}"
+            class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors duration-150 {currentPath === '/about-us' ? 'text-[var(--color-fg)] bg-[var(--color-surface)]' : 'text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]'}"
           >
             About
           </a>
         </div>
 
         <!-- Desktop Actions -->
-        <div class="hidden md:flex md:items-center md:space-x-3">
-          <ThemeToggle onToggle={triggerThemeAnimation} />
+        <div class="hidden md:flex md:items-center md:gap-3">
           {#if $authStore.isAuthenticated}
             <a
               href="/inbox"
-              class="relative p-2 text-white/60 hover:text-white transition-colors duration-150 {currentPath === '/inbox' ? 'text-white' : ''}"
+              class="relative p-2 text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-colors duration-100 {currentPath === '/inbox' ? 'text-[var(--color-fg)]' : ''}"
               title="Inbox"
             >
-              <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               {#if unreadCount > 0}
-                <span class="absolute top-0 right-0 bg-[#FF3000] text-white text-[10px] font-semibold rounded-full h-4 w-4 flex items-center justify-center">
+                <span class="absolute -top-0.5 -right-0.5 bg-[var(--color-fg)] text-[var(--color-bg)] text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               {/if}
@@ -146,19 +130,19 @@
             {#if $authStore.user?.role === 'admin'}
               <a
                 href="/admin/reports"
-                class="p-2 text-white/60 hover:text-white transition-colors duration-150 {currentPath === '/admin/reports' ? 'text-white' : ''}"
+                class="p-2 text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-colors duration-100 {currentPath === '/admin/reports' ? 'text-[var(--color-fg)]' : ''}"
                 title="Reports"
               >
-                <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
               </a>
               <a
                 href="/admin/analytics"
-                class="p-2 text-white/60 hover:text-white transition-colors duration-150 {currentPath === '/admin/analytics' ? 'text-white' : ''}"
+                class="p-2 text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-colors duration-100 {currentPath === '/admin/analytics' ? 'text-[var(--color-fg)]' : ''}"
                 title="Analytics"
               >
-                <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 13h2v8H3zm6-4h2v12H9zm6-6h2v18h-2zm6 10h2v8h-2z" />
                 </svg>
               </a>
@@ -166,41 +150,41 @@
 
             <a
               href="/sell"
-              class="sell-btn text-[13px] font-semibold px-4 py-1.5 bg-[#FF3000] text-white hover:bg-[#e02a00] transition-colors duration-150 {currentPath === '/sell' ? 'ring-1 ring-white/20' : ''}"
+              class="btn-bh-red text-xs {currentPath === '/sell' ? 'bg-[var(--color-bg)] text-[var(--color-fg)]' : ''}"
             >
-              Sell Item
+              Sell &rarr;
             </a>
 
             <!-- User Menu -->
             <div class="user-menu-container relative">
               <button
                 onclick={(e) => { e.stopPropagation(); toggleUserMenu(); }}
-                class="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-white/60 hover:text-white transition-colors duration-150 {userMenuOpen ? 'text-white' : ''}"
+                class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-colors duration-150 rounded-md hover:bg-[var(--color-surface)] {userMenuOpen ? 'text-[var(--color-fg)] bg-[var(--color-surface)]' : ''}"
               >
                 <span>{$authStore.user?.name || 'Account'}</span>
-                <svg class="w-3.5 h-3.5 transition-transform duration-150 {userMenuOpen ? 'rotate-180' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-3 h-3 transition-transform duration-100 {userMenuOpen ? 'rotate-180' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
 
               {#if userMenuOpen}
-                <div class="user-dropdown absolute right-0 mt-1 w-44 py-1 z-50 bg-white border border-neutral-200 text-neutral-900">
+                <div class="user-dropdown absolute right-0 mt-1 w-52 py-1 z-50">
                   <a href="/dashboard" onclick={closeUserMenu}
-                    class="block px-4 py-2 text-[13px] font-medium hover:bg-neutral-50 transition-colors duration-100 {currentPath.startsWith('/dashboard') ? 'text-[#FF3000]' : ''}">
+                    class="dropdown-link block px-4 py-2.5 text-sm {currentPath.startsWith('/dashboard') ? 'active' : ''}">
                     Dashboard
                   </a>
                   <a href="/profile" onclick={closeUserMenu}
-                    class="block px-4 py-2 text-[13px] font-medium hover:bg-neutral-50 transition-colors duration-100 {currentPath === '/profile' ? 'text-[#FF3000]' : ''}">
+                    class="dropdown-link block px-4 py-2.5 text-sm {currentPath === '/profile' ? 'active' : ''}">
                     Profile
                   </a>
                   <a href="/watchlist" onclick={closeUserMenu}
-                    class="block px-4 py-2 text-[13px] font-medium hover:bg-neutral-50 transition-colors duration-100 {currentPath === '/watchlist' ? 'text-[#FF3000]' : ''}">
+                    class="dropdown-link block px-4 py-2.5 text-sm {currentPath === '/watchlist' ? 'active' : ''}">
                     Watchlist
                   </a>
-                  <div class="border-t border-neutral-100 my-1"></div>
+                  <div class="dropdown-divider"></div>
                   <button
                     onclick={handleLogout}
-                    class="w-full text-left px-4 py-2 text-[13px] font-medium text-red-600 hover:bg-red-50 transition-colors duration-100"
+                    class="dropdown-link w-full text-left px-4 py-2.5 text-sm text-[var(--color-red)]"
                   >
                     Sign Out
                   </button>
@@ -210,25 +194,24 @@
           {:else}
             <a
               href="/login"
-              class="px-4 py-1.5 text-[13px] font-medium text-white/60 hover:text-white transition-colors duration-150"
+              class="px-3 py-1.5 text-sm font-medium text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-colors duration-150 rounded-md hover:bg-[var(--color-surface)]"
             >
               Sign In
             </a>
             <a
               href="/register"
-              class="px-4 py-1.5 text-[13px] font-semibold bg-[#FF3000] text-white hover:bg-[#e02a00] transition-colors duration-150"
+              class="btn-bh-red text-xs"
             >
-              Get Started
+              Register &rarr;
             </a>
           {/if}
         </div>
 
         <!-- Mobile actions -->
         <div class="flex items-center gap-2 md:hidden">
-          <ThemeToggle onToggle={triggerThemeAnimation} />
           <button
             onclick={toggleMobileMenu}
-            class="inline-flex items-center justify-center p-2 text-white/60 hover:text-white transition-colors"
+            class="inline-flex items-center justify-center p-2 min-h-[44px] min-w-[44px] text-[var(--color-muted-fg)] border border-[var(--color-border)] rounded-md hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-fg)] transition-colors duration-150"
             aria-label="Toggle menu"
           >
             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -244,21 +227,21 @@
 
       <!-- Mobile Navigation -->
       {#if mobileMenuOpen}
-        <div class="mobile-menu md:hidden pb-4 border-t border-white/10 mt-2 pt-2 space-y-0.5">
+        <div class="mobile-menu md:hidden pb-4 border-t border-[var(--color-border)] mt-2 pt-4 space-y-0">
           <a href="/products" onclick={closeMobileMenu}
-            class="block px-3 py-2.5 text-sm font-medium {currentPath.startsWith('/products') ? 'text-white' : 'text-white/60'} hover:text-white transition-colors">
+            class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath.startsWith('/products') ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
             Browse
           </a>
           <a href="/about-us" onclick={closeMobileMenu}
-            class="block px-3 py-2.5 text-sm font-medium {currentPath === '/about-us' ? 'text-white' : 'text-white/60'} hover:text-white transition-colors">
+            class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/about-us' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
             About
           </a>
           {#if $authStore.isAuthenticated}
             <a href="/inbox" onclick={closeMobileMenu}
-              class="flex items-center gap-2 px-3 py-2.5 text-sm font-medium {currentPath === '/inbox' ? 'text-white' : 'text-white/60'} hover:text-white transition-colors">
+              class="flex items-center gap-2 px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/inbox' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
               <span>Inbox</span>
               {#if unreadCount > 0}
-                <span class="bg-[#FF3000] text-white text-[10px] font-semibold rounded-full h-4 px-1.5 flex items-center justify-center">
+                <span class="bg-[var(--color-fg)] text-[var(--color-bg)] text-[9px] font-bold px-1.5 py-0.5 rounded-full">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               {/if}
@@ -266,54 +249,55 @@
 
             {#if $authStore.user?.role === 'admin'}
               <a href="/admin/reports" onclick={closeMobileMenu}
-                class="block px-3 py-2.5 text-sm font-medium {currentPath === '/admin/reports' ? 'text-white' : 'text-white/60'} hover:text-white transition-colors">
+                class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/admin/reports' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
                 Reports
               </a>
               <a href="/admin/analytics" onclick={closeMobileMenu}
-                class="block px-3 py-2.5 text-sm font-medium {currentPath === '/admin/analytics' ? 'text-white' : 'text-white/60'} hover:text-white transition-colors">
+                class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/admin/analytics' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
                 Analytics
               </a>
             {/if}
 
             <a href="/sell" onclick={closeMobileMenu}
-              class="block mx-3 mt-2 px-3 py-2.5 text-sm font-semibold text-center bg-[#FF3000] text-white">
-              Sell Item
+              class="block mt-4 btn-bh-red text-center min-h-[44px] flex items-center justify-center">
+              Sell Item &rarr;
             </a>
 
-            <div class="border-t border-white/10 mx-3 my-2"></div>
+            <div class="border-t border-[var(--color-border)] my-4"></div>
 
             <a href="/dashboard" onclick={closeMobileMenu}
-              class="block px-3 py-2.5 text-sm font-medium {currentPath.startsWith('/dashboard') ? 'text-white' : 'text-white/60'} hover:text-white transition-colors">
+              class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath.startsWith('/dashboard') ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
               Dashboard
             </a>
             <a href="/profile" onclick={closeMobileMenu}
-              class="block px-3 py-2.5 text-sm font-medium {currentPath === '/profile' ? 'text-white' : 'text-white/60'} hover:text-white transition-colors">
+              class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/profile' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
               Profile
             </a>
             <a href="/watchlist" onclick={closeMobileMenu}
-              class="block px-3 py-2.5 text-sm font-medium {currentPath === '/watchlist' ? 'text-white' : 'text-white/60'} hover:text-white transition-colors">
+              class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/watchlist' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
               Watchlist
             </a>
 
-            <div class="border-t border-white/10 mx-3 my-2"></div>
-            <div class="px-3 py-1 text-xs text-white/40">
-              {$authStore.user?.name || 'Account'}
+            <div class="pt-2">
+              <div class="text-xs font-medium text-[var(--color-muted-fg)]">
+                {$authStore.user?.name || 'Account'}
+              </div>
             </div>
             <button
               onclick={handleLogout}
-              class="w-full text-left px-3 py-2.5 text-sm font-medium text-red-400 hover:text-red-300 transition-colors"
+              class="w-full text-left py-3 text-sm font-medium text-[var(--color-red)] hover:underline transition-colors min-h-[44px]"
             >
               Sign Out
             </button>
           {:else}
-            <div class="border-t border-white/10 mx-3 my-2"></div>
+            <div class="border-t border-[var(--color-border)] my-4"></div>
             <a href="/login" onclick={closeMobileMenu}
-              class="block px-3 py-2.5 text-sm font-medium text-white/60 hover:text-white transition-colors">
+              class="block px-0 py-3 text-sm font-medium text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-colors">
               Sign In
             </a>
             <a href="/register" onclick={closeMobileMenu}
-              class="block mx-3 mt-1 px-3 py-2.5 text-sm font-semibold text-center bg-[#FF3000] text-white">
-              Get Started
+              class="block mt-2 btn-bh-red text-center min-h-[44px] flex items-center justify-center">
+              Register &rarr;
             </a>
           {/if}
         </div>
@@ -322,25 +306,77 @@
   </header>
 
   <!-- Main Content -->
-  <main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <main class="flex-1 w-full max-w-6xl mx-auto px-6 md:px-8 lg:px-12">
     {@render children()}
   </main>
 
-  <!-- Footer -->
-  <footer class="site-footer bg-neutral-950 text-neutral-500 border-t border-neutral-800 py-5 text-xs">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-      <p class="font-medium">&copy; 2025 BidMo.to</p>
-      <p class="text-neutral-600">Auction Marketplace</p>
+  <!-- Footer — Editorial -->
+  <footer class="site-footer">
+    <div class="max-w-6xl mx-auto px-6 md:px-8 lg:px-12 py-12">
+      <div class="grid grid-cols-12 gap-8">
+        <div class="col-span-12 sm:col-span-5">
+          <span class="font-display text-2xl font-bold text-[var(--color-fg)]">BidMo.to</span>
+          <p class="mt-3 text-sm text-[var(--color-muted-fg)] leading-relaxed max-w-xs">
+            The Filipino auction marketplace. Bid, buy, and sell unique items.
+          </p>
+        </div>
+        <div class="col-span-6 sm:col-span-2">
+          <h4 class="label-bh mb-4">Navigate</h4>
+          <div class="space-y-2">
+            <a href="/products" class="block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] hover:underline transition-colors">Browse</a>
+            <a href="/about-us" class="block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] hover:underline transition-colors">About</a>
+            <a href="/sell" class="block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] hover:underline transition-colors">Sell</a>
+          </div>
+        </div>
+        <div class="col-span-6 sm:col-span-2">
+          <h4 class="label-bh mb-4">Account</h4>
+          <div class="space-y-2">
+            <a href="/login" class="block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] hover:underline transition-colors">Sign In</a>
+            <a href="/register" class="block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] hover:underline transition-colors">Register</a>
+          </div>
+        </div>
+        <div class="col-span-12 sm:col-span-3 border-t sm:border-t-0 sm:border-l border-[var(--color-border-light)] pt-6 sm:pt-0 sm:pl-8 mt-4 sm:mt-0">
+          <span class="label-bh">&copy; {new Date().getFullYear()}</span>
+          <p class="mt-1 text-sm text-[var(--color-muted-fg)]">All rights reserved.</p>
+        </div>
+      </div>
     </div>
   </footer>
 </div>
 
-<ThemeTransition active={animating} onMidpoint={handleAnimationMidpoint} onComplete={handleAnimationComplete} />
 
 <style>
+  /* Dropdown — soft, rounded */
   .user-dropdown {
-    animation: dropdownIn 0.12s ease-out;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    animation: dropdownIn 0.1s;
     transform-origin: top right;
+  }
+  :global(html.dark) .user-dropdown {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  }
+  .dropdown-link {
+    font-family: var(--font-body);
+    color: var(--color-muted-fg);
+    transition: all 100ms;
+    border-radius: var(--radius-sm);
+    margin: 0 4px;
+  }
+  .dropdown-link:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-fg);
+  }
+  .dropdown-link.active {
+    color: var(--color-fg);
+    font-weight: 600;
+  }
+  .dropdown-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: 4px 0;
   }
 
   @keyframes dropdownIn {
@@ -349,54 +385,12 @@
   }
 
   .mobile-menu {
-    animation: mobileMenuIn 0.12s ease-out;
+    animation: mobileMenuIn 0.1s;
     overflow: hidden;
   }
 
   @keyframes mobileMenuIn {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  /* Dark mode header: glass */
-  :global(html.dark) .site-header {
-    background: rgba(5, 5, 6, 0.85) !important;
-    backdrop-filter: blur(20px) saturate(1.2);
-    -webkit-backdrop-filter: blur(20px) saturate(1.2);
-    border-bottom-color: rgba(255, 255, 255, 0.06) !important;
-  }
-
-  :global(html.dark) .sell-btn {
-    background: var(--color-accent) !important;
-    border-radius: 6px !important;
-  }
-  :global(html.dark) .sell-btn:hover {
-    background: var(--color-accent-bright) !important;
-  }
-
-  :global(html.dark) .user-dropdown {
-    background: #0a0a0f !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    border-radius: 8px !important;
-    color: #ededef !important;
-  }
-  :global(html.dark) .user-dropdown a {
-    color: rgba(255, 255, 255, 0.7) !important;
-  }
-  :global(html.dark) .user-dropdown a:hover {
-    background: rgba(255, 255, 255, 0.05) !important;
-    color: #fff !important;
-  }
-  :global(html.dark) .user-dropdown button {
-    color: #e06060 !important;
-  }
-  :global(html.dark) .user-dropdown button:hover {
-    background: rgba(224, 96, 96, 0.1) !important;
-  }
-
-  :global(html.dark) .site-footer {
-    background: #020203 !important;
-    border-top-color: rgba(255, 255, 255, 0.06) !important;
-    color: #555 !important;
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 </style>

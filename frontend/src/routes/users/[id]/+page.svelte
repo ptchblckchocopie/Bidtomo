@@ -109,46 +109,46 @@
   <title>{data.user.name} - User Profile</title>
 </svelte:head>
 
-<div class="profile-page">
-  <div class="profile-container">
+<div class="max-w-5xl mx-auto px-4 py-8">
+  <div class="border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)]">
     <!-- Profile Header -->
-    <div class="profile-header">
-      <div class="profile-avatar">
+    <div class="flex gap-6 p-8 bg-[var(--color-fg)] text-[var(--color-bg)]">
+      <div class="w-24 h-24 bg-[var(--color-bg)]/20 border border-[var(--color-bg)]/30 flex items-center justify-center text-4xl font-sans font-semibold flex-shrink-0 overflow-hidden">
         {#if data.user.profilePicture && typeof data.user.profilePicture === 'object' && data.user.profilePicture.url}
-          <img src={data.user.profilePicture.url} alt={data.user.name} class="profile-avatar-img" />
+          <img src={data.user.profilePicture.url} alt={data.user.name} class="w-full h-full object-cover" />
         {:else}
           {data.user.name?.charAt(0)?.toUpperCase() || '?'}
         {/if}
       </div>
-      <div class="profile-info">
-        <h1 class="profile-name">{data.user.name}</h1>
-        <p class="member-since">Member since {formatDate(data.user.createdAt)}</p>
+      <div class="flex-1">
+        <h1 class="font-sans text-3xl font-bold tracking-tight mb-1">{data.user.name}</h1>
+        <p class="text-xs opacity-70 mb-4">Member since {formatDate(data.user.createdAt)}</p>
 
-        <div class="profile-stats">
-          <div class="stat-item">
-            <div class="stat-rating">
+        <div class="flex flex-wrap gap-6">
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center gap-2">
               <StarRating rating={data.ratingStats.asSeller.averageRating} size="small" />
-              <span class="stat-value">{data.ratingStats.asSeller.averageRating.toFixed(1)}</span>
+              <span class="font-mono font-bold text-lg">{data.ratingStats.asSeller.averageRating.toFixed(1)}</span>
             </div>
-            <span class="stat-label">Seller Rating ({data.ratingStats.asSeller.totalRatings})</span>
+            <span class="label-bh !text-[var(--color-bg)]/70">Seller Rating ({data.ratingStats.asSeller.totalRatings})</span>
           </div>
-          <div class="stat-divider"></div>
-          <div class="stat-item">
-            <div class="stat-rating">
+          <div class="w-px h-10 bg-[var(--color-bg)]/30 self-center hidden sm:block"></div>
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center gap-2">
               <StarRating rating={data.ratingStats.asBuyer.averageRating} size="small" />
-              <span class="stat-value">{data.ratingStats.asBuyer.averageRating.toFixed(1)}</span>
+              <span class="font-mono font-bold text-lg">{data.ratingStats.asBuyer.averageRating.toFixed(1)}</span>
             </div>
-            <span class="stat-label">Buyer Rating ({data.ratingStats.asBuyer.totalRatings})</span>
+            <span class="label-bh !text-[var(--color-bg)]/70">Buyer Rating ({data.ratingStats.asBuyer.totalRatings})</span>
           </div>
-          <div class="stat-divider"></div>
-          <div class="stat-item">
-            <span class="stat-value">{data.totalSoldProducts}</span>
-            <span class="stat-label">Completed Sales</span>
+          <div class="w-px h-10 bg-[var(--color-bg)]/30 self-center hidden sm:block"></div>
+          <div class="flex flex-col gap-1">
+            <span class="font-mono font-bold text-lg">{data.totalSoldProducts}</span>
+            <span class="label-bh !text-[var(--color-bg)]/70">Completed Sales</span>
           </div>
-          <div class="stat-divider"></div>
-          <div class="stat-item">
-            <span class="stat-value">{data.totalActiveProducts}</span>
-            <span class="stat-label">Active Listings</span>
+          <div class="w-px h-10 bg-[var(--color-bg)]/30 self-center hidden sm:block"></div>
+          <div class="flex flex-col gap-1">
+            <span class="font-mono font-bold text-lg">{data.totalActiveProducts}</span>
+            <span class="label-bh !text-[var(--color-bg)]/70">Active Listings</span>
           </div>
         </div>
       </div>
@@ -156,28 +156,28 @@
 
     <!-- Rating Summary (Play Store style) -->
     {#if data.ratings.length > 0}
-      <div class="rating-summary">
-        <h2 class="rating-summary-title">Ratings & Reviews</h2>
-        <div class="rating-summary-content">
+      <div class="p-8 border-b border-[var(--color-border)]">
+        <h2 class="font-sans text-xl font-bold uppercase tracking-wide mb-6">Ratings & Reviews</h2>
+        <div class="flex gap-8 items-center flex-wrap">
           <!-- Left: Big average number + stars -->
-          <div class="rating-overview">
-            <span class="rating-big-number">{data.ratingStats.averageRating.toFixed(1)}</span>
+          <div class="flex flex-col items-center gap-1 min-w-[120px]">
+            <span class="font-mono text-5xl font-bold">{data.ratingStats.averageRating.toFixed(1)}</span>
             <StarRating rating={data.ratingStats.averageRating} size="medium" />
-            <span class="rating-total-count">{data.ratingStats.totalRatings} rating{data.ratingStats.totalRatings !== 1 ? 's' : ''}</span>
+            <span class="label-bh mt-1">{data.ratingStats.totalRatings} rating{data.ratingStats.totalRatings !== 1 ? 's' : ''}</span>
           </div>
 
           <!-- Right: Distribution bars -->
-          <div class="rating-distribution">
+          <div class="flex-1 flex flex-col gap-1.5 max-w-[400px]">
             {#each [5, 4, 3, 2, 1] as stars}
-              <div class="dist-row">
-                <span class="dist-label">{stars}</span>
-                <div class="dist-bar-track">
+              <div class="flex items-center gap-2">
+                <span class="w-4 text-right font-mono text-sm font-semibold">{stars}</span>
+                <div class="flex-1 h-2.5 bg-[var(--color-muted)] border border-[var(--color-border)] overflow-hidden">
                   <div
-                    class="dist-bar-fill"
+                    class="h-full bg-[var(--color-fg)] transition-all duration-500"
                     style="width: {(ratingDistribution[stars - 1] / maxDistCount) * 100}%"
                   ></div>
                 </div>
-                <span class="dist-count">{ratingDistribution[stars - 1]}</span>
+                <span class="w-6 font-mono text-xs opacity-50">{ratingDistribution[stars - 1]}</span>
               </div>
             {/each}
           </div>
@@ -185,30 +185,30 @@
 
         <!-- Recent Reviews -->
         {#if recentRatings.length > 0}
-          <div class="recent-reviews">
-            <h3 class="recent-reviews-title">Recent Reviews</h3>
-            <div class="recent-reviews-list">
+          <div class="mt-6 pt-6 border-t border-[var(--color-border)]">
+            <h3 class="font-semibold mb-4">Recent Reviews</h3>
+            <div class="flex flex-col gap-3">
               {#each recentRatings as rating}
                 {@const product = getProductFromRating(rating)}
-                <div class="recent-review-card">
-                  <div class="recent-review-top">
-                    <div class="recent-reviewer">
-                      <span class="recent-reviewer-name">{getRaterName(rating)}</span>
-                      <span class="recent-reviewer-role {rating.raterRole === 'buyer' ? 'buyer-badge' : 'seller-badge'}">
+                <div class="p-4 bg-[var(--color-surface)] border border-[var(--color-border)]">
+                  <div class="flex justify-between items-start mb-1.5">
+                    <div class="flex items-center gap-2">
+                      <span class="font-semibold text-sm">{getRaterName(rating)}</span>
+                      <span class="badge-bh text-[0.65rem] {rating.raterRole === 'buyer' ? 'bg-[var(--color-fg)] text-[var(--color-bg)]' : 'bg-[var(--color-muted)] text-[var(--color-fg)]'}">
                         {rating.raterRole === 'buyer' ? 'Buyer' : 'Seller'}
                       </span>
                     </div>
-                    <span class="recent-review-date">{formatDate(rating.createdAt)}</span>
+                    <span class="font-mono text-xs opacity-50">{formatDate(rating.createdAt)}</span>
                   </div>
-                  <div class="recent-review-stars">
+                  <div class="flex items-center gap-2 mb-2">
                     <StarRating rating={rating.rating} size="small" />
-                    <span class="recent-rating-score">{rating.rating}/5</span>
+                    <span class="font-mono text-sm font-semibold">{rating.rating}/5</span>
                   </div>
                   {#if rating.comment}
-                    <p class="recent-review-comment">"{rating.comment}"</p>
+                    <p class="text-sm italic opacity-80 leading-relaxed">"{rating.comment}"</p>
                   {/if}
                   {#if product}
-                    <a href="/products/{product.id}" class="recent-review-product">
+                    <a href="/products/{product.id}" class="text-xs font-mono text-[var(--color-fg)] hover:underline mt-2 inline-block">
                       {product.title}
                     </a>
                   {/if}
@@ -216,7 +216,7 @@
               {/each}
             </div>
             {#if data.ratings.length > 5}
-              <button class="see-all-reviews-btn" onclick={() => activeTab = 'reviews'}>
+              <button class="btn-bh-outline w-full mt-4 text-sm" onclick={() => activeTab = 'reviews'}>
                 See all {data.ratings.length} reviews
               </button>
             {/if}
@@ -226,17 +226,21 @@
     {/if}
 
     <!-- Tabs -->
-    <div class="profile-tabs">
+    <div class="flex border-b border-[var(--color-border)]">
       <button
-        class="tab-btn"
-        class:active={activeTab === 'listings'}
+        class="flex-1 py-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2
+          {activeTab === 'listings'
+            ? 'border-[var(--color-fg)] text-[var(--color-fg)]'
+            : 'border-transparent opacity-50 hover:opacity-100'}"
         onclick={() => activeTab = 'listings'}
       >
         Listings
       </button>
       <button
-        class="tab-btn"
-        class:active={activeTab === 'reviews'}
+        class="flex-1 py-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2
+          {activeTab === 'reviews'
+            ? 'border-[var(--color-fg)] text-[var(--color-fg)]'
+            : 'border-transparent opacity-50 hover:opacity-100'}"
         onclick={() => activeTab = 'reviews'}
       >
         Reviews ({data.ratings.length})
@@ -245,31 +249,31 @@
 
     <!-- Tab Content -->
     {#if activeTab === 'listings'}
-      <div class="tab-content">
+      <div class="p-8">
         <!-- Active Listings -->
         {#if data.activeProducts.length > 0}
-          <section class="listings-section">
-            <h2>Active Listings</h2>
-            <div class="products-grid">
+          <section class="mb-8">
+            <h2 class="label-bh text-sm mb-4 pb-2 border-b border-[var(--color-border)]">Active Listings</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {#each data.activeProducts as product}
-                <a href="/products/{product.id}" class="product-card">
-                  <div class="product-image">
+                <a href="/products/{product.id}" class="block border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)] hover:bg-[var(--color-muted)] transition-all no-underline text-inherit">
+                  <div class="relative aspect-[4/3] bg-[var(--color-muted)]">
                     {#if getProductImage(product)}
-                      <img src={getProductImage(product)} alt={product.title} />
+                      <img src={getProductImage(product)} alt={product.title} class="w-full h-full object-cover newsprint-img" />
                     {:else}
-                      <div class="no-image">No Image</div>
+                      <div class="w-full h-full flex items-center justify-center opacity-40 text-sm">No Image</div>
                     {/if}
-                    <div class="status-badge available">Active</div>
+                    <span class="badge-bh absolute top-2 right-2 bg-[var(--color-fg)] text-[var(--color-bg)] text-[0.65rem]">Active</span>
                   </div>
-                  <div class="product-info">
-                    <h3>{product.title}</h3>
-                    <div class="product-price">
+                  <div class="p-3">
+                    <h3 class="font-sans text-sm font-semibold truncate mb-1">{product.title}</h3>
+                    <div class="flex flex-col gap-0.5">
                       {#if product.currentBid}
-                        <span class="current-bid">{formatPrice(product.currentBid, product.seller?.currency)}</span>
-                        <span class="bid-label">Current bid</span>
+                        <span class="font-mono text-sm font-bold">{formatPrice(product.currentBid, product.seller?.currency)}</span>
+                        <span class="label-bh text-[0.6rem]">Current bid</span>
                       {:else}
-                        <span class="starting-price">{formatPrice(product.startingPrice, product.seller?.currency)}</span>
-                        <span class="bid-label">Starting price</span>
+                        <span class="font-mono text-sm font-bold">{formatPrice(product.startingPrice, product.seller?.currency)}</span>
+                        <span class="label-bh text-[0.6rem]">Starting price</span>
                       {/if}
                     </div>
                   </div>
@@ -281,24 +285,24 @@
 
         <!-- Completed Sales -->
         {#if data.soldProducts.length > 0}
-          <section class="listings-section">
-            <h2>Completed Sales</h2>
-            <div class="products-grid">
+          <section class="mb-8">
+            <h2 class="label-bh text-sm mb-4 pb-2 border-b border-[var(--color-border)]">Completed Sales</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {#each data.soldProducts as product}
-                <a href="/products/{product.id}" class="product-card sold">
-                  <div class="product-image">
+                <a href="/products/{product.id}" class="block border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)] hover:bg-[var(--color-muted)] transition-all no-underline text-inherit opacity-85">
+                  <div class="relative aspect-[4/3] bg-[var(--color-muted)]">
                     {#if getProductImage(product)}
-                      <img src={getProductImage(product)} alt={product.title} />
+                      <img src={getProductImage(product)} alt={product.title} class="w-full h-full object-cover newsprint-img" />
                     {:else}
-                      <div class="no-image">No Image</div>
+                      <div class="w-full h-full flex items-center justify-center opacity-40 text-sm">No Image</div>
                     {/if}
-                    <div class="status-badge sold">Sold</div>
+                    <span class="badge-bh absolute top-2 right-2 bg-[var(--color-muted)] text-[var(--color-fg)] text-[0.65rem]">Sold</span>
                   </div>
-                  <div class="product-info">
-                    <h3>{product.title}</h3>
-                    <div class="product-price">
-                      <span class="sold-price">{formatPrice(product.currentBid || product.startingPrice, product.seller?.currency)}</span>
-                      <span class="bid-label">Final price</span>
+                  <div class="p-3">
+                    <h3 class="font-sans text-sm font-semibold truncate mb-1">{product.title}</h3>
+                    <div class="flex flex-col gap-0.5">
+                      <span class="font-mono text-sm font-bold">{formatPrice(product.currentBid || product.startingPrice, product.seller?.currency)}</span>
+                      <span class="label-bh text-[0.6rem]">Final price</span>
                     </div>
                   </div>
                 </a>
@@ -308,82 +312,80 @@
         {/if}
 
         {#if data.activeProducts.length === 0 && data.soldProducts.length === 0}
-          <div class="empty-state">
+          <div class="text-center py-12 opacity-50">
             <p>This user hasn't listed any products yet.</p>
           </div>
         {/if}
       </div>
     {:else if activeTab === 'reviews'}
-      <div class="tab-content">
+      <div class="p-8">
         {#if data.ratings.length > 0}
           <!-- Reviews as Seller -->
           {#if ratingsAsSeller.length > 0}
-            <section class="reviews-section">
-              <div class="reviews-section-header">
-                <h2>Reviews as Seller</h2>
-                <span class="reviews-count">{ratingsAsSeller.length} review{ratingsAsSeller.length !== 1 ? 's' : ''}</span>
+            <section class="mb-8">
+              <div class="flex items-center gap-3 mb-4 pb-3 border-b border-[var(--color-border)]">
+                <h2 class="font-sans text-xl font-bold uppercase tracking-wide">Reviews as Seller</h2>
+                <span class="badge-bh bg-[var(--color-muted)] text-[var(--color-fg)]">{ratingsAsSeller.length} review{ratingsAsSeller.length !== 1 ? 's' : ''}</span>
               </div>
-              <div class="reviews-list">
+              <div class="flex flex-col gap-4">
                 {#each ratingsAsSeller as rating}
                   {@const product = getProductFromRating(rating)}
                   {@const productImage = getProductImageFromRating(rating)}
-                  <div class="review-card">
+                  <div class="flex gap-4 p-4 border border-[var(--color-border)] bg-[var(--color-surface)]">
                     <!-- Product Image (Left) -->
                     {#if product}
-                      <a href="/products/{product.id}" class="review-product-image">
+                      <a href="/products/{product.id}" class="w-24 h-24 flex-shrink-0 overflow-hidden bg-[var(--color-muted)]">
                         {#if productImage}
-                          <img src={productImage} alt={product.title} />
+                          <img src={productImage} alt={product.title} class="w-full h-full object-cover newsprint-img hover:scale-105 transition-transform" />
                         {:else}
-                          <div class="no-image-thumb">📦</div>
+                          <div class="w-full h-full flex items-center justify-center text-2xl opacity-40">📦</div>
                         {/if}
                       </a>
                     {:else}
-                      <div class="review-product-image placeholder">
-                        <div class="no-image-thumb">📦</div>
-                      </div>
+                      <div class="w-24 h-24 flex-shrink-0 bg-[var(--color-muted)] flex items-center justify-center text-2xl opacity-40">📦</div>
                     {/if}
 
                     <!-- Review Details (Right) -->
-                    <div class="review-details">
+                    <div class="flex-1 min-w-0">
                       {#if product}
-                        <div class="review-product-info">
-                          <a href="/products/{product.id}" class="product-title-link">{product.title}</a>
-                          <span class="transaction-role">Sold this item</span>
-                          <a href="/inbox?product={product.id}" class="chat-link" title="Open chat">
+                        <div class="flex flex-wrap items-center gap-2 mb-3 pb-3 border-b border-[var(--color-border)]/20">
+                          <a href="/products/{product.id}" class="font-semibold text-sm hover:underline no-underline">{product.title}</a>
+                          <span class="badge-bh text-[0.6rem] bg-[var(--color-muted)]">Sold this item</span>
+                          <a href="/inbox?product={product.id}" class="btn-bh text-[0.6rem] !py-0.5 !px-2 ml-auto" title="Open chat">
                             💬 Chat
                           </a>
                         </div>
                       {/if}
 
-                      <div class="review-header">
-                        <div class="reviewer-info">
-                          <span class="reviewer-name">{getRaterName(rating)}</span>
-                          <span class="reviewer-role buyer-badge">Buyer</span>
+                      <div class="flex justify-between items-start mb-2">
+                        <div class="flex flex-col gap-0.5">
+                          <span class="font-semibold text-sm">{getRaterName(rating)}</span>
+                          <span class="badge-bh text-[0.6rem] bg-[var(--color-fg)] text-[var(--color-bg)] w-fit">Buyer</span>
                         </div>
-                        <span class="review-date">{formatDate(rating.createdAt)}</span>
+                        <span class="font-mono text-xs opacity-50">{formatDate(rating.createdAt)}</span>
                       </div>
-                      <div class="review-rating">
+                      <div class="flex items-center gap-2 mb-3">
                         <StarRating rating={rating.rating} size="small" />
-                        <span class="rating-score">{rating.rating}/5</span>
+                        <span class="font-mono text-sm font-semibold">{rating.rating}/5</span>
                       </div>
                       {#if rating.comment}
-                        <p class="review-comment">"{rating.comment}"</p>
+                        <p class="text-sm italic opacity-80 leading-relaxed">"{rating.comment}"</p>
                       {/if}
 
                       {#if rating.hasFollowUp && rating.followUp}
-                        <div class="follow-up-review">
-                          <div class="follow-up-header">
-                            <span class="follow-up-label">Follow-up</span>
+                        <div class="mt-4 pt-4 border-t border-[var(--color-border)]/20">
+                          <div class="flex justify-between items-center mb-2">
+                            <span class="font-semibold text-sm text-[var(--color-fg)]">Follow-up</span>
                             {#if rating.followUp.createdAt}
-                              <span class="follow-up-date">{formatDate(rating.followUp.createdAt)}</span>
+                              <span class="font-mono text-xs opacity-50">{formatDate(rating.followUp.createdAt)}</span>
                             {/if}
                           </div>
-                          <div class="review-rating">
+                          <div class="flex items-center gap-2 mb-2">
                             <StarRating rating={rating.followUp.rating || 0} size="small" />
-                            <span class="rating-score">{rating.followUp.rating}/5</span>
+                            <span class="font-mono text-sm font-semibold">{rating.followUp.rating}/5</span>
                           </div>
                           {#if rating.followUp.comment}
-                            <p class="review-comment">"{rating.followUp.comment}"</p>
+                            <p class="text-sm italic opacity-80 leading-relaxed">"{rating.followUp.comment}"</p>
                           {/if}
                         </div>
                       {/if}
@@ -396,72 +398,70 @@
 
           <!-- Reviews as Buyer -->
           {#if ratingsAsBuyer.length > 0}
-            <section class="reviews-section">
-              <div class="reviews-section-header">
-                <h2>Reviews as Buyer</h2>
-                <span class="reviews-count">{ratingsAsBuyer.length} review{ratingsAsBuyer.length !== 1 ? 's' : ''}</span>
+            <section class="mb-8">
+              <div class="flex items-center gap-3 mb-4 pb-3 border-b border-[var(--color-border)]">
+                <h2 class="font-sans text-xl font-bold uppercase tracking-wide">Reviews as Buyer</h2>
+                <span class="badge-bh bg-[var(--color-muted)] text-[var(--color-fg)]">{ratingsAsBuyer.length} review{ratingsAsBuyer.length !== 1 ? 's' : ''}</span>
               </div>
-              <div class="reviews-list">
+              <div class="flex flex-col gap-4">
                 {#each ratingsAsBuyer as rating}
                   {@const product = getProductFromRating(rating)}
                   {@const productImage = getProductImageFromRating(rating)}
-                  <div class="review-card">
+                  <div class="flex gap-4 p-4 border border-[var(--color-border)] bg-[var(--color-surface)]">
                     <!-- Product Image (Left) -->
                     {#if product}
-                      <a href="/products/{product.id}" class="review-product-image">
+                      <a href="/products/{product.id}" class="w-24 h-24 flex-shrink-0 overflow-hidden bg-[var(--color-muted)]">
                         {#if productImage}
-                          <img src={productImage} alt={product.title} />
+                          <img src={productImage} alt={product.title} class="w-full h-full object-cover newsprint-img hover:scale-105 transition-transform" />
                         {:else}
-                          <div class="no-image-thumb">📦</div>
+                          <div class="w-full h-full flex items-center justify-center text-2xl opacity-40">📦</div>
                         {/if}
                       </a>
                     {:else}
-                      <div class="review-product-image placeholder">
-                        <div class="no-image-thumb">📦</div>
-                      </div>
+                      <div class="w-24 h-24 flex-shrink-0 bg-[var(--color-muted)] flex items-center justify-center text-2xl opacity-40">📦</div>
                     {/if}
 
                     <!-- Review Details (Right) -->
-                    <div class="review-details">
+                    <div class="flex-1 min-w-0">
                       {#if product}
-                        <div class="review-product-info">
-                          <a href="/products/{product.id}" class="product-title-link">{product.title}</a>
-                          <span class="transaction-role">Won this item</span>
-                          <a href="/inbox?product={product.id}" class="chat-link" title="Open chat">
+                        <div class="flex flex-wrap items-center gap-2 mb-3 pb-3 border-b border-[var(--color-border)]/20">
+                          <a href="/products/{product.id}" class="font-semibold text-sm hover:underline no-underline">{product.title}</a>
+                          <span class="badge-bh text-[0.6rem] bg-[var(--color-muted)]">Won this item</span>
+                          <a href="/inbox?product={product.id}" class="btn-bh text-[0.6rem] !py-0.5 !px-2 ml-auto" title="Open chat">
                             💬 Chat
                           </a>
                         </div>
                       {/if}
 
-                      <div class="review-header">
-                        <div class="reviewer-info">
-                          <span class="reviewer-name">{getRaterName(rating)}</span>
-                          <span class="reviewer-role seller-badge">Seller</span>
+                      <div class="flex justify-between items-start mb-2">
+                        <div class="flex flex-col gap-0.5">
+                          <span class="font-semibold text-sm">{getRaterName(rating)}</span>
+                          <span class="badge-bh text-[0.6rem] bg-[var(--color-muted)] text-[var(--color-fg)] w-fit">Seller</span>
                         </div>
-                        <span class="review-date">{formatDate(rating.createdAt)}</span>
+                        <span class="font-mono text-xs opacity-50">{formatDate(rating.createdAt)}</span>
                       </div>
-                      <div class="review-rating">
+                      <div class="flex items-center gap-2 mb-3">
                         <StarRating rating={rating.rating} size="small" />
-                        <span class="rating-score">{rating.rating}/5</span>
+                        <span class="font-mono text-sm font-semibold">{rating.rating}/5</span>
                       </div>
                       {#if rating.comment}
-                        <p class="review-comment">"{rating.comment}"</p>
+                        <p class="text-sm italic opacity-80 leading-relaxed">"{rating.comment}"</p>
                       {/if}
 
                       {#if rating.hasFollowUp && rating.followUp}
-                        <div class="follow-up-review">
-                          <div class="follow-up-header">
-                            <span class="follow-up-label">Follow-up</span>
+                        <div class="mt-4 pt-4 border-t border-[var(--color-border)]/20">
+                          <div class="flex justify-between items-center mb-2">
+                            <span class="font-semibold text-sm text-[var(--color-fg)]">Follow-up</span>
                             {#if rating.followUp.createdAt}
-                              <span class="follow-up-date">{formatDate(rating.followUp.createdAt)}</span>
+                              <span class="font-mono text-xs opacity-50">{formatDate(rating.followUp.createdAt)}</span>
                             {/if}
                           </div>
-                          <div class="review-rating">
+                          <div class="flex items-center gap-2 mb-2">
                             <StarRating rating={rating.followUp.rating || 0} size="small" />
-                            <span class="rating-score">{rating.followUp.rating}/5</span>
+                            <span class="font-mono text-sm font-semibold">{rating.followUp.rating}/5</span>
                           </div>
                           {#if rating.followUp.comment}
-                            <p class="review-comment">"{rating.followUp.comment}"</p>
+                            <p class="text-sm italic opacity-80 leading-relaxed">"{rating.followUp.comment}"</p>
                           {/if}
                         </div>
                       {/if}
@@ -472,7 +472,7 @@
             </section>
           {/if}
         {:else}
-          <div class="empty-state">
+          <div class="text-center py-12 opacity-50">
             <p>This user hasn't received any reviews yet.</p>
           </div>
         {/if}
@@ -480,759 +480,3 @@
     {/if}
   </div>
 </div>
-
-<style>
-  .profile-page {
-    padding: 2rem 1rem;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-
-  .profile-container {
-    background: var(--color-white);
-    border: 2px solid var(--color-border);
-    overflow: hidden;
-  }
-
-  /* Profile Header */
-  .profile-header {
-    display: flex;
-    gap: 1.5rem;
-    padding: 2rem;
-    background: var(--color-blue);
-    color: white;
-  }
-
-  .profile-avatar {
-    width: 100px;
-    height: 100px;
-    background: rgba(255, 255, 255, 0.2);
-    border: 2px solid var(--color-border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2.5rem;
-    font-weight: 600;
-    flex-shrink: 0;
-    overflow: hidden;
-  }
-
-  .profile-avatar-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-
-  .profile-info {
-    flex: 1;
-  }
-
-  .profile-name {
-    margin: 0 0 0.25rem 0;
-    font-size: 1.75rem;
-    text-transform: uppercase;
-    letter-spacing: -0.025em;
-  }
-
-  .member-since {
-    margin: 0 0 1rem 0;
-    opacity: 0.9;
-    font-size: 0.9rem;
-  }
-
-  .profile-stats {
-    display: flex;
-    gap: 1.5rem;
-    flex-wrap: wrap;
-  }
-
-  .stat-item {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
-  }
-
-  .stat-rating {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .stat-value {
-    font-size: 1.25rem;
-    font-weight: 600;
-  }
-
-  .stat-label {
-    font-size: 0.8rem;
-    opacity: 0.9;
-  }
-
-  .stat-divider {
-    width: 1px;
-    height: 40px;
-    background: rgba(255, 255, 255, 0.3);
-    align-self: center;
-  }
-
-  /* Tabs */
-  .profile-tabs {
-    display: flex;
-    border-bottom: 2px solid var(--color-border);
-  }
-
-  .tab-btn {
-    flex: 1;
-    padding: 1rem;
-    background: none;
-    border: none;
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--color-fg);
-    opacity: 0.6;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: all 0.15s;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .tab-btn:hover {
-    color: var(--color-fg);
-    opacity: 1;
-    background: var(--color-muted);
-  }
-
-  .tab-btn.active {
-    color: var(--color-blue);
-    opacity: 1;
-    border-bottom-color: var(--color-blue);
-  }
-
-  /* Tab Content */
-  .tab-content {
-    padding: 2rem;
-  }
-
-  /* Listings Section */
-  .listings-section {
-    margin-bottom: 2rem;
-  }
-
-  .listings-section h2 {
-    margin: 0 0 1rem 0;
-    font-size: 1.25rem;
-    color: var(--color-fg);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .products-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 1rem;
-  }
-
-  .product-card {
-    background: var(--color-muted);
-    border: 2px solid var(--color-border);
-    overflow: hidden;
-    text-decoration: none;
-    color: inherit;
-    transition: all 0.15s;
-  }
-
-  .product-card:hover {
-    background: var(--color-white);
-    border-color: var(--color-fg);
-  }
-
-  .product-card.sold {
-    opacity: 0.85;
-  }
-
-  .product-image {
-    position: relative;
-    aspect-ratio: 4/3;
-    background: var(--color-border);
-  }
-
-  .product-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .no-image {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--color-fg);
-    opacity: 0.5;
-    font-size: 0.9rem;
-  }
-
-  .status-badge {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border: 2px solid var(--color-border);
-  }
-
-  .status-badge.available {
-    background: var(--color-blue);
-    color: white;
-  }
-
-  .status-badge.sold {
-    background: var(--color-fg);
-    color: white;
-    opacity: 0.7;
-  }
-
-  .product-info {
-    padding: 0.75rem;
-  }
-
-  .product-info h3 {
-    margin: 0 0 0.5rem 0;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--color-fg);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .product-price {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-  }
-
-  .current-bid, .starting-price, .sold-price {
-    font-weight: 600;
-    color: var(--color-fg);
-  }
-
-  .bid-label {
-    font-size: 0.75rem;
-    color: var(--color-fg);
-    opacity: 0.6;
-  }
-
-  /* Reviews */
-  .reviews-section {
-    margin-bottom: 2rem;
-  }
-
-  .reviews-section-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 2px solid var(--color-border);
-  }
-
-  .reviews-section-header h2 {
-    margin: 0;
-    font-size: 1.25rem;
-    color: var(--color-fg);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .reviews-count {
-    font-size: 0.85rem;
-    color: var(--color-fg);
-    opacity: 0.6;
-    background: var(--color-muted);
-    padding: 0.25rem 0.5rem;
-  }
-
-  .reviews-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .review-card {
-    display: flex;
-    gap: 1rem;
-    background: var(--color-muted);
-    border: 2px solid var(--color-border);
-    padding: 1rem;
-    align-items: flex-start;
-  }
-
-  /* Review Product Image (Left) */
-  .review-product-image {
-    width: 100px;
-    height: 100px;
-    overflow: hidden;
-    background: var(--color-border);
-    flex-shrink: 0;
-    display: block;
-  }
-
-  .review-product-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.2s;
-  }
-
-  .review-product-image:hover img {
-    transform: scale(1.05);
-  }
-
-  .review-product-image.placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .no-image-thumb {
-    font-size: 2rem;
-    color: var(--color-fg);
-    opacity: 0.5;
-  }
-
-  /* Review Details (Right) */
-  .review-details {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .review-product-info {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .product-title-link {
-    font-weight: 600;
-    color: var(--color-fg);
-    font-size: 0.95rem;
-    text-decoration: none;
-    transition: color 0.2s;
-  }
-
-  .product-title-link:hover {
-    color: var(--color-blue);
-  }
-
-  .transaction-role {
-    font-size: 0.75rem;
-    color: var(--color-fg);
-    opacity: 0.6;
-    background: var(--color-muted);
-    padding: 0.125rem 0.5rem;
-  }
-
-  .chat-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.5rem;
-    background: var(--color-blue);
-    color: white;
-    border: 2px solid var(--color-border);
-    text-decoration: none;
-    font-size: 0.75rem;
-    transition: all 0.15s;
-    margin-left: auto;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .chat-link:hover {
-    background: var(--color-fg);
-    color: var(--color-white);
-    border-color: var(--color-fg);
-  }
-
-  .review-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 0.5rem;
-  }
-
-  .reviewer-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-  }
-
-  .reviewer-name {
-    font-weight: 600;
-    color: var(--color-fg);
-  }
-
-  .reviewer-role {
-    font-size: 0.75rem;
-    color: var(--color-fg);
-    opacity: 0.6;
-    background: var(--color-muted);
-    padding: 0.125rem 0.375rem;
-    width: fit-content;
-  }
-
-  .review-date {
-    font-size: 0.8rem;
-    color: var(--color-fg);
-    opacity: 0.6;
-  }
-
-  .review-rating {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .rating-score {
-    font-weight: 600;
-    color: var(--color-fg);
-  }
-
-  .review-comment {
-    margin: 0;
-    font-style: italic;
-    color: var(--color-fg);
-    opacity: 0.8;
-    line-height: 1.5;
-  }
-
-  .follow-up-review {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--color-border);
-  }
-
-  .follow-up-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-  }
-
-  .follow-up-label {
-    font-weight: 600;
-    color: var(--color-blue);
-    font-size: 0.85rem;
-  }
-
-  .follow-up-date {
-    font-size: 0.75rem;
-    color: var(--color-fg);
-    opacity: 0.6;
-  }
-
-  /* Rating Summary (Play Store style) */
-  .rating-summary {
-    padding: 2rem;
-    border-bottom: 2px solid var(--color-border);
-  }
-
-  .rating-summary-title {
-    margin: 0 0 1.5rem 0;
-    font-size: 1.25rem;
-    color: var(--color-fg);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .rating-summary-content {
-    display: flex;
-    gap: 2rem;
-    align-items: center;
-  }
-
-  .rating-overview {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.375rem;
-    min-width: 120px;
-  }
-
-  .rating-big-number {
-    font-size: 3rem;
-    font-weight: 700;
-    line-height: 1;
-    color: var(--color-fg);
-  }
-
-  .rating-total-count {
-    font-size: 0.85rem;
-    color: var(--color-fg);
-    opacity: 0.6;
-  }
-
-  .rating-distribution {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
-    max-width: 400px;
-  }
-
-  .dist-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .dist-label {
-    width: 14px;
-    text-align: right;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--color-fg);
-  }
-
-  .dist-bar-track {
-    flex: 1;
-    height: 10px;
-    background: var(--color-muted);
-    border: 1px solid var(--color-border);
-    overflow: hidden;
-  }
-
-  .dist-bar-fill {
-    height: 100%;
-    background: var(--color-red);
-    transition: width 0.4s ease;
-    min-width: 0;
-  }
-
-  .dist-count {
-    width: 24px;
-    font-size: 0.8rem;
-    color: var(--color-fg);
-    opacity: 0.6;
-  }
-
-  /* Recent Reviews */
-  .recent-reviews {
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--color-border);
-  }
-
-  .recent-reviews-title {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--color-fg);
-  }
-
-  .recent-reviews-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .recent-review-card {
-    padding: 1rem;
-    background: var(--color-muted);
-    border: 1px solid var(--color-border);
-  }
-
-  .recent-review-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 0.375rem;
-  }
-
-  .recent-reviewer {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .recent-reviewer-name {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--color-fg);
-  }
-
-  .recent-reviewer-role {
-    font-size: 0.7rem;
-    padding: 0.125rem 0.375rem;
-    font-weight: 600;
-  }
-
-  .buyer-badge {
-    background: var(--color-blue);
-    color: white;
-  }
-
-  .seller-badge {
-    background: var(--color-red);
-    color: white;
-  }
-
-  .recent-review-date {
-    font-size: 0.8rem;
-    color: var(--color-fg);
-    opacity: 0.5;
-  }
-
-  .recent-review-stars {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .recent-rating-score {
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: var(--color-fg);
-  }
-
-  .recent-review-comment {
-    margin: 0 0 0.5rem 0;
-    font-style: italic;
-    color: var(--color-fg);
-    opacity: 0.8;
-    line-height: 1.5;
-    font-size: 0.9rem;
-  }
-
-  .recent-review-product {
-    font-size: 0.8rem;
-    color: var(--color-blue);
-    text-decoration: none;
-    font-weight: 500;
-  }
-
-  .recent-review-product:hover {
-    text-decoration: underline;
-  }
-
-  .see-all-reviews-btn {
-    margin-top: 1rem;
-    width: 100%;
-    padding: 0.75rem;
-    background: var(--color-muted);
-    border: 2px solid var(--color-border);
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--color-fg);
-    cursor: pointer;
-    transition: all 0.15s;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .see-all-reviews-btn:hover {
-    background: var(--color-border);
-  }
-
-  /* Empty State */
-  .empty-state {
-    text-align: center;
-    padding: 3rem 1rem;
-    color: var(--color-fg);
-    opacity: 0.6;
-  }
-
-  /* Responsive */
-  @media (max-width: 768px) {
-    .profile-header {
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-    }
-
-    .profile-stats {
-      justify-content: center;
-    }
-
-    .stat-item {
-      align-items: center;
-    }
-
-    .products-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
-    .rating-summary-content {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .rating-overview {
-      flex-direction: row;
-      gap: 0.75rem;
-    }
-
-    .rating-distribution {
-      max-width: none;
-    }
-  }
-
-  @media (max-width: 480px) {
-    .profile-page {
-      padding: 1rem 0.5rem;
-    }
-
-    .tab-content {
-      padding: 1rem;
-    }
-
-    .products-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .profile-stats {
-      flex-direction: column;
-      gap: 0.75rem;
-    }
-
-    .stat-divider {
-      display: none;
-    }
-
-    .review-card {
-      flex-direction: column;
-    }
-
-    .review-product-image {
-      width: 80px;
-      height: 80px;
-    }
-
-    .review-product-info {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .chat-link {
-      margin-left: 0;
-      margin-top: 0.25rem;
-    }
-
-    .product-title-link {
-      white-space: normal;
-    }
-  }
-</style>

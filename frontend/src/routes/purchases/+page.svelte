@@ -8,6 +8,6 @@
   });
 </script>
 
-<div class="text-center py-16 text-lg text-bh-fg/60">
-  <p>Redirecting to Dashboard...</p>
+<div class="text-center py-16">
+  <p class="label-bh text-base">Redirecting to Dashboard...</p>
 </div>

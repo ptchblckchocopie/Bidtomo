@@ -402,6 +402,10 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
       [job.bidderId]
     );
     const buyer = buyerResult.rows[0];
+    if (!buyer) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Buyer not found' };
+    }
 
     // Get seller details
     const sellerResult = await client.query<{ id: number; name: string; email: string; currency: string }>(
@@ -409,13 +413,18 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
       [job.sellerId]
     );
     const seller = sellerResult.rows[0];
+    if (!seller) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Seller not found' };
+    }
 
     // Verify sellerId matches product owner (defense-in-depth)
     const sellerCheck = await client.query(
       `SELECT users_id FROM products_rels WHERE parent_id = $1 AND path = 'seller'`,
       [job.productId]
     );
-    if (sellerCheck.rows.length === 0 || sellerCheck.rows[0].users_id !== job.sellerId) {
+    const dbSellerId = sellerCheck.rows[0]?.users_id;
+    if (!dbSellerId || dbSellerId !== job.sellerId) {
       await client.query('ROLLBACK');
       return { success: false, error: 'Seller does not own this product' };
     }
@@ -452,7 +461,7 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
     await client.query(
       `INSERT INTO messages_rels (parent_id, path, users_id)
        VALUES ($1, 'sender', $2)`,
-      [messageId, job.sellerId]
+      [messageId, dbSellerId]
     );
     await client.query(
       `INSERT INTO messages_rels (parent_id, path, users_id)
@@ -480,7 +489,7 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
     await client.query(
       `INSERT INTO transactions_rels (parent_id, path, users_id)
        VALUES ($1, 'seller', $2)`,
-      [transactionId, job.sellerId]
+      [transactionId, dbSellerId]
     );
     await client.query(
       `INSERT INTO transactions_rels (parent_id, path, users_id)
@@ -780,8 +789,8 @@ async function drainAndDeduplicateQueue(firstJob: BidJob): Promise<BidJob[]> {
       continue;
     }
 
-    // Sort descending by amount — highest bid first
-    group.sort((a, b) => b.amount - a.amount);
+    // Sort descending by amount — highest bid first, earliest timestamp wins ties
+    group.sort((a, b) => b.amount - a.amount || a.timestamp - b.timestamp);
     survivors.push(group[0]); // Keep the highest
 
     // Fast-reject the rest
@@ -925,14 +934,14 @@ async function runWorker() {
           continue;
         }
 
-        // Save to database in case of crash (fire-and-forget — don't block hot path)
-        savePendingBidToDb(jobToProcess);
+        // Save to database in case of crash
+        await savePendingBidToDb(jobToProcess);
 
         const bidResult = await processBid(jobToProcess);
 
         if (bidResult.success) {
-          // Remove from pending bids (fire-and-forget)
-          removePendingBidFromDb(jobToProcess.jobId!);
+          // Remove from pending bids
+          await removePendingBidFromDb(jobToProcess.jobId!);
 
           // Publish result to SSE with full bid data (fire-and-forget)
           publishBidResult(jobToProcess.productId, {

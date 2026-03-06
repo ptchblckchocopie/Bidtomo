@@ -87,21 +87,21 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem;
-    border: var(--border-bh) solid var(--color-border);
-    background-color: var(--color-white);
+    border: 2px solid var(--color-fg);
+    background-color: var(--color-bg);
     min-height: 44px;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: border-color 100ms;
   }
 
   .keyword-pills-wrapper:focus-within {
     outline: none;
-    ring: 2px solid var(--color-blue);
-    box-shadow: 0 0 0 2px var(--color-blue);
+    border-width: 3px;
   }
 
   .keyword-pills-wrapper.disabled {
     background-color: var(--color-muted);
     cursor: not-allowed;
+    opacity: 0.6;
   }
 
   .keyword-pill {
@@ -109,23 +109,15 @@
     align-items: center;
     gap: 0.375rem;
     padding: 0.375rem 0.625rem;
-    background: var(--color-blue);
-    color: white;
-    font-size: 0.875rem;
+    background: var(--color-fg);
+    color: var(--color-bg);
+    font-size: 0.75rem;
     font-weight: 500;
-    border: 2px solid var(--color-border);
-    animation: slideIn 0.2s ease-out;
-  }
-
-  :global(html.dark) .keyword-pill {
-    background: rgba(94, 106, 210, 0.2);
-    color: #8b93e0;
-    border-color: rgba(94, 106, 210, 0.3);
-  }
-
-  :global(html.dark) .remove-btn {
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 1px solid var(--color-fg);
+    animation: slideIn 100ms ease-out;
   }
 
   @keyframes slideIn {
@@ -143,21 +135,20 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.3);
-    border: none;
-    color: white;
+    background: transparent;
+    border: 1px solid var(--color-bg);
+    color: var(--color-bg);
     width: 18px;
     height: 18px;
     cursor: pointer;
     font-size: 1.25rem;
     line-height: 1;
     padding: 0;
-    transition: background-color 0.2s, transform 0.1s;
+    transition: opacity 100ms;
   }
 
   .remove-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.5);
-    transform: scale(1.1);
+    opacity: 0.7;
   }
 
   .remove-btn:disabled {

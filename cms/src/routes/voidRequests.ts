@@ -176,6 +176,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
       const initiator: any = await payload.findByID({ collection: 'users', id: initiatorId });
 
       if (action === 'approve') {
+        // Both updates must succeed together — rollback first if second fails
         await payload.update({
           collection: 'void-requests',
           id: voidRequestId,
@@ -185,14 +186,30 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
           },
         });
 
-        await payload.update({
-          collection: 'transactions',
-          id: transaction.id,
-          data: {
-            status: 'voided',
-            voidRequest: voidRequestId,
-          },
-        });
+        try {
+          await payload.update({
+            collection: 'transactions',
+            id: transaction.id,
+            data: {
+              status: 'voided',
+              voidRequest: voidRequestId,
+            },
+          });
+        } catch (txError) {
+          // Rollback void request status since transaction update failed
+          await payload.update({
+            collection: 'void-requests',
+            id: voidRequestId,
+            data: {
+              status: 'pending',
+              approvedAt: null as any,
+            },
+          }).catch((rollbackErr) => {
+            console.error('Critical: rollback of void request status failed:', rollbackErr);
+            Sentry.captureException(rollbackErr, { level: 'fatal' as any });
+          });
+          throw txError;
+        }
 
         publishMessageNotification(initiatorId, {
           type: 'void_approved',
