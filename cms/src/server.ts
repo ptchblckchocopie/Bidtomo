@@ -1021,6 +1021,12 @@ const start = async () => {
   // Expose product update publisher for hooks (visibility changes, etc.)
   (global as any).publishProductUpdate = publishProductUpdate;
 
+  // Expose WebP converter for media upload hook (avoids webpack bundling sharp's native binary)
+  const sharp = require('sharp');
+  (global as any).convertImageToWebP = async (buffer: Buffer, quality: number) => {
+    return sharp(buffer).webp({ quality }).toBuffer();
+  };
+
   // Expose analytics event tracker for hooks (avoids webpack bundling issues)
   (global as any).trackEvent = (eventType: string, userId?: number | string, metadata?: Record<string, any>) => {
     setImmediate(async () => {

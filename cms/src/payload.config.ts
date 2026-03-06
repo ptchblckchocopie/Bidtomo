@@ -12,6 +12,7 @@ import { s3Adapter } from '@payloadcms/plugin-cloud-storage/s3';
 import { cloudStorage } from '@payloadcms/plugin-cloud-storage';
 import { authenticateJWT } from './auth-helpers';
 import { EmailTemplates } from './collections/EmailTemplates';
+import { convertToWebP } from './hooks/convertToWebP';
 
 // Configure S3 adapter for DigitalOcean Spaces (or Supabase Storage fallback)
 const s3Region = process.env.S3_REGION || 'sgp1';
@@ -76,6 +77,7 @@ export default buildConfig({
           '@payloadcms/plugin-cloud-storage': mockModulePath,
           [path.resolve(__dirname, 'auth-helpers')]: mockModulePath,
           '@payloadcms/richtext-lexical': mockModulePath,
+          '@monaco-editor/react': mockModulePath,
         },
         fallback: {
           ...config.resolve?.fallback,
@@ -107,6 +109,11 @@ export default buildConfig({
           raw: true,
           entryOnly: false,
         }),
+        // Replace @monaco-editor/react with empty module to fix React import errors
+        new wp.NormalModuleReplacementPlugin(
+          /@monaco-editor\/react/,
+          mockModulePath,
+        ),
       ];
       return config;
     },
@@ -1391,6 +1398,9 @@ export default buildConfig({
             height: 1024,
           },
         ],
+      },
+      hooks: {
+        beforeOperation: [convertToWebP],
       },
       access: {
         read: () => true,
