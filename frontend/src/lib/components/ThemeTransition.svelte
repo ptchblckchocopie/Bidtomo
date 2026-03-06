@@ -42,18 +42,25 @@
 		return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 	}
 
+	let runningTransition = false;
+
 	$effect(() => {
-		if (!active || !browser) return;
+		if (!active || !browser || runningTransition) return;
+
+		// Snapshot dark state before starting — don't let $isDark change mid-animation re-trigger this effect
+		const wasDark = $isDark;
+		runningTransition = true;
 
 		if (prefersReducedMotion()) {
 			onMidpoint();
 			onComplete();
+			runningTransition = false;
 			return;
 		}
 
 		if (!threeModule || !hasWebGL()) {
 			runCssFallback();
-		} else if ($isDark) {
+		} else if (wasDark) {
 			runDarkToLightTransition();
 		} else {
 			runLightToDarkTransition();
@@ -80,6 +87,7 @@
 			overlay.style.clipPath = 'circle(0% at 50% 50%)';
 			setTimeout(() => {
 				overlay.remove();
+				runningTransition = false;
 				onComplete();
 			}, 300);
 		}, 400);
@@ -158,6 +166,7 @@
 			renderer.dispose();
 			renderer.forceContextLoss();
 			canvas.remove();
+			runningTransition = false;
 			onComplete();
 		}, 750);
 
@@ -249,6 +258,7 @@
 			renderer.dispose();
 			renderer.forceContextLoss();
 			canvas.remove();
+			runningTransition = false;
 			onComplete();
 		}, 750);
 

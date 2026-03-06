@@ -26,21 +26,24 @@
   let barChart: Chart | null = null;
   let doughnutChart: Chart | null = null;
 
-  // Chart colors matching Swiss International Style
+  // Toggleable legend state for line chart
+  let lineDatasets: { label: string; color: string; visible: boolean; dashed?: boolean }[] = $state([]);
+
+  // Chart line colors — each dataset gets a distinct color
   const COLORS = {
-    red: 'rgb(255, 48, 0)',
-    blue: 'rgb(0, 0, 0)',
-    yellow: 'rgb(242, 242, 242)',
-    fg: 'rgb(0, 0, 0)',
-    green: 'rgb(34, 139, 34)',
+    productViews: 'rgb(59, 130, 246)',    // blue
+    searches: 'rgb(202, 138, 4)',         // amber
+    bids: 'rgb(255, 48, 0)',              // red
+    registrations: 'rgb(22, 163, 74)',    // green
+    productsSold: 'rgb(107, 114, 128)',   // gray
   };
 
   const DARK_COLORS = {
-    red: 'rgb(94, 106, 210)',
-    blue: 'rgb(139, 147, 224)',
-    yellow: 'rgb(212, 180, 74)',
-    fg: 'rgb(237, 237, 239)',
-    green: 'rgb(90, 232, 121)',
+    productViews: 'rgb(96, 165, 250)',
+    searches: 'rgb(212, 180, 74)',
+    bids: 'rgb(94, 106, 210)',
+    registrations: 'rgb(90, 232, 121)',
+    productsSold: 'rgb(156, 163, 175)',
   };
 
   function isDark(): boolean {
@@ -60,12 +63,14 @@
   }
 
   const DOUGHNUT_COLORS = [
-    COLORS.red, COLORS.blue, COLORS.yellow, COLORS.green, COLORS.fg,
-    '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#ea580c',
-    '#6366f1', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6',
-    '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#10b981',
-    '#3b82f6', '#a855f7', '#f43f5e', '#22d3ee', '#facc15',
+    '#3b82f6', '#ef4444', '#f59e0b', '#22c55e', '#8b5cf6',
+    '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#a855f7',
+    '#6366f1', '#db2777', '#0891b2', '#65a30d', '#ea580c',
+    '#84cc16', '#10b981', '#f43f5e', '#22d3ee', '#facc15',
   ];
+
+  // Re-render charts when theme changes
+  let themeObserver: MutationObserver | null = null;
 
   onMount(() => {
     if (!$authStore.isAuthenticated || $authStore.user?.role !== 'admin') {
@@ -73,9 +78,15 @@
       return;
     }
     loadData();
+
+    themeObserver = new MutationObserver(() => {
+      if (data) renderCharts();
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
   });
 
   onDestroy(() => {
+    themeObserver?.disconnect();
     lineChart?.destroy();
     barChart?.destroy();
     doughnutChart?.destroy();
@@ -114,29 +125,33 @@
     const gridColor = chartGridColor();
 
     if (lineCanvas) {
-      const blueFill = isDark() ? 'rgba(94, 106, 210, 0.15)' : 'rgba(255, 48, 0, 0.1)';
+      const viewsFill = isDark() ? 'rgba(96, 165, 250, 0.12)' : 'rgba(59, 130, 246, 0.1)';
+      const datasets = [
+        { label: 'Product Views', data: d.timeSeries.productViews, borderColor: c.productViews, backgroundColor: viewsFill, fill: true, tension: 0.3 },
+        { label: 'Searches', data: d.timeSeries.searches, borderColor: c.searches, backgroundColor: 'transparent', tension: 0.3 },
+        { label: 'Bids', data: d.timeSeries.bids, borderColor: c.bids, backgroundColor: 'transparent', tension: 0.3 },
+        { label: 'Registrations', data: d.timeSeries.registrations, borderColor: c.registrations, backgroundColor: 'transparent', tension: 0.3 },
+        { label: 'Products Sold', data: d.timeSeries.productsSold, borderColor: c.productsSold, backgroundColor: 'transparent', tension: 0.3, borderDash: [5, 5] },
+      ];
       lineChart = new Chart(lineCanvas, {
         type: 'line',
-        data: {
-          labels: d.timeSeries.labels,
-          datasets: [
-            { label: 'Product Views', data: d.timeSeries.productViews, borderColor: c.blue, backgroundColor: blueFill, fill: true, tension: 0.3 },
-            { label: 'Searches', data: d.timeSeries.searches, borderColor: c.yellow, backgroundColor: 'transparent', tension: 0.3 },
-            { label: 'Bids', data: d.timeSeries.bids, borderColor: c.red, backgroundColor: 'transparent', tension: 0.3 },
-            { label: 'Registrations', data: d.timeSeries.registrations, borderColor: c.green, backgroundColor: 'transparent', tension: 0.3 },
-            { label: 'Products Sold', data: d.timeSeries.productsSold, borderColor: c.fg, backgroundColor: 'transparent', tension: 0.3, borderDash: [5, 5] },
-          ],
-        },
+        data: { labels: d.timeSeries.labels, datasets },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { position: 'bottom', labels: { color: textColor } } },
+          plugins: { legend: { display: false } },
           scales: {
             y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } },
             x: { ticks: { color: textColor }, grid: { color: gridColor } },
           },
         },
       });
+      lineDatasets = datasets.map((ds, i) => ({
+        label: ds.label,
+        color: ds.borderColor as string,
+        visible: true,
+        dashed: !!(ds as any).borderDash,
+      }));
     }
 
     // Top search keywords bar chart
@@ -148,8 +163,8 @@
           datasets: [{
             label: 'Searches',
             data: d.topSearchKeywords.map(k => k.count),
-            backgroundColor: c.blue,
-            borderColor: isDark() ? 'rgba(255, 255, 255, 0.1)' : c.fg,
+            backgroundColor: c.searches,
+            borderColor: isDark() ? 'rgba(255, 255, 255, 0.1)' : textColor,
             borderWidth: isDark() ? 1 : 2,
           }],
         },
@@ -175,7 +190,7 @@
           datasets: [{
             data: d.eventBreakdown.map(e => e.count),
             backgroundColor: DOUGHNUT_COLORS.slice(0, d.eventBreakdown.length),
-            borderColor: isDark() ? 'rgba(255, 255, 255, 0.08)' : c.fg,
+            borderColor: isDark() ? 'rgba(255, 255, 255, 0.08)' : textColor,
             borderWidth: isDark() ? 1 : 2,
           }],
         },
@@ -186,6 +201,14 @@
         },
       });
     }
+  }
+
+  function toggleLineDataset(index: number) {
+    if (!lineChart) return;
+    const meta = lineChart.getDatasetMeta(index);
+    meta.hidden = !meta.hidden;
+    lineDatasets[index].visible = !meta.hidden;
+    lineChart.update();
   }
 
   function formatEventType(type: string): string {
@@ -359,6 +382,21 @@
       <div style="height: 350px;">
         <canvas bind:this={lineCanvas}></canvas>
       </div>
+      {#if lineDatasets.length > 0}
+        <div class="flex flex-wrap gap-2 mt-4 justify-center">
+          {#each lineDatasets as ds, i}
+            <button
+              onclick={() => toggleLineDataset(i)}
+              class="legend-pill"
+              class:legend-pill--off={!ds.visible}
+              style="--legend-color: {ds.color}"
+            >
+              <span class="legend-pill-swatch" class:legend-pill-swatch--dashed={ds.dashed}></span>
+              {ds.label}
+            </button>
+          {/each}
+        </div>
+      {/if}
     </div>
 
     <!-- Two-column: Search Keywords + Event Breakdown -->
@@ -446,3 +484,55 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .legend-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 2px solid var(--legend-color);
+    color: var(--legend-color);
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .legend-pill:hover {
+    background: var(--legend-color);
+    color: var(--bh-bg, #fff);
+  }
+
+  .legend-pill--off {
+    opacity: 0.35;
+    border-style: dashed;
+  }
+
+  .legend-pill--off:hover {
+    opacity: 0.7;
+    background: transparent;
+    color: var(--legend-color);
+  }
+
+  .legend-pill-swatch {
+    display: inline-block;
+    width: 16px;
+    height: 3px;
+    background: var(--legend-color);
+    border-radius: 1px;
+  }
+
+  .legend-pill-swatch--dashed {
+    background: repeating-linear-gradient(
+      90deg,
+      var(--legend-color) 0px,
+      var(--legend-color) 4px,
+      transparent 4px,
+      transparent 7px
+    );
+  }
+</style>

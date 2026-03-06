@@ -232,7 +232,6 @@
 				}
 			});
 			renderer.dispose();
-			renderer.forceContextLoss();
 		};
 	}
 
