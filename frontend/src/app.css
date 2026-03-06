@@ -2,35 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Bauhaus Design Tokens ── */
+/* ══════════════════════════════════════════════════
+   LIGHT MODE — Swiss International Typographic Style
+   ══════════════════════════════════════════════════ */
 :root {
-  --color-bg: #F0F0F0;
-  --color-fg: #121212;
-  --color-red: #D02020;
-  --color-blue: #1040C0;
-  --color-yellow: #F0C020;
-  --color-border: #121212;
-  --color-muted: #E0E0E0;
+  --color-bg: #FFFFFF;
+  --color-fg: #000000;
+  --color-red: #FF3000;
+  --color-blue: #000000;
+  --color-yellow: #FF3000;
+  --color-border: #000000;
+  --color-muted: #F2F2F2;
   --color-white: #FFFFFF;
-  --color-green: #22c55e;
+  --color-green: #00A843;
 
-  --color-bg-rgb: 240 240 240;
-  --color-fg-rgb: 18 18 18;
-  --color-red-rgb: 208 32 32;
-  --color-blue-rgb: 16 64 192;
-  --color-yellow-rgb: 240 192 32;
-  --color-border-rgb: 18 18 18;
-  --color-muted-rgb: 224 224 224;
+  --color-bg-rgb: 255 255 255;
+  --color-fg-rgb: 0 0 0;
+  --color-red-rgb: 255 48 0;
+  --color-blue-rgb: 0 0 0;
+  --color-yellow-rgb: 255 48 0;
+  --color-border-rgb: 0 0 0;
+  --color-muted-rgb: 242 242 242;
   --color-white-rgb: 255 255 255;
 
-  --shadow-bh-sm: 3px 3px 0px #121212;
-  --shadow-bh-md: 5px 5px 0px #121212;
+  --shadow-bh-sm: none;
+  --shadow-bh-md: none;
 
-  --border-bh: 3px;
-  --border-bh-lg: 5px;
+  --border-bh: 2px;
+  --border-bh-lg: 4px;
+
+  --color-accent: #FF3000;
+  --color-accent-hover: #000000;
 }
 
-/* ── Dark Mode — Linear/Modern Palette ── */
+/* ══════════════════════════════════════════════════
+   DARK MODE — Linear/Modern Palette
+   ══════════════════════════════════════════════════ */
 html.dark {
   --color-bg: #050506;
   --color-fg: #EDEDEF;
@@ -57,115 +64,227 @@ html.dark {
   --color-accent: #5E6AD2;
   --color-accent-bright: #6872D9;
   --color-accent-glow: rgba(94, 106, 210, 0.3);
+  --color-accent-hover: #6872D9;
 }
 
-/* ── Global Base ── */
+/* ══════════════════════════════════════════════════
+   Swiss Texture Patterns (Light Mode Only)
+   ══════════════════════════════════════════════════ */
+
+/* Grid pattern — 24px squares */
+.swiss-grid-pattern {
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Dot matrix — 16px spacing */
+.swiss-dots {
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* Diagonal lines */
+.swiss-diagonal {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(0, 0, 0, 0.02) 4px,
+    rgba(0, 0, 0, 0.02) 5px
+  );
+  background-size: 10px 10px;
+}
+
+/* Noise texture via SVG filter */
+.swiss-noise::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.015;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+  z-index: 0;
+}
+
+/* Disable patterns in dark mode */
+html.dark .swiss-grid-pattern,
+html.dark .swiss-dots,
+html.dark .swiss-diagonal {
+  background-image: none;
+}
+
+html.dark .swiss-noise::before {
+  display: none;
+}
+
+/* ══════════════════════════════════════════════════
+   Global Base
+   ══════════════════════════════════════════════════ */
 @layer base {
   body {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Inter', 'Helvetica Neue', 'Arial', sans-serif;
     background-color: var(--color-bg);
     color: var(--color-fg);
-    transition: background-color 0.3s ease, color 0.3s ease;
+    transition: background-color 0.2s ease-out, color 0.2s ease-out;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Bauhaus: no rounded corners in light mode (dark mode allows rounded corners) */
+  /* Swiss: strictly rectangular — no rounded corners */
   html:not(.dark) *,
   html:not(.dark) *::before,
   html:not(.dark) *::after {
     border-radius: 0 !important;
   }
 
-  /* Allow rounded-full to work for badges/circles */
+  /* Allow rounded-full to work for badges/avatars */
   .rounded-full {
     border-radius: 9999px !important;
   }
 }
 
-/* ── Bauhaus Component Classes ── */
+/* ══════════════════════════════════════════════════
+   Swiss Component Classes (Light Mode)
+   ══════════════════════════════════════════════════ */
 @layer components {
   /* ── Buttons ── */
   .btn-bh {
-    @apply inline-flex items-center justify-center px-5 py-2.5 font-bold text-sm
-           border-bh border-bh-border bg-bh-muted text-bh-fg
-           shadow-bh-sm cursor-pointer;
-    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-                background-color 0.15s ease;
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm
+           border-2 border-black bg-black text-white
+           cursor-pointer uppercase tracking-widest font-bold;
+    transition: background-color 0.15s ease-out, color 0.15s ease-out, border-color 0.15s ease-out;
   }
   .btn-bh:hover {
-    @apply translate-y-0.5;
-    box-shadow: 1px 1px 0px var(--color-border);
+    @apply bg-white text-black;
   }
   .btn-bh:active {
-    @apply translate-y-1;
-    box-shadow: none;
+    background-color: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
     transition-duration: 0.05s;
   }
   .btn-bh:disabled {
-    @apply opacity-50 cursor-not-allowed translate-y-0;
-    box-shadow: var(--shadow-bh-sm);
+    @apply opacity-40 cursor-not-allowed;
   }
 
   .btn-bh-red {
-    @apply btn-bh bg-bh-red text-white;
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm
+           border-2 cursor-pointer uppercase tracking-widest font-bold;
+    background-color: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
+    transition: background-color 0.15s ease-out, color 0.15s ease-out, border-color 0.15s ease-out, transform 0.15s ease-out;
+  }
+  .btn-bh-red:hover {
+    background-color: #000;
+    color: #fff;
+    border-color: #000;
+    transform: translateY(-1px);
+  }
+  .btn-bh-red:active {
+    transform: translateY(0);
+    transition-duration: 0.05s;
+  }
+  .btn-bh-red:disabled {
+    @apply opacity-40 cursor-not-allowed;
+    transform: none;
   }
 
   .btn-bh-blue {
-    @apply btn-bh bg-bh-blue text-white;
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm
+           border-2 border-black bg-white text-black
+           cursor-pointer uppercase tracking-widest font-bold;
+    transition: background-color 0.15s ease-out, color 0.15s ease-out, border-color 0.15s ease-out;
+  }
+  .btn-bh-blue:hover {
+    background-color: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
   }
 
   .btn-bh-yellow {
-    @apply btn-bh bg-bh-yellow text-bh-fg;
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm
+           border-2 cursor-pointer uppercase tracking-widest font-bold;
+    background-color: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
+    transition: background-color 0.15s ease-out, color 0.15s ease-out, border-color 0.15s ease-out;
+  }
+  .btn-bh-yellow:hover {
+    background-color: #000;
+    color: #fff;
+    border-color: #000;
   }
 
   .btn-bh-outline {
-    @apply btn-bh bg-transparent text-bh-fg;
+    @apply inline-flex items-center justify-center px-6 py-3 text-sm
+           border-2 border-black bg-transparent text-black
+           cursor-pointer uppercase tracking-widest font-bold;
+    transition: background-color 0.15s ease-out, color 0.15s ease-out;
+  }
+  .btn-bh-outline:hover {
+    @apply bg-black text-white;
   }
 
   /* ── Card ── */
   .card-bh {
-    @apply border-bh border-bh-border shadow-bh-sm;
+    @apply border-2 border-black;
     background-color: var(--color-white);
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.15s ease-out, color 0.15s ease-out, border-color 0.15s ease-out;
   }
 
   /* ── Input ── */
   .input-bh {
-    @apply w-full px-3 py-2.5 text-base font-outfit
-           border-bh border-bh-border text-bh-fg;
-    background-color: var(--color-white);
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+    @apply w-full px-4 py-3 text-base
+           border-2 border-black text-black;
+    background-color: #fff;
+    font-family: 'Inter', sans-serif;
+    transition: border-color 0.15s ease-out;
   }
   .input-bh:focus {
-    @apply outline-none ring-2 ring-bh-blue ring-offset-1;
-    border-color: var(--color-blue);
+    @apply outline-none;
+    border-color: var(--color-accent);
   }
   .input-bh:disabled {
     @apply bg-bh-muted cursor-not-allowed;
   }
 
-  /* ── Headline ── */
+  /* ── Headline — Swiss: uppercase, tight tracking, massive ── */
   .headline-bh {
-    @apply font-outfit font-black tracking-tight text-bh-fg uppercase;
+    font-family: 'Inter', sans-serif;
+    @apply font-black tracking-tighter text-black uppercase;
+    line-height: 0.9;
   }
 
-  /* ── Divider ── */
+  /* ── Divider — visible structural line ── */
   .divider-bh {
-    @apply w-full h-1 bg-bh-fg my-8;
+    @apply w-full bg-black my-8;
+    height: 2px;
+  }
+
+  /* ── Swiss section label ── */
+  .swiss-label {
+    @apply text-xs uppercase tracking-widest font-bold;
+    color: var(--color-accent);
   }
 }
 
-/* ── Global Micro-Interactions ── */
+/* ══════════════════════════════════════════════════
+   Global Micro-Interactions (Swiss: snappy, precise)
+   ══════════════════════════════════════════════════ */
 
-/* Smooth focus-visible outlines for keyboard navigation */
+/* Focus-visible — Swiss Red ring */
 *:focus-visible {
-  outline: 2px solid var(--color-blue);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  transition: outline-offset 0.1s ease;
+  transition: outline-offset 0.1s ease-out;
 }
 
-/* Subtle active state for all interactive elements */
+/* Instant active states */
 a:active,
 button:active {
   transition-duration: 0.05s;
@@ -174,7 +293,7 @@ button:active {
 /* Image loading fade-in */
 img {
   opacity: 1;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease-out;
 }
 
 img[loading="lazy"] {
@@ -187,11 +306,12 @@ img[loading="lazy"][complete] {
 }
 
 /* ══════════════════════════════════════════════════
-   Dark Mode — Linear/Modern Design System
+   DARK MODE — Linear/Modern Design System Overrides
    ══════════════════════════════════════════════════ */
 
-/* Body — vertical depth gradient */
+/* Dark mode uses Outfit font */
 html.dark body {
+  font-family: 'Outfit', sans-serif;
   background: radial-gradient(ellipse at top, #0a0a0f 0%, #050506 50%, #020203 100%);
 }
 
@@ -224,6 +344,7 @@ html.dark .input-bh {
   border-width: 1px;
   border-color: rgba(255, 255, 255, 0.10);
   border-radius: 8px !important;
+  color: var(--color-fg);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
@@ -241,6 +362,9 @@ html.dark .btn-bh {
   border-color: rgba(255, 255, 255, 0.10);
   border-radius: 8px !important;
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  color: var(--color-fg);
+  text-transform: none;
+  letter-spacing: normal;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
               box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
               background-color 0.2s ease,
@@ -251,6 +375,7 @@ html.dark .btn-bh:hover {
   transform: translateY(-1px);
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.15);
+  color: var(--color-fg);
   box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
     0 4px 12px rgba(0, 0, 0, 0.3);
@@ -265,6 +390,7 @@ html.dark .btn-bh:active {
 html.dark .btn-bh:disabled {
   box-shadow: none;
   opacity: 0.4;
+  transform: none;
 }
 
 /* Primary button — accent indigo with glow */
@@ -272,6 +398,9 @@ html.dark .btn-bh-red {
   background: var(--color-accent);
   color: #fff;
   border-color: rgba(94, 106, 210, 0.5);
+  border-radius: 8px !important;
+  text-transform: none;
+  letter-spacing: normal;
   box-shadow:
     0 0 0 1px rgba(94, 106, 210, 0.5),
     0 4px 12px rgba(94, 106, 210, 0.3),
@@ -280,6 +409,7 @@ html.dark .btn-bh-red {
 
 html.dark .btn-bh-red:hover {
   background: var(--color-accent-bright);
+  transform: translateY(-1px);
   box-shadow:
     0 0 0 1px rgba(94, 106, 210, 0.6),
     0 6px 20px rgba(94, 106, 210, 0.4),
@@ -288,6 +418,7 @@ html.dark .btn-bh-red:hover {
 
 html.dark .btn-bh-red:active {
   background: #5560c5;
+  transform: scale(0.98);
   box-shadow:
     0 0 0 1px rgba(94, 106, 210, 0.5),
     0 2px 8px rgba(94, 106, 210, 0.2),
@@ -299,12 +430,16 @@ html.dark .btn-bh-blue {
   background: rgba(94, 106, 210, 0.15);
   color: #8b93e0;
   border-color: rgba(94, 106, 210, 0.25);
+  border-radius: 8px !important;
+  text-transform: none;
+  letter-spacing: normal;
   box-shadow: inset 0 1px 0 0 rgba(94, 106, 210, 0.1);
 }
 
 html.dark .btn-bh-blue:hover {
   background: rgba(94, 106, 210, 0.25);
   border-color: rgba(94, 106, 210, 0.35);
+  color: #8b93e0;
 }
 
 /* Yellow button — muted gold glow */
@@ -312,6 +447,9 @@ html.dark .btn-bh-yellow {
   background: rgba(201, 168, 48, 0.20);
   color: #d4b44a;
   border-color: rgba(201, 168, 48, 0.3);
+  border-radius: 8px !important;
+  text-transform: none;
+  letter-spacing: normal;
   box-shadow: inset 0 1px 0 0 rgba(201, 168, 48, 0.1);
 }
 
@@ -320,7 +458,24 @@ html.dark .btn-bh-yellow:hover {
   border-color: rgba(201, 168, 48, 0.4);
 }
 
-/* Header — dark glass, no red */
+/* Outline button */
+html.dark .btn-bh-outline {
+  background: transparent;
+  color: var(--color-fg);
+  border-width: 1px;
+  border-color: rgba(255, 255, 255, 0.10);
+  border-radius: 8px !important;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+html.dark .btn-bh-outline:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--color-fg);
+}
+
+/* Header — dark glass */
 html.dark .site-header {
   background: rgba(5, 5, 6, 0.80) !important;
   backdrop-filter: blur(24px) saturate(1.2);
@@ -351,9 +506,12 @@ html.dark .headline-bh {
   background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: none;
+  text-transform: none;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
-/* Native form elements — ensure dark bg + light text for all inputs */
+/* Native form elements — dark bg + light text */
 html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]),
 html.dark textarea,
 html.dark select {

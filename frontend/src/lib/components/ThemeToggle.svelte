@@ -31,29 +31,44 @@
 </button>
 
 <style>
+	/* Light mode — Swiss: stark black/white rectangle */
 	.theme-toggle {
 		width: 40px;
 		height: 40px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border: 2px solid rgba(255, 255, 255, 0.3);
+		border: 2px solid rgba(255, 255, 255, 0.4);
 		background: transparent;
 		color: white;
 		cursor: pointer;
-		transition: background-color 0.15s ease, transform 0.15s ease;
+		transition: background-color 0.15s ease-out, border-color 0.15s ease-out, color 0.15s ease-out;
 	}
 
 	.theme-toggle:hover {
 		background: rgba(255, 255, 255, 0.15);
+		border-color: rgba(255, 255, 255, 0.6);
 	}
 
 	.theme-toggle:active {
-		transform: translateY(2px);
+		background: rgba(255, 255, 255, 0.25);
+		transition-duration: 0.05s;
 	}
 
 	.theme-toggle:focus-visible {
 		outline: 2px solid white;
 		outline-offset: 2px;
+	}
+
+	/* Dark mode — glass pill */
+	:global(html.dark) .theme-toggle {
+		border-radius: 8px !important;
+		border: 1px solid rgba(255, 255, 255, 0.10);
+		background: rgba(255, 255, 255, 0.05);
+	}
+
+	:global(html.dark) .theme-toggle:hover {
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(255, 255, 255, 0.15);
 	}
 </style>

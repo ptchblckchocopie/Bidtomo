@@ -5,8 +5,8 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#D02020',
-          dark: '#991b1b',
+          DEFAULT: '#FF3000',
+          dark: '#CC2600',
         },
         bh: {
           bg: 'rgb(var(--color-bg-rgb) / <alpha-value>)',
@@ -17,8 +17,15 @@ export default {
           border: 'rgb(var(--color-border-rgb) / <alpha-value>)',
           muted: 'rgb(var(--color-muted-rgb) / <alpha-value>)',
         },
+        swiss: {
+          accent: '#FF3000',
+          black: '#000000',
+          white: '#FFFFFF',
+          muted: '#F2F2F2',
+        },
       },
       fontFamily: {
+        inter: ['Inter', 'Helvetica Neue', 'Arial', 'sans-serif'],
         outfit: ['Outfit', 'sans-serif'],
       },
       boxShadow: {
@@ -26,8 +33,8 @@ export default {
         'bh-md': 'var(--shadow-bh-md)',
       },
       borderWidth: {
-        'bh': '3px',
-        'bh-lg': '5px',
+        'bh': '2px',
+        'bh-lg': '4px',
       },
     },
   },

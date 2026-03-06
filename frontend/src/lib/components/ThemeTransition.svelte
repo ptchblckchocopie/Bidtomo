@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import { isDark } from '$lib/stores/theme';
 
 	let {
 		active = false,
@@ -12,13 +13,17 @@
 		onComplete: () => void;
 	} = $props();
 
-	let threeModule: typeof import('three') | null = null;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	let threeModule: any = null;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	let gsapRef: any = null;
 
 	onMount(() => {
 		if (browser) {
-			import('three')
-				.then((m) => {
-					threeModule = m;
+			Promise.all([import('three'), import('gsap')])
+				.then(([three, gsap]) => {
+					threeModule = three;
+					gsapRef = (gsap as any).default || (gsap as any).gsap || gsap;
 				})
 				.catch(() => {});
 		}
@@ -37,14 +42,6 @@
 		return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 	}
 
-	function easeOutCubic(t: number): number {
-		return 1 - Math.pow(1 - t, 3);
-	}
-
-	function easeInCubic(t: number): number {
-		return t * t * t;
-	}
-
 	$effect(() => {
 		if (!active || !browser) return;
 
@@ -56,8 +53,10 @@
 
 		if (!threeModule || !hasWebGL()) {
 			runCssFallback();
+		} else if ($isDark) {
+			runDarkToLightTransition();
 		} else {
-			runThreeAnimation();
+			runLightToDarkTransition();
 		}
 	});
 
@@ -67,7 +66,7 @@
 			position: fixed; inset: 0; z-index: 99999;
 			background: var(--color-fg);
 			clip-path: circle(0% at 50% 50%);
-			transition: clip-path 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+			transition: clip-path 0.3s ease-out;
 		`;
 		document.body.appendChild(overlay);
 
@@ -75,25 +74,25 @@
 			overlay.style.clipPath = 'circle(150% at 50% 50%)';
 		});
 
-		setTimeout(onMidpoint, 200);
+		setTimeout(onMidpoint, 180);
 
 		setTimeout(() => {
 			overlay.style.clipPath = 'circle(0% at 50% 50%)';
 			setTimeout(() => {
 				overlay.remove();
 				onComplete();
-			}, 400);
-		}, 500);
+			}, 300);
+		}, 400);
 	}
 
-	function runThreeAnimation() {
-		const THREE = threeModule!;
+	function runLightToDarkTransition() {
+		const THREE = threeModule;
+		const gsap = gsapRef;
 		const w = window.innerWidth;
 		const h = window.innerHeight;
 
 		const canvas = document.createElement('canvas');
-		canvas.style.cssText =
-			'position:fixed;inset:0;z-index:99999;pointer-events:none;width:100vw;height:100vh;';
+		canvas.style.cssText = 'position:fixed;inset:0;z-index:99999;pointer-events:none;width:100vw;height:100vh;';
 		document.body.appendChild(canvas);
 
 		const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
@@ -104,117 +103,159 @@
 		const camera = new THREE.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 0.1, 10);
 		camera.position.z = 5;
 
-		const bauhausColors = [0xd02020, 0x1040c0, 0xf0c020];
-
-		const cols = Math.ceil(w / 100) + 2;
-		const rows = Math.ceil(h / 100) + 2;
+		// Swiss grid wipe — diagonal sweep of black rectangles
+		const cols = Math.ceil(w / 60) + 1;
+		const rows = Math.ceil(h / 60) + 1;
 		const cellW = w / cols;
 		const cellH = h / rows;
 		const centerX = cols / 2;
 		const centerY = rows / 2;
-		const maxDist = Math.sqrt(centerX * centerX + centerY * centerY);
 
-		interface ShapeData {
-			mesh: InstanceType<typeof THREE.Mesh>;
-			delay: number;
-			targetScale: number;
-		}
-
-		const shapes: ShapeData[] = [];
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const cells: { mesh: any; delay: number }[] = [];
 
 		for (let r = 0; r < rows; r++) {
 			for (let c = 0; c < cols; c++) {
-				const type = Math.floor(Math.random() * 3);
-				const color = bauhausColors[Math.floor(Math.random() * 3)];
-				const size = Math.max(cellW, cellH) * 0.85;
-
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			let geometry: any;
-				if (type === 0) {
-					geometry = new THREE.CircleGeometry(size / 2, 32);
-				} else if (type === 1) {
-					geometry = new THREE.PlaneGeometry(size, size);
-				} else {
-					geometry = new THREE.BufferGeometry();
-					const vertices = new Float32Array([
-						0,
-						size / 2,
-						0,
-						-size / 2,
-						-size / 2,
-						0,
-						size / 2,
-						-size / 2,
-						0
-					]);
-					geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-				}
-
-				const material = new THREE.MeshBasicMaterial({ color });
-				const mesh = new THREE.Mesh(geometry, material);
-
+				const geo = new THREE.PlaneGeometry(cellW + 1, cellH + 1);
+				const mat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+				const mesh = new THREE.Mesh(geo, mat);
 				mesh.position.x = (c - centerX + 0.5) * cellW;
 				mesh.position.y = (r - centerY + 0.5) * cellH;
-				mesh.rotation.z = Math.random() * Math.PI * 2;
 				mesh.scale.set(0, 0, 1);
-
 				scene.add(mesh);
 
-				const dx = c - centerX;
-				const dy = r - centerY;
-				const dist = Math.sqrt(dx * dx + dy * dy);
-				shapes.push({ mesh, delay: (dist / maxDist) * 200, targetScale: 1.2 });
+				const dist = (c + r) / (cols + rows);
+				cells.push({ mesh, delay: dist * 0.25 });
 			}
 		}
 
-		const startTime = performance.now();
 		let midpointFired = false;
 
-		function animate() {
-			const elapsed = performance.now() - startTime;
-
-			if (elapsed >= 450 && !midpointFired) {
-				midpointFired = true;
-				onMidpoint();
-			}
-
-			for (const shape of shapes) {
-				let scale: number;
-
-				if (elapsed < 400) {
-					const duration = Math.max(1, 400 - shape.delay);
-					const t = Math.max(0, (elapsed - shape.delay) / duration);
-					scale = easeOutCubic(Math.min(1, t)) * shape.targetScale;
-				} else if (elapsed < 500) {
-					scale = shape.targetScale;
-				} else {
-					const maxDelay = 200;
-					const reverseDelay = maxDelay - shape.delay;
-					const phaseElapsed = elapsed - 500;
-					const duration = Math.max(1, 400 - reverseDelay);
-					const t = Math.max(0, (phaseElapsed - reverseDelay) / duration);
-					scale = shape.targetScale * (1 - easeInCubic(Math.min(1, t)));
-				}
-
-				shape.mesh.scale.set(scale, scale, 1);
-			}
-
-			renderer.render(scene, camera);
-
-			if (elapsed < 900) {
-				requestAnimationFrame(animate);
-			} else {
-				for (const s of shapes) {
-					s.mesh.geometry.dispose();
-					(s.mesh.material as InstanceType<typeof THREE.MeshBasicMaterial>).dispose();
-				}
-				renderer.dispose();
-				renderer.forceContextLoss();
-				canvas.remove();
-				onComplete();
-			}
+		for (const cell of cells) {
+			gsap.to(cell.mesh.scale, {
+				x: 1, y: 1, duration: 0.15, delay: cell.delay, ease: 'power2.out'
+			});
 		}
 
-		requestAnimationFrame(animate);
+		setTimeout(() => {
+			if (!midpointFired) { midpointFired = true; onMidpoint(); }
+		}, 350);
+
+		setTimeout(() => {
+			for (const cell of cells) {
+				const reverseDelay = 0.25 - cell.delay;
+				gsap.to(cell.mesh.scale, {
+					x: 0, y: 0, duration: 0.15, delay: Math.max(0, reverseDelay), ease: 'power2.in'
+				});
+			}
+		}, 400);
+
+		setTimeout(() => {
+			for (const cell of cells) {
+				cell.mesh.geometry.dispose();
+				cell.mesh.material.dispose();
+			}
+			renderer.dispose();
+			renderer.forceContextLoss();
+			canvas.remove();
+			onComplete();
+		}, 750);
+
+		function render() {
+			renderer.render(scene, camera);
+			if (canvas.parentNode) requestAnimationFrame(render);
+		}
+		requestAnimationFrame(render);
+	}
+
+	function runDarkToLightTransition() {
+		const THREE = threeModule;
+		const gsap = gsapRef;
+		const w = window.innerWidth;
+		const h = window.innerHeight;
+
+		const canvas = document.createElement('canvas');
+		canvas.style.cssText = 'position:fixed;inset:0;z-index:99999;pointer-events:none;width:100vw;height:100vh;';
+		document.body.appendChild(canvas);
+
+		const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+		renderer.setSize(w, h);
+		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+		const scene = new THREE.Scene();
+		const camera = new THREE.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 0.1, 10);
+		camera.position.z = 5;
+
+		// Particle burst — indigo particles explode outward
+		const particleCount = 200;
+		const colors = [0x5E6AD2, 0x785AD2, 0x4A56B8, 0xFFFFFF];
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const particles: { mesh: any; vx: number; vy: number }[] = [];
+
+		for (let i = 0; i < particleCount; i++) {
+			const size = Math.random() * 8 + 2;
+			const geo = Math.random() > 0.5
+				? new THREE.CircleGeometry(size, 16)
+				: new THREE.PlaneGeometry(size, size);
+			const mat = new THREE.MeshBasicMaterial({
+				color: colors[Math.floor(Math.random() * colors.length)],
+				transparent: true, opacity: 1
+			});
+			const mesh = new THREE.Mesh(geo, mat);
+			mesh.position.set(0, 0, 0);
+			mesh.scale.set(0, 0, 1);
+			scene.add(mesh);
+
+			const angle = Math.random() * Math.PI * 2;
+			const speed = Math.random() * 15 + 5;
+			particles.push({ mesh, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed });
+		}
+
+		// White overlay
+		const overlay = new THREE.Mesh(
+			new THREE.PlaneGeometry(w * 2, h * 2),
+			new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0 })
+		);
+		overlay.position.z = -1;
+		scene.add(overlay);
+
+		let midpointFired = false;
+
+		for (const p of particles) {
+			gsap.to(p.mesh.scale, { x: 1, y: 1, duration: 0.2, ease: 'power2.out' });
+			gsap.to(p.mesh.position, { x: p.vx * 40, y: p.vy * 40, duration: 0.6, ease: 'power2.out' });
+		}
+
+		gsap.to(overlay.material, { opacity: 1, duration: 0.3, delay: 0.1, ease: 'power2.in' });
+
+		setTimeout(() => {
+			if (!midpointFired) { midpointFired = true; onMidpoint(); }
+		}, 300);
+
+		setTimeout(() => {
+			gsap.to(overlay.material, { opacity: 0, duration: 0.3, ease: 'power2.out' });
+			for (const p of particles) {
+				gsap.to(p.mesh.material, { opacity: 0, duration: 0.2, ease: 'power2.in' });
+			}
+		}, 400);
+
+		setTimeout(() => {
+			for (const p of particles) {
+				p.mesh.geometry.dispose();
+				p.mesh.material.dispose();
+			}
+			overlay.geometry.dispose();
+			overlay.material.dispose();
+			renderer.dispose();
+			renderer.forceContextLoss();
+			canvas.remove();
+			onComplete();
+		}, 750);
+
+		function render() {
+			renderer.render(scene, camera);
+			if (canvas.parentNode) requestAnimationFrame(render);
+		}
+		requestAnimationFrame(render);
 	}
 </script>
