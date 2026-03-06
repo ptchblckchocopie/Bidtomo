@@ -4,11 +4,11 @@
   import { browser } from '$app/environment';
   import { authStore } from '$lib/stores/auth';
 
-  let email = '';
-  let password = '';
-  let submitting = false;
-  let error = '';
-  let showPassword = false;
+  let email = $state('');
+  let password = $state('');
+  let submitting = $state(false);
+  let error = $state('');
+  let showPassword = $state(false);
   let mounted = $state(false);
 
   // Get redirect URL from query params — only allow safe relative paths

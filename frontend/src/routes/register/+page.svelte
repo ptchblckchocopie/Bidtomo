@@ -4,19 +4,19 @@
   import { authStore } from '$lib/stores/auth';
   import { onMount } from 'svelte';
 
-  let name = '';
-  let email = '';
-  let password = '';
-  let confirmPassword = '';
-  let countryCode = '+63';
-  let phoneNumber = '';
-  let submitting = false;
-  let error = '';
-  let success = false;
-  let showPassword = false;
-  let showConfirmPassword = false;
-  let errorEl: HTMLDivElement;
-  let errorFlash = false;
+  let name = $state('');
+  let email = $state('');
+  let password = $state('');
+  let confirmPassword = $state('');
+  let countryCode = $state('+63');
+  let phoneNumber = $state('');
+  let submitting = $state(false);
+  let error = $state('');
+  let success = $state(false);
+  let showPassword = $state(false);
+  let showConfirmPassword = $state(false);
+  let errorEl = $state<HTMLDivElement | null>(null);
+  let errorFlash = $state(false);
   let mounted = $state(false);
 
   // Country codes list with common countries
