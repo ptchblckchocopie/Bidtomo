@@ -315,24 +315,28 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: var(--color-fg);
+    background: none;
     color: white;
     border: none;
-    font-size: 3rem;
-    width: 50px;
-    height: 50px;
+    font-size: 2.5rem;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background 0.3s ease;
+    transition: color 0.15s ease, transform 0.15s ease;
     z-index: 10;
     line-height: 1;
     padding: 0;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6), 0 0 12px rgba(0, 0, 0, 0.3);
+    opacity: 0.85;
   }
 
   .nav-arrow:hover {
-    background: var(--color-red);
+    color: var(--color-red);
+    opacity: 1;
+    transform: translateY(-50%) scale(1.15);
   }
 
   .nav-arrow:active {
@@ -349,15 +353,18 @@
 
   .slide-counter {
     position: absolute;
-    bottom: 1rem;
-    right: 1rem;
-    background: var(--color-fg);
+    bottom: 0.75rem;
+    right: 0.75rem;
+    background: rgba(0, 0, 0, 0.45);
     color: white;
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
-    font-weight: 700;
+    padding: 0.3rem 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 600;
     z-index: 10;
-    border: 2px solid var(--color-border);
+    border: none;
+    border-radius: 100px;
+    backdrop-filter: blur(4px);
+    letter-spacing: 0.5px;
   }
 
   .thumbnail-nav {
@@ -447,12 +454,12 @@
     .nav-arrow {
       width: 36px;
       height: 36px;
-      font-size: 1.8rem;
+      font-size: 2rem;
     }
 
     .slide-counter {
-      font-size: 0.75rem;
-      padding: 0.3rem 0.6rem;
+      font-size: 0.7rem;
+      padding: 0.25rem 0.5rem;
       bottom: 0.5rem;
       right: 0.5rem;
     }

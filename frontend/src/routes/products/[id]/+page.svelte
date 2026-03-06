@@ -4683,4 +4683,101 @@
     cursor: not-allowed;
     transform: none;
   }
+
+  /* ── Dark Mode Refinements ── */
+  :global(html.dark) .product-detail {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  :global(html.dark) .seller-card,
+  :global(html.dark) .bid-section,
+  :global(html.dark) .owner-section,
+  :global(html.dark) .auction-ended-section {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  :global(html.dark) .seller-stats {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  :global(html.dark) .bid-history-item {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  :global(html.dark) .bid-history-item:hover {
+    border-color: var(--color-red);
+  }
+
+  :global(html.dark) .status-badge {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  :global(html.dark) .live-indicator {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  :global(html.dark) .chart-container,
+  :global(html.dark) .chart-labels {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  :global(html.dark) .view-profile-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: var(--color-fg);
+  }
+
+  :global(html.dark) .view-profile-btn:hover {
+    background: var(--color-blue);
+    color: white;
+  }
+
+  :global(html.dark) .modal-content,
+  :global(html.dark) .admin-modal-content,
+  :global(html.dark) .report-modal-content {
+    background: #0f0f14;
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  :global(html.dark) .winner-info {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  :global(html.dark) .bid-control {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  :global(html.dark) .privacy-toggle {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  :global(html.dark) .price-info {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  :global(html.dark) .description-section h3,
+  :global(html.dark) .seller-info h3,
+  :global(html.dark) .bid-history h3,
+  :global(html.dark) .price-analytics h3 {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  /* Sticky right column on desktop */
+  .product-details {
+    align-self: start;
+    position: sticky;
+    top: 5rem;
+  }
+
+  @media (max-width: 768px) {
+    .product-details {
+      position: static;
+    }
+  }
 </style>

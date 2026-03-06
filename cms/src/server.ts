@@ -82,6 +82,7 @@ app.options('*', cors());
 app.use(helmet({
   contentSecurityPolicy: false, // Payload admin panel manages its own CSP
   crossOriginEmbedderPolicy: false, // Allow cross-origin media loading
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow frontend to load media files
 }));
 
 // Parse JSON body with explicit size limit
