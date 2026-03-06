@@ -10,6 +10,7 @@
   import { updateProduct } from '$lib/api';
   import { watchlistStore } from '$lib/stores/watchlist';
   import WatchlistToggle from '$lib/components/WatchlistToggle.svelte';
+  import GlowingEffect from '$lib/components/GlowingEffect.svelte';
 
   let { data, params }: { data: PageData; params?: any } = $props();
 
@@ -841,7 +842,9 @@
       <section class="auction-section" role="tabpanel">
         <div class="products-grid">
           {#each sortedProducts as product}
-            <a href="/products/{product.id}?from=browse" class="product-card" class:ended-card={data.status === 'ended'}>
+            <div class="glow-card relative rounded-2xl border border-[rgba(255,255,255,0.06)] p-1.5">
+              <GlowingEffect spread={40} glow={true} disabled={false} proximity={64} inactiveZone={0.01} borderWidth={3} />
+            <a href="/products/{product.id}?from=browse" class="product-card !border-0" class:ended-card={data.status === 'ended'}>
               <div class="product-image">
                 {#if product.images && product.images.length > 0 && product.images[0].image}
                   <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" width="400" height="200" loading="lazy" decoding="async" onload={(e) => e.currentTarget.classList.add('loaded')} />
@@ -967,6 +970,7 @@
                 </div>
               </div>
             </a>
+            </div>
           {/each}
         </div>
 
@@ -1107,13 +1111,13 @@
     font-size: 0.95rem;
     border: 2px solid var(--color-border);
     transition: border-color 0.2s;
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     cursor: pointer;
   }
 
   .location-select:focus {
     outline: none;
-    border-color: var(--color-red);
+    border-color: var(--color-fg);
   }
 
   .location-select:disabled {
@@ -1125,7 +1129,7 @@
   .btn-clear-filters {
     padding: 0.75rem 1.5rem;
     background: var(--color-fg);
-    color: white;
+    color: var(--color-bg);
     border: 2px solid var(--color-fg);
     font-weight: 600;
     cursor: pointer;
@@ -1135,13 +1139,8 @@
     letter-spacing: 0.05em;
   }
 
-  :global(html.dark) .btn-clear-filters {
-    background: var(--color-accent, #5E6AD2);
-    color: #fff;
-  }
-
   .btn-clear-filters:hover {
-    background: white;
+    background: var(--color-surface-hover);
     color: var(--color-fg);
   }
 
@@ -1162,7 +1161,7 @@
   }
 
   .clear-search:hover {
-    color: var(--color-red);
+    color: var(--color-muted-fg);
   }
 
   .search-results {
@@ -1175,7 +1174,7 @@
   .btn-clear-search {
     padding: 0.75rem 1.5rem;
     background: var(--color-fg);
-    color: white;
+    color: var(--color-bg);
     border: 2px solid var(--color-fg);
     font-weight: 600;
     cursor: pointer;
@@ -1184,13 +1183,8 @@
     letter-spacing: 0.05em;
   }
 
-  :global(html.dark) .btn-clear-search {
-    background: var(--color-accent, #5E6AD2);
-    color: #fff;
-  }
-
   .btn-clear-search:hover {
-    background: white;
+    background: var(--color-surface-hover);
     color: var(--color-fg);
   }
 
@@ -1206,19 +1200,16 @@
 
   .items-per-page label {
     font-size: 0.95rem;
-    color: #555;
+    color: var(--color-muted-fg);
     font-weight: 500;
   }
 
-  :global(html.dark) .items-per-page label {
-    color: #8A8F98;
-  }
 
   .items-per-page select {
     padding: 0.5rem 2.5rem 0.5rem 0.75rem;
     font-size: 0.95rem;
     border: 2px solid var(--color-border);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
     background-repeat: no-repeat;
     background-position: right 0.5rem center;
@@ -1229,12 +1220,12 @@
   }
 
   .items-per-page select:hover {
-    border-color: #d1d5db;
+    border-color: rgba(255, 255, 255, 0.15);
   }
 
   .items-per-page select:focus {
     outline: none;
-    border-color: var(--color-red);
+    border-color: var(--color-fg);
   }
 
   /* Tabs */
@@ -1249,12 +1240,13 @@
   .tab {
     flex: 1;
     padding: 0.75rem 1rem;
-    background: var(--color-white);
-    border: 2px solid var(--color-border);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
     font-weight: 600;
     position: relative;
     font-size: 1rem;
-    color: #555;
+    color: var(--color-muted-fg);
     cursor: pointer;
     transition: background-color 0.15s ease-out,
                 border-color 0.15s ease-out,
@@ -1268,9 +1260,9 @@
   }
 
   .tab:hover:not(.active) {
-    background: var(--color-fg);
-    color: white;
-    border-color: var(--color-fg);
+    background: var(--color-surface-hover);
+    color: var(--color-fg);
+    border-color: rgba(255, 255, 255, 0.15);
   }
 
   .tab:active {
@@ -1278,17 +1270,12 @@
   }
 
   .tab.active {
-    background: var(--color-red);
-    border-color: var(--color-red);
+    background: var(--color-fg);
+    border-color: var(--color-fg);
     border-bottom: 2px solid var(--color-border);
-    color: white;
+    color: var(--color-bg);
   }
 
-  :global(html.dark) .tab.active {
-    background: var(--color-accent, #5E6AD2);
-    border-color: var(--color-accent, #5E6AD2);
-    color: #fff;
-  }
 
   .tab-badge {
     background: rgba(255, 255, 255, 0.3);
@@ -1298,8 +1285,8 @@
   }
 
   .tab.active .tab-badge {
-    background: rgba(255, 255, 255, 0.9);
-    color: var(--color-red);
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--color-bg);
   }
 
   .auction-section {
@@ -1343,7 +1330,7 @@
 
   .empty-state .filter-detail {
     font-size: 1rem;
-    color: #555;
+    color: var(--color-muted-fg);
     margin-bottom: 0.5rem;
   }
 
@@ -1359,17 +1346,18 @@
   }
 
   /* Staggered card entrance animation */
+  .products-grid > .glow-card,
   .products-grid .product-card:not(.skeleton-card) {
     animation: cardEnter 0.15s ease-out both;
   }
 
-  .products-grid .product-card:not(.skeleton-card):nth-child(1) { animation-delay: 0ms; }
-  .products-grid .product-card:not(.skeleton-card):nth-child(2) { animation-delay: 40ms; }
-  .products-grid .product-card:not(.skeleton-card):nth-child(3) { animation-delay: 80ms; }
-  .products-grid .product-card:not(.skeleton-card):nth-child(4) { animation-delay: 120ms; }
-  .products-grid .product-card:not(.skeleton-card):nth-child(5) { animation-delay: 160ms; }
-  .products-grid .product-card:not(.skeleton-card):nth-child(6) { animation-delay: 200ms; }
-  .products-grid .product-card:not(.skeleton-card):nth-child(n+7) { animation-delay: 240ms; }
+  .products-grid > .glow-card:nth-child(1) { animation-delay: 0ms; }
+  .products-grid > .glow-card:nth-child(2) { animation-delay: 40ms; }
+  .products-grid > .glow-card:nth-child(3) { animation-delay: 80ms; }
+  .products-grid > .glow-card:nth-child(4) { animation-delay: 120ms; }
+  .products-grid > .glow-card:nth-child(5) { animation-delay: 160ms; }
+  .products-grid > .glow-card:nth-child(6) { animation-delay: 200ms; }
+  .products-grid > .glow-card:nth-child(n+7) { animation-delay: 240ms; }
 
   @keyframes cardEnter {
     from {
@@ -1396,8 +1384,9 @@
   .users-grid .user-card:not(.skeleton-card):nth-child(n+7) { animation-delay: 240ms; }
 
   .product-card {
-    background: var(--color-white);
-    border: 2px solid var(--color-border);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
     overflow: hidden;
     transition: background-color 0.15s ease-out,
                 border-color 0.15s ease-out;
@@ -1408,7 +1397,7 @@
   }
 
   .product-card:hover {
-    border-color: var(--color-red);
+    border-color: rgba(255, 255, 255, 0.15);
   }
 
   .product-card:active {
@@ -1442,7 +1431,7 @@
     align-items: center;
     justify-content: center;
     background-color: var(--color-muted);
-    color: #999;
+    color: var(--color-muted-fg);
     font-size: 1.2rem;
   }
 
@@ -1466,7 +1455,7 @@
   }
 
   .description {
-    color: #555;
+    color: var(--color-muted-fg);
     margin-bottom: 0.75rem;
     flex: 1;
   }
@@ -1476,7 +1465,7 @@
     align-items: center;
     gap: 0.375rem;
     font-size: 0.85rem;
-    color: #555;
+    color: var(--color-muted-fg);
     margin-bottom: 0.75rem;
     padding: 0.375rem 0.5rem;
     background-color: var(--color-muted);
@@ -1484,7 +1473,7 @@
   }
 
   .location-icon {
-    color: var(--color-red);
+    color: var(--color-muted-fg);
     flex-shrink: 0;
   }
 
@@ -1497,18 +1486,19 @@
 
   .category-tag {
     display: inline-block;
-    background: var(--color-blue, #2563eb);
-    color: white;
+    background: rgba(59, 130, 246, 0.12);
+    color: #8b93e0;
     padding: 0.2rem 0.5rem;
     font-size: 0.7rem;
     font-weight: 700;
-    border: 2px solid var(--color-blue, #2563eb);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: var(--radius-sm);
     white-space: nowrap;
   }
 
   .category-tag.category-overflow {
     background: transparent;
-    color: var(--color-blue, #2563eb);
+    color: var(--color-muted-fg);
   }
 
   .pricing {
@@ -1550,18 +1540,19 @@
     flex-direction: column;
     gap: 0.25rem;
     padding: 0.5rem;
-    background: var(--color-muted);
-    border: 2px solid var(--color-blue);
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: var(--radius-sm);
     margin-top: 0.5rem;
   }
 
   .label {
-    color: #555;
+    color: var(--color-muted-fg);
     font-size: 0.9rem;
   }
 
   .label-small {
-    color: #555;
+    color: var(--color-muted-fg);
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1569,7 +1560,7 @@
   }
 
   .label-tiny {
-    color: #666;
+    color: var(--color-muted-fg);
     font-size: 0.7rem;
     font-weight: 500;
   }
@@ -1588,7 +1579,7 @@
   .price-tiny {
     font-size: 0.85rem;
     font-weight: 600;
-    color: #555;
+    color: var(--color-muted-fg);
   }
 
   .current-bid {
@@ -1603,20 +1594,16 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    background: var(--color-blue);
-    color: white;
+    background: rgba(59, 130, 246, 0.15);
+    color: #8b93e0;
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
     font-weight: 700;
   }
 
-  :global(html.dark) .percent-increase {
-    background: rgba(94, 106, 210, 0.2);
-    color: #8b93e0;
-  }
 
   .arrow-up-mini {
-    color: white;
+    color: #8b93e0;
     flex-shrink: 0;
   }
 
@@ -1647,15 +1634,11 @@
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
-    background: var(--color-blue);
-    color: white;
+    background: rgba(59, 130, 246, 0.15);
+    color: #8b93e0;
     letter-spacing: 0.5px;
   }
 
-  :global(html.dark) .owner-badge {
-    background: rgba(94, 106, 210, 0.2);
-    color: #8b93e0;
-  }
 
   .admin-hide-btn,
   .admin-show-btn {
@@ -1676,7 +1659,7 @@
   }
 
   .admin-hide-btn:hover {
-    background: white;
+    background: var(--color-surface-hover);
     color: #dc3545;
   }
 
@@ -1686,7 +1669,7 @@
   }
 
   .admin-show-btn:hover {
-    background: white;
+    background: var(--color-surface-hover);
     color: #198754;
   }
 
@@ -1722,10 +1705,11 @@
   }
 
   .modal-content {
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     max-width: 460px;
     width: 90%;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
     position: relative;
     animation: modalSlideUp 0.15s ease-out;
   }
@@ -1757,7 +1741,7 @@
 
   .modal-close:hover {
     background-color: var(--color-fg);
-    color: white;
+    color: var(--color-bg);
     opacity: 1;
   }
 
@@ -1829,7 +1813,7 @@
   }
 
   .btn-modal-hide:hover {
-    background: white;
+    background: var(--color-surface-hover);
     color: #dc3545;
     border-color: #dc3545;
   }
@@ -1840,7 +1824,7 @@
   }
 
   .btn-modal-unhide:hover {
-    background: white;
+    background: var(--color-surface-hover);
     color: #198754;
     border-color: #198754;
   }
@@ -1888,29 +1872,9 @@
     color: white;
   }
 
-  :global(html.dark) .status-active {
-    background: rgba(94, 106, 210, 0.2);
-    color: #8b93e0;
-    border: 1px solid rgba(94, 106, 210, 0.3);
-  }
 
-  :global(html.dark) .status-ended {
-    background: rgba(255, 85, 85, 0.15);
-    color: #ff7777;
-    border: 1px solid rgba(255, 85, 85, 0.25);
-  }
 
-  :global(html.dark) .status-sold {
-    background: rgba(201, 168, 48, 0.15);
-    color: #d4b44a;
-    border: 1px solid rgba(201, 168, 48, 0.25);
-  }
 
-  :global(html.dark) .status-cancelled {
-    background: rgba(156, 163, 175, 0.15);
-    color: #9ca3af;
-    border: 1px solid rgba(156, 163, 175, 0.25);
-  }
 
   .countdown-badge {
     display: flex;
@@ -1984,20 +1948,21 @@
 
   .pagination-btn {
     padding: 0.625rem 1.25rem;
-    background-color: var(--color-white);
-    border: 2px solid var(--color-red);
-    color: var(--color-red);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-fg);
     font-weight: 600;
     cursor: pointer;
     transition: background-color 0.15s ease-out,
                 color 0.15s ease-out;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    border-radius: var(--radius-sm);
   }
 
   .pagination-btn:hover:not(:disabled) {
-    background-color: var(--color-red);
-    color: white;
+    background-color: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .pagination-btn:active:not(:disabled) {
@@ -2019,20 +1984,21 @@
   .pagination-number {
     min-width: 2.5rem;
     padding: 0.625rem 0.75rem;
-    background-color: var(--color-white);
-    border: 2px solid var(--color-border);
-    color: #555;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted-fg);
     font-weight: 600;
     cursor: pointer;
     transition: background-color 0.15s ease-out,
                 border-color 0.15s ease-out,
                 color 0.15s ease-out;
+    border-radius: var(--radius-sm);
   }
 
   .pagination-number:hover:not(.active) {
-    border-color: var(--color-red);
-    background-color: var(--color-red);
-    color: white;
+    border-color: rgba(255, 255, 255, 0.2);
+    background-color: var(--color-surface-hover);
+    color: var(--color-fg);
   }
 
   .pagination-number:active {
@@ -2040,16 +2006,16 @@
   }
 
   .pagination-number.active {
-    background-color: var(--color-red);
-    border-color: var(--color-red);
-    color: white;
+    background-color: var(--color-fg);
+    border-color: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .new-products-banner {
     width: 100%;
     padding: 0.75rem 1.5rem;
     background: var(--color-fg);
-    color: white;
+    color: var(--color-bg);
     border: 2px solid var(--color-fg);
     font-weight: 700;
     font-size: 0.95rem;
@@ -2161,7 +2127,7 @@
     }
 
     .product-card:hover {
-      border-color: var(--color-red);
+      border-color: rgba(255, 255, 255, 0.15);
     }
 
     .product-image {
@@ -2405,15 +2371,16 @@
     padding: 0.625rem 1rem;
     font-weight: 700;
     font-size: 0.9rem;
-    border: 2px solid var(--color-border);
-    background: var(--color-white);
-    color: #555;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-muted-fg);
     cursor: pointer;
     transition: background-color 0.15s ease-out,
                 color 0.15s ease-out,
                 border-color 0.15s ease-out;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    border-radius: var(--radius-md);
   }
 
   .search-type-btn:first-child {
@@ -2427,14 +2394,9 @@
   .search-type-btn.active {
     background: var(--color-fg);
     border-color: var(--color-fg);
-    color: white;
+    color: var(--color-bg);
   }
 
-  :global(html.dark) .search-type-btn.active {
-    background: var(--color-accent, #5E6AD2);
-    border-color: var(--color-accent, #5E6AD2);
-    color: #fff;
-  }
 
   .search-type-btn:hover:not(.active) {
     background: var(--color-muted);
@@ -2452,8 +2414,9 @@
     align-items: center;
     gap: 1rem;
     padding: 1.25rem;
-    background: var(--color-white);
-    border: 2px solid var(--color-border);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
     text-decoration: none;
     color: inherit;
     transition: border-color 0.15s ease-out,
@@ -2461,7 +2424,7 @@
   }
 
   .user-card:hover {
-    border-color: var(--color-red);
+    border-color: rgba(255, 255, 255, 0.15);
   }
 
   .user-card:active {
@@ -2535,7 +2498,7 @@
 
   .user-card-date {
     font-size: 0.8rem;
-    color: #666;
+    color: var(--color-muted-fg);
     white-space: nowrap;
   }
 
@@ -2581,7 +2544,7 @@
     }
 
     .user-card:hover {
-      border-color: var(--color-red);
+      border-color: rgba(255, 255, 255, 0.15);
     }
 
     .user-card-avatar {
@@ -2596,28 +2559,7 @@
   }
 
   /* ── Dark mode: fix hardcoded light-mode colors ── */
-  :global(html.dark) .description,
-  :global(html.dark) .label,
-  :global(html.dark) .label-small,
-  :global(html.dark) .location-info,
-  :global(html.dark) .pagination-number,
-  :global(html.dark) .countdown-ended,
-  :global(html.dark) .user-card-date,
-  :global(html.dark) .empty-state .filter-detail {
-    color: #8A8F98;
-  }
 
-  :global(html.dark) .label-tiny {
-    color: #6b7280;
-  }
 
-  :global(html.dark) .pagination-number.active {
-    background-color: var(--color-accent, #5E6AD2);
-    border-color: var(--color-accent, #5E6AD2);
-    color: #fff;
-  }
 
-  :global(html.dark) .arrow-up-mini {
-    color: #8b93e0;
-  }
 </style>
