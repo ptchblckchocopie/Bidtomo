@@ -76,7 +76,7 @@
       </svg>
       <h2>Your watchlist is empty</h2>
       <p>Browse products and tap the heart icon to save items you're interested in.</p>
-      <a href="/products" class="btn-bh-yellow mt-4 inline-block">Browse Products</a>
+      <a href="/products" class="btn-bh-red mt-4 inline-block">Browse Products</a>
     </div>
   {:else}
     <div class="products-grid">
@@ -149,6 +149,8 @@
     font-size: 2rem;
     font-weight: 900;
     margin-bottom: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: -0.025em;
   }
 
   .products-grid {
@@ -159,20 +161,18 @@
 
   .product-card {
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     overflow: hidden;
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.15s;
     text-decoration: none;
     color: inherit;
     display: flex;
     flex-direction: column;
-    box-shadow: var(--shadow-bh-sm);
   }
 
   .product-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 6px 6px 0px var(--color-border);
+    background: var(--color-muted);
+    border-color: var(--color-fg);
   }
 
   .product-image {

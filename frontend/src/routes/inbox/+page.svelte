@@ -1699,6 +1699,8 @@
     font-size: 2.5rem;
     margin-bottom: 2rem;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
   }
 
   .loading {
@@ -1713,7 +1715,7 @@
     text-align: center;
     padding: 4rem 2rem;
     background-color: var(--color-muted);
-    box-shadow: var(--shadow-bh-md);
+    border: 2px solid var(--color-border);
   }
 
   .empty-icon {
@@ -1725,6 +1727,8 @@
     font-size: 1.8rem;
     color: var(--color-fg);
     margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .empty-state p {
@@ -1737,18 +1741,20 @@
   .btn-browse {
     display: inline-block;
     padding: 0.75rem 2rem;
-    background: var(--color-red);
+    background: var(--color-fg);
     color: white;
     text-decoration: none;
     font-weight: 600;
-    border: var(--border-bh) solid var(--color-red);
-    box-shadow: var(--shadow-bh-sm);
-    transition: opacity 0.2s, box-shadow 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 2px solid var(--color-fg);
+    transition: background 150ms ease-out, color 150ms ease-out;
   }
 
   .btn-browse:hover {
-    opacity: 0.9;
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-red);
+    border-color: var(--color-red);
+    color: white;
   }
 
   .inbox-container {
@@ -1761,8 +1767,7 @@
 
   .conversations-list {
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     overflow-y: auto;
     padding: 1rem;
     display: flex;
@@ -1774,7 +1779,7 @@
     display: flex;
     gap: 0.5rem;
     padding: 0.5rem;
-    border-bottom: var(--border-bh) solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
     margin-bottom: 1rem;
   }
 
@@ -1782,13 +1787,15 @@
     flex: 1;
     padding: 0.75rem 1rem;
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-weight: 600;
     font-size: 0.9rem;
     color: var(--color-fg);
     opacity: 0.7;
     cursor: pointer;
-    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1796,13 +1803,15 @@
   }
 
   .tab:hover {
-    background: var(--color-muted);
+    background: var(--color-fg);
     border-color: var(--color-fg);
+    color: white;
+    opacity: 1;
   }
 
   .tab.active {
-    background: var(--color-red);
-    border-color: var(--color-red);
+    background: var(--color-fg);
+    border-color: var(--color-fg);
     color: white;
     opacity: 1;
   }
@@ -1816,7 +1825,7 @@
 
   .tab.active .tab-badge {
     background: rgba(255, 255, 255, 0.9);
-    color: var(--color-red);
+    color: var(--color-fg);
   }
 
   .no-conversations {
@@ -1832,11 +1841,10 @@
     display: flex;
     gap: 0.75rem;
     padding: 0.75rem;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     background: var(--color-white);
-    box-shadow: var(--shadow-bh-sm);
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 150ms ease-out, border-color 150ms ease-out;
     margin-bottom: 0.5rem;
     text-align: left;
     position: relative;
@@ -1844,6 +1852,7 @@
 
   .conversation-item:hover {
     background-color: var(--color-muted);
+    border-color: var(--color-fg);
   }
 
   .conversation-item.active {
@@ -1934,8 +1943,8 @@
     position: absolute;
     top: 0.75rem;
     right: 0.75rem;
-    background-color: var(--color-yellow);
-    color: var(--color-fg);
+    background-color: var(--color-red);
+    color: white;
     padding: 0.125rem 0.5rem;
     font-size: 0.75rem;
     font-weight: 700;
@@ -1943,8 +1952,7 @@
 
   .chat-area {
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1952,7 +1960,7 @@
 
   .chat-header {
     padding: 1.25rem;
-    border-bottom: var(--border-bh) solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1980,12 +1988,12 @@
   }
 
   .status-active {
-    background-color: var(--color-blue);
+    background-color: var(--color-fg);
     color: white;
   }
 
   .status-sold {
-    background-color: var(--color-blue);
+    background-color: var(--color-red);
     color: white;
   }
 
@@ -2005,14 +2013,14 @@
   }
 
   .view-product-link {
-    color: var(--color-red);
+    color: var(--color-fg);
     text-decoration: none;
     font-weight: 600;
-    transition: opacity 0.2s;
+    transition: color 150ms ease-out;
   }
 
   .view-product-link:hover {
-    opacity: 0.7;
+    color: var(--color-red);
   }
 
   .chat-messages {
@@ -2040,7 +2048,7 @@
   }
 
   .message.mine .message-content {
-    background: var(--color-blue);
+    background: var(--color-fg);
     color: white;
   }
 
@@ -2076,7 +2084,7 @@
 
   /* New message float-up animation */
   .message.new-message {
-    animation: floatUp 0.4s ease-out;
+    animation: floatUp 150ms ease-out;
   }
 
   @keyframes floatUp {
@@ -2095,45 +2103,45 @@
     background-color: var(--color-muted);
     color: var(--color-red);
     text-align: center;
-    border-top: var(--border-bh) solid var(--color-border);
+    border-top: 2px solid var(--color-border);
   }
 
   .chat-input-form {
     display: flex;
     gap: 0.75rem;
     padding: 1.25rem;
-    border-top: var(--border-bh) solid var(--color-border);
+    border-top: 2px solid var(--color-border);
   }
 
   .chat-input {
     flex: 1;
     padding: 0.75rem 1rem;
     font-size: 1rem;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-family: inherit;
   }
 
   .chat-input:focus {
     outline: none;
     border-color: var(--color-fg);
-    box-shadow: var(--shadow-bh-sm);
   }
 
   .send-btn {
     padding: 0.75rem 2rem;
-    background: var(--color-red);
+    background: var(--color-fg);
     color: white;
-    border: var(--border-bh) solid var(--color-red);
+    border: 2px solid var(--color-fg);
     font-weight: 600;
     font-size: 1rem;
     cursor: pointer;
-    box-shadow: var(--shadow-bh-sm);
-    transition: opacity 0.2s, box-shadow 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, border-color 150ms ease-out;
   }
 
   .send-btn:hover:not(:disabled) {
-    opacity: 0.9;
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-red);
+    border-color: var(--color-red);
   }
 
   .send-btn:disabled {
@@ -2258,7 +2266,7 @@
     padding: 2rem;
     text-align: center;
     background: var(--color-muted);
-    border-top: var(--border-bh) solid var(--color-border);
+    border-top: 2px solid var(--color-border);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -2279,19 +2287,20 @@
   .view-product-btn {
     display: inline-block;
     padding: 0.75rem 2rem;
-    background: var(--color-red);
+    background: var(--color-fg);
     color: white;
     text-decoration: none;
     font-weight: 600;
-    border: var(--border-bh) solid var(--color-red);
-    box-shadow: var(--shadow-bh-sm);
-    transition: opacity 0.2s, box-shadow 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 2px solid var(--color-fg);
+    transition: background 150ms ease-out, border-color 150ms ease-out;
     margin-top: 0.5rem;
   }
 
   .view-product-btn:hover {
-    opacity: 0.9;
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-red);
+    border-color: var(--color-red);
   }
 
   /* Back button - hidden by default, shown on mobile */
@@ -2299,16 +2308,18 @@
     display: none;
     padding: 0.5rem 1rem;
     background: var(--color-white);
-    color: var(--color-red);
-    border: var(--border-bh) solid var(--color-red);
+    color: var(--color-fg);
+    border: 2px solid var(--color-fg);
     font-weight: 600;
     font-size: 0.9rem;
     cursor: pointer;
-    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, color 150ms ease-out;
   }
 
   .back-btn:hover:not(:disabled) {
-    background: var(--color-red);
+    background: var(--color-fg);
     color: white;
   }
 
@@ -2487,19 +2498,20 @@
   .submit-rating-btn {
     margin-top: 0.75rem;
     padding: 0.5rem 1rem;
-    background: var(--color-blue);
+    background: var(--color-fg);
     color: white;
-    border: var(--border-bh) solid var(--color-blue);
+    border: 2px solid var(--color-fg);
     font-weight: 600;
     font-size: 0.85rem;
     cursor: pointer;
-    box-shadow: var(--shadow-bh-sm);
-    transition: opacity 0.2s, box-shadow 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, border-color 150ms ease-out;
   }
 
   .submit-rating-btn:hover {
-    opacity: 0.9;
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-red);
+    border-color: var(--color-red);
   }
 
   /* Rating Submitted */
@@ -2514,7 +2526,7 @@
   }
 
   .rating-label {
-    color: var(--color-blue);
+    color: var(--color-red);
     font-weight: 500;
   }
 
@@ -2550,8 +2562,7 @@
     max-width: 450px;
     width: 100%;
     position: relative;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-md);
+    border: 2px solid var(--color-border);
   }
 
   .modal-close {
@@ -2569,11 +2580,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: opacity 0.2s;
+    transition: background 150ms ease-out, color 150ms ease-out;
   }
 
   .modal-close:hover {
-    background: var(--color-muted);
+    background: var(--color-fg);
+    color: white;
     opacity: 1;
   }
 
@@ -2581,6 +2593,8 @@
     margin: 0 0 0.5rem 0;
     font-size: 1.5rem;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .modal-subtitle {
@@ -2619,7 +2633,7 @@
   .comment-input textarea {
     width: 100%;
     padding: 0.75rem;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-family: inherit;
     font-size: 0.95rem;
     resize: vertical;
@@ -2629,7 +2643,6 @@
   .comment-input textarea:focus {
     outline: none;
     border-color: var(--color-fg);
-    box-shadow: var(--shadow-bh-sm);
   }
 
   .rating-error {
@@ -2649,35 +2662,37 @@
     padding: 0.75rem 1.5rem;
     background: var(--color-white);
     color: var(--color-fg);
-    opacity: 0.7;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-weight: 600;
     font-size: 0.95rem;
     cursor: pointer;
-    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
   }
 
   .btn-cancel:hover {
-    background: var(--color-muted);
+    background: var(--color-fg);
     border-color: var(--color-fg);
-    opacity: 1;
+    color: white;
   }
 
   .btn-submit {
     padding: 0.75rem 1.5rem;
     background: var(--color-red);
     color: white;
-    border: var(--border-bh) solid var(--color-red);
+    border: 2px solid var(--color-red);
     font-weight: 600;
     font-size: 0.95rem;
     cursor: pointer;
-    box-shadow: var(--shadow-bh-sm);
-    transition: opacity 0.2s, box-shadow 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, border-color 150ms ease-out;
   }
 
   .btn-submit:hover:not(:disabled) {
-    opacity: 0.9;
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    border-color: var(--color-fg);
   }
 
   .btn-submit:disabled {
@@ -2687,9 +2702,9 @@
 
   /* Compact Rating Bar */
   .rating-bar {
-    border-top: var(--border-bh) solid var(--color-border);
+    border-top: 2px solid var(--color-border);
     padding: 0.5rem 1.25rem;
-    background: var(--color-yellow);
+    background: var(--color-muted);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2707,9 +2722,9 @@
     font-size: 0.8rem;
     font-family: inherit;
     cursor: pointer;
-    letter-spacing: 0.02em;
-    transition: transform 0.1s ease, box-shadow 0.1s ease;
-    box-shadow: 2px 2px 0px var(--color-border);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: background 150ms ease-out, border-color 150ms ease-out;
   }
 
   :global(html.dark) .rating-bar-btn {
@@ -2719,18 +2734,13 @@
   }
 
   .rating-bar-btn:hover {
-    transform: translateY(1px);
-    box-shadow: 1px 1px 0px var(--color-border);
-  }
-
-  .rating-bar-btn:active {
-    transform: translateY(2px);
-    box-shadow: none;
+    background: var(--color-red);
+    border-color: var(--color-red);
   }
 
   .rating-bar-star {
     font-size: 0.9rem;
-    color: var(--color-yellow);
+    color: var(--color-red);
   }
 
   .rating-bar-star.filled {
@@ -2799,14 +2809,15 @@
     max-width: 450px;
     width: 90%;
     position: relative;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-md);
+    border: 2px solid var(--color-border);
   }
 
   .modal h2 {
     margin: 0 0 0.5rem 0;
     font-size: 1.5rem;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   /* Void Modal Styles */
@@ -2832,7 +2843,7 @@
   .void-modal .form-group textarea {
     width: 100%;
     padding: 0.75rem;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-size: 0.95rem;
     resize: vertical;
     min-height: 100px;
@@ -2842,7 +2853,6 @@
   .void-modal .form-group textarea:focus {
     outline: none;
     border-color: var(--color-fg);
-    box-shadow: var(--shadow-bh-sm);
   }
 
   .void-description {
@@ -2863,7 +2873,7 @@
   .void-reason-display {
     background: var(--color-muted);
     padding: 1rem;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     margin-bottom: 1.5rem;
   }
 
@@ -2887,31 +2897,37 @@
   }
 
   .btn-danger:hover:not(:disabled) {
-    opacity: 0.9;
+    background: var(--color-fg);
+    border-color: var(--color-fg);
   }
 
   .btn-success {
-    background: var(--color-blue);
-    border-color: var(--color-blue);
+    background: var(--color-fg);
+    border-color: var(--color-fg);
   }
 
   .btn-success:hover:not(:disabled) {
-    opacity: 0.9;
+    background: var(--color-red);
+    border-color: var(--color-red);
   }
 
   .btn-reject {
-    background: var(--color-yellow);
+    background: var(--color-muted);
     color: var(--color-fg);
-    border: var(--border-bh) solid var(--color-yellow);
+    border: 2px solid var(--color-fg);
     padding: 0.75rem 1.5rem;
     cursor: pointer;
     font-size: 1rem;
     font-weight: 500;
-    transition: opacity 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 150ms ease-out, color 150ms ease-out;
   }
 
   .btn-reject:hover:not(:disabled) {
-    opacity: 0.9;
+    background: var(--color-red);
+    color: white;
+    border-color: var(--color-red);
   }
 
   .btn-reject:disabled {
@@ -2945,14 +2961,14 @@
     background: var(--color-muted);
     border: 2px solid var(--color-border);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background 150ms ease-out, border-color 150ms ease-out;
     text-align: left;
     width: 100%;
   }
 
   .choice-option:hover:not(:disabled) {
-    border-color: var(--color-red);
-    background: var(--color-bg);
+    border-color: var(--color-fg);
+    background: var(--color-white);
   }
 
   .choice-option:disabled {
@@ -2969,6 +2985,8 @@
     margin: 0 0 0.5rem 0;
     font-size: 1.1rem;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .choice-content p {
@@ -2981,7 +2999,7 @@
 
   /* Second Bidder Offer Modal */
   .offer-details {
-    background: var(--color-yellow);
+    background: var(--color-muted);
     padding: 1.25rem;
     border: 2px solid var(--color-border);
     margin-bottom: 1.5rem;

@@ -571,8 +571,7 @@
     position: relative;
     width: 120px;
     height: 120px;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     overflow: hidden;
     background: var(--color-muted);
   }
@@ -627,11 +626,15 @@
     font-weight: 600;
     font-size: 0.8rem;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .btn-upload:hover:not(:disabled) {
-    opacity: 0.85;
+    background: var(--color-fg);
+    color: var(--color-white);
+    border-color: var(--color-fg);
   }
 
   .btn-upload:disabled {
@@ -647,7 +650,9 @@
     font-weight: 600;
     font-size: 0.8rem;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .btn-remove-photo:hover:not(:disabled) {
@@ -673,6 +678,8 @@
     font-size: 2.5rem;
     margin-bottom: 0.5rem;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: -0.025em;
   }
 
   .subtitle {
@@ -688,7 +695,7 @@
     color: var(--color-red);
     padding: 1rem;
     margin-bottom: 1.5rem;
-    border: var(--border-bh) solid var(--color-red);
+    border: 2px solid var(--color-red);
   }
 
   .success-message {
@@ -696,13 +703,12 @@
     color: var(--color-blue);
     padding: 1rem;
     margin-bottom: 1.5rem;
-    border: var(--border-bh) solid var(--color-blue);
+    border: 2px solid var(--color-blue);
   }
 
   .info-card {
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     padding: 2rem;
     margin-bottom: 2rem;
   }
@@ -728,28 +734,35 @@
     font-size: 1.5rem;
     margin: 0;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   h3 {
     font-size: 1.25rem;
     margin: 0;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .btn-edit {
     padding: 0.5rem 1rem;
     background: var(--color-red);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.85rem;
   }
 
   .btn-edit:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-white);
+    border-color: var(--color-fg);
   }
 
   /* Edit Form Styles */
@@ -774,7 +787,7 @@
   .form-group input,
   .form-group select {
     padding: 0.75rem;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-size: 1rem;
     transition: border-color 0.2s;
   }
@@ -831,7 +844,7 @@
     background: var(--color-white);
     color: var(--color-fg);
     opacity: 0.6;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -846,16 +859,18 @@
     padding: 0.75rem 1.5rem;
     background: var(--color-red);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .btn-save:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-white);
+    border-color: var(--color-fg);
   }
 
   .btn-save:disabled,
@@ -926,6 +941,8 @@
     font-size: 2rem;
     margin-bottom: 0.5rem;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: -0.025em;
   }
 
   .section-description {
@@ -943,15 +960,13 @@
 
   .limit-card {
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     overflow: hidden;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: all 0.15s;
   }
 
   .limit-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-muted);
   }
 
   .limit-card .card-header {
@@ -1007,12 +1022,13 @@
   }
 
   .stat-remaining.warning {
-    background: var(--color-yellow);
+    background: var(--color-red);
+    color: white;
   }
 
   .stat-remaining.danger {
     background: var(--color-muted);
-    border: var(--border-bh) solid var(--color-red);
+    border: 2px solid var(--color-red);
   }
 
   .remaining-number {
@@ -1067,7 +1083,7 @@
   }
 
   .text-warning {
-    color: var(--color-yellow);
+    color: var(--color-red);
   }
 
   .card-footer {
@@ -1082,28 +1098,31 @@
     padding: 0.75rem 1.5rem;
     font-weight: 600;
     text-decoration: none;
-    transition: all 0.2s;
+    transition: all 0.15s;
     text-align: center;
     border: none;
     cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.875rem;
   }
 
   .btn-primary {
     background: var(--color-red);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
   }
 
   .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-white);
+    border-color: var(--color-fg);
   }
 
   .btn-secondary {
     background: var(--color-white);
     color: var(--color-red);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
   }
 
   .btn-secondary:hover {
@@ -1120,7 +1139,7 @@
 
   .info-banner {
     background: var(--color-muted);
-    border: 4px solid var(--color-blue);
+    border: 2px solid var(--color-blue);
     padding: 1.25rem;
     display: flex;
     align-items: flex-start;
@@ -1157,7 +1176,6 @@
       width: 100px;
       height: 100px;
       border-width: 2px;
-      box-shadow: 2px 2px 0px var(--color-border);
     }
 
     .avatar-placeholder {
@@ -1180,7 +1198,6 @@
       padding: 1.25rem;
       margin-bottom: 1.25rem;
       border-width: 2px;
-      box-shadow: 2px 2px 0px var(--color-border);
     }
 
     .card-header {
@@ -1269,7 +1286,6 @@
 
     .limit-card {
       border-width: 2px;
-      box-shadow: 2px 2px 0px var(--color-border);
     }
 
     .limit-card:hover {

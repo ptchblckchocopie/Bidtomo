@@ -37,7 +37,7 @@
   };
 
   const statusColors: Record<string, string> = {
-    pending: 'bg-bh-yellow text-bh-fg',
+    pending: 'bg-[#FF3000] text-white',
     reviewed: 'bg-blue-500 text-white',
     resolved: 'bg-green-600 text-white',
   };
@@ -180,15 +180,15 @@
 </svelte:head>
 
 <div class="py-8">
-  <h1 class="text-3xl font-black mb-6">Product Reports</h1>
+  <h1 class="text-3xl font-black mb-6 uppercase tracking-widest">Product Reports</h1>
 
   <!-- Filter Tabs -->
   <div class="flex gap-2 mb-6 flex-wrap">
     {#each (['all', 'pending', 'reviewed', 'resolved'] as const) as filter}
       <button
         onclick={() => setFilter(filter)}
-        class="px-4 py-2 text-sm font-bold border-3 border-bh-border transition-colors
-          {activeFilter === filter ? 'bg-bh-fg text-bh-bg shadow-bh-sm' : 'bg-bh-bg text-bh-fg hover:bg-bh-muted'}"
+        class="px-4 py-2 text-sm font-bold border-2 border-bh-border transition-colors
+          {activeFilter === filter ? 'bg-bh-fg text-bh-bg ' : 'bg-bh-bg text-bh-fg hover:bg-bh-muted'}"
       >
         {filter === 'all' ? 'All' : filter.charAt(0).toUpperCase() + filter.slice(1)}
       </button>
@@ -266,7 +266,7 @@
 
           <!-- Expanded Details -->
           {#if expandedId === report.id}
-            <div class="border-t-3 border-bh-border p-4 bg-bh-muted/30 space-y-4">
+            <div class="border-t-2 border-bh-border p-4 bg-bh-muted/30 space-y-4">
               <!-- Description -->
               {#if report.description}
                 <div>
@@ -296,7 +296,7 @@
                   id="notes-{report.id}"
                   bind:value={notesMap[report.id]}
                   rows="3"
-                  class="w-full p-2 border-3 border-bh-border bg-bh-bg text-bh-fg text-sm font-medium resize-y focus:outline-none focus:border-bh-red"
+                  class="w-full p-2 border-2 border-bh-border bg-bh-bg text-bh-fg text-sm font-medium resize-y focus:outline-none focus:border-bh-red"
                   placeholder="Add internal notes..."
                 ></textarea>
               </div>
@@ -307,7 +307,7 @@
                   <button
                     onclick={() => handleToggleVisibility(report)}
                     disabled={isSaving}
-                    class="px-4 py-2 text-sm font-bold border-3 border-bh-border shadow-bh-sm transition-colors disabled:opacity-50
+                    class="px-4 py-2 text-sm font-bold border-2 border-bh-border  transition-colors disabled:opacity-50
                       {product.active ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-green-600 text-white hover:bg-green-700'}"
                   >
                     {product.active ? 'Hide Product' : 'Unhide Product'}
@@ -318,7 +318,7 @@
                   <button
                     onclick={() => handleStatusChange(report, 'reviewed')}
                     disabled={isSaving}
-                    class="px-4 py-2 text-sm font-bold border-3 border-bh-border bg-blue-500 text-white shadow-bh-sm hover:bg-blue-600 transition-colors disabled:opacity-50"
+                    class="px-4 py-2 text-sm font-bold border-2 border-bh-border bg-blue-500 text-white  hover:bg-blue-600 transition-colors disabled:opacity-50"
                   >
                     Mark Reviewed
                   </button>
@@ -328,7 +328,7 @@
                   <button
                     onclick={() => handleStatusChange(report, 'resolved')}
                     disabled={isSaving}
-                    class="px-4 py-2 text-sm font-bold border-3 border-bh-border bg-green-600 text-white shadow-bh-sm hover:bg-green-700 transition-colors disabled:opacity-50"
+                    class="px-4 py-2 text-sm font-bold border-2 border-bh-border bg-green-600 text-white  hover:bg-green-700 transition-colors disabled:opacity-50"
                   >
                     Mark Resolved
                   </button>
@@ -337,7 +337,7 @@
                 <button
                   onclick={() => handleSaveNotes(report)}
                   disabled={isSaving}
-                  class="px-4 py-2 text-sm font-bold border-3 border-bh-border bg-bh-bg text-bh-fg shadow-bh-sm hover:bg-bh-muted transition-colors disabled:opacity-50"
+                  class="px-4 py-2 text-sm font-bold border-2 border-bh-border bg-bh-bg text-bh-fg  hover:bg-bh-muted transition-colors disabled:opacity-50"
                 >
                   Save Notes
                 </button>
@@ -358,7 +358,7 @@
         <button
           onclick={() => goToPage(currentPage - 1)}
           disabled={currentPage <= 1}
-          class="px-3 py-2 text-sm font-bold border-3 border-bh-border bg-bh-bg hover:bg-bh-muted disabled:opacity-30 transition-colors"
+          class="px-3 py-2 text-sm font-bold border-2 border-bh-border bg-bh-bg hover:bg-bh-muted disabled:opacity-30 transition-colors"
         >
           Prev
         </button>
@@ -367,7 +367,7 @@
           {#if p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)}
             <button
               onclick={() => goToPage(p)}
-              class="px-3 py-2 text-sm font-bold border-3 border-bh-border transition-colors
+              class="px-3 py-2 text-sm font-bold border-2 border-bh-border transition-colors
                 {p === currentPage ? 'bg-bh-fg text-bh-bg' : 'bg-bh-bg hover:bg-bh-muted'}"
             >
               {p}
@@ -380,7 +380,7 @@
         <button
           onclick={() => goToPage(currentPage + 1)}
           disabled={currentPage >= totalPages}
-          class="px-3 py-2 text-sm font-bold border-3 border-bh-border bg-bh-bg hover:bg-bh-muted disabled:opacity-30 transition-colors"
+          class="px-3 py-2 text-sm font-bold border-2 border-bh-border bg-bh-bg hover:bg-bh-muted disabled:opacity-30 transition-colors"
         >
           Next
         </button>

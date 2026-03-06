@@ -1018,13 +1018,12 @@
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
     border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
     font-size: 1rem;
   }
 
   .image-upload-btn:hover:not(.disabled) {
-    transform: translateY(2px);
-    box-shadow: 1px 1px 0px var(--color-border);
+    background: var(--color-fg);
+    color: white;
   }
 
   .image-upload-btn.disabled {
@@ -1055,7 +1054,6 @@
 
   .image-preview-item:hover {
     border-color: var(--color-red);
-    box-shadow: var(--shadow-bh-sm);
   }
 
   .image-preview-item.dragging {
@@ -1240,7 +1238,6 @@
     gap: 12px;
     padding: 16px 24px;
     border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-md);
     z-index: 10000;
     min-width: 300px;
     max-width: 500px;

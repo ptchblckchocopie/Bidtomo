@@ -1059,8 +1059,8 @@
                 <!-- Gradient definition -->
                 <defs>
                   <linearGradient id="price-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" style="stop-color:#dc2626;stop-opacity:0.5" />
-                    <stop offset="100%" style="stop-color:#dc2626;stop-opacity:0" />
+                    <stop offset="0%" style="stop-color:#FF3000;stop-opacity:0.5" />
+                    <stop offset="100%" style="stop-color:#FF3000;stop-opacity:0" />
                   </linearGradient>
                 </defs>
 
@@ -1788,8 +1788,8 @@
   .product-detail {
     max-width: 1200px;
     margin: 0 auto;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
+    box-shadow: none;
     padding: 2rem;
   }
 
@@ -1804,35 +1804,34 @@
     padding: 0.75rem 1.5rem;
     background: var(--color-red);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
+    box-shadow: none;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: background 150ms ease-out, color 150ms ease-out;
   }
 
   .edit-product-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .admin-hide-btn {
     padding: 0.75rem 1.5rem;
-    background: #dc3545;
+    background: var(--color-red);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
+    box-shadow: none;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: background 150ms ease-out, color 150ms ease-out;
   }
 
   .admin-hide-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
-    background: #b02a37;
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .back-link {
@@ -2121,7 +2120,7 @@
     font-weight: bold;
     text-transform: uppercase;
     margin-bottom: 1.5rem;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
   }
 
   .status-active {
@@ -2135,8 +2134,8 @@
   }
 
   .status-sold {
-    background-color: var(--color-yellow);
-    color: var(--color-fg);
+    background-color: var(--color-red);
+    color: white;
   }
 
   .status-available {
@@ -2159,7 +2158,7 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    transition: opacity 0.2s;
+    transition: opacity 150ms ease-out;
   }
 
   .bid-section-header-btn:hover {
@@ -2171,10 +2170,12 @@
     color: var(--color-fg);
     font-size: 1.5rem;
     text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
   }
 
   .accordion-arrow {
-    transition: transform 0.3s ease;
+    transition: transform 150ms ease-out;
     color: var(--color-red);
   }
 
@@ -2188,8 +2189,7 @@
     gap: 0.75rem;
     background: var(--color-red);
     padding: 0.75rem 1.25rem;
-    box-shadow: var(--shadow-bh-sm);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
   }
 
   .countdown-timer-inline .countdown-label {
@@ -2213,8 +2213,7 @@
     padding: 2rem;
     margin-bottom: 1.5rem;
     text-align: center;
-    box-shadow: var(--shadow-bh-md);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2257,8 +2256,7 @@
     padding: 0.75rem 1.25rem;
     font-size: 0.875rem;
     font-weight: 700;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     margin: 0;
     z-index: 10;
   }
@@ -2301,13 +2299,10 @@
     padding: 0.625rem 1rem;
     background: var(--color-blue);
     border: 2px solid var(--color-border);
-    animation: percentageBounce 2s ease-in-out infinite, percentageGlow 2s ease-in-out infinite;
-    box-shadow: var(--shadow-bh-sm);
   }
 
   .arrow-up-icon {
     color: white;
-    animation: arrowBounce 1s ease-in-out infinite;
     flex-shrink: 0;
   }
 
@@ -2318,34 +2313,7 @@
     letter-spacing: 0.5px;
   }
 
-  @keyframes percentageBounce {
-    0%, 100% {
-      transform: scale(1);
-    }
-    50% {
-      transform: scale(1.05);
-    }
-  }
-
-  @keyframes percentageGlow {
-    0%, 100% {
-      box-shadow: var(--shadow-bh-sm);
-      border-color: var(--color-border);
-    }
-    50% {
-      box-shadow: var(--shadow-bh-md);
-      border-color: var(--color-blue);
-    }
-  }
-
-  @keyframes arrowBounce {
-    0%, 100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-4px);
-    }
-  }
+  /* Removed: percentageBounce, percentageGlow, arrowBounce — Swiss flat style */
 
   .starting-price-small {
     font-size: 0.95rem;
@@ -2355,46 +2323,24 @@
 
   /* Inactive Warning Banner */
   .inactive-warning {
-    background: var(--color-yellow);
-    color: var(--color-fg);
+    background: var(--color-red);
+    color: white;
     padding: 1rem 1.5rem;
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
     gap: 0.75rem;
     font-weight: 600;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
-    animation: warningPulse 2s ease-in-out infinite;
+    border: 2px solid var(--color-border);
   }
 
   .warning-icon {
     font-size: 1.5rem;
-    animation: warningBounce 1s ease-in-out infinite;
-  }
-
-  @keyframes warningPulse {
-    0%, 100% {
-      box-shadow: var(--shadow-bh-sm);
-    }
-    50% {
-      box-shadow: var(--shadow-bh-md);
-    }
-  }
-
-  @keyframes warningBounce {
-    0%, 100% {
-      transform: scale(1);
-    }
-    50% {
-      transform: scale(1.1);
-    }
   }
 
   /* Sold Info Styles */
   .sold-info {
     background: var(--color-blue) !important;
-    box-shadow: var(--shadow-bh-md) !important;
   }
 
   .sold-badge {
@@ -2406,7 +2352,7 @@
     background-color: rgba(255, 255, 255, 0.2);
     padding: 0.5rem 1.5rem;
     display: inline-block;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
   }
 
   .sold-to-info {
@@ -2419,84 +2365,50 @@
 
   /* Highest Bidder Alert */
   .highest-bidder-alert {
-    background: var(--color-yellow);
-    border: var(--border-bh) solid var(--color-border);
+    background: var(--color-red);
+    border: 2px solid var(--color-border);
     padding: 1.25rem 1.5rem;
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
     gap: 1rem;
-    box-shadow: var(--shadow-bh-sm);
-    animation: alertPulse 2s ease-in-out infinite;
-  }
-
-  @keyframes alertPulse {
-    0%, 100% {
-      box-shadow: var(--shadow-bh-sm);
-      transform: scale(1);
-    }
-    50% {
-      box-shadow: var(--shadow-bh-md);
-      transform: scale(1.02);
-    }
+    color: white;
   }
 
   .alert-icon {
     font-size: 2rem;
-    animation: crownBounce 1.5s ease-in-out infinite;
-  }
-
-  @keyframes crownBounce {
-    0%, 100% {
-      transform: translateY(0) rotate(-10deg);
-    }
-    50% {
-      transform: translateY(-5px) rotate(10deg);
-    }
   }
 
   .alert-text {
     font-size: 1.25rem;
     font-weight: 700;
-    color: var(--color-fg);
+    color: inherit;
     letter-spacing: 0.5px;
   }
 
-  /* Animate in effect for highest bidder */
+  /* Animate in effect for highest bidder — Swiss: simple fade */
   .highest-bidder-alert.animate-in {
-    animation: slideInBounce 0.5s ease-out, alertPulse 2s ease-in-out 0.5s infinite;
+    animation: swissFadeIn 150ms ease-out;
   }
 
-  @keyframes slideInBounce {
-    0% {
-      opacity: 0;
-      transform: translateY(-20px) scale(0.9);
-    }
-    60% {
-      transform: translateY(5px) scale(1.02);
-    }
-    100% {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
+  @keyframes swissFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   /* Outbid Alert */
   .outbid-alert {
     background: var(--color-red);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     padding: 1.25rem 1.5rem;
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
     gap: 1rem;
-    box-shadow: var(--shadow-bh-sm);
-    animation: outbidPulse 1.5s ease-in-out infinite;
   }
 
   .outbid-alert .alert-icon {
     font-size: 2rem;
-    animation: panicShake 0.5s ease-in-out infinite;
   }
 
   .outbid-alert .alert-text {
@@ -2508,45 +2420,14 @@
     animation: shakeAlert 0.5s ease-in-out;
   }
 
-  @keyframes outbidPulse {
-    0%, 100% {
-      box-shadow: var(--shadow-bh-sm);
-    }
-    50% {
-      box-shadow: var(--shadow-bh-md);
-    }
-  }
-
-  @keyframes shakeAlert {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
-    20%, 40%, 60%, 80% { transform: translateX(8px); }
-  }
-
-  @keyframes panicShake {
-    0%, 100% { transform: rotate(-15deg); }
-    50% { transform: rotate(15deg); }
-  }
+  /* Removed: outbidPulse, shakeAlert, panicShake — Swiss flat style */
 
   /* Winner Alert */
   .winner-alert {
     background: var(--color-blue);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     padding: 1.5rem;
     margin-bottom: 1.5rem;
-    box-shadow: var(--shadow-bh-sm);
-    animation: winnerPulse 2s ease-in-out infinite;
-  }
-
-  @keyframes winnerPulse {
-    0%, 100% {
-      box-shadow: var(--shadow-bh-sm);
-      transform: scale(1);
-    }
-    50% {
-      box-shadow: var(--shadow-bh-md);
-      transform: scale(1.01);
-    }
   }
 
   .winner-alert-header {
@@ -2558,19 +2439,6 @@
 
   .winner-alert-header .alert-icon {
     font-size: 2.5rem;
-    animation: celebrationBounce 1s ease-in-out infinite;
-  }
-
-  @keyframes celebrationBounce {
-    0%, 100% {
-      transform: scale(1) rotate(0deg);
-    }
-    25% {
-      transform: scale(1.1) rotate(-10deg);
-    }
-    75% {
-      transform: scale(1.1) rotate(10deg);
-    }
   }
 
   .winner-alert-header .alert-text {
@@ -2598,15 +2466,13 @@
     text-decoration: none;
     font-weight: 700;
     font-size: 1.125rem;
-    transition: all 0.2s;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    transition: background 150ms ease-out, color 150ms ease-out;
+    border: 2px solid var(--color-border);
   }
 
   .winner-message-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
-    background: var(--color-muted);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .bid-section {
@@ -2615,14 +2481,14 @@
     margin-bottom: 2rem;
     display: flex;
     flex-direction: column;
-    transition: all 0.3s ease;
-    border: var(--border-bh) solid var(--color-border);
+    transition: all 150ms ease-out;
+    border: 2px solid var(--color-border);
   }
 
   /* Collapsible bid section styles */
   .bid-section:not(.owner-section) {
     overflow: hidden;
-    transition: max-height 0.4s ease-out, opacity 0.3s ease, padding 0.3s ease, margin 0.3s ease;
+    transition: max-height 150ms ease-out, opacity 150ms ease-out, padding 150ms ease-out, margin 150ms ease-out;
     margin-top: -8px;
   }
 
@@ -2655,24 +2521,21 @@
     margin: 0.75rem auto 0;
     padding: 0.625rem 1.25rem;
     background: var(--color-blue);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     cursor: pointer;
     color: white;
     font-weight: 600;
     font-size: 0.9rem;
-    box-shadow: var(--shadow-bh-sm);
-    transition: all 0.2s ease;
+    transition: background 150ms ease-out, color 150ms ease-out;
   }
 
   .bid-toggle-pill:hover {
-    background: var(--color-red);
-    box-shadow: var(--shadow-bh-md);
-    transform: translateY(-1px);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .bid-toggle-pill:active {
-    transform: translateY(0);
-    box-shadow: var(--shadow-bh-sm);
+    opacity: 0.9;
   }
 
   .bid-toggle-pill .pill-text {
@@ -2680,7 +2543,7 @@
   }
 
   .bid-toggle-pill svg {
-    transition: transform 0.3s ease;
+    transition: transform 150ms ease-out;
   }
 
   .bid-toggle-pill svg.chevron-up {
@@ -2699,20 +2562,21 @@
     padding: 2rem;
     margin-bottom: 2rem;
     text-align: center;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
   }
 
   .ended-header h3 {
     font-size: 1.5rem;
     color: var(--color-fg);
     margin-bottom: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
   }
 
   .winner-info {
     background: var(--color-white);
     padding: 1.5rem;
     border: 2px solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
   }
 
   .winner-label {
@@ -2806,19 +2670,18 @@
     text-decoration: none;
     font-weight: 600;
     font-size: 1.1rem;
-    transition: transform 0.2s, box-shadow 0.2s;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    transition: background 150ms ease-out, color 150ms ease-out;
+    border: 2px solid var(--color-border);
   }
 
   .contact-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .bid-form {
     margin-top: 1rem;
-    animation: slideDown 0.3s ease-out;
+    animation: slideDown 150ms ease-out;
     transform-origin: top;
   }
 
@@ -2857,7 +2720,7 @@
     align-items: center;
     gap: 0.5rem;
     background-color: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     padding: 0.5rem;
     flex: 1;
     min-height: 64px;
@@ -2875,17 +2738,17 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 150ms ease-out;
     flex-shrink: 0;
   }
 
   .bid-arrow-btn:hover:not(:disabled) {
-    transform: scale(1.1);
-    box-shadow: var(--shadow-bh-sm);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .bid-arrow-btn:active:not(:disabled) {
-    transform: scale(0.95);
+    opacity: 0.8;
   }
 
   .bid-arrow-btn:disabled {
@@ -2951,10 +2814,9 @@
     font-weight: 700;
     background: var(--color-red);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: background 150ms ease-out, color 150ms ease-out;
     white-space: nowrap;
     min-height: 64px;
     flex-shrink: 0;
@@ -2964,8 +2826,8 @@
   }
 
   .place-bid-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .place-bid-btn:disabled {
@@ -2980,8 +2842,8 @@
     color: white;
     padding: 1rem;
     margin-bottom: 1rem;
-    animation: slideDown 0.3s ease-out;
-    border: var(--border-bh) solid var(--color-border);
+    animation: slideDown 150ms ease-out;
+    border: 2px solid var(--color-border);
   }
 
   .error-message {
@@ -2989,8 +2851,8 @@
     color: white;
     padding: 1rem;
     margin-bottom: 1rem;
-    animation: slideDown 0.3s ease-out;
-    border: var(--border-bh) solid var(--color-border);
+    animation: slideDown 150ms ease-out;
+    border: 2px solid var(--color-border);
   }
 
   .info-message {
@@ -2999,8 +2861,8 @@
     padding: 1rem;
     margin-bottom: 1rem;
     text-align: center;
-    animation: slideDown 0.3s ease-out;
-    border: var(--border-bh) solid var(--color-border);
+    animation: slideDown 150ms ease-out;
+    border: 2px solid var(--color-border);
   }
 
   .info-message p {
@@ -3016,14 +2878,15 @@
   .description-section h3,
   .seller-info h3 {
     margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
   }
 
   /* Seller Card Styles */
   .seller-card {
     background: var(--color-muted);
     padding: 1.25rem;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
   }
 
   .seller-header {
@@ -3164,7 +3027,7 @@
     font-weight: 700;
     border: 2px solid var(--color-blue, #2563eb);
     text-decoration: none;
-    transition: all 0.15s;
+    transition: all 150ms ease-out;
   }
 
   .category-badge:hover {
@@ -3177,12 +3040,12 @@
     width: 100%;
     padding: 0.75rem;
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     text-align: center;
     color: var(--color-fg);
     font-weight: 500;
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: all 150ms ease-out;
   }
 
   .view-profile-btn:hover {
@@ -3201,13 +3064,14 @@
     margin-bottom: 1rem;
     font-size: 1.3rem;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
   }
 
   .chart-container {
     padding: 1.5rem;
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
   }
 
   .price-chart {
@@ -3245,7 +3109,7 @@
   }
 
   .data-point.last-point {
-    fill: var(--color-yellow);
+    fill: var(--color-red);
     r: 2;
   }
 
@@ -3294,7 +3158,7 @@
   }
 
   .label-right .label-value {
-    color: var(--color-yellow);
+    color: var(--color-red);
   }
 
   .label-center .label-title {
@@ -3312,6 +3176,8 @@
     margin-bottom: 1rem;
     font-size: 1.3rem;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
   }
 
   .bid-history-list {
@@ -3328,25 +3194,23 @@
     padding: calc(1rem * var(--scale));
     background-color: var(--color-muted);
     border: 2px solid var(--color-border);
-    transition: all 0.2s;
+    transition: all 150ms ease-out;
   }
 
   .bid-history-item:hover {
-    border-color: var(--color-blue);
-    box-shadow: var(--shadow-bh-sm);
+    border-color: var(--color-red);
   }
 
-  /* Gold styling for #1 ranked bid */
+  /* Top ranked bid styling — Swiss red accent */
   .bid-history-item.rank-1 {
-    background: var(--color-yellow);
-    border: 3px solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    background: var(--color-red);
+    border: 2px solid var(--color-border);
     position: relative;
+    color: white;
   }
 
   .bid-history-item.rank-1:hover {
     border-color: var(--color-fg);
-    box-shadow: var(--shadow-bh-md);
   }
 
   .bid-rank {
@@ -3357,7 +3221,7 @@
   }
 
   .bid-history-item.rank-1 .bid-rank {
-    color: var(--color-fg);
+    color: white;
     font-size: calc(1.2rem * var(--scale));
   }
 
@@ -3389,12 +3253,12 @@
   }
 
   .bid-history-item.rank-1 .bid-amount {
-    color: var(--color-fg);
+    color: white;
     font-weight: 900;
   }
 
   .bid-history-item.rank-1 .bidder-name {
-    color: var(--color-fg);
+    color: white;
   }
 
   .highest-badge {
@@ -3408,7 +3272,6 @@
     font-weight: 700;
     letter-spacing: 0.5px;
     border: 2px solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
   }
 
   /* Modal Styles */
@@ -3423,7 +3286,7 @@
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    animation: fadeIn 0.2s ease-out;
+    animation: fadeIn 150ms ease-out;
     overflow-y: auto;
     padding: 1rem;
   }
@@ -3443,10 +3306,9 @@
     width: 90%;
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-md);
+    border: 2px solid var(--color-border);
     position: relative;
-    animation: slideUp 0.3s ease-out;
+    animation: slideUp 150ms ease-out;
     margin: auto;
   }
 
@@ -3478,7 +3340,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
+    transition: all 150ms ease-out;
   }
 
   .modal-close:hover {
@@ -3496,6 +3358,8 @@
     margin: 0;
     font-size: 1.75rem;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .modal-body {
@@ -3524,8 +3388,8 @@
     font-weight: 600;
     font-size: 1.1rem;
     text-align: center;
-    transition: transform 0.2s, box-shadow 0.2s;
-    border: var(--border-bh) solid var(--color-border);
+    transition: background 150ms ease-out, color 150ms ease-out;
+    border: 2px solid var(--color-border);
   }
 
   .btn-login {
@@ -3534,8 +3398,8 @@
   }
 
   .btn-login:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .btn-register {
@@ -3544,8 +3408,8 @@
   }
 
   .btn-register:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .modal-note {
@@ -3577,7 +3441,7 @@
     background: var(--color-blue);
     padding: 1.5rem;
     margin-bottom: 1.5rem;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
   }
 
   .confirm-row {
@@ -3660,8 +3524,8 @@
     font-weight: 600;
     font-size: 1.1rem;
     text-align: center;
-    transition: transform 0.2s, box-shadow 0.2s;
-    border: var(--border-bh) solid var(--color-border);
+    transition: background 150ms ease-out, color 150ms ease-out;
+    border: 2px solid var(--color-border);
     cursor: pointer;
   }
 
@@ -3671,7 +3535,8 @@
   }
 
   .btn-cancel-bid:hover {
-    background-color: var(--color-border);
+    background-color: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .btn-confirm-bid {
@@ -3680,8 +3545,8 @@
   }
 
   .btn-confirm-bid:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   /* Edit Modal Styles */
@@ -3710,10 +3575,10 @@
   .form-group select {
     width: 100%;
     padding: 0.75rem;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-size: 1rem;
     font-family: inherit;
-    transition: border-color 0.2s;
+    transition: border-color 150ms ease-out;
   }
 
   .form-group input:focus,
@@ -3768,8 +3633,8 @@
     font-weight: 600;
     font-size: 1.1rem;
     text-align: center;
-    transition: transform 0.2s, box-shadow 0.2s;
-    border: var(--border-bh) solid var(--color-border);
+    transition: background 150ms ease-out, color 150ms ease-out;
+    border: 2px solid var(--color-border);
     cursor: pointer;
   }
 
@@ -3779,7 +3644,8 @@
   }
 
   .btn-cancel-edit:hover:not(:disabled) {
-    background-color: var(--color-border);
+    background-color: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .btn-save-edit {
@@ -3788,8 +3654,8 @@
   }
 
   .btn-save-edit:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .btn-cancel-edit:disabled,
@@ -3801,8 +3667,8 @@
 
   /* Owner Section Styles */
   .owner-section {
-    background: var(--color-yellow);
-    border: var(--border-bh) solid var(--color-border);
+    background: var(--color-muted);
+    border: 2px solid var(--color-border);
   }
 
   .highest-bid-info {
@@ -3838,16 +3704,15 @@
     font-weight: 700;
     background: var(--color-blue);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: background 150ms ease-out, color 150ms ease-out;
     margin-top: 1rem;
   }
 
   .accept-bid-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   /* Accept Bid Modal Styles */
@@ -3856,11 +3721,11 @@
   }
 
   .warning-message {
-    background-color: var(--color-yellow);
-    border: var(--border-bh) solid var(--color-border);
+    background-color: var(--color-red);
+    border: 2px solid var(--color-border);
     padding: 1rem;
     margin-top: 1.5rem;
-    color: var(--color-fg);
+    color: white;
     font-weight: 600;
   }
 
@@ -3870,16 +3735,16 @@
     font-weight: 600;
     font-size: 1.1rem;
     text-align: center;
-    transition: transform 0.2s, box-shadow 0.2s;
-    border: var(--border-bh) solid var(--color-border);
+    transition: background 150ms ease-out, color 150ms ease-out;
+    border: 2px solid var(--color-border);
     cursor: pointer;
     background: var(--color-blue);
     color: white;
   }
 
   .btn-accept-bid:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .btn-accept-bid:disabled {
@@ -3906,7 +3771,7 @@
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 150ms ease-out;
     margin-bottom: -2px;
   }
 
@@ -3931,7 +3796,7 @@
   }
 
   .tab-pane {
-    animation: fadeIn 0.2s ease-in;
+    animation: fadeIn 150ms ease-out;
   }
 
   @keyframes fadeIn {
@@ -3955,19 +3820,17 @@
   .duration-btn {
     padding: 0.75rem 1.25rem;
     background-color: var(--color-white);
-    border: var(--border-bh) solid var(--color-red);
+    border: 2px solid var(--color-red);
     color: var(--color-red);
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 150ms ease-out;
   }
 
   .duration-btn:hover:not(:disabled) {
-    background-color: var(--color-red);
-    color: white;
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-sm);
+    background-color: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .duration-btn:disabled {
@@ -3992,7 +3855,7 @@
     width: 80px;
     padding: 0.625rem;
     font-size: 1rem;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-family: inherit;
   }
 
@@ -4012,16 +3875,16 @@
     padding: 0.625rem 1.5rem;
     background: var(--color-red);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: background 150ms ease-out, color 150ms ease-out;
   }
 
   .apply-duration-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .apply-duration-btn:disabled {
@@ -4037,10 +3900,9 @@
     right: 1.5rem;
     z-index: 10000;
     background: var(--color-blue);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-md);
+    border: 2px solid var(--color-border);
     overflow: hidden;
-    animation: toastSlideIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    animation: toastSlideIn 150ms ease-out;
     min-width: 320px;
     max-width: 400px;
   }
@@ -4110,20 +3972,7 @@
     justify-content: center;
     flex-shrink: 0;
     color: white;
-    animation: iconPop 0.5s ease-out 0.2s both;
     border: 2px solid var(--color-border);
-  }
-
-  @keyframes iconPop {
-    0% {
-      transform: scale(0);
-    }
-    50% {
-      transform: scale(1.2);
-    }
-    100% {
-      transform: scale(1);
-    }
   }
 
   .toast-text {
@@ -4154,13 +4003,12 @@
     justify-content: center;
     cursor: pointer;
     color: white;
-    transition: all 0.2s;
+    transition: all 150ms ease-out;
     flex-shrink: 0;
   }
 
   .toast-close:hover {
     background: rgba(255, 255, 255, 0.35);
-    transform: scale(1.1);
   }
 
   .toast-progress {
@@ -4214,7 +4062,7 @@
     padding: 0.375rem 0.625rem;
     font-size: 0.75rem;
     font-weight: 700;
-    transition: all 0.3s;
+    transition: all 150ms ease-out;
     border: 2px solid var(--color-border);
   }
 
@@ -4305,20 +4153,10 @@
 
   @keyframes priceChange {
     0% {
-      transform: scale(1);
-    }
-    25% {
-      transform: scale(1.3);
-      color: var(--color-yellow);
-    }
-    50% {
-      transform: scale(0.95);
-    }
-    75% {
-      transform: scale(1.1);
+      opacity: 0.5;
     }
     100% {
-      transform: scale(1);
+      opacity: 1;
     }
   }
 
@@ -4329,13 +4167,10 @@
 
   @keyframes labelPulse {
     0%, 100% {
-      background: var(--color-red);
-      transform: scale(1);
+      opacity: 1;
     }
     50% {
-      background: var(--color-blue);
-      transform: scale(1.05);
-      box-shadow: var(--shadow-bh-md);
+      opacity: 0.7;
     }
   }
 
@@ -4361,47 +4196,25 @@
     font-size: 0.7rem;
     font-weight: 800;
     letter-spacing: 0.05em;
-    animation: newBadgePulse 1s ease-in-out infinite;
     border: 2px solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
     z-index: 10;
   }
 
   @keyframes newBidHighlight {
     0% {
-      background: var(--color-blue);
-      transform: translateX(-100%) scale(0.95);
+      background: var(--color-red);
       opacity: 0;
     }
-    15% {
-      transform: translateX(0) scale(1.02);
+    20% {
       opacity: 1;
-    }
-    30% {
-      background: var(--color-blue);
-      box-shadow: var(--shadow-bh-md);
-    }
-    50% {
-      background: var(--color-yellow);
-    }
-    75% {
-      background: var(--color-blue);
     }
     100% {
       background: var(--color-white);
-      transform: translateX(0) scale(1);
-      box-shadow: var(--shadow-bh-sm);
+      opacity: 1;
     }
   }
 
-  @keyframes newBadgePulse {
-    0%, 100% {
-      transform: scale(1);
-    }
-    50% {
-      transform: scale(1.1);
-    }
-  }
+  /* Removed: newBadgePulse — Swiss flat style */
 
   @keyframes slideIn {
     from {
@@ -4436,14 +4249,14 @@
     color: white;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    border: var(--border-bh) solid var(--color-border);
+    transition: background 150ms ease-out, color 150ms ease-out;
+    border: 2px solid var(--color-border);
     font-size: 1rem;
   }
 
   .image-upload-btn:hover:not(.disabled) {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .image-upload-btn.disabled {
@@ -4489,7 +4302,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
+    transition: all 150ms ease-out;
     font-weight: bold;
     line-height: 1;
     z-index: 2;
@@ -4497,7 +4310,6 @@
 
   .remove-image-btn:hover:not(:disabled) {
     background: var(--color-fg);
-    transform: scale(1.1);
   }
 
   .remove-image-btn:disabled {
@@ -4555,7 +4367,7 @@
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    animation: adminOverlayFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: adminOverlayFadeIn 150ms ease-out;
     padding: 1rem;
     backdrop-filter: blur(2px);
   }
@@ -4569,10 +4381,9 @@
     background-color: var(--color-white);
     max-width: 460px;
     width: 90%;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-md);
+    border: 2px solid var(--color-border);
     position: relative;
-    animation: adminModalSlideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: adminModalSlideUp 150ms ease-out;
   }
 
   @keyframes adminModalSlideUp {
@@ -4597,13 +4408,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+    transition: background-color 150ms ease-out, opacity 150ms ease-out;
   }
 
   .admin-modal-close:hover {
     background-color: var(--color-muted);
     opacity: 1;
-    transform: scale(1.05);
   }
 
   .admin-modal-header {
@@ -4649,10 +4459,8 @@
     font-weight: 600;
     font-size: 1rem;
     cursor: pointer;
-    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-                background-color 0.15s ease;
-    border: var(--border-bh) solid var(--color-border);
+    transition: background 150ms ease-out, color 150ms ease-out;
+    border: 2px solid var(--color-border);
   }
 
   .btn-admin-cancel {
@@ -4661,18 +4469,18 @@
   }
 
   .btn-admin-cancel:hover {
-    background-color: var(--color-border);
+    background-color: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .btn-admin-hide {
-    background: #dc3545;
+    background: var(--color-red);
     color: white;
   }
 
   .btn-admin-hide:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
-    background: #b02a37;
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .btn-admin-unhide {
@@ -4681,9 +4489,8 @@
   }
 
   .btn-admin-unhide:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
-    background: #146c43;
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .btn-admin-confirm:disabled,
@@ -4715,18 +4522,16 @@
     padding: 0.5rem 1rem;
     background: transparent;
     color: var(--color-text-secondary, #666);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s;
+    transition: background 150ms ease-out, color 150ms ease-out;
   }
 
   .report-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-sm);
-    background: #dc3545;
-    color: white;
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   /* Report modal */
@@ -4747,8 +4552,7 @@
   .report-modal-content {
     background: var(--color-bg);
     color: var(--color-fg);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-md);
+    border: 2px solid var(--color-border);
     max-width: 480px;
     width: 100%;
     position: relative;
@@ -4799,7 +4603,7 @@
   .report-select {
     width: 100%;
     padding: 0.6rem 0.75rem;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-size: 0.95rem;
     margin-bottom: 1rem;
     background: var(--color-bg);
@@ -4809,7 +4613,7 @@
   .report-textarea {
     width: 100%;
     padding: 0.6rem 0.75rem;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-size: 0.95rem;
     margin-bottom: 1rem;
     resize: vertical;
@@ -4819,7 +4623,7 @@
   }
 
   .report-error {
-    color: #dc3545;
+    color: var(--color-red);
     font-size: 0.85rem;
     margin-bottom: 0.75rem;
     font-weight: 600;
@@ -4847,10 +4651,10 @@
     padding: 0.6rem 1.25rem;
     background: var(--color-muted);
     color: var(--color-fg);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 150ms ease-out;
   }
 
   .btn-report-cancel:hover {
@@ -4860,18 +4664,18 @@
   .btn-report-submit,
   .btn-report-done {
     padding: 0.6rem 1.25rem;
-    background: #dc3545;
+    background: var(--color-red);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s, transform 0.2s;
+    transition: background 150ms ease-out, color 150ms ease-out;
   }
 
   .btn-report-submit:hover,
   .btn-report-done:hover {
-    background: #b02a37;
-    transform: translateY(-1px);
+    background: var(--color-fg);
+    color: var(--color-bg);
   }
 
   .btn-report-submit:disabled {

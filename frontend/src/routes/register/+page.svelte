@@ -145,17 +145,17 @@
 
 <div class="register-page min-h-[calc(100vh-200px)] flex items-center justify-center p-4 sm:p-8 bg-bh-blue">
   <div class="card-bh p-5 sm:p-8 md:p-12 max-w-[500px] w-full">
-    <h1 class="headline-bh text-2xl sm:text-4xl mb-2 text-center">Create Account</h1>
+    <h1 class="headline-bh text-2xl sm:text-4xl mb-2 text-center uppercase tracking-tighter">Create Account</h1>
     <p class="text-bh-fg/60 text-center mb-8">Join our marketplace to buy and sell products</p>
 
     {#if success}
-      <div class="bg-bh-blue text-white border-4 border-bh-border p-4 mb-6 text-center font-bold">
+      <div class="bg-bh-blue text-white border-2 border-bh-border p-4 mb-6 text-center font-bold">
         Account created successfully! Logging you in...
       </div>
     {/if}
 
     {#if error}
-      <div class="bg-bh-red text-white border-4 border-bh-border p-4 mb-6 text-center font-bold">
+      <div class="bg-bh-red text-white border-2 border-bh-border p-4 mb-6 text-center font-bold">
         {error}
       </div>
     {/if}
@@ -232,7 +232,7 @@
             onmouseleave={() => showPassword = false}
             ontouchstart={() => showPassword = true}
             ontouchend={() => showPassword = false}
-            class="absolute right-0 top-0 h-full px-3 flex items-center text-bh-fg/50 hover:text-bh-fg border-l-[3px] border-bh-border transition-colors select-none"
+            class="absolute right-0 top-0 h-full px-3 flex items-center text-bh-fg/50 hover:text-bh-fg border-l-2 border-bh-border transition-colors select-none"
           >
             {#if showPassword}
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -263,7 +263,7 @@
             onmouseleave={() => showConfirmPassword = false}
             ontouchstart={() => showConfirmPassword = true}
             ontouchend={() => showConfirmPassword = false}
-            class="absolute right-0 top-0 h-full px-3 flex items-center text-bh-fg/50 hover:text-bh-fg border-l-[3px] border-bh-border transition-colors select-none"
+            class="absolute right-0 top-0 h-full px-3 flex items-center text-bh-fg/50 hover:text-bh-fg border-l-2 border-bh-border transition-colors select-none"
           >
             {#if showConfirmPassword}
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -283,7 +283,7 @@
       <p class="text-bh-fg/60 mb-6">Already have an account? <a href="/login?redirect={encodeURIComponent(redirectUrl)}" class="text-bh-blue font-bold hover:underline">Login here</a></p>
 
       <div class="card-bh bg-bh-muted p-6 text-left">
-        <h3 class="font-bold text-lg text-bh-fg mb-4">Why join?</h3>
+        <h3 class="font-bold text-lg text-bh-fg mb-4 uppercase tracking-wide">Why Join?</h3>
         <ul class="list-none p-0 m-0 space-y-2 text-bh-fg/80">
           <li>&#10003; Sell your products to a global audience</li>
           <li>&#10003; Bid on unique items from sellers worldwide</li>
