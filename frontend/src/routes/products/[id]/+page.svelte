@@ -2653,12 +2653,13 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    background: var(--color-blue);
-    color: white;
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--color-accent);
     padding: 0.375rem 0.75rem;
     font-size: 0.875rem;
     font-weight: 600;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
   }
 
   .winner-percentage-increase .arrow-up-icon {
@@ -2964,6 +2965,7 @@
     border: 1px solid var(--color-border);
     overflow: hidden;
     flex-shrink: 0;
+    border-radius: var(--radius-md);
   }
 
   .seller-avatar-img {
@@ -3075,19 +3077,21 @@
 
   .category-badge {
     display: inline-block;
-    background: var(--color-blue, #2563eb);
-    color: white;
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--color-blue);
     padding: 0.35rem 0.7rem;
     font-size: 0.8rem;
     font-weight: 700;
     border: 1px solid var(--color-blue, #2563eb);
     text-decoration: none;
     transition: all 150ms ease-out;
+    border-radius: var(--radius-sm);
   }
 
   .category-badge:hover {
-    background: var(--color-red);
+    background: rgba(239, 68, 68, 0.15);
     border-color: var(--color-red);
+    color: var(--color-red);
   }
 
   .view-profile-btn {
@@ -3331,6 +3335,7 @@
     font-weight: 700;
     letter-spacing: 0.5px;
     border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
   }
 
   /* Modal Styles */
@@ -3401,6 +3406,7 @@
     align-items: center;
     justify-content: center;
     transition: all 150ms ease-out;
+    border-radius: var(--radius-sm);
   }
 
   .modal-close:hover {
@@ -3643,6 +3649,9 @@
     font-size: 1rem;
     font-family: inherit;
     transition: border-color 150ms ease-out;
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-fg);
   }
 
   .form-group input:focus,
@@ -3929,6 +3938,9 @@
     font-size: 1rem;
     border: 1px solid var(--color-border);
     font-family: inherit;
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-fg);
   }
 
   .duration-input:focus {
@@ -4291,6 +4303,7 @@
     letter-spacing: 0.05em;
     border: 1px solid var(--color-border);
     z-index: 10;
+    border-radius: var(--radius-sm);
   }
 
   @keyframes newBidHighlight {
@@ -4401,6 +4414,7 @@
     font-weight: bold;
     line-height: 1;
     z-index: 2;
+    border-radius: var(--radius-sm);
   }
 
   .remove-image-btn:hover:not(:disabled) {
@@ -4417,10 +4431,11 @@
     bottom: 0.5rem;
     left: 0.5rem;
     background: var(--color-fg);
-    color: white;
+    color: var(--color-bg);
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
     font-weight: 600;
+    border-radius: var(--radius-sm);
   }
 
   .image-type {
@@ -4433,6 +4448,7 @@
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
+    border-radius: var(--radius-sm);
   }
 
   @media (max-width: 768px) {
@@ -4498,6 +4514,7 @@
     align-items: center;
     justify-content: center;
     transition: background-color 150ms ease-out, opacity 150ms ease-out;
+    border-radius: var(--radius-sm);
   }
 
   .admin-modal-close:hover {
@@ -4684,6 +4701,7 @@
     margin-bottom: 1rem;
     background: var(--color-bg);
     color: var(--color-fg);
+    border-radius: var(--radius-sm);
   }
 
   .report-textarea {
@@ -4696,6 +4714,7 @@
     font-family: inherit;
     background: var(--color-bg);
     color: var(--color-fg);
+    border-radius: var(--radius-sm);
   }
 
   .report-error {
