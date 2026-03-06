@@ -26,12 +26,12 @@
   let barChart: Chart | null = null;
   let doughnutChart: Chart | null = null;
 
-  // Chart colors matching Bauhaus theme
+  // Chart colors matching Swiss International Style
   const COLORS = {
-    red: 'rgb(208, 32, 32)',
-    blue: 'rgb(16, 64, 192)',
-    yellow: 'rgb(240, 192, 32)',
-    fg: 'rgb(18, 18, 18)',
+    red: 'rgb(255, 48, 0)',
+    blue: 'rgb(0, 0, 0)',
+    yellow: 'rgb(242, 242, 242)',
+    fg: 'rgb(0, 0, 0)',
     green: 'rgb(34, 139, 34)',
   };
 
@@ -52,11 +52,11 @@
   }
 
   function chartTextColor() {
-    return isDark() ? '#EDEDEF' : '#121212';
+    return isDark() ? '#EDEDEF' : '#000000';
   }
 
   function chartGridColor() {
-    return isDark() ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.1)';
+    return isDark() ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
   }
 
   const DOUGHNUT_COLORS = [
@@ -114,7 +114,7 @@
     const gridColor = chartGridColor();
 
     if (lineCanvas) {
-      const blueFill = isDark() ? 'rgba(94, 106, 210, 0.15)' : 'rgba(16, 64, 192, 0.1)';
+      const blueFill = isDark() ? 'rgba(94, 106, 210, 0.15)' : 'rgba(255, 48, 0, 0.1)';
       lineChart = new Chart(lineCanvas, {
         type: 'line',
         data: {
@@ -283,7 +283,7 @@
 <div class="max-w-7xl mx-auto px-4 py-8">
   <!-- Header -->
   <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-    <h1 class="text-3xl font-bold font-outfit">Analytics</h1>
+    <h1 class="text-3xl font-bold uppercase tracking-widest">Analytics</h1>
     <div class="flex flex-wrap items-center gap-3">
       <div class="flex items-center gap-2">
         <label for="from" class="text-sm font-bold">From</label>
@@ -292,7 +292,7 @@
           type="date"
           bind:value={fromDate}
           onchange={handleDateChange}
-          class="border-bh border-bh-border bg-bh-bg text-bh-fg px-2 py-1 text-sm font-outfit"
+          class="border-2 border-bh-border bg-bh-bg text-bh-fg px-2 py-1 text-sm"
         />
       </div>
       <div class="flex items-center gap-2">
@@ -302,13 +302,13 @@
           type="date"
           bind:value={toDate}
           onchange={handleDateChange}
-          class="border-bh border-bh-border bg-bh-bg text-bh-fg px-2 py-1 text-sm font-outfit"
+          class="border-2 border-bh-border bg-bh-bg text-bh-fg px-2 py-1 text-sm"
         />
       </div>
       <button
         onclick={exportExcel}
         disabled={!data || loading}
-        class="btn-bh-yellow text-sm disabled:opacity-50"
+        class="px-4 py-2 font-bold border-2 border-black bg-[#FF3000] text-white hover:bg-black hover:text-white transition-colors duration-150 text-sm disabled:opacity-50"
       >
         Export Excel
       </button>
@@ -322,40 +322,40 @@
   {:else if error}
     <div class="card-bh p-6 text-center">
       <p class="text-bh-red font-bold">{error}</p>
-      <button onclick={loadData} class="btn-bh-yellow text-sm mt-4">Retry</button>
+      <button onclick={loadData} class="px-4 py-2 font-bold border-2 border-black bg-[#FF3000] text-white hover:bg-black hover:text-white transition-colors duration-150 text-sm mt-4">Retry</button>
     </div>
   {:else if data}
     <!-- Overview Cards -->
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
       <div class="card-bh p-4 text-center">
-        <div class="text-2xl font-bold font-outfit">{data.overview.totalUsers.toLocaleString()}</div>
+        <div class="text-2xl font-bold">{data.overview.totalUsers.toLocaleString()}</div>
         <div class="text-sm text-bh-fg/50 font-bold mt-1">Total Users</div>
       </div>
       <div class="card-bh p-4 text-center">
-        <div class="text-2xl font-bold font-outfit">{data.overview.activeUsers7d.toLocaleString()}</div>
+        <div class="text-2xl font-bold">{data.overview.activeUsers7d.toLocaleString()}</div>
         <div class="text-sm text-bh-fg/50 font-bold mt-1">Active (7d)</div>
       </div>
       <div class="card-bh p-4 text-center">
-        <div class="text-2xl font-bold font-outfit">{data.overview.totalProducts.toLocaleString()}</div>
+        <div class="text-2xl font-bold">{data.overview.totalProducts.toLocaleString()}</div>
         <div class="text-sm text-bh-fg/50 font-bold mt-1">Products</div>
       </div>
       <div class="card-bh p-4 text-center">
-        <div class="text-2xl font-bold font-outfit">{data.overview.productsSold.toLocaleString()}</div>
+        <div class="text-2xl font-bold">{data.overview.productsSold.toLocaleString()}</div>
         <div class="text-sm text-bh-fg/50 font-bold mt-1">Sold</div>
       </div>
       <div class="card-bh p-4 text-center">
-        <div class="text-2xl font-bold font-outfit">{data.overview.totalBids.toLocaleString()}</div>
+        <div class="text-2xl font-bold">{data.overview.totalBids.toLocaleString()}</div>
         <div class="text-sm text-bh-fg/50 font-bold mt-1">Bids</div>
       </div>
       <div class="card-bh p-4 text-center">
-        <div class="text-2xl font-bold font-outfit">{data.overview.totalSearches.toLocaleString()}</div>
+        <div class="text-2xl font-bold">{data.overview.totalSearches.toLocaleString()}</div>
         <div class="text-sm text-bh-fg/50 font-bold mt-1">Searches</div>
       </div>
     </div>
 
     <!-- Time Series Chart -->
     <div class="card-bh p-6 mb-8">
-      <h2 class="text-lg font-bold font-outfit mb-4">Daily Activity</h2>
+      <h2 class="text-lg font-bold mb-4">Daily Activity</h2>
       <div style="height: 350px;">
         <canvas bind:this={lineCanvas}></canvas>
       </div>
@@ -364,7 +364,7 @@
     <!-- Two-column: Search Keywords + Event Breakdown -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
       <div class="card-bh p-6">
-        <h2 class="text-lg font-bold font-outfit mb-4">Top Search Keywords</h2>
+        <h2 class="text-lg font-bold mb-4">Top Search Keywords</h2>
         {#if data.topSearchKeywords?.length > 0}
           <div style="height: 300px;">
             <canvas bind:this={barCanvas}></canvas>
@@ -375,7 +375,7 @@
       </div>
 
       <div class="card-bh p-6">
-        <h2 class="text-lg font-bold font-outfit mb-4">Event Breakdown</h2>
+        <h2 class="text-lg font-bold mb-4">Event Breakdown</h2>
         {#if data.eventBreakdown?.length > 0}
           <div style="height: 300px;">
             <canvas bind:this={doughnutCanvas}></canvas>
@@ -389,11 +389,11 @@
     <!-- Two-column: Top Viewed + Top Sold -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <div class="card-bh p-6">
-        <h2 class="text-lg font-bold font-outfit mb-4">Top Viewed Products</h2>
+        <h2 class="text-lg font-bold mb-4">Top Viewed Products</h2>
         {#if data.topViewedProducts?.length > 0}
           <table class="w-full text-sm">
             <thead>
-              <tr class="border-b-bh border-bh-border">
+              <tr class="border-b-2 border-bh-border">
                 <th class="text-left py-2 font-bold">#</th>
                 <th class="text-left py-2 font-bold">Product</th>
                 <th class="text-right py-2 font-bold">Views</th>
@@ -417,11 +417,11 @@
       </div>
 
       <div class="card-bh p-6">
-        <h2 class="text-lg font-bold font-outfit mb-4">Top Sold Products</h2>
+        <h2 class="text-lg font-bold mb-4">Top Sold Products</h2>
         {#if data.topSoldProducts?.length > 0}
           <table class="w-full text-sm">
             <thead>
-              <tr class="border-b-bh border-bh-border">
+              <tr class="border-b-2 border-bh-border">
                 <th class="text-left py-2 font-bold">#</th>
                 <th class="text-left py-2 font-bold">Product</th>
                 <th class="text-right py-2 font-bold">Sales</th>

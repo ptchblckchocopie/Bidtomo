@@ -490,8 +490,7 @@
 
   .profile-container {
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     overflow: hidden;
   }
 
@@ -508,7 +507,7 @@
     width: 100px;
     height: 100px;
     background: rgba(255, 255, 255, 0.2);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -532,6 +531,8 @@
   .profile-name {
     margin: 0 0 0.25rem 0;
     font-size: 1.75rem;
+    text-transform: uppercase;
+    letter-spacing: -0.025em;
   }
 
   .member-since {
@@ -579,7 +580,7 @@
   /* Tabs */
   .profile-tabs {
     display: flex;
-    border-bottom: var(--border-bh) solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
   }
 
   .tab-btn {
@@ -587,13 +588,15 @@
     padding: 1rem;
     background: none;
     border: none;
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 500;
     color: var(--color-fg);
     opacity: 0.6;
     cursor: pointer;
-    border-bottom: 3px solid transparent;
-    transition: all 0.2s ease;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .tab-btn:hover {
@@ -622,6 +625,8 @@
     margin: 0 0 1rem 0;
     font-size: 1.25rem;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .products-grid {
@@ -632,17 +637,16 @@
 
   .product-card {
     background: var(--color-muted);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     overflow: hidden;
     text-decoration: none;
     color: inherit;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: all 0.15s;
   }
 
   .product-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-bh-md);
+    background: var(--color-white);
+    border-color: var(--color-fg);
   }
 
   .product-card.sold {
@@ -679,7 +683,8 @@
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
-    border: var(--border-bh) solid var(--color-border);
+    letter-spacing: 0.05em;
+    border: 2px solid var(--color-border);
   }
 
   .status-badge.available {
@@ -735,13 +740,15 @@
     gap: 0.75rem;
     margin-bottom: 1rem;
     padding-bottom: 0.75rem;
-    border-bottom: var(--border-bh) solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
   }
 
   .reviews-section-header h2 {
     margin: 0;
     font-size: 1.25rem;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .reviews-count {
@@ -762,8 +769,7 @@
     display: flex;
     gap: 1rem;
     background: var(--color-muted);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     padding: 1rem;
     align-items: flex-start;
   }
@@ -844,16 +850,19 @@
     padding: 0.25rem 0.5rem;
     background: var(--color-blue);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     text-decoration: none;
     font-size: 0.75rem;
-    transition: opacity 0.2s;
+    transition: all 0.15s;
     margin-left: auto;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .chat-link:hover {
-    opacity: 0.85;
+    background: var(--color-fg);
+    color: var(--color-white);
+    border-color: var(--color-fg);
   }
 
   .review-header {
@@ -937,13 +946,15 @@
   /* Rating Summary (Play Store style) */
   .rating-summary {
     padding: 2rem;
-    border-bottom: var(--border-bh) solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
   }
 
   .rating-summary-title {
     margin: 0 0 1.5rem 0;
     font-size: 1.25rem;
     color: var(--color-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .rating-summary-content {
@@ -1005,7 +1016,7 @@
 
   .dist-bar-fill {
     height: 100%;
-    background: var(--color-yellow);
+    background: var(--color-red);
     transition: width 0.4s ease;
     min-width: 0;
   }
@@ -1074,8 +1085,8 @@
   }
 
   .seller-badge {
-    background: var(--color-yellow);
-    color: var(--color-fg);
+    background: var(--color-red);
+    color: white;
   }
 
   .recent-review-date {
@@ -1127,7 +1138,9 @@
     font-size: 0.9rem;
     color: var(--color-fg);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .see-all-reviews-btn:hover {

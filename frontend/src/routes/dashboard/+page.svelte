@@ -840,6 +840,8 @@
     font-weight: 700;
     color: var(--color-fg);
     margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: -0.025em;
   }
 
   .subtitle {
@@ -869,8 +871,11 @@
     font-size: 1.125rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
     margin-bottom: -2px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.9rem;
   }
 
   .main-tab:hover {
@@ -908,8 +913,11 @@
     font-size: 1rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
     margin-bottom: -1px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.875rem;
   }
 
   .sub-tab:hover {
@@ -948,15 +956,13 @@
 
   .product-card {
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     overflow: hidden;
-    transition: all 0.3s ease;
+    transition: all 0.15s;
   }
 
   .product-card:hover {
-    box-shadow: var(--shadow-bh-sm);
-    transform: translateY(-4px);
+    background: var(--color-muted);
   }
 
   .card-link {
@@ -1073,8 +1079,8 @@
   }
 
   .status-sold {
-    background: var(--color-yellow);
-    color: var(--color-fg);
+    background: var(--color-red);
+    color: white;
   }
 
   .status-ended {
@@ -1135,12 +1141,13 @@
   }
 
   .btn-edit {
-    background: var(--color-yellow);
-    color: var(--color-fg);
+    background: var(--color-red);
+    color: white;
   }
 
   .btn-edit:hover {
-    opacity: 0.85;
+    background: var(--color-fg);
+    color: var(--color-white);
   }
 
   .btn-view {
@@ -1166,15 +1173,13 @@
 
   .purchase-card {
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     overflow: hidden;
-    transition: all 0.3s ease;
+    transition: all 0.15s;
   }
 
   .purchase-card:hover {
-    box-shadow: var(--shadow-bh-sm);
-    transform: translateY(-2px);
+    background: var(--color-muted);
   }
 
   .purchase-link {
@@ -1301,11 +1306,11 @@
     padding: 0.75rem 1.25rem;
     background: var(--color-white);
     color: var(--color-fg);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-weight: 600;
     font-size: 0.9rem;
     text-decoration: none;
-    transition: all 0.2s;
+    transition: all 0.15s;
     flex: 1;
   }
 
@@ -1361,15 +1366,18 @@
     padding: 0.75rem 2rem;
     background: var(--color-red);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     font-weight: 600;
     text-decoration: none;
-    transition: all 0.2s;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .btn-primary:hover {
-    opacity: 0.85;
+    background: var(--color-fg);
+    color: var(--color-white);
+    border-color: var(--color-fg);
   }
 
   /* Loading & Error */
@@ -1386,7 +1394,7 @@
     padding: 2rem;
     background: var(--color-red);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     font-weight: 500;
   }
 
@@ -1407,8 +1415,7 @@
 
   .modal-content {
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-md);
+    border: 2px solid var(--color-border);
     max-width: 90%;
     max-height: 90vh;
     overflow-y: auto;
@@ -1519,15 +1526,18 @@
     padding: 0.75rem 2rem;
     background: var(--color-red);
     color: white;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     font-weight: 600;
     text-decoration: none;
-    transition: all 0.2s;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .btn-view-full:hover {
-    opacity: 0.85;
+    background: var(--color-fg);
+    color: var(--color-white);
+    border-color: var(--color-fg);
   }
 
   /* Responsive */
@@ -1821,8 +1831,7 @@
 
   .hide-modal-content {
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     max-width: 440px;
     width: 100%;
     position: relative;

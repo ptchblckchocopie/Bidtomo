@@ -513,9 +513,9 @@
 </svelte:head>
 <!-- Beta Notice Banner -->
 <div class="-mx-4 sm:-mx-6 lg:-mx-8 mb-0 overflow-hidden relative z-10">
-  <div class="bg-bh-yellow border-b-4 border-bh-border px-3 py-4">
+  <div class="bg-bh-red border-b-2 border-black px-3 py-4">
     <div class="max-w-7xl mx-auto text-center">
-      <div class="inline-block bg-black/20 text-white px-2 sm:px-3 py-1 border-2 border-bh-border text-xs font-bold tracking-wide sm:tracking-wider mb-2">
+      <div class="inline-block bg-black/20 text-white px-2 sm:px-3 py-1 border-2 border-black text-xs font-bold uppercase tracking-widest mb-2">
         🚧 EXPERIMENTAL
       </div>
       <p class="text-white text-xs sm:text-sm md:text-base leading-snug sm:leading-relaxed mx-auto max-w-5xl px-2 break-words">
@@ -530,14 +530,14 @@
 
 <!-- Welcome Hero Section -->
 <div class="-mx-4 sm:-mx-6 lg:-mx-8 mb-8">
-  <section class="bg-bh-red border-b-4 border-bh-border text-white px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 text-center">
+  <section class="bg-bh-red border-b-2 border-black text-white px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 text-center">
     <div class="max-w-4xl mx-auto">
       <div class="mb-6">
         <img src="/bidmo.to.png" alt="BidMo.to" class="h-20 sm:h-28 lg:h-36 w-auto mx-auto" />
       </div>
 
-      <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold mb-3">
-        Welcome to <span class="text-bh-yellow">BidMo.to</span>
+      <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold mb-3 uppercase tracking-widest">
+        Welcome to <span class="text-white">BidMo.to</span>
       </h1>
 
       <p class="text-base sm:text-lg lg:text-xl mb-3 opacity-95">
@@ -557,7 +557,7 @@
         {#if $authStore.isAuthenticated}
           <div class="flex items-center gap-2">
             <span class="text-xl">🔨</span>
-            <a href="/sell" class="hover:text-bh-yellow transition">List an Item</a>
+            <a href="/sell" class="hover:text-black transition-colors duration-150 ease-out">List an Item</a>
           </div>
         {/if}
         <div class="flex items-center gap-2">
@@ -1114,7 +1114,6 @@
   .location-select:focus {
     outline: none;
     border-color: var(--color-red);
-    box-shadow: var(--shadow-bh-sm);
   }
 
   .location-select:disabled {
@@ -1127,11 +1126,13 @@
     padding: 0.75rem 1.5rem;
     background: var(--color-fg);
     color: white;
-    border: none;
+    border: 2px solid var(--color-fg);
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: background-color 0.15s ease-out, color 0.15s ease-out;
     white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   :global(html.dark) .btn-clear-filters {
@@ -1140,8 +1141,8 @@
   }
 
   .btn-clear-filters:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: white;
+    color: var(--color-fg);
   }
 
   .clear-search {
@@ -1175,10 +1176,12 @@
     padding: 0.75rem 1.5rem;
     background: var(--color-fg);
     color: white;
-    border: none;
+    border: 2px solid var(--color-fg);
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: background-color 0.15s ease-out, color 0.15s ease-out;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   :global(html.dark) .btn-clear-search {
@@ -1187,8 +1190,8 @@
   }
 
   .btn-clear-search:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: white;
+    color: var(--color-fg);
   }
 
   .controls-container {
@@ -1232,7 +1235,6 @@
   .items-per-page select:focus {
     outline: none;
     border-color: var(--color-red);
-    box-shadow: var(--shadow-bh-sm);
   }
 
   /* Tabs */
@@ -1254,31 +1256,31 @@
     font-size: 1rem;
     color: #555;
     cursor: pointer;
-    transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.15s ease-out,
+                border-color 0.15s ease-out,
+                color 0.15s ease-out;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .tab:hover:not(.active) {
-    background: var(--color-muted);
-    border-color: #d1d5db;
-    transform: translateY(-1px);
+    background: var(--color-fg);
+    color: white;
+    border-color: var(--color-fg);
   }
 
   .tab:active {
-    transform: translateY(1px);
     transition-duration: 0.05s;
   }
 
   .tab.active {
     background: var(--color-red);
     border-color: var(--color-red);
-    border-bottom: 4px solid var(--color-border);
+    border-bottom: 2px solid var(--color-border);
     color: white;
   }
 
@@ -1306,9 +1308,7 @@
 
   .ended-card {
     opacity: 0.85;
-    transition: opacity 0.2s ease,
-                transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.15s ease-out;
   }
 
   .ended-card:hover {
@@ -1360,7 +1360,7 @@
 
   /* Staggered card entrance animation */
   .products-grid .product-card:not(.skeleton-card) {
-    animation: cardEnter 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation: cardEnter 0.15s ease-out both;
   }
 
   .products-grid .product-card:not(.skeleton-card):nth-child(1) { animation-delay: 0ms; }
@@ -1384,7 +1384,7 @@
 
   /* Staggered user card entrance */
   .users-grid .user-card:not(.skeleton-card) {
-    animation: cardEnter 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation: cardEnter 0.15s ease-out both;
   }
 
   .users-grid .user-card:not(.skeleton-card):nth-child(1) { animation-delay: 0ms; }
@@ -1397,26 +1397,23 @@
 
   .product-card {
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     overflow: hidden;
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.15s ease-out,
+                border-color 0.15s ease-out;
     text-decoration: none;
     color: inherit;
     display: flex;
     flex-direction: column;
-    box-shadow: var(--shadow-bh-sm);
   }
 
   .product-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 6px 6px 0px var(--color-border);
+    border-color: var(--color-red);
   }
 
   .product-card:active {
-    transform: translateY(-1px);
-    box-shadow: 2px 2px 0px var(--color-border);
-    transition-duration: 0.08s;
+    background-color: var(--color-muted);
+    transition-duration: 0.05s;
   }
 
   .product-image {
@@ -1431,11 +1428,11 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.15s ease-out;
   }
 
   .product-card:hover .product-image img {
-    transform: scale(1.05);
+    transform: scale(1.02);
   }
 
   .placeholder-image {
@@ -1611,7 +1608,6 @@
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
     font-weight: 700;
-    box-shadow: var(--shadow-bh-sm);
   }
 
   :global(html.dark) .percent-increase {
@@ -1653,7 +1649,6 @@
     text-transform: uppercase;
     background: var(--color-blue);
     color: white;
-    box-shadow: var(--shadow-bh-sm);
     letter-spacing: 0.5px;
   }
 
@@ -1669,39 +1664,30 @@
     font-weight: 700;
     text-transform: uppercase;
     color: white;
-    border: none;
-    border-radius: 4px;
+    border: 2px solid transparent;
     cursor: pointer;
     letter-spacing: 0.5px;
-    transition: background-color 0.15s ease, transform 0.15s ease;
+    transition: background-color 0.15s ease-out, color 0.15s ease-out;
   }
 
   .admin-hide-btn {
     background: #dc3545;
+    border-color: #dc3545;
   }
 
   .admin-hide-btn:hover {
-    background: #b02a37;
-    transform: translateY(-1px);
-  }
-
-  .admin-hide-btn:active {
-    transform: translateY(0);
-    transition-duration: 0.05s;
+    background: white;
+    color: #dc3545;
   }
 
   .admin-show-btn {
     background: #198754;
+    border-color: #198754;
   }
 
   .admin-show-btn:hover {
-    background: #146c43;
-    transform: translateY(-1px);
-  }
-
-  .admin-show-btn:active {
-    transform: translateY(0);
-    transition-duration: 0.05s;
+    background: white;
+    color: #198754;
   }
 
   .tab-admin {
@@ -1725,7 +1711,7 @@
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    animation: overlayFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: overlayFadeIn 0.15s ease-out;
     padding: 1rem;
     backdrop-filter: blur(2px);
   }
@@ -1739,15 +1725,14 @@
     background-color: var(--color-white);
     max-width: 460px;
     width: 90%;
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-md);
+    border: 2px solid var(--color-border);
     position: relative;
-    animation: modalSlideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: modalSlideUp 0.15s ease-out;
   }
 
   @keyframes modalSlideUp {
-    from { transform: translateY(30px) scale(0.97); opacity: 0; }
-    to { transform: translateY(0) scale(1); opacity: 1; }
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
   }
 
   .modal-close {
@@ -1767,17 +1752,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+    transition: background-color 0.15s ease-out, opacity 0.15s ease-out, color 0.15s ease-out;
   }
 
   .modal-close:hover {
-    background-color: var(--color-muted);
+    background-color: var(--color-fg);
+    color: white;
     opacity: 1;
-    transform: scale(1.05);
   }
 
   .modal-close:active {
-    transform: scale(0.95);
     transition-duration: 0.05s;
   }
 
@@ -1824,10 +1808,10 @@
     font-weight: 600;
     font-size: 1rem;
     cursor: pointer;
-    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-                background-color 0.15s ease;
-    border: var(--border-bh) solid var(--color-border);
+    transition: background-color 0.15s ease-out, color 0.15s ease-out;
+    border: 2px solid var(--color-border);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .btn-modal-cancel {
@@ -1845,9 +1829,9 @@
   }
 
   .btn-modal-hide:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
-    background: #b02a37;
+    background: white;
+    color: #dc3545;
+    border-color: #dc3545;
   }
 
   .btn-modal-unhide {
@@ -1856,9 +1840,9 @@
   }
 
   .btn-modal-unhide:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
-    background: #146c43;
+    background: white;
+    color: #198754;
+    border-color: #198754;
   }
 
   .btn-modal-confirm:disabled,
@@ -1895,8 +1879,8 @@
   }
 
   .status-sold {
-    background: var(--color-yellow);
-    color: var(--color-fg);
+    background: var(--color-red);
+    color: white;
   }
 
   .status-cancelled {
@@ -1936,7 +1920,7 @@
     font-size: 0.875rem;
     font-weight: 700;
     font-family: 'Courier New', monospace;
-    transition: all 0.3s;
+    transition: all 0.15s ease-out;
   }
 
   .countdown-icon {
@@ -1952,28 +1936,24 @@
 
   /* Warning - Less than 24 hours */
   .countdown-warning {
-    background-color: var(--color-yellow);
+    background-color: var(--color-muted);
     color: var(--color-fg);
     border: 2px solid var(--color-border);
-    animation: pulse-warning 2s ease-in-out infinite;
   }
 
   /* Urgent - Less than 12 hours */
   .countdown-urgent {
-    background: var(--color-yellow);
-    color: var(--color-fg);
+    background: var(--color-red);
+    color: white;
     border: 2px solid var(--color-border);
-    animation: pulse-urgent 1.5s ease-in-out infinite;
-    box-shadow: var(--shadow-bh-sm);
   }
 
   /* Critical - Less than 3 hours */
   .countdown-critical {
-    background: var(--color-red);
+    background: var(--color-fg);
     color: white;
-    border: 2px solid var(--color-border);
+    border: 2px solid var(--color-fg);
     animation: pulse-critical 1s ease-in-out infinite;
-    box-shadow: var(--shadow-bh-md);
   }
 
   /* Ended */
@@ -1983,34 +1963,12 @@
     border: 2px solid var(--color-border);
   }
 
-  @keyframes pulse-warning {
-    0%, 100% {
-      transform: scale(1);
-    }
-    50% {
-      transform: scale(1.02);
-    }
-  }
-
-  @keyframes pulse-urgent {
-    0%, 100% {
-      transform: scale(1);
-      box-shadow: var(--shadow-bh-sm);
-    }
-    50% {
-      transform: scale(1.03);
-      box-shadow: var(--shadow-bh-md);
-    }
-  }
-
   @keyframes pulse-critical {
     0%, 100% {
-      transform: scale(1);
-      box-shadow: var(--shadow-bh-md);
+      opacity: 1;
     }
     50% {
-      transform: scale(1.05);
-      box-shadow: var(--shadow-bh-md);
+      opacity: 0.7;
     }
   }
 
@@ -2031,22 +1989,18 @@
     color: var(--color-red);
     font-weight: 600;
     cursor: pointer;
-    transition: background-color 0.15s ease,
-                color 0.15s ease,
-                transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.15s ease-out,
+                color 0.15s ease-out;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .pagination-btn:hover:not(:disabled) {
     background-color: var(--color-red);
     color: white;
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-sm);
   }
 
   .pagination-btn:active:not(:disabled) {
-    transform: translateY(0);
-    box-shadow: none;
     transition-duration: 0.05s;
   }
 
@@ -2070,20 +2024,18 @@
     color: #555;
     font-weight: 600;
     cursor: pointer;
-    transition: background-color 0.15s ease,
-                border-color 0.15s ease,
-                color 0.15s ease,
-                transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.15s ease-out,
+                border-color 0.15s ease-out,
+                color 0.15s ease-out;
   }
 
   .pagination-number:hover:not(.active) {
     border-color: var(--color-red);
-    color: var(--color-red);
-    transform: translateY(-1px);
+    background-color: var(--color-red);
+    color: white;
   }
 
   .pagination-number:active {
-    transform: translateY(1px);
     transition-duration: 0.05s;
   }
 
@@ -2096,27 +2048,26 @@
   .new-products-banner {
     width: 100%;
     padding: 0.75rem 1.5rem;
-    background: var(--color-blue);
+    background: var(--color-fg);
     color: white;
-    border: 2px solid var(--color-border);
+    border: 2px solid var(--color-fg);
     font-weight: 700;
     font-size: 0.95rem;
     cursor: pointer;
     text-align: center;
     margin-bottom: 1rem;
-    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-    animation: bannerSlideDown 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: background-color 0.15s ease-out, color 0.15s ease-out;
+    animation: bannerSlideDown 0.15s ease-out;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .new-products-banner:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-md);
+    background: white;
+    color: var(--color-fg);
   }
 
   .new-products-banner:active {
-    transform: translateY(0);
-    box-shadow: none;
     transition-duration: 0.05s;
   }
 
@@ -2209,12 +2160,8 @@
       padding: 0;
     }
 
-    .product-card {
-      box-shadow: 2px 2px 0px var(--color-border);
-    }
-
     .product-card:hover {
-      transform: none;
+      border-color: var(--color-red);
     }
 
     .product-image {
@@ -2462,9 +2409,11 @@
     background: var(--color-white);
     color: #555;
     cursor: pointer;
-    transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.15s ease-out,
+                color 0.15s ease-out,
+                border-color 0.15s ease-out;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .search-type-btn:first-child {
@@ -2504,23 +2453,20 @@
     gap: 1rem;
     padding: 1.25rem;
     background: var(--color-white);
-    border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
+    border: 2px solid var(--color-border);
     text-decoration: none;
     color: inherit;
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: border-color 0.15s ease-out,
+                background-color 0.15s ease-out;
   }
 
   .user-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 6px 6px 0px var(--color-border);
+    border-color: var(--color-red);
   }
 
   .user-card:active {
-    transform: translateY(-1px);
-    box-shadow: 2px 2px 0px var(--color-border);
-    transition-duration: 0.08s;
+    background-color: var(--color-muted);
+    transition-duration: 0.05s;
   }
 
   .user-card-avatar {
@@ -2573,8 +2519,8 @@
   }
 
   .role-seller {
-    background: var(--color-yellow);
-    color: var(--color-fg);
+    background: var(--color-red);
+    color: white;
   }
 
   .role-buyer {
@@ -2635,7 +2581,7 @@
     }
 
     .user-card:hover {
-      transform: none;
+      border-color: var(--color-red);
     }
 
     .user-card-avatar {

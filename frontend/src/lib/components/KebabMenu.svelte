@@ -111,8 +111,7 @@
     margin-top: 4px;
     min-width: 160px;
     background: var(--color-white);
-    box-shadow: var(--shadow-bh-sm);
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid var(--color-border);
     padding: 4px;
     z-index: 100;
     animation: fadeIn 0.15s ease-out;

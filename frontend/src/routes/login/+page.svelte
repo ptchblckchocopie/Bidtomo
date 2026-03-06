@@ -67,11 +67,11 @@
 
 <div class="min-h-[calc(100vh-200px)] flex items-center justify-center p-4 sm:p-8">
   <div class="card-bh p-5 sm:p-8 md:p-12 max-w-[450px] w-full">
-    <h1 class="headline-bh text-2xl sm:text-4xl mb-2 text-center">Login</h1>
+    <h1 class="headline-bh text-2xl sm:text-4xl mb-2 text-center uppercase tracking-tighter">Login</h1>
     <p class="text-bh-fg/60 text-center mb-8">Access your marketplace account</p>
 
     {#if error}
-      <div class="bg-bh-red text-white border-4 border-bh-border p-4 mb-6 font-bold">
+      <div class="bg-bh-red text-white border-2 border-bh-border p-4 mb-6 font-bold">
         {error}
       </div>
     {/if}
@@ -110,7 +110,7 @@
             onmouseleave={() => showPassword = false}
             ontouchstart={() => showPassword = true}
             ontouchend={() => showPassword = false}
-            class="absolute right-0 top-0 h-full px-3 flex items-center text-bh-fg/50 hover:text-bh-fg border-l-[3px] border-bh-border transition-colors select-none"
+            class="absolute right-0 top-0 h-full px-3 flex items-center text-bh-fg/50 hover:text-bh-fg border-l-2 border-bh-border transition-colors select-none"
           >
             {#if showPassword}
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>

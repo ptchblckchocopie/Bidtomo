@@ -268,7 +268,6 @@
     background-color: var(--color-muted);
     overflow: hidden;
     border: var(--border-bh) solid var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
     touch-action: pan-y pinch-zoom;
     user-select: none;
     -webkit-user-select: none;
@@ -402,12 +401,10 @@
   .thumbnail:hover {
     border-color: var(--color-red);
     transform: translateY(-2px);
-    box-shadow: var(--shadow-bh-sm);
   }
 
   .thumbnail.active {
     border-color: var(--color-border);
-    box-shadow: var(--shadow-bh-sm);
   }
 
   .thumbnail img {
@@ -440,7 +437,7 @@
     .slider-main {
       aspect-ratio: 4 / 3;
       border-width: 2px;
-      box-shadow: 2px 2px 0px var(--color-border);
+      /* flat — no shadow */
     }
 
     .slide img {
@@ -533,8 +530,7 @@
     width: auto;
     height: auto;
     object-fit: contain;
-    border: var(--border-bh) solid var(--color-white);
-    box-shadow: var(--shadow-bh-md);
+    border: 2px solid var(--color-white);
   }
 
   .lightbox-arrow {
