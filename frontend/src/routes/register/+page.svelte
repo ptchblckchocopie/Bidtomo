@@ -323,9 +323,6 @@
 
 <style>
   /* Dark mode: remove the bright blue page background */
-  :global(html.dark) .register-page {
-    background: transparent !important;
-  }
 
   /* Error banner — light mode */
   .error-banner {
@@ -335,12 +332,6 @@
   }
 
   /* Error banner — dark mode */
-  :global(html.dark) .error-banner {
-    background: rgba(220, 38, 38, 0.15);
-    color: #fca5a5;
-    border: 1px solid rgba(220, 38, 38, 0.4);
-    border-radius: 8px !important;
-  }
 
   /* Flash/highlight animation */
   .error-flash {

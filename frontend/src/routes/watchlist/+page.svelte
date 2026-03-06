@@ -160,7 +160,7 @@
   }
 
   .product-card {
-    background: var(--color-white);
+    background: var(--color-surface);
     border: 2px solid var(--color-border);
     overflow: hidden;
     transition: all 0.15s;
@@ -219,7 +219,7 @@
   }
 
   .description {
-    color: #555;
+    color: var(--color-muted-fg);
     margin-bottom: 0.75rem;
     flex: 1;
     font-size: 0.9rem;
@@ -231,7 +231,7 @@
 
   .label-small {
     font-size: 0.75rem;
-    color: #666;
+    color: var(--color-muted-fg);
     display: block;
   }
 
@@ -267,7 +267,7 @@
   }
 
   .empty-state p {
-    color: #666;
+    color: var(--color-muted-fg);
     max-width: 400px;
     margin: 0 auto;
   }

@@ -1802,9 +1802,10 @@
   .product-detail {
     max-width: 1200px;
     margin: 0 auto;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     box-shadow: none;
     padding: 2rem;
+    border-radius: var(--radius-lg);
   }
 
   .product-header {
@@ -1840,12 +1841,12 @@
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
-    border: 1.5px solid var(--color-border);
+    border: 1px solid var(--color-border);
     background: transparent;
     color: var(--color-fg);
     opacity: 0.65;
     transition: all 150ms ease;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
   }
 
   .action-btn:hover {
@@ -2150,8 +2151,8 @@
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    border: 1.5px solid var(--color-border);
-    border-radius: 3px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
     margin: 0;
   }
 
@@ -2219,13 +2220,14 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    background: var(--color-red);
+    background: rgba(239, 68, 68, 0.15);
     padding: 0.75rem 1.25rem;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-red);
+    border-radius: var(--radius-md);
   }
 
   .countdown-timer-inline .countdown-label {
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--color-red);
     font-size: 0.875rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -2233,7 +2235,7 @@
   }
 
   .countdown-timer-inline .countdown-time {
-    color: white;
+    color: var(--color-fg);
     font-size: 1.5rem;
     font-weight: 900;
     font-family: 'Courier New', monospace;
@@ -2241,20 +2243,21 @@
   }
 
   .price-info {
-    background: var(--color-blue);
+    background: var(--color-surface);
     padding: 2rem;
     margin-bottom: 1.5rem;
     text-align: center;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-blue);
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 220px;
     position: relative;
+    border-radius: var(--radius-lg);
   }
 
   .highest-bid-container {
-    color: white;
+    color: var(--color-fg);
     position: relative;
     width: 100%;
   }
@@ -2272,7 +2275,7 @@
     font-size: 0.9rem;
     font-weight: 700;
     letter-spacing: 2px;
-    opacity: 0.95;
+    color: var(--color-muted-fg);
     width: 100%;
     margin-bottom: 0.5rem;
   }
@@ -2284,23 +2287,24 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background: var(--color-red);
+    background: rgba(239, 68, 68, 0.15);
     padding: 0.75rem 1.25rem;
     font-size: 0.875rem;
     font-weight: 700;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-red);
     margin: 0;
     z-index: 10;
+    border-radius: var(--radius-sm);
   }
 
   .countdown-timer-badge .countdown-label {
-    color: rgba(255, 255, 255, 0.95);
+    color: var(--color-red);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
   .countdown-timer-badge .countdown-time {
-    color: white;
+    color: var(--color-fg);
     font-weight: 900;
     letter-spacing: 1px;
     font-family: 'Courier New', monospace;
@@ -2319,7 +2323,7 @@
     font-size: 3.5rem;
     font-weight: 900;
     line-height: 1;
-    color: white;
+    color: var(--color-fg);
     margin-bottom: 0;
   }
 
@@ -2329,19 +2333,20 @@
     justify-content: center;
     gap: 0.375rem;
     padding: 0.625rem 1rem;
-    background: var(--color-blue);
-    border: 2px solid var(--color-border);
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
   }
 
   .arrow-up-icon {
-    color: white;
+    color: var(--color-accent);
     flex-shrink: 0;
   }
 
   .percentage-text {
     font-size: 1.25rem;
     font-weight: 900;
-    color: white;
+    color: var(--color-accent);
     letter-spacing: 0.5px;
   }
 
@@ -2349,21 +2354,22 @@
 
   .starting-price-small {
     font-size: 0.95rem;
-    opacity: 0.9;
+    color: var(--color-muted-fg);
     font-weight: 500;
   }
 
   /* Inactive Warning Banner */
   .inactive-warning {
-    background: var(--color-red);
-    color: white;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-fg);
     padding: 1rem 1.5rem;
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
     gap: 0.75rem;
     font-weight: 600;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-red);
+    border-radius: var(--radius-lg);
   }
 
   .warning-icon {
@@ -2372,7 +2378,8 @@
 
   /* Sold Info Styles */
   .sold-info {
-    background: var(--color-blue) !important;
+    background: var(--color-surface) !important;
+    border-color: var(--color-blue) !important;
   }
 
   .sold-badge {
@@ -2380,31 +2387,32 @@
     font-weight: 900;
     letter-spacing: 3px;
     margin-bottom: 0.75rem;
-    color: white;
-    background-color: rgba(255, 255, 255, 0.2);
+    color: var(--color-blue);
+    background-color: rgba(59, 130, 246, 0.15);
     padding: 0.5rem 1.5rem;
     display: inline-block;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-blue);
+    border-radius: var(--radius-sm);
   }
 
   .sold-to-info {
     font-size: 1.1rem;
     font-weight: 600;
     margin-top: 0.75rem;
-    color: white;
-    opacity: 0.95;
+    color: var(--color-muted-fg);
   }
 
   /* Highest Bidder Alert */
   .highest-bidder-alert {
-    background: var(--color-red);
-    border: 2px solid var(--color-border);
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid var(--color-accent);
     padding: 1.25rem 1.5rem;
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
     gap: 1rem;
-    color: white;
+    color: var(--color-fg);
+    border-radius: var(--radius-lg);
   }
 
   .alert-icon {
@@ -2414,7 +2422,7 @@
   .alert-text {
     font-size: 1.25rem;
     font-weight: 700;
-    color: inherit;
+    color: var(--color-fg);
     letter-spacing: 0.5px;
   }
 
@@ -2430,13 +2438,14 @@
 
   /* Outbid Alert */
   .outbid-alert {
-    background: var(--color-red);
-    border: 2px solid var(--color-border);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--color-red);
     padding: 1.25rem 1.5rem;
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
     gap: 1rem;
+    border-radius: var(--radius-lg);
   }
 
   .outbid-alert .alert-icon {
@@ -2444,7 +2453,7 @@
   }
 
   .outbid-alert .alert-text {
-    color: white;
+    color: var(--color-fg);
     flex: 1;
   }
 
@@ -2456,10 +2465,11 @@
 
   /* Winner Alert */
   .winner-alert {
-    background: var(--color-blue);
-    border: 2px solid var(--color-border);
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid var(--color-blue);
     padding: 1.5rem;
     margin-bottom: 1.5rem;
+    border-radius: var(--radius-lg);
   }
 
   .winner-alert-header {
@@ -2476,12 +2486,12 @@
   .winner-alert-header .alert-text {
     font-size: 1.5rem;
     font-weight: 800;
-    color: white;
+    color: var(--color-fg);
     letter-spacing: 0.5px;
   }
 
   .winner-alert-message {
-    color: white;
+    color: var(--color-muted-fg);
     font-size: 1rem;
     margin-bottom: 1rem;
     line-height: 1.5;
@@ -2493,13 +2503,14 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 0.875rem 1.5rem;
-    background: var(--color-white);
-    color: var(--color-blue);
+    background: var(--color-blue);
+    color: white;
     text-decoration: none;
     font-weight: 700;
     font-size: 1.125rem;
     transition: background 150ms ease-out, color 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-blue);
+    border-radius: var(--radius-md);
   }
 
   .winner-message-btn:hover {
@@ -2514,7 +2525,8 @@
     display: flex;
     flex-direction: column;
     transition: all 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
   }
 
   /* Collapsible bid section styles */
@@ -2553,12 +2565,13 @@
     margin: 0.75rem auto 0;
     padding: 0.625rem 1.25rem;
     background: var(--color-blue);
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     cursor: pointer;
     color: white;
     font-weight: 600;
     font-size: 0.9rem;
     transition: background 150ms ease-out, color 150ms ease-out;
+    border-radius: var(--radius-md);
   }
 
   .bid-toggle-pill:hover {
@@ -2594,7 +2607,8 @@
     padding: 2rem;
     margin-bottom: 2rem;
     text-align: center;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
   }
 
   .ended-header h3 {
@@ -2606,9 +2620,10 @@
   }
 
   .winner-info {
-    background: var(--color-white);
+    background: var(--color-surface);
     padding: 1.5rem;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
   }
 
   .winner-label {
@@ -2643,7 +2658,7 @@
     padding: 0.375rem 0.75rem;
     font-size: 0.875rem;
     font-weight: 600;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
   }
 
   .winner-percentage-increase .arrow-up-icon {
@@ -2703,7 +2718,8 @@
     font-weight: 600;
     font-size: 1.1rem;
     transition: background 150ms ease-out, color 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
   }
 
   .contact-btn:hover {
@@ -2751,19 +2767,20 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background-color: var(--color-white);
-    border: 2px solid var(--color-border);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
     padding: 0.5rem;
     flex: 1;
     min-height: 64px;
     min-width: 0;
     overflow: hidden;
+    border-radius: var(--radius-md);
   }
 
   .bid-arrow-btn {
     background: var(--color-blue);
     color: white;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     width: 48px;
     height: 48px;
     display: flex;
@@ -2772,6 +2789,7 @@
     cursor: pointer;
     transition: all 150ms ease-out;
     flex-shrink: 0;
+    border-radius: var(--radius-sm);
   }
 
   .bid-arrow-btn:hover:not(:disabled) {
@@ -2846,7 +2864,7 @@
     font-weight: 700;
     background: var(--color-red);
     color: white;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     cursor: pointer;
     transition: background 150ms ease-out, color 150ms ease-out;
     white-space: nowrap;
@@ -2855,6 +2873,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: var(--radius-md);
   }
 
   .place-bid-btn:hover:not(:disabled) {
@@ -2870,31 +2889,34 @@
   }
 
   .success-message {
-    background-color: var(--color-blue);
-    color: white;
+    background-color: rgba(59, 130, 246, 0.1);
+    color: var(--color-fg);
     padding: 1rem;
     margin-bottom: 1rem;
     animation: slideDown 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-blue);
+    border-radius: var(--radius-md);
   }
 
   .error-message {
-    background-color: var(--color-red);
-    color: white;
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--color-fg);
     padding: 1rem;
     margin-bottom: 1rem;
     animation: slideDown 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-red);
+    border-radius: var(--radius-md);
   }
 
   .info-message {
-    background-color: var(--color-blue);
-    color: white;
+    background-color: rgba(59, 130, 246, 0.1);
+    color: var(--color-fg);
     padding: 1rem;
     margin-bottom: 1rem;
     text-align: center;
     animation: slideDown 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-blue);
+    border-radius: var(--radius-md);
   }
 
   .info-message p {
@@ -2918,7 +2940,8 @@
   .seller-card {
     background: var(--color-muted);
     padding: 1.25rem;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
   }
 
   .seller-header {
@@ -2938,7 +2961,7 @@
     color: white;
     font-weight: 600;
     font-size: 1.25rem;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     overflow: hidden;
     flex-shrink: 0;
   }
@@ -2978,8 +3001,8 @@
     align-items: center;
     gap: 1rem;
     padding: 0.875rem 0;
-    border-top: 2px solid var(--color-border);
-    border-bottom: 2px solid var(--color-border);
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
     margin-bottom: 1rem;
   }
 
@@ -3057,7 +3080,7 @@
     padding: 0.35rem 0.7rem;
     font-size: 0.8rem;
     font-weight: 700;
-    border: 2px solid var(--color-blue, #2563eb);
+    border: 1px solid var(--color-blue, #2563eb);
     text-decoration: none;
     transition: all 150ms ease-out;
   }
@@ -3071,13 +3094,14 @@
     display: block;
     width: 100%;
     padding: 0.75rem;
-    background: var(--color-white);
-    border: 2px solid var(--color-border);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
     text-align: center;
     color: var(--color-fg);
     font-weight: 500;
     text-decoration: none;
     transition: all 150ms ease-out;
+    border-radius: var(--radius-md);
   }
 
   .view-profile-btn:hover {
@@ -3102,8 +3126,9 @@
 
   .chart-container {
     padding: 1.5rem;
-    background: var(--color-white);
-    border: 2px solid var(--color-border);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
   }
 
   .price-chart {
@@ -3131,7 +3156,7 @@
 
   .data-point {
     fill: var(--color-red);
-    stroke: var(--color-white);
+    stroke: var(--color-surface);
     stroke-width: 0.5;
     vector-effect: non-scaling-stroke;
   }
@@ -3151,8 +3176,9 @@
     align-items: flex-start;
     margin-top: 1rem;
     padding: 1rem;
-    background: var(--color-white);
-    border: 2px solid var(--color-border);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
   }
 
   .label-left,
@@ -3225,8 +3251,9 @@
     gap: calc(1rem * var(--scale));
     padding: calc(1rem * var(--scale));
     background-color: var(--color-muted);
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     transition: all 150ms ease-out;
+    border-radius: var(--radius-md);
   }
 
   .bid-history-item:hover {
@@ -3236,7 +3263,7 @@
   /* Top ranked bid styling — Swiss red accent */
   .bid-history-item.rank-1 {
     background: var(--color-red);
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     position: relative;
     color: white;
   }
@@ -3303,7 +3330,7 @@
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.5px;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
   }
 
   /* Modal Styles */
@@ -3333,15 +3360,16 @@
   }
 
   .modal-content {
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     max-width: 500px;
     width: 90%;
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     position: relative;
     animation: slideUp 150ms ease-out;
     margin: auto;
+    border-radius: var(--radius-lg);
   }
 
   @keyframes slideUp {
@@ -3360,7 +3388,7 @@
     top: 1rem;
     right: 1rem;
     background: none;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     font-size: 2rem;
     color: var(--color-fg);
     opacity: 0.6;
@@ -3421,7 +3449,8 @@
     font-size: 1.1rem;
     text-align: center;
     transition: background 150ms ease-out, color 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
   }
 
   .btn-login {
@@ -3466,14 +3495,15 @@
     color: var(--color-fg);
     margin: 0 0 1.5rem 0;
     padding-bottom: 1rem;
-    border-bottom: 2px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
   }
 
   .bid-confirmation {
-    background: var(--color-blue);
+    background: rgba(59, 130, 246, 0.1);
     padding: 1.5rem;
     margin-bottom: 1.5rem;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-blue);
+    border-radius: var(--radius-md);
   }
 
   .confirm-row {
@@ -3481,7 +3511,7 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 0.75rem;
-    color: white;
+    color: var(--color-fg);
   }
 
   .confirm-row:last-child {
@@ -3513,9 +3543,10 @@
 
   .privacy-toggle {
     background-color: var(--color-muted);
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     padding: 1rem;
     margin-bottom: 1.5rem;
+    border-radius: var(--radius-md);
   }
 
   .toggle-label {
@@ -3557,8 +3588,9 @@
     font-size: 1.1rem;
     text-align: center;
     transition: background 150ms ease-out, color 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     cursor: pointer;
+    border-radius: var(--radius-md);
   }
 
   .btn-cancel-bid {
@@ -3607,7 +3639,7 @@
   .form-group select {
     width: 100%;
     padding: 0.75rem;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     font-size: 1rem;
     font-family: inherit;
     transition: border-color 150ms ease-out;
@@ -3666,8 +3698,9 @@
     font-size: 1.1rem;
     text-align: center;
     transition: background 150ms ease-out, color 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     cursor: pointer;
+    border-radius: var(--radius-md);
   }
 
   .btn-cancel-edit {
@@ -3700,7 +3733,8 @@
   /* Owner Section Styles */
   .owner-section {
     background: var(--color-muted);
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
   }
 
   .highest-bid-info {
@@ -3736,10 +3770,11 @@
     font-weight: 700;
     background: var(--color-blue);
     color: white;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     cursor: pointer;
     transition: background 150ms ease-out, color 150ms ease-out;
     margin-top: 1rem;
+    border-radius: var(--radius-md);
   }
 
   .accept-bid-btn:hover {
@@ -3749,16 +3784,19 @@
 
   /* Accept Bid Modal Styles */
   .accept-confirmation {
-    background: var(--color-blue);
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid var(--color-blue);
+    border-radius: var(--radius-md);
   }
 
   .warning-message {
-    background-color: var(--color-red);
-    border: 2px solid var(--color-border);
+    background-color: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--color-red);
     padding: 1rem;
     margin-top: 1.5rem;
-    color: white;
+    color: var(--color-fg);
     font-weight: 600;
+    border-radius: var(--radius-md);
   }
 
   .btn-accept-bid {
@@ -3768,10 +3806,11 @@
     font-size: 1.1rem;
     text-align: center;
     transition: background 150ms ease-out, color 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     cursor: pointer;
     background: var(--color-blue);
     color: white;
+    border-radius: var(--radius-md);
   }
 
   .btn-accept-bid:hover:not(:disabled) {
@@ -3790,7 +3829,7 @@
     display: flex;
     gap: 0.5rem;
     margin-top: 1rem;
-    border-bottom: 2px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
   }
 
   .tab-btn {
@@ -3804,7 +3843,7 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 150ms ease-out;
-    margin-bottom: -2px;
+    margin-bottom: -1px;
   }
 
   .tab-btn:hover:not(:disabled) {
@@ -3851,13 +3890,14 @@
 
   .duration-btn {
     padding: 0.75rem 1.25rem;
-    background-color: var(--color-white);
-    border: 2px solid var(--color-red);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-red);
     color: var(--color-red);
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 150ms ease-out;
+    border-radius: var(--radius-md);
   }
 
   .duration-btn:hover:not(:disabled) {
@@ -3887,7 +3927,7 @@
     width: 80px;
     padding: 0.625rem;
     font-size: 1rem;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     font-family: inherit;
   }
 
@@ -3907,11 +3947,12 @@
     padding: 0.625rem 1.5rem;
     background: var(--color-red);
     color: white;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
     transition: background 150ms ease-out, color 150ms ease-out;
+    border-radius: var(--radius-md);
   }
 
   .apply-duration-btn:hover:not(:disabled) {
@@ -3931,12 +3972,13 @@
     top: 1.5rem;
     right: 1.5rem;
     z-index: 10000;
-    background: var(--color-blue);
-    border: 2px solid var(--color-border);
+    background: var(--color-surface);
+    border: 1px solid var(--color-blue);
     overflow: hidden;
     animation: toastSlideIn 150ms ease-out;
     min-width: 320px;
     max-width: 400px;
+    border-radius: var(--radius-lg);
   }
 
   @keyframes toastSlideIn {
@@ -3998,13 +4040,14 @@
   .toast-icon {
     width: 44px;
     height: 44px;
-    background: rgba(255, 255, 255, 0.25);
+    background: rgba(59, 130, 246, 0.15);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    color: white;
-    border: 2px solid var(--color-border);
+    color: var(--color-blue);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
   }
 
   .toast-text {
@@ -4017,42 +4060,44 @@
   .toast-title {
     font-weight: 700;
     font-size: 1rem;
-    color: white;
+    color: var(--color-fg);
   }
 
   .toast-subtitle {
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--color-muted-fg);
   }
 
   .toast-close {
-    background: rgba(255, 255, 255, 0.2);
-    border: 2px solid var(--color-border);
+    background: var(--color-surface-hover);
+    border: 1px solid var(--color-border);
     width: 28px;
     height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: white;
+    color: var(--color-muted-fg);
     transition: all 150ms ease-out;
     flex-shrink: 0;
+    border-radius: var(--radius-sm);
   }
 
   .toast-close:hover {
-    background: rgba(255, 255, 255, 0.35);
+    background: var(--color-border);
+    color: var(--color-fg);
   }
 
   .toast-progress {
     height: 4px;
-    background: rgba(255, 255, 255, 0.3);
+    background: var(--color-border);
   }
 
   .toast-progress::after {
     content: '';
     display: block;
     height: 100%;
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--color-blue);
     animation: toastProgress 5s linear forwards;
   }
 
@@ -4244,7 +4289,7 @@
     font-size: 0.7rem;
     font-weight: 800;
     letter-spacing: 0.05em;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     z-index: 10;
   }
 
@@ -4257,7 +4302,7 @@
       opacity: 1;
     }
     100% {
-      background: var(--color-white);
+      background: var(--color-surface);
       opacity: 1;
     }
   }
@@ -4298,8 +4343,9 @@
     font-weight: 600;
     cursor: pointer;
     transition: background 150ms ease-out, color 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     font-size: 1rem;
+    border-radius: var(--radius-md);
   }
 
   .image-upload-btn:hover:not(.disabled) {
@@ -4326,8 +4372,9 @@
     position: relative;
     aspect-ratio: 1;
     overflow: hidden;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     background: var(--color-muted);
+    border-radius: var(--radius-md);
   }
 
   .image-preview-item img {
@@ -4344,7 +4391,7 @@
     height: 32px;
     background: var(--color-red);
     color: white;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     font-size: 1.25rem;
     cursor: pointer;
     display: flex;
@@ -4419,12 +4466,13 @@
   }
 
   .admin-modal-content {
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     max-width: 460px;
     width: 90%;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     position: relative;
     animation: adminModalSlideUp 150ms ease-out;
+    border-radius: var(--radius-lg);
   }
 
   @keyframes adminModalSlideUp {
@@ -4437,7 +4485,7 @@
     top: 1rem;
     right: 1rem;
     background: none;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     font-size: 2rem;
     color: var(--color-fg);
     opacity: 0.6;
@@ -4501,7 +4549,8 @@
     font-size: 1rem;
     cursor: pointer;
     transition: background 150ms ease-out, color 150ms ease-out;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
   }
 
   .btn-admin-cancel {
@@ -4546,7 +4595,7 @@
     display: inline-block;
     width: 14px;
     height: 14px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     border-top-color: white;
     border-radius: 50%;
     animation: adminSpin 0.6s linear infinite;
@@ -4576,13 +4625,14 @@
   }
 
   .report-modal-content {
-    background: var(--color-bg);
+    background: var(--color-surface);
     color: var(--color-fg);
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     max-width: 480px;
     width: 100%;
     position: relative;
     padding: 2rem;
+    border-radius: var(--radius-lg);
   }
 
   .report-modal-close {
@@ -4629,7 +4679,7 @@
   .report-select {
     width: 100%;
     padding: 0.6rem 0.75rem;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     font-size: 0.95rem;
     margin-bottom: 1rem;
     background: var(--color-bg);
@@ -4639,7 +4689,7 @@
   .report-textarea {
     width: 100%;
     padding: 0.6rem 0.75rem;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     font-size: 0.95rem;
     margin-bottom: 1rem;
     resize: vertical;
@@ -4677,10 +4727,11 @@
     padding: 0.6rem 1.25rem;
     background: var(--color-muted);
     color: var(--color-fg);
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     font-weight: 600;
     cursor: pointer;
     transition: background 150ms ease-out;
+    border-radius: var(--radius-md);
   }
 
   .btn-report-cancel:hover {
@@ -4692,10 +4743,11 @@
     padding: 0.6rem 1.25rem;
     background: var(--color-red);
     color: white;
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     font-weight: 600;
     cursor: pointer;
     transition: background 150ms ease-out, color 150ms ease-out;
+    border-radius: var(--radius-md);
   }
 
   .btn-report-submit:hover,
@@ -4708,90 +4760,6 @@
     opacity: 0.6;
     cursor: not-allowed;
     transform: none;
-  }
-
-  /* ── Dark Mode Refinements ── */
-  :global(html.dark) .product-detail {
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  :global(html.dark) .seller-card,
-  :global(html.dark) .bid-section,
-  :global(html.dark) .owner-section,
-  :global(html.dark) .auction-ended-section {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  :global(html.dark) .seller-stats {
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  :global(html.dark) .bid-history-item {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  :global(html.dark) .bid-history-item:hover {
-    border-color: var(--color-red);
-  }
-
-  :global(html.dark) .status-badge {
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  :global(html.dark) .live-indicator {
-    opacity: 0.9;
-  }
-
-  :global(html.dark) .chart-container,
-  :global(html.dark) .chart-labels {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  :global(html.dark) .view-profile-btn {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.1);
-    color: var(--color-fg);
-  }
-
-  :global(html.dark) .view-profile-btn:hover {
-    background: var(--color-blue);
-    color: white;
-  }
-
-  :global(html.dark) .modal-content,
-  :global(html.dark) .admin-modal-content,
-  :global(html.dark) .report-modal-content {
-    background: #0f0f14;
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  :global(html.dark) .winner-info {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  :global(html.dark) .bid-control {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  :global(html.dark) .privacy-toggle {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  :global(html.dark) .price-info {
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  :global(html.dark) .description-section h3,
-  :global(html.dark) .seller-info h3,
-  :global(html.dark) .bid-history h3,
-  :global(html.dark) .price-analytics h3 {
-    color: rgba(255, 255, 255, 0.9);
   }
 
   /* Sticky right column on desktop */

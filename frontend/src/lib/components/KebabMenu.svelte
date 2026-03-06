@@ -110,7 +110,7 @@
     top: 100%;
     margin-top: 4px;
     min-width: 160px;
-    background: var(--color-white);
+    background: var(--color-surface);
     border: 2px solid var(--color-border);
     padding: 4px;
     z-index: 100;

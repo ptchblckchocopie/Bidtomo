@@ -489,7 +489,7 @@
   }
 
   .profile-container {
-    background: var(--color-white);
+    background: var(--color-surface);
     border: 2px solid var(--color-border);
     overflow: hidden;
   }
@@ -645,7 +645,7 @@
   }
 
   .product-card:hover {
-    background: var(--color-white);
+    background: var(--color-surface);
     border-color: var(--color-fg);
   }
 
@@ -861,7 +861,7 @@
 
   .chat-link:hover {
     background: var(--color-fg);
-    color: var(--color-white);
+    color: var(--color-fg);
     border-color: var(--color-fg);
   }
 

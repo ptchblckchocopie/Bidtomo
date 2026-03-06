@@ -355,9 +355,6 @@
     animation: dropdownIn 0.1s;
     transform-origin: top right;
   }
-  :global(html.dark) .user-dropdown {
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-  }
   .dropdown-link {
     font-family: var(--font-body);
     color: var(--color-muted-fg);

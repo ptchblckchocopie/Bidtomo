@@ -44,11 +44,5 @@
 		outline-offset: 2px;
 	}
 
-	:global(html.dark) .theme-toggle {
-		color: rgba(255, 255, 255, 0.4);
-	}
 
-	:global(html.dark) .theme-toggle:hover {
-		color: rgba(255, 255, 255, 0.8);
-	}
 </style>

@@ -88,7 +88,7 @@
     gap: 0.5rem;
     padding: 0.5rem;
     border: var(--border-bh) solid var(--color-border);
-    background-color: var(--color-white);
+    background-color: var(--color-surface);
     min-height: 44px;
     transition: border-color 0.2s, box-shadow 0.2s;
   }
@@ -109,24 +109,16 @@
     align-items: center;
     gap: 0.375rem;
     padding: 0.375rem 0.625rem;
-    background: var(--color-blue);
-    color: white;
+    background: rgba(59, 130, 246, 0.15);
+    color: #8b93e0;
     font-size: 0.875rem;
     font-weight: 500;
-    border: 2px solid var(--color-border);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: var(--radius-sm);
     animation: slideIn 0.2s ease-out;
   }
 
-  :global(html.dark) .keyword-pill {
-    background: rgba(94, 106, 210, 0.2);
-    color: #8b93e0;
-    border-color: rgba(94, 106, 210, 0.3);
-  }
 
-  :global(html.dark) .remove-btn {
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
-  }
 
   @keyframes slideIn {
     from {

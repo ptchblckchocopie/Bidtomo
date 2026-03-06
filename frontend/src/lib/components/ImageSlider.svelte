@@ -502,7 +502,7 @@
     right: 20px;
     background: var(--color-fg);
     color: white;
-    border: var(--border-bh) solid var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
     font-size: 2.5rem;
     width: 60px;
     height: 60px;
@@ -537,7 +537,7 @@
     width: auto;
     height: auto;
     object-fit: contain;
-    border: 2px solid var(--color-white);
+    border: 2px solid var(--color-border);
   }
 
   .lightbox-arrow {
@@ -546,7 +546,7 @@
     transform: translateY(-50%);
     background: var(--color-fg);
     color: white;
-    border: var(--border-bh) solid var(--color-white);
+    border: var(--border-bh) solid var(--color-border);
     font-size: 4rem;
     width: 70px;
     height: 70px;
@@ -584,7 +584,7 @@
     padding: 0.75rem 1.5rem;
     font-size: 1.1rem;
     font-weight: 700;
-    border: 2px solid var(--color-white);
+    border: 2px solid var(--color-border);
   }
 
   @media (max-width: 768px) {
