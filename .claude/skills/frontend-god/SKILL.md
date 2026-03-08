@@ -1,20 +1,8 @@
 ---
 name: frontend-god
 description: >
-  Expert frontend developer, designer, and visual evaluator for the Bidtomo SvelteKit project.
-  Use when the user asks to build a component, design a page, add animations, create a 3D effect,
-  fix the UI, improve visual design, add transitions, make it look better, create a shader,
-  build a WebGL effect, style this page, add GSAP animation, fix responsive layout, add hover effects,
-  create a glassmorphism effect, build a dark theme component, center something, fix padding/margin,
-  update typography, create a loading animation, add scroll effects, build a particle system,
-  improve accessibility, fix mobile layout, add loading state, skeleton loader, empty state,
-  error handling UI, toast notification, fix z-index, improve performance, optimize bundle size,
-  fix accessibility, keyboard navigation, focus trap, fix Safari bug, fix mobile viewport,
-  handle broken images, add page transitions, make this cinematic, or any frontend task.
-  Also triggers on: screenshot loop, visual feedback, pixel perfect, evaluate the design,
-  check how it looks, review the UI, take a screenshot.
-  Covers: Svelte 5, Tailwind CSS, Three.js, GSAP, CSS animations, responsive design,
-  UX edge states, performance, accessibility, motion design, and visual QA.
+  Manual-only skill. Invoke explicitly with /frontend-god.
+  Do NOT auto-trigger this skill. Only use when the user types /frontend-god.
 ---
 
 # Frontend God
