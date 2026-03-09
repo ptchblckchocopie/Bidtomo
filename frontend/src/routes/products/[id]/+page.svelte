@@ -1353,6 +1353,7 @@
                   <p class="info-text">Current Highest Bid:</p>
                   <p class="bid-amount-large">{formatPrice(highestBid.amount, sellerCurrency)}</p>
                   <p class="bidder-info">by {getBidderName(highestBid)}</p>
+                  <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
                 </div>
 
                 <button class="accept-bid-btn" onclick={openAcceptBidModal}>
@@ -1361,6 +1362,7 @@
               {:else}
                 <div class="info-message">
                   <p>No bids yet. Waiting for bidders...</p>
+                  <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
                 </div>
               {/if}
             </div>
