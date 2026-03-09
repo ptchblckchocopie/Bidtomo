@@ -134,7 +134,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               {#if unreadCount > 0}
-                <span class="absolute -top-0.5 -right-0.5 bg-[var(--color-accent)] text-[var(--color-bg)] text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center pulse-glow">
+                <span class="absolute -top-0.5 -right-0.5 bg-[var(--color-accent)] text-white text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center pulse-glow">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               {/if}
@@ -254,7 +254,7 @@
               class="flex items-center gap-2 px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/inbox' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
               <span>Inbox</span>
               {#if unreadCount > 0}
-                <span class="bg-[var(--color-accent)] text-[var(--color-bg)] text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                <span class="bg-[var(--color-accent)] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               {/if}
