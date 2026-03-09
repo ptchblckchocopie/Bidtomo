@@ -183,7 +183,7 @@ Logical PostgreSQL dump streamed as gzip to DigitalOcean Spaces. Scheduled via `
 
 - **SSR disabled** — Client-side SPA (`export const ssr = false` in `+layout.ts`). `+page.ts` load functions run in the browser — `fetch` goes to `/api/bridge/*`, not directly to CMS.
 - **Svelte 5 runes** — Use `$state`, `$derived`, `$props` (not Svelte 4 store syntax). Note: `stores/auth.ts` still uses Svelte 4 `writable`.
-- **Bauhaus design system** — Sharp corners, bold borders, Outfit font. See `/project:frontend-guide` for theme details
+- **Bauhaus design system** — Sharp corners, bold borders, Outfit font. See `/project:frontend-guide` for theme details. For deep frontend craft (motion, dark theme, Three.js, accessibility), invoke `/frontend-god`.
 - **No linting/formatting** — TypeScript strict mode is the primary quality tool. Run `svelte-check` (frontend) and `tsc --noEmit` (CMS) before deploying — these are the CI gates.
 - **CMS hooks auto-set fields** — Don't set manually: `seller` on Products, `bidder`/`bidTime` on Bids, `rater` on Ratings. Role is forced to `buyer` on registration.
 - **Type generation** — Run `npm run generate:types` in `cms/` after changing collections
@@ -298,3 +298,4 @@ Use these project commands to load detailed context on-demand:
 - `/project:tech-debt` — Known technical debt items
 - `/project:stress-test` — k6 stress testing guide, scenarios, report interpretation
 - `/project:evaluate-repository` — Full repository evaluation (supports scoped mode: `security`, `code-quality`, `docs`, `functionality`, `testing`, `devops`, `hygiene`, `claude-code`, `financial`, `realtime`)
+- `/frontend-god` — Deep frontend craft skill: motion design, dark theme, Three.js patterns, accessibility (WCAG 2.1 AA), visual testing via Playwriter MCP
