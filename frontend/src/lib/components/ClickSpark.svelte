@@ -45,6 +45,8 @@
     }
   }
 
+  let isAnimating = false;
+
   function draw(timestamp: number) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -77,7 +79,12 @@
       return true;
     });
 
-    animationId = requestAnimationFrame(draw);
+    // Only keep looping while there are active sparks
+    if (sparks.length > 0) {
+      animationId = requestAnimationFrame(draw);
+    } else {
+      isAnimating = false;
+    }
   }
 
   function handleClick(e: MouseEvent) {
@@ -95,6 +102,12 @@
         startTime: now
       });
     }
+
+    // Start animation loop only when needed
+    if (!isAnimating) {
+      isAnimating = true;
+      animationId = requestAnimationFrame(draw);
+    }
   }
 
   onMount(() => {
@@ -103,7 +116,7 @@
     const ro = new ResizeObserver(() => resizeCanvas());
     ro.observe(container);
 
-    animationId = requestAnimationFrame(draw);
+    // Don't start rAF loop — it starts on click
 
     return () => {
       ro.disconnect();

@@ -8,9 +8,7 @@
   import { unreadCountStore } from '$lib/stores/inbox';
   import { watchlistStore } from '$lib/stores/watchlist';
   import { trackPageView } from '$lib/analytics';
-  import ThreeBackground from '$lib/components/ThreeBackground.svelte';
   import ClickSpark from '$lib/components/ClickSpark.svelte';
-  import FloatingParticles from '$lib/components/FloatingParticles.svelte';
   import PageTransition from '$lib/components/PageTransition.svelte';
   import type { Snippet } from 'svelte';
 
@@ -22,6 +20,9 @@
   let userMenuOpen = $state(false);
   let unreadCount = $derived($unreadCountStore);
   let scrolled = $state(false);
+
+  // Defer heavy decorative components until after first paint
+  let showDecorations = $state(false);
 
   function toggleMobileMenu() {
     mobileMenuOpen = !mobileMenuOpen;
@@ -68,6 +69,14 @@
   onMount(() => {
     fetchUnreadCount();
     window.addEventListener('scroll', handleScroll, { passive: true });
+
+    // Defer heavy decorative components until after initial paint is done
+    // This keeps LCP and TBT low — decorations load after the page is interactive
+    const idleCallback = typeof requestIdleCallback === 'function'
+      ? requestIdleCallback
+      : (cb: () => void) => setTimeout(cb, 200);
+    idleCallback(() => { showDecorations = true; });
+
     return () => window.removeEventListener('scroll', handleScroll);
   });
 
@@ -88,10 +97,16 @@
 
 <svelte:window onclick={handleClickOutside} />
 
-<ThreeBackground />
-<FloatingParticles />
+{#if showDecorations}
+  {#await import('$lib/components/ThreeBackground.svelte') then { default: ThreeBackground }}
+    <ThreeBackground />
+  {/await}
+  {#await import('$lib/components/FloatingParticles.svelte') then { default: FloatingParticles }}
+    <FloatingParticles />
+  {/await}
+{/if}
 
-<!-- Noise grain overlay -->
+<!-- Noise grain overlay — static, no animation on low-end -->
 <div class="noise-overlay" aria-hidden="true"></div>
 
 <ClickSpark sparkColor="#fff" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>

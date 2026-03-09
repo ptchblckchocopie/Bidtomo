@@ -10,7 +10,7 @@
   import { updateProduct } from '$lib/api';
   import { watchlistStore } from '$lib/stores/watchlist';
   import WatchlistToggle from '$lib/components/WatchlistToggle.svelte';
-  import GlowingEffect from '$lib/components/GlowingEffect.svelte';
+
 
   let { data, params }: { data: PageData; params?: any } = $props();
 
@@ -850,7 +850,6 @@
         <div class="products-grid">
           {#each sortedProducts as product}
             <div class="glow-card relative rounded-2xl border border-[rgba(255,255,255,0.06)] p-1.5">
-              <GlowingEffect spread={40} glow={true} disabled={false} proximity={64} inactiveZone={0.01} borderWidth={3} />
             <a href="/products/{product.id}?from=browse" class="product-card !border-0" class:ended-card={data.status === 'ended'}>
               <div class="product-image">
                 {#if product.images && product.images.length > 0 && product.images[0].image}
@@ -1350,6 +1349,17 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 2rem;
+  }
+
+  /* CSS-only glow on hover — replaces heavy JS GlowingEffect */
+  .products-grid > .glow-card {
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  @media (hover: hover) {
+    .products-grid > .glow-card:hover {
+      border-color: rgba(16, 185, 129, 0.3);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.08), 0 0 40px rgba(59, 130, 246, 0.05);
+    }
   }
 
   /* Staggered card entrance animation */
