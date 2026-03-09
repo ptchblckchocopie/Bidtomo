@@ -9,7 +9,7 @@
   import { watchlistStore } from '$lib/stores/watchlist';
   import { trackPageView } from '$lib/analytics';
   import ThreeBackground from '$lib/components/ThreeBackground.svelte';
-  import CustomCursor from '$lib/components/CustomCursor.svelte';
+  import ClickSpark from '$lib/components/ClickSpark.svelte';
   import type { Snippet } from 'svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -80,8 +80,8 @@
 <svelte:window onclick={handleClickOutside} />
 
 <ThreeBackground />
-<CustomCursor />
 
+<ClickSpark sparkColor="#fff" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
 <div class="min-h-screen flex flex-col relative z-[1]">
   <!-- Header -->
   <header class="site-header sticky top-0 z-50">
@@ -343,6 +343,7 @@
     </div>
   </footer>
 </div>
+</ClickSpark>
 
 
 <style>
