@@ -3,7 +3,11 @@ import type { PageLoad } from './$types';
 import { error } from '@sveltejs/kit';
 
 export const load: PageLoad = async ({ params, fetch }) => {
-  const product = await fetchProduct(params.id, fetch);
+  // Fetch product and bids in parallel
+  const [product, bids] = await Promise.all([
+    fetchProduct(params.id, fetch),
+    fetchProductBids(params.id, fetch),
+  ]);
 
   if (!product) {
     throw error(404, 'Product not found');
@@ -17,8 +21,6 @@ export const load: PageLoad = async ({ params, fetch }) => {
       throw error(404, 'Product not found');
     }
   }
-
-  const bids = await fetchProductBids(params.id, fetch);
 
   return {
     product,
