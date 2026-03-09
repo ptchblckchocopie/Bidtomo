@@ -418,7 +418,9 @@
   onMount(() => {
     if (data.status !== 'ended') {
       updateCountdowns();
-      countdownInterval = setInterval(updateCountdowns, 1000);
+      // Update every 5s instead of 1s — reduces DOM mutations from 96/sec to 96/5sec
+      // Users don't need second-level precision on a grid of cards
+      countdownInterval = setInterval(updateCountdowns, 5000);
     }
     fetchUserBids();
 
@@ -511,6 +513,11 @@
 
 <svelte:head>
   <title>Browse Products - BidMo.to</title>
+  <meta name="description" content="Browse live auctions on BidMo.to — bid on electronics, collectibles, and more from Filipino sellers. Real-time bidding with countdown timers.">
+  <meta property="og:title" content="Browse Products - BidMo.to">
+  <meta property="og:description" content="The Filipino auction marketplace. Bid on unique items in real-time.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BidMo.to">
 </svelte:head>
 <!-- Beta Notice Banner -->
 <div class="-mx-4 sm:-mx-6 lg:-mx-8 mb-0 overflow-hidden relative z-10">
@@ -1409,6 +1416,7 @@
     position: relative;
     width: 100%;
     height: 200px;
+    aspect-ratio: 2 / 1;
     overflow: hidden;
     background-color: var(--color-muted);
   }

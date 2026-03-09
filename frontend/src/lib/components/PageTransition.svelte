@@ -10,8 +10,8 @@
 {#key currentPath}
 	<div
 		class="page-transition-wrapper"
-		in:fly={{ y: 20, duration: 350, delay: 100 }}
-		out:fade={{ duration: 150 }}
+		in:fly={{ y: 12, duration: 200, delay: 50 }}
+		out:fade={{ duration: 100 }}
 	>
 		{@render children()}
 	</div>

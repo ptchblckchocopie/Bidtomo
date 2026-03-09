@@ -180,7 +180,12 @@
 			uniforms.resolution.value = [w, h];
 		}
 
+		// Throttled mouse — update at most every 100ms (shader doesn't need 60fps mouse)
+		let lastMouse = 0;
 		function handleMouseMove(e: MouseEvent) {
+			const now = Date.now();
+			if (now - lastMouse < 100) return;
+			lastMouse = now;
 			uniforms.mouse.value = [e.clientX, window.innerHeight - e.clientY];
 		}
 
@@ -195,7 +200,7 @@
 		animationId = requestAnimationFrame(animate);
 
 		window.addEventListener('resize', handleResize);
-		window.addEventListener('mousemove', handleMouseMove);
+		window.addEventListener('mousemove', handleMouseMove, { passive: true });
 
 		cleanup = () => {
 			cancelAnimationFrame(animationId);

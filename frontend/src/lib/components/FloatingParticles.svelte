@@ -10,6 +10,7 @@
 	let mouseY = -1000;
 	let width = 0;
 	let height = 0;
+	let isLowEnd = false;
 
 	interface Particle {
 		x: number;
@@ -33,7 +34,7 @@
 			size: Math.random() * 2 + 0.5,
 			opacity: Math.random() * 0.4 + 0.05,
 			opacityDir: Math.random() > 0.5 ? 1 : -1,
-			hue: Math.random() * 60 + 180, // blue-cyan-teal range
+			hue: Math.random() * 60 + 180,
 			pulse: Math.random() * Math.PI * 2,
 			pulseSpeed: Math.random() * 0.02 + 0.005,
 		};
@@ -43,7 +44,9 @@
 		if (!canvas) return;
 		ctx = canvas.getContext('2d');
 		resize();
-		const count = Math.min(Math.floor((width * height) / 25000), 60);
+		// Cap at 30 particles (was 60), use fewer on low-end
+		const maxCount = isLowEnd ? 15 : 30;
+		const count = Math.min(Math.floor((width * height) / 40000), maxCount);
 		particles = Array.from({ length: count }, createParticle);
 	}
 
@@ -51,11 +54,12 @@
 		width = window.innerWidth;
 		height = window.innerHeight;
 		if (canvas) {
-			canvas.width = width * Math.min(window.devicePixelRatio, 2);
-			canvas.height = height * Math.min(window.devicePixelRatio, 2);
+			const dpr = isLowEnd ? 1 : Math.min(window.devicePixelRatio, 2);
+			canvas.width = width * dpr;
+			canvas.height = height * dpr;
 			canvas.style.width = width + 'px';
 			canvas.style.height = height + 'px';
-			ctx?.scale(Math.min(window.devicePixelRatio, 2), Math.min(window.devicePixelRatio, 2));
+			ctx?.scale(dpr, dpr);
 		}
 	}
 
@@ -67,28 +71,25 @@
 			// Mouse repulsion
 			const dx = p.x - mouseX;
 			const dy = p.y - mouseY;
-			const dist = Math.sqrt(dx * dx + dy * dy);
-			if (dist < 150) {
+			const distSq = dx * dx + dy * dy;
+			if (distSq < 22500) { // 150^2, avoid sqrt
+				const dist = Math.sqrt(distSq);
 				const force = (150 - dist) / 150 * 0.5;
 				p.vx += (dx / dist) * force;
 				p.vy += (dy / dist) * force;
 			}
 
-			// Damping
 			p.vx *= 0.99;
 			p.vy *= 0.99;
-
 			p.x += p.vx;
 			p.y += p.vy;
 			p.pulse += p.pulseSpeed;
 
-			// Wrap around
 			if (p.x < -10) p.x = width + 10;
 			if (p.x > width + 10) p.x = -10;
 			if (p.y < -10) p.y = height + 10;
 			if (p.y > height + 10) p.y = -10;
 
-			// Pulsing opacity
 			const pulseOpacity = p.opacity + Math.sin(p.pulse) * 0.15;
 			const finalOpacity = Math.max(0.02, Math.min(0.5, pulseOpacity));
 
@@ -110,20 +111,24 @@
 			ctx.fill();
 		}
 
-		// Draw connections between close particles
-		for (let i = 0; i < particles.length; i++) {
-			for (let j = i + 1; j < particles.length; j++) {
-				const dx = particles[i].x - particles[j].x;
-				const dy = particles[i].y - particles[j].y;
-				const dist = Math.sqrt(dx * dx + dy * dy);
-				if (dist < 120) {
-					const opacity = (1 - dist / 120) * 0.08;
-					ctx.strokeStyle = `rgba(140, 180, 220, ${opacity})`;
-					ctx.lineWidth = 0.5;
-					ctx.beginPath();
-					ctx.moveTo(particles[i].x, particles[i].y);
-					ctx.lineTo(particles[j].x, particles[j].y);
-					ctx.stroke();
+		// Connection lines: use distSq to avoid sqrt, skip on low-end
+		if (!isLowEnd) {
+			const connDistSq = 14400; // 120^2
+			for (let i = 0; i < particles.length; i++) {
+				for (let j = i + 1; j < particles.length; j++) {
+					const dx = particles[i].x - particles[j].x;
+					const dy = particles[i].y - particles[j].y;
+					const dSq = dx * dx + dy * dy;
+					if (dSq < connDistSq) {
+						const dist = Math.sqrt(dSq);
+						const opacity = (1 - dist / 120) * 0.08;
+						ctx.strokeStyle = `rgba(140, 180, 220, ${opacity})`;
+						ctx.lineWidth = 0.5;
+						ctx.beginPath();
+						ctx.moveTo(particles[i].x, particles[i].y);
+						ctx.lineTo(particles[j].x, particles[j].y);
+						ctx.stroke();
+					}
 				}
 			}
 		}
@@ -131,7 +136,12 @@
 		animId = requestAnimationFrame(animate);
 	}
 
+	// Throttled mouse handler — update at most every 50ms
+	let lastMouseUpdate = 0;
 	function onMouseMove(e: MouseEvent) {
+		const now = Date.now();
+		if (now - lastMouseUpdate < 50) return;
+		lastMouseUpdate = now;
 		mouseX = e.clientX;
 		mouseY = e.clientY;
 	}
@@ -139,13 +149,15 @@
 	onMount(() => {
 		if (!browser) return;
 		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-		// Skip on low-end devices
+		// Skip entirely on very low-end devices
 		if (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4) return;
+		// Detect low-end: < 4GB RAM or mobile with < 6 cores
+		isLowEnd = (navigator as any).deviceMemory != null && (navigator as any).deviceMemory < 4;
 
 		init();
 		animId = requestAnimationFrame(animate);
 		window.addEventListener('resize', resize);
-		window.addEventListener('mousemove', onMouseMove);
+		window.addEventListener('mousemove', onMouseMove, { passive: true });
 	});
 
 	onDestroy(() => {
