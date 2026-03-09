@@ -130,7 +130,7 @@
               class="relative p-2 text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200 hover:scale-110 {currentPath === '/inbox' ? 'text-[var(--color-fg)]' : ''}"
               title="Inbox"
             >
-              <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               {#if unreadCount > 0}
@@ -146,7 +146,7 @@
                 class="p-2 text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200 hover:scale-110 {currentPath === '/admin/reports' ? 'text-[var(--color-fg)]' : ''}"
                 title="Reports"
               >
-                <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
               </a>
@@ -155,7 +155,7 @@
                 class="p-2 text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200 hover:scale-110 {currentPath === '/admin/analytics' ? 'text-[var(--color-fg)]' : ''}"
                 title="Analytics"
               >
-                <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 13h2v8H3zm6-4h2v12H9zm6-6h2v18h-2zm6 10h2v8h-2z" />
                 </svg>
               </a>
