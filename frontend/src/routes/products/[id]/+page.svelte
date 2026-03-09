@@ -1948,6 +1948,9 @@
     max-width: 1200px;
     margin: 0 auto;
     border: 1px solid var(--color-border);
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     box-shadow: none;
     padding: 2rem;
     border-radius: var(--radius-lg);
