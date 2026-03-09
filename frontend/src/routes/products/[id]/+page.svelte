@@ -43,6 +43,69 @@
     }
   });
 
+  // Share dropdown
+  let shareOpen = $state(false);
+  let linkCopied = $state(false);
+
+  function toggleShare() {
+    shareOpen = !shareOpen;
+  }
+
+  function closeShare() {
+    shareOpen = false;
+  }
+
+  function getShareUrl() {
+    return typeof window !== 'undefined' ? window.location.href : '';
+  }
+
+  function getShareText() {
+    const title = data.product?.title || 'Check out this auction';
+    const price = data.product?.currentBid
+      ? formatPrice(data.product.currentBid, sellerCurrency)
+      : formatPrice(data.product?.startingPrice || 0, sellerCurrency);
+    return `${title} - ${price} on BidMo.to`;
+  }
+
+  function shareToFacebook() {
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(getShareUrl())}`, '_blank', 'width=600,height=400');
+    closeShare();
+  }
+
+  function shareToMessenger() {
+    window.open(`https://www.facebook.com/dialog/send?link=${encodeURIComponent(getShareUrl())}&app_id=0&redirect_uri=${encodeURIComponent(getShareUrl())}`, '_blank', 'width=600,height=400');
+    closeShare();
+  }
+
+  function shareToTwitter() {
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(getShareText())}&url=${encodeURIComponent(getShareUrl())}`, '_blank', 'width=600,height=400');
+    closeShare();
+  }
+
+  function shareToLinkedIn() {
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(getShareUrl())}`, '_blank', 'width=600,height=400');
+    closeShare();
+  }
+
+  async function copyShareLink() {
+    try {
+      await navigator.clipboard.writeText(getShareUrl());
+      linkCopied = true;
+      setTimeout(() => { linkCopied = false; }, 2000);
+    } catch {
+      // Fallback
+      const input = document.createElement('input');
+      input.value = getShareUrl();
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      linkCopied = true;
+      setTimeout(() => { linkCopied = false; }, 2000);
+    }
+    closeShare();
+  }
+
   // Admin hide/unhide modal
   let adminModalOpen = $state(false);
   let adminModalLoading = $state(false);
@@ -1442,6 +1505,88 @@
             </a>
           </div>
         {/if}
+
+        <!-- Product Metadata: Share + Details -->
+        <div class="product-metadata">
+          <div class="metadata-row">
+            <!-- Share Dropdown -->
+            <div class="share-wrapper">
+              <button class="share-toggle" onclick={toggleShare} class:open={shareOpen}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+                Share
+                <svg class="share-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              {#if shareOpen}
+                <div class="share-backdrop" onclick={closeShare}></div>
+                <div class="share-dropdown">
+                  <button class="share-option" onclick={shareToFacebook}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                    Facebook
+                  </button>
+                  <button class="share-option" onclick={shareToMessenger}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 4.974 0 11.111c0 3.498 1.744 6.614 4.469 8.654V24l4.088-2.242c1.092.301 2.246.464 3.443.464 6.627 0 12-4.974 12-11.111S18.627 0 12 0zm1.191 14.963l-3.055-3.26-5.963 3.26L10.732 8.2l3.131 3.26 5.887-3.26-6.559 6.763z"/></svg>
+                    Messenger
+                  </button>
+                  <button class="share-option" onclick={() => { window.open(`https://www.instagram.com/`, '_blank'); closeShare(); }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                    Instagram
+                  </button>
+                  <button class="share-option" onclick={() => { window.open(`https://www.tiktok.com/`, '_blank'); closeShare(); }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+                    TikTok
+                  </button>
+                  <button class="share-option" onclick={shareToTwitter}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    Twitter
+                  </button>
+                  <button class="share-option" onclick={shareToLinkedIn}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                    LinkedIn
+                  </button>
+                  <div class="share-divider"></div>
+                  <button class="share-option" onclick={copyShareLink}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                    </svg>
+                    {linkCopied ? 'Copied!' : 'Copy Link'}
+                  </button>
+                </div>
+              {/if}
+            </div>
+
+            <!-- Product Meta Info -->
+            <div class="metadata-details">
+              {#if data.product.categories?.length}
+                <span class="meta-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                  {data.product.categories.map((c: string) => getCategoryLabel(c)).join(', ')}
+                </span>
+              {/if}
+              {#if data.product.condition}
+                <span class="meta-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  {data.product.condition}
+                </span>
+              {/if}
+              {#if data.product.createdAt}
+                <span class="meta-item">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  Listed {new Date(data.product.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              {/if}
+              <span class="meta-item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                {data.bids.length} bid{data.bids.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+        </div>
 
         {#if sortedBids.length > 0}
           <div class="bid-history">
@@ -3226,6 +3371,149 @@
   .label-center .label-title {
     color: var(--color-blue);
     font-size: 0.9rem;
+  }
+
+  /* Product Metadata Section */
+  .product-metadata {
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: var(--color-muted);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .metadata-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .share-wrapper {
+    position: relative;
+  }
+
+  .share-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--color-primary);
+    color: var(--color-primary-fg);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .share-toggle:hover {
+    background: var(--color-surface);
+    color: var(--color-fg);
+  }
+
+  .share-chevron {
+    transition: transform 0.2s;
+  }
+
+  .share-toggle.open .share-chevron {
+    transform: rotate(180deg);
+  }
+
+  .share-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+  }
+
+  .share-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 200px;
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 0.375rem 0;
+    z-index: 50;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    animation: dropIn 0.15s ease-out;
+  }
+
+  @keyframes dropIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .share-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.625rem 1rem;
+    background: none;
+    border: none;
+    color: var(--color-fg);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s;
+  }
+
+  .share-option:hover {
+    background: var(--color-muted);
+  }
+
+  .share-option svg {
+    flex-shrink: 0;
+    opacity: 0.8;
+  }
+
+  .share-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: 0.375rem 0;
+  }
+
+  .metadata-details {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--color-fg);
+    opacity: 0.7;
+  }
+
+  .meta-item svg {
+    opacity: 0.6;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 600px) {
+    .metadata-row {
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .metadata-details {
+      gap: 0.5rem 1rem;
+    }
+
+    .share-dropdown {
+      min-width: 180px;
+    }
   }
 
   .bid-history {
