@@ -14,7 +14,7 @@ import { getOverviewStats, getTimeSeries, getTopSearchKeywords, getTopViewedProd
 import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress } from './services/backupService';
 import { authenticateJWT } from './auth-helpers';
 import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
-import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema, analyticsTrackSchema, reportCreateSchema } from './middleware/validate';
+import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema, analyticsTrackSchema, reportCreateSchema, autoBidSchema, autoBidCancelSchema } from './middleware/validate';
 
 dotenv.config();
 
@@ -1587,6 +1587,285 @@ const start = async () => {
       Sentry.withScope(scope => {
         if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
         scope.setTag('route', '/api/bid/accept');
+        Sentry.captureException(error);
+      });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
+  });
+
+  // ===== Auto-Bid (Proxy Bidding) Endpoints =====
+
+  // Set auto-bid — user sets a max amount, system bids on their behalf
+  app.post('/api/bid/auto', bidLimiter, requireAuth, validate(autoBidSchema), async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { productId, maxAmount, censorName } = req.body;
+
+      // Fetch product to validate
+      const product: any = await payload.findByID({
+        collection: 'products',
+        id: productId,
+        depth: 0,
+      });
+
+      if (!product) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+
+      if (product.status !== 'available') {
+        return res.status(400).json({ error: `Product is ${product.status}` });
+      }
+
+      if (!product.active) {
+        return res.status(400).json({ error: 'Product is not active' });
+      }
+
+      // Check auction end date
+      if (new Date(product.auctionEndDate).getTime() <= Date.now()) {
+        return res.status(400).json({ error: 'Auction has ended' });
+      }
+
+      // Check seller is not auto-bidding on their own product
+      const sellerId = typeof product.seller === 'object' ? product.seller.id : product.seller;
+      if (sellerId === userId) {
+        return res.status(400).json({ error: 'You cannot bid on your own product' });
+      }
+
+      // Calculate minimum bid
+      const currentBid = product.currentBid || 0;
+      const bidInterval = product.bidInterval || 1;
+      const minimumBid = currentBid > 0 ? currentBid + bidInterval : product.startingPrice;
+
+      if (maxAmount < minimumBid) {
+        return res.status(400).json({
+          error: `Max amount must be at least ${minimumBid}`,
+          minimumBid,
+          currentBid,
+        });
+      }
+
+      // Upsert auto-bid into raw SQL table
+      const pool = (payload.db as any).pool;
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS auto_bids (
+          id SERIAL PRIMARY KEY,
+          product_id INTEGER NOT NULL,
+          bidder_id INTEGER NOT NULL,
+          max_amount DECIMAL(10, 2) NOT NULL,
+          censor_name BOOLEAN DEFAULT FALSE,
+          active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(product_id, bidder_id)
+        )
+      `);
+
+      await pool.query(`
+        INSERT INTO auto_bids (product_id, bidder_id, max_amount, censor_name, active, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, TRUE, NOW(), NOW())
+        ON CONFLICT (product_id, bidder_id)
+        DO UPDATE SET max_amount = $3, censor_name = $4, active = TRUE, updated_at = NOW()
+      `, [parseInt(productId, 10), userId, maxAmount, censorName || false]);
+
+      // Immediately place a bid at the minimum winning amount
+      const immediateBidAmount = minimumBid;
+      const queueResult = await queueBid(
+        parseInt(productId, 10),
+        userId,
+        immediateBidAmount,
+        censorName || false
+      );
+
+      if (!queueResult.success) {
+        // Redis down — fall back to direct bid creation with row-level locking
+        console.warn('[CMS] Redis queue failed for auto-bid initial placement, falling back to direct bid');
+
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+
+          const lockedResult = await client.query(
+            `SELECT id, current_bid, starting_price, bid_interval, status, active, auction_end_date
+             FROM products WHERE id = $1 FOR UPDATE`,
+            [parseInt(productId, 10)]
+          );
+
+          if (lockedResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            // Auto-bid was still saved, just the initial bid failed
+            return res.json({ success: true, autoBid: { productId: parseInt(productId, 10), maxAmount, active: true }, initialBidFailed: true });
+          }
+
+          const locked = lockedResult.rows[0];
+          const lockedCurrentBid = Number(locked.current_bid) || 0;
+          const lockedBidInterval = Number(locked.bid_interval) || 1;
+          const lockedStartingPrice = Number(locked.starting_price) || 0;
+          const lockedMinimumBid = lockedCurrentBid > 0 ? lockedCurrentBid + lockedBidInterval : lockedStartingPrice;
+
+          if (locked.status !== 'available' || !locked.active || new Date(locked.auction_end_date) <= new Date()) {
+            await client.query('ROLLBACK');
+            return res.json({ success: true, autoBid: { productId: parseInt(productId, 10), maxAmount, active: true }, initialBidFailed: true });
+          }
+
+          const directBidAmount = lockedMinimumBid;
+
+          if (directBidAmount > maxAmount) {
+            await client.query('ROLLBACK');
+            // Deactivate auto-bid since max is already exceeded
+            await pool.query(
+              `UPDATE auto_bids SET active = FALSE, updated_at = NOW() WHERE product_id = $1 AND bidder_id = $2`,
+              [parseInt(productId, 10), userId]
+            );
+            return res.status(400).json({ error: `Current minimum bid ${directBidAmount} exceeds your max amount` });
+          }
+
+          // Create bid directly
+          const bidResult = await client.query(
+            `INSERT INTO bids (amount, bid_time, censor_name, created_at, updated_at)
+             VALUES ($1, NOW(), $2, NOW(), NOW()) RETURNING id`,
+            [directBidAmount, censorName || false]
+          );
+          const bidId = bidResult.rows[0].id;
+
+          await client.query(
+            `INSERT INTO bids_rels (parent_id, path, products_id) VALUES ($1, 'product', $2)`,
+            [bidId, parseInt(productId, 10)]
+          );
+          await client.query(
+            `INSERT INTO bids_rels (parent_id, path, users_id) VALUES ($1, 'bidder', $2)`,
+            [bidId, userId]
+          );
+          await client.query(
+            `UPDATE products SET current_bid = $1, updated_at = NOW() WHERE id = $2`,
+            [directBidAmount, parseInt(productId, 10)]
+          );
+
+          const bidderResult = await client.query(`SELECT name FROM users WHERE id = $1`, [userId]);
+          await client.query('COMMIT');
+
+          const bidderName = bidderResult.rows[0]?.name || 'Anonymous';
+          publishProductUpdate(parseInt(productId, 10), {
+            type: 'bid',
+            success: true,
+            bidId,
+            amount: directBidAmount,
+            bidderId: userId,
+            bidderName,
+            censorName: censorName || false,
+            bidTime: new Date().toISOString(),
+            isAutoBid: true,
+          });
+        } catch (error: any) {
+          await client.query('ROLLBACK').catch(() => {});
+          console.error('[CMS] Fallback auto-bid initial placement error:', error);
+          Sentry.withScope(scope => {
+            if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+            scope.setTag('route', '/api/bid/auto.fallback');
+            Sentry.captureException(error);
+          });
+        } finally {
+          client.release();
+        }
+      }
+
+      const trackEvent = (global as any).trackEvent;
+      if (trackEvent) trackEvent('auto_bid_set', userId, { productId: parseInt(productId, 10), maxAmount });
+
+      return res.json({
+        success: true,
+        autoBid: { productId: parseInt(productId, 10), maxAmount, active: true },
+      });
+    } catch (error: any) {
+      console.error('Error setting auto-bid:', error);
+      Sentry.withScope(scope => {
+        if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+        scope.setTag('route', '/api/bid/auto');
+        Sentry.captureException(error);
+      });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
+  });
+
+  // Cancel auto-bid
+  app.delete('/api/bid/auto', requireAuth, validate(autoBidCancelSchema), async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { productId } = req.body;
+
+      const pool = (payload.db as any).pool;
+
+      const result = await pool.query(
+        `UPDATE auto_bids SET active = FALSE, updated_at = NOW()
+         WHERE product_id = $1 AND bidder_id = $2 AND active = TRUE`,
+        [parseInt(productId, 10), userId]
+      );
+
+      const trackEvent = (global as any).trackEvent;
+      if (trackEvent) trackEvent('auto_bid_cancelled', userId, { productId: parseInt(productId, 10) });
+
+      res.json({ success: true, cancelled: result.rowCount > 0 });
+    } catch (error: any) {
+      console.error('Error cancelling auto-bid:', error);
+      Sentry.withScope(scope => {
+        if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+        scope.setTag('route', '/api/bid/auto.cancel');
+        Sentry.captureException(error);
+      });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
+  });
+
+  // Get user's auto-bid for a product
+  app.get('/api/bid/auto/:productId', requireAuth, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const productId = parseInt(req.params.productId, 10);
+
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: 'Invalid product ID' });
+      }
+
+      const pool = (payload.db as any).pool;
+
+      // Ensure table exists (idempotent)
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS auto_bids (
+          id SERIAL PRIMARY KEY,
+          product_id INTEGER NOT NULL,
+          bidder_id INTEGER NOT NULL,
+          max_amount DECIMAL(10, 2) NOT NULL,
+          censor_name BOOLEAN DEFAULT FALSE,
+          active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(product_id, bidder_id)
+        )
+      `);
+
+      const result = await pool.query(
+        `SELECT max_amount, active, created_at FROM auto_bids
+         WHERE product_id = $1 AND bidder_id = $2 AND active = TRUE
+         LIMIT 1`,
+        [productId, userId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.json({ autoBid: null });
+      }
+
+      const row = result.rows[0];
+      res.json({
+        autoBid: {
+          maxAmount: parseFloat(row.max_amount),
+          active: row.active,
+          createdAt: row.created_at,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error fetching auto-bid:', error);
+      Sentry.withScope(scope => {
+        if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
+        scope.setTag('route', '/api/bid/auto.get');
         Sentry.captureException(error);
       });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });

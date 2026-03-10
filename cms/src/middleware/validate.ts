@@ -82,3 +82,13 @@ export const analyticsTrackSchema = z.object({
     referrer: z.string().optional(),
   })).min(1).max(10),
 });
+
+export const autoBidSchema = z.object({
+  productId: idField,
+  maxAmount: z.number().positive('Max amount must be positive').finite(),
+  censorName: z.boolean().optional(),
+});
+
+export const autoBidCancelSchema = z.object({
+  productId: idField,
+});

@@ -8,7 +8,7 @@
   import ImageSlider from '$lib/components/ImageSlider.svelte';
   import StarRating from '$lib/components/StarRating.svelte';
   import type { Product } from '$lib/api';
-  import { getProductSSE, disconnectProductSSE, queueBid as queueBidToRedis, type SSEEvent, type BidEvent, type ProductVisibilityEvent } from '$lib/sse';
+  import { getProductSSE, disconnectProductSSE, queueBid as queueBidToRedis, setAutoBid, cancelAutoBid, getAutoBid, type SSEEvent, type BidEvent, type ProductVisibilityEvent } from '$lib/sse';
   import { trackProductView } from '$lib/analytics';
   import { watchlistStore } from '$lib/stores/watchlist';
   import WatchlistToggle from '$lib/components/WatchlistToggle.svelte';
@@ -195,6 +195,15 @@
   let accepting = $state(false);
   let acceptError = $state('');
   let acceptSuccess = $state(false);
+
+  // Auto-bid state
+  let showAutoBidModal = $state(false);
+  let autoBidMaxAmount = $state(0);
+  let autoBidActive = $state(false);
+  let autoBidCurrentMax = $state(0);
+  let settingAutoBid = $state(false);
+  let autoBidError = $state('');
+  let cancellingAutoBid = $state(false);
 
   // Seller rating data
   let sellerRatingStats: UserRatingStats | null = $state(null);
@@ -558,6 +567,9 @@
       loadSellerData(data.product.seller.id);
     }
 
+    // Load auto-bid status
+    loadAutoBidStatus();
+
     // Connect to SSE for real-time updates
     if (data.product?.id) {
       const sseClient = getProductSSE(String(data.product.id));
@@ -622,6 +634,12 @@
               const newMinBid = (data.product.currentBid || data.product.startingPrice || 0) + bidInterval;
               if (bidAmount < newMinBid) {
                 bidAmount = newMinBid;
+              }
+
+              // Check if our auto-bid has been exhausted by this new bid
+              if (autoBidActive && newAmount >= autoBidCurrentMax) {
+                autoBidActive = false;
+                autoBidCurrentMax = 0;
               }
 
               // Clear animations after delay
@@ -919,6 +937,93 @@
 
   function closeSuccessAlert() {
     bidSuccess = false;
+  }
+
+  // Auto-bid functions
+  function openAutoBidModal() {
+    if (!$authStore.isAuthenticated) {
+      showLoginModal = true;
+      return;
+    }
+    autoBidError = '';
+    // Default to current bid + 5 intervals (a reasonable starting suggestion)
+    const currentHighest = data.product?.currentBid || data.product?.startingPrice || 0;
+    autoBidMaxAmount = autoBidActive ? autoBidCurrentMax : currentHighest + bidInterval * 5;
+    showAutoBidModal = true;
+  }
+
+  function closeAutoBidModal() {
+    showAutoBidModal = false;
+    autoBidError = '';
+  }
+
+  async function confirmSetAutoBid() {
+    if (!data.product) return;
+
+    const currentHighest = data.product.currentBid || data.product.startingPrice || 0;
+    const minimumMax = currentHighest + bidInterval;
+
+    // Guard against NaN from cleared input
+    if (!autoBidMaxAmount || isNaN(autoBidMaxAmount) || autoBidMaxAmount < minimumMax) {
+      autoBidError = `Maximum bid must be at least ${formatPrice(minimumMax, sellerCurrency)}`;
+      return;
+    }
+
+    settingAutoBid = true;
+    autoBidError = '';
+
+    try {
+      const result = await setAutoBid(data.product.id, autoBidMaxAmount, censorMyName);
+
+      if (result.success) {
+        autoBidActive = true;
+        autoBidCurrentMax = autoBidMaxAmount;
+        showAutoBidModal = false;
+
+        // Force a data refresh since a bid was placed
+        setTimeout(() => forceUpdateCheck(), 500);
+      } else {
+        autoBidError = result.error || 'Failed to set auto-bid';
+      }
+    } catch (error) {
+      autoBidError = 'An error occurred setting auto-bid';
+    } finally {
+      settingAutoBid = false;
+    }
+  }
+
+  async function handleCancelAutoBid() {
+    if (!data.product) return;
+
+    cancellingAutoBid = true;
+    try {
+      const result = await cancelAutoBid(data.product.id);
+      if (result.success) {
+        autoBidActive = false;
+        autoBidCurrentMax = 0;
+      } else {
+        bidError = result.error || 'Failed to cancel auto-bid';
+        setTimeout(() => { bidError = ''; }, 5000);
+      }
+    } catch (error) {
+      bidError = 'Failed to cancel auto-bid. Please try again.';
+      setTimeout(() => { bidError = ''; }, 5000);
+    } finally {
+      cancellingAutoBid = false;
+    }
+  }
+
+  async function loadAutoBidStatus() {
+    if (!data.product?.id || !$authStore.isAuthenticated) return;
+    try {
+      const result = await getAutoBid(data.product.id);
+      if (result.autoBid && result.autoBid.active) {
+        autoBidActive = true;
+        autoBidCurrentMax = result.autoBid.maxAmount;
+      }
+    } catch {
+      // Silent fail — auto-bid status is non-critical
+    }
   }
 
   // Function to censor a name (show first letter + asterisks)
@@ -1433,6 +1538,43 @@
                     </p>
                   </div>
                 </div>
+
+                <!-- Auto-Bid Section -->
+                {#if $authStore.isAuthenticated}
+                  <div class="auto-bid-section">
+                    {#if autoBidActive}
+                      <div class="auto-bid-status">
+                        <div class="auto-bid-status-header">
+                          <div class="auto-bid-indicator">
+                            <span class="auto-bid-pulse"></span>
+                            <span class="auto-bid-label">Auto-Bid Active</span>
+                          </div>
+                          <span class="auto-bid-max">Up to {formatPrice(autoBidCurrentMax, sellerCurrency)}</span>
+                        </div>
+                        <p class="auto-bid-desc">The system will automatically bid on your behalf up to your maximum.</p>
+                        <div class="auto-bid-actions">
+                          <button class="auto-bid-edit-btn" onclick={openAutoBidModal}>
+                            Edit Limit
+                          </button>
+                          <button
+                            class="auto-bid-cancel-btn"
+                            onclick={handleCancelAutoBid}
+                            disabled={cancellingAutoBid}
+                          >
+                            {cancellingAutoBid ? 'Cancelling...' : 'Cancel Auto-Bid'}
+                          </button>
+                        </div>
+                      </div>
+                    {:else}
+                      <button class="auto-bid-toggle-btn" onclick={openAutoBidModal}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                        </svg>
+                        Set Auto-Bid
+                      </button>
+                    {/if}
+                  </div>
+                {/if}
               </div>
             </div>
           {/if}
@@ -1623,6 +1765,120 @@
             </div>
           </div>
         {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Auto-Bid Modal -->
+{#if showAutoBidModal && data.product}
+  <div class="modal-overlay" onclick={closeAutoBidModal}>
+    <div class="modal-content confirm-modal auto-bid-modal" onclick={(e) => e.stopPropagation()}>
+      <button class="modal-close" onclick={closeAutoBidModal}>&times;</button>
+
+      <div class="modal-header">
+        <h2>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:text-bottom;">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+          {autoBidActive ? 'Update Auto-Bid' : 'Set Auto-Bid'}
+        </h2>
+      </div>
+
+      <div class="modal-body">
+        <div class="auto-bid-explainer">
+          <p class="auto-bid-explainer-title">How Auto-Bid Works</p>
+          <ul class="auto-bid-steps">
+            <li>Set your maximum — the most you're willing to pay</li>
+            <li>We'll place the minimum winning bid for you now</li>
+            <li>If someone outbids you, we'll automatically counter-bid</li>
+            <li>You'll never pay more than your maximum</li>
+          </ul>
+        </div>
+
+        {#if autoBidError}
+          <div class="error-message">
+            {autoBidError}
+          </div>
+        {/if}
+
+        <div class="auto-bid-form">
+          <label class="auto-bid-form-label">Your Maximum Bid</label>
+          <div class="auto-bid-input-row">
+            <div class="bid-control">
+              <button
+                class="bid-arrow-btn"
+                onclick={() => { autoBidMaxAmount = Math.max(autoBidMaxAmount - bidInterval, minBid); }}
+                disabled={settingAutoBid || autoBidMaxAmount <= minBid}
+                type="button"
+                aria-label="Decrease max bid"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              <input
+                type="number"
+                class="bid-amount-input"
+                bind:value={autoBidMaxAmount}
+                min={minBid}
+                step={bidInterval}
+                disabled={settingAutoBid}
+              />
+              <button
+                class="bid-arrow-btn"
+                onclick={() => { autoBidMaxAmount = autoBidMaxAmount + bidInterval; }}
+                disabled={settingAutoBid}
+                type="button"
+                aria-label="Increase max bid"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <p class="bid-hint">
+            Minimum: {formatPrice(minBid, sellerCurrency)} • Your first bid will be placed at the minimum winning amount
+          </p>
+
+          {#if data.product.currentBid}
+            <div class="auto-bid-summary">
+              <div class="summary-row">
+                <span>Current highest bid</span>
+                <span>{formatPrice(data.product.currentBid, sellerCurrency)}</span>
+              </div>
+              <div class="summary-row">
+                <span>Your first auto-bid</span>
+                <span>{formatPrice(minBid, sellerCurrency)}</span>
+              </div>
+              <div class="summary-row summary-max">
+                <span>Your maximum</span>
+                <span>{formatPrice(autoBidMaxAmount, sellerCurrency)}</span>
+              </div>
+            </div>
+          {/if}
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-cancel-bid" onclick={closeAutoBidModal}>
+            Cancel
+          </button>
+          <button
+            class="btn-confirm-bid auto-bid-confirm"
+            onclick={confirmSetAutoBid}
+            disabled={settingAutoBid || autoBidMaxAmount < minBid}
+          >
+            {#if settingAutoBid}
+              Setting...
+            {:else}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+              {autoBidActive ? 'Update Auto-Bid' : 'Activate Auto-Bid'}
+            {/if}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -5085,6 +5341,249 @@
   @media (max-width: 768px) {
     .product-details {
       position: static;
+    }
+  }
+
+  /* Auto-Bid Styles */
+  .auto-bid-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .auto-bid-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.75rem 1.25rem;
+    background: transparent;
+    color: var(--color-blue);
+    border: 1px dashed var(--color-blue);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 150ms ease-out;
+    border-radius: var(--radius-md);
+  }
+
+  .auto-bid-toggle-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+    border-style: solid;
+  }
+
+  .auto-bid-status {
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid var(--color-blue);
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    animation: slideDown 150ms ease-out;
+  }
+
+  .auto-bid-status-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .auto-bid-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .auto-bid-pulse {
+    width: 8px;
+    height: 8px;
+    background: var(--color-accent);
+    border-radius: 50%;
+    animation: autoBidPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes autoBidPulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  }
+
+  .auto-bid-label {
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: var(--color-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .auto-bid-max {
+    font-weight: 700;
+    font-size: 1.125rem;
+    color: var(--color-fg);
+  }
+
+  .auto-bid-desc {
+    font-size: 0.825rem;
+    color: var(--color-muted-fg);
+    margin: 0 0 0.75rem;
+    line-height: 1.4;
+  }
+
+  .auto-bid-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .auto-bid-edit-btn,
+  .auto-bid-cancel-btn {
+    flex: 1;
+    padding: 0.5rem 1rem;
+    font-size: 0.825rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 150ms ease-out;
+    border-radius: var(--radius-sm);
+  }
+
+  .auto-bid-edit-btn {
+    background: var(--color-blue);
+    color: white;
+    border: 1px solid var(--color-blue);
+  }
+
+  .auto-bid-edit-btn:hover {
+    background: var(--color-fg);
+    color: var(--color-bg);
+  }
+
+  .auto-bid-cancel-btn {
+    background: transparent;
+    color: var(--color-red);
+    border: 1px solid var(--color-red);
+  }
+
+  .auto-bid-cancel-btn:hover:not(:disabled) {
+    background: var(--color-red);
+    color: white;
+  }
+
+  .auto-bid-cancel-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Auto-Bid Modal */
+  .auto-bid-modal .modal-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .auto-bid-explainer {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    border-radius: var(--radius-md);
+  }
+
+  .auto-bid-explainer-title {
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: var(--color-fg);
+    margin: 0 0 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .auto-bid-steps {
+    margin: 0;
+    padding: 0 0 0 1.25rem;
+    list-style: none;
+    counter-reset: step;
+  }
+
+  .auto-bid-steps li {
+    position: relative;
+    font-size: 0.85rem;
+    color: var(--color-muted-fg);
+    line-height: 1.6;
+    padding-left: 0.25rem;
+    counter-increment: step;
+  }
+
+  .auto-bid-steps li::before {
+    content: counter(step) ".";
+    position: absolute;
+    left: -1.25rem;
+    color: var(--color-blue);
+    font-weight: 700;
+    font-size: 0.8rem;
+  }
+
+  .auto-bid-form {
+    margin-bottom: 1.25rem;
+  }
+
+  .auto-bid-form-label {
+    display: block;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--color-fg);
+    margin-bottom: 0.5rem;
+  }
+
+  .auto-bid-input-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+
+  .auto-bid-input-row .bid-control {
+    flex: 1;
+  }
+
+  .auto-bid-summary {
+    margin-top: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    color: var(--color-muted-fg);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .summary-row:last-child {
+    border-bottom: none;
+  }
+
+  .summary-max {
+    background: rgba(59, 130, 246, 0.08);
+    font-weight: 700;
+    color: var(--color-fg);
+  }
+
+  .auto-bid-confirm {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  @media (max-width: 768px) {
+    .auto-bid-status-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .auto-bid-actions {
+      flex-direction: column;
     }
   }
 </style>

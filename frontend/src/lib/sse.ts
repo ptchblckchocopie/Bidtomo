@@ -582,3 +582,87 @@ export async function queueBid(
     return { success: false, error: String(error) };
   }
 }
+
+// Set auto-bid (proxy bidding)
+export async function setAutoBid(
+  productId: string | number,
+  maxAmount: number,
+  censorName: boolean = false
+): Promise<{ success: boolean; autoBid?: { productId: number; maxAmount: number; active: boolean }; error?: string }> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+
+  try {
+    const response = await fetch('/api/bridge/bid/auto', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `JWT ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        productId: typeof productId === 'string' ? parseInt(productId, 10) : productId,
+        maxAmount,
+        censorName,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Failed to set auto-bid' };
+    }
+    return data;
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+}
+
+// Cancel auto-bid
+export async function cancelAutoBid(
+  productId: string | number
+): Promise<{ success: boolean; error?: string }> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+
+  try {
+    const response = await fetch('/api/bridge/bid/auto', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `JWT ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        productId: typeof productId === 'string' ? parseInt(productId, 10) : productId,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Failed to cancel auto-bid' };
+    }
+    return data;
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+}
+
+// Get auto-bid status for a product
+export async function getAutoBid(
+  productId: string | number
+): Promise<{ autoBid: { maxAmount: number; active: boolean; createdAt: string } | null }> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+
+  try {
+    const response = await fetch(`/api/bridge/bid/auto/${productId}`, {
+      headers: {
+        ...(token ? { Authorization: `JWT ${token}` } : {}),
+      },
+    });
+
+    if (!response.ok) {
+      return { autoBid: null };
+    }
+
+    const data = await response.json();
+    return data;
+  } catch {
+    return { autoBid: null };
+  }
+}
