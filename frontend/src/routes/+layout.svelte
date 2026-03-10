@@ -10,6 +10,7 @@
   import { trackPageView } from '$lib/analytics';
   import ClickSpark from '$lib/components/ClickSpark.svelte';
   import PageTransition from '$lib/components/PageTransition.svelte';
+  import { backgroundStore, type BackgroundType } from '$lib/stores/background';
   import type { Snippet } from 'svelte';
 
   let { children: pageContent }: { children: Snippet } = $props();
@@ -18,6 +19,7 @@
 
   let mobileMenuOpen = $state(false);
   let userMenuOpen = $state(false);
+  let bgMenuOpen = $state(false);
   let unreadCount = $derived($unreadCountStore);
   let scrolled = $state(false);
 
@@ -53,6 +55,14 @@
     if (userMenuOpen && !target.closest('.user-menu-container')) {
       closeUserMenu();
     }
+    if (bgMenuOpen && !target.closest('.bg-menu-container')) {
+      bgMenuOpen = false;
+    }
+  }
+
+  function selectBackground(bg: BackgroundType) {
+    backgroundStore.set(bg);
+    bgMenuOpen = false;
   }
 
   function handleScroll() {
@@ -98,9 +108,15 @@
 <svelte:window onclick={handleClickOutside} />
 
 {#if showDecorations}
-  {#await import('$lib/components/ThreeBackground.svelte') then { default: ThreeBackground }}
-    <ThreeBackground />
-  {/await}
+  {#if $backgroundStore === 'horizontal_wave'}
+    {#await import('$lib/components/ThreeBackground.svelte') then { default: ThreeBackground }}
+      <ThreeBackground />
+    {/await}
+  {:else if $backgroundStore === 'interactive_tile'}
+    {#await import('$lib/components/SplineBackground.svelte') then { default: SplineBackground }}
+      <SplineBackground />
+    {/await}
+  {/if}
   {#await import('$lib/components/FloatingParticles.svelte') then { default: FloatingParticles }}
     <FloatingParticles />
   {/await}
@@ -135,6 +151,52 @@
           >
             About
           </a>
+
+          <!-- Background switcher -->
+          <div class="bg-menu-container relative">
+            <button
+              onclick={(e) => { e.stopPropagation(); bgMenuOpen = !bgMenuOpen; }}
+              class="bg-switch-btn px-2 py-1.5 rounded-md transition-all duration-200"
+              title="Change background"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
+              </svg>
+            </button>
+
+            {#if bgMenuOpen}
+              <div class="bg-dropdown absolute left-1/2 -translate-x-1/2 mt-2 w-48 py-1 z-50">
+                <div class="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-muted-fg)]">Background</div>
+                <button
+                  onclick={() => selectBackground('horizontal_wave')}
+                  class="bg-dropdown-item {$backgroundStore === 'horizontal_wave' ? 'active' : ''}"
+                >
+                  <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2 12c1.5-3 4.5-3 6 0s4.5 3 6 0 4.5-3 6 0" />
+                  </svg>
+                  <span>Horizontal Wave</span>
+                </button>
+                <button
+                  onclick={() => selectBackground('interactive_tile')}
+                  class="bg-dropdown-item {$backgroundStore === 'interactive_tile' ? 'active' : ''}"
+                >
+                  <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                  </svg>
+                  <span>Interactive Tile</span>
+                </button>
+                <button
+                  onclick={() => selectBackground('none')}
+                  class="bg-dropdown-item {$backgroundStore === 'none' ? 'active' : ''}"
+                >
+                  <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                  </svg>
+                  <span>None</span>
+                </button>
+              </div>
+            {/if}
+          </div>
         </div>
 
         <!-- Right actions — desktop only -->
@@ -536,6 +598,58 @@
   @keyframes dropdownIn {
     from { opacity: 0; transform: translateY(-8px) scale(0.95); }
     to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* Background switcher */
+  .bg-switch-btn {
+    color: var(--color-muted-fg);
+    cursor: pointer;
+  }
+  .bg-switch-btn:hover {
+    color: var(--color-fg);
+    background: var(--color-surface);
+  }
+  .bg-dropdown {
+    background: rgba(19, 19, 22, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.03);
+    animation: dropdownIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: top center;
+  }
+  .bg-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    font-family: var(--font-body);
+    color: var(--color-muted-fg);
+    transition: all 150ms;
+    border-radius: var(--radius-sm);
+    margin: 0 4px;
+    cursor: pointer;
+  }
+  .bg-dropdown-item:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-fg);
+  }
+  .bg-dropdown-item.active {
+    color: var(--color-fg);
+    font-weight: 600;
+  }
+  .bg-dropdown-item.active::after {
+    content: '';
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    margin-left: auto;
+    flex-shrink: 0;
   }
 
   .mobile-menu {
