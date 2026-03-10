@@ -113,16 +113,16 @@
 <div class="min-h-screen flex flex-col relative z-[2]">
   <!-- Header -->
   <header class="site-header sticky top-0 z-50 header-animate" class:header-scrolled={scrolled}>
-    <nav class="max-w-6xl mx-auto px-6 md:px-8 lg:px-12">
-      <div class="flex justify-between items-center h-14">
-        <!-- Logo -->
-        <a href="/" class="flex-shrink-0 flex items-center gap-2.5 group" onclick={closeMobileMenu}>
+    <nav class="nav-container">
+      <div class="nav-layout">
+        <!-- Logo — left -->
+        <a href="/" class="nav-logo group" onclick={closeMobileMenu}>
           <img src="/bidmo.to.png" alt="BidMo.to" class="h-7 w-auto transition-transform duration-300 group-hover:scale-110" />
           <span class="hidden sm:inline font-display text-base font-bold tracking-tight text-[var(--color-fg)] transition-all duration-300 group-hover:text-shimmer">BidMo.to</span>
         </a>
 
-        <!-- Desktop Navigation -->
-        <div class="hidden md:flex md:items-center md:gap-1">
+        <!-- Center navigation — desktop only -->
+        <div class="nav-center">
           <a
             href="/products"
             class="nav-link px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 {currentPath.startsWith('/products') ? 'text-[var(--color-fg)] bg-[var(--color-surface)] nav-active' : 'text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]'}"
@@ -137,8 +137,8 @@
           </a>
         </div>
 
-        <!-- Desktop Actions -->
-        <div class="hidden md:flex md:items-center md:gap-3">
+        <!-- Right actions — desktop only -->
+        <div class="nav-actions">
           {#if $authStore.isAuthenticated}
             <a
               href="/inbox"
@@ -236,7 +236,7 @@
         </div>
 
         <!-- Mobile actions -->
-        <div class="flex items-center gap-2 md:hidden">
+        <div class="nav-mobile-toggle ml-auto">
           <button
             onclick={toggleMobileMenu}
             class="inline-flex items-center justify-center p-2 min-h-[44px] min-w-[44px] text-[var(--color-muted-fg)] border border-[var(--color-border)] rounded-md hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-fg)] transition-all duration-200"
@@ -255,7 +255,7 @@
 
       <!-- Mobile Navigation -->
       {#if mobileMenuOpen}
-        <div class="mobile-menu md:hidden pb-4 border-t border-[var(--color-border)] mt-2 pt-4 space-y-0">
+        <div class="mobile-menu nav-mobile-menu pb-4 border-t border-[var(--color-border)] mt-2 pt-4 space-y-0">
           <a href="/products" onclick={closeMobileMenu}
             class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath.startsWith('/products') ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
             Browse
@@ -381,6 +381,74 @@
 
 
 <style>
+  /* Nav layout — 3-column: logo | center links | actions */
+  .nav-container {
+    width: 100%;
+    padding: 0 1.5rem;
+  }
+  @media (min-width: 768px) {
+    .nav-container { padding: 0 2.5rem; }
+  }
+  @media (min-width: 1024px) {
+    .nav-container { padding: 0 3.5rem; }
+  }
+
+  .nav-layout {
+    display: flex;
+    align-items: center;
+    height: 3.5rem;
+    position: relative;
+  }
+
+  .nav-logo {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+  }
+
+  .nav-center {
+    display: none;
+  }
+  @media (min-width: 860px) {
+    .nav-center {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+  }
+
+  .nav-actions {
+    display: none;
+  }
+  @media (min-width: 860px) {
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-left: auto;
+    }
+  }
+
+  .nav-mobile-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  @media (min-width: 860px) {
+    .nav-mobile-toggle { display: none; }
+  }
+
+  .nav-mobile-menu {
+    display: block;
+  }
+  @media (min-width: 860px) {
+    .nav-mobile-menu { display: none; }
+  }
+
   /* Header animation on scroll */
   .header-animate {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

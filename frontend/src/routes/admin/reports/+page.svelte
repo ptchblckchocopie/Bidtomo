@@ -217,51 +217,51 @@
         <div class="card-bh overflow-hidden">
           <button
             onclick={() => toggleExpand(report.id)}
-            class="w-full text-left p-4 flex items-center gap-4 hover:bg-bh-muted/50 transition-colors"
+            class="w-full text-left p-4 hover:bg-bh-muted/50 transition-colors"
           >
-            <!-- Thumbnail -->
-            <div class="w-12 h-12 flex-shrink-0 border-2 border-bh-border bg-bh-muted overflow-hidden">
-              {#if thumb}
-                <img src={thumb} alt="" class="w-full h-full object-cover" />
-              {:else}
-                <div class="w-full h-full flex items-center justify-center text-bh-fg/30 text-xs">N/A</div>
+            <div class="flex items-center gap-3">
+              <!-- Thumbnail -->
+              <div class="w-10 h-10 flex-shrink-0 border border-bh-border bg-bh-muted overflow-hidden">
+                {#if thumb}
+                  <img src={thumb} alt="" class="w-full h-full object-cover" />
+                {:else}
+                  <div class="w-full h-full flex items-center justify-center text-bh-fg/30 text-[10px]">N/A</div>
+                {/if}
+              </div>
+
+              <!-- Product Title + Reporter -->
+              <div class="flex-1 min-w-0">
+                <div class="font-bold truncate text-sm">
+                  {product?.title || 'Unknown Product'}
+                </div>
+                <div class="text-xs text-bh-fg/60 truncate">
+                  by {getReporterName(report)} &middot; {formatDate(report.createdAt)}
+                </div>
+              </div>
+
+              <!-- Expand Arrow -->
+              <svg
+                class="w-4 h-4 transition-transform flex-shrink-0 {expandedId === report.id ? 'rotate-180' : ''}"
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+
+            <!-- Badges row -->
+            <div class="flex flex-wrap gap-1.5 mt-2 ml-[52px]">
+              <span class="px-2 py-0.5 text-[10px] font-bold text-white {reasonColors[report.reason] || 'bg-gray-500'}">
+                {reasonLabels[report.reason] || report.reason}
+              </span>
+              <span class="px-2 py-0.5 text-[10px] font-bold {statusColors[report.status] || ''}">
+                {report.status}
+              </span>
+              {#if product}
+                <span class="px-2 py-0.5 text-[10px] font-bold border border-bh-border {product.active ? 'text-green-400' : 'text-red-400'}">
+                  {product.active ? 'Visible' : 'Hidden'}
+                </span>
               {/if}
             </div>
-
-            <!-- Product Title -->
-            <div class="flex-1 min-w-0">
-              <div class="font-bold truncate">
-                {product?.title || 'Unknown Product'}
-              </div>
-              <div class="text-sm text-bh-fg/60">
-                by {getReporterName(report)} &middot; {formatDate(report.createdAt)}
-              </div>
-            </div>
-
-            <!-- Reason Badge -->
-            <span class="px-2 py-1 text-xs font-bold text-white {reasonColors[report.reason] || 'bg-gray-500'}">
-              {reasonLabels[report.reason] || report.reason}
-            </span>
-
-            <!-- Status Badge -->
-            <span class="px-2 py-1 text-xs font-bold {statusColors[report.status] || ''}">
-              {report.status}
-            </span>
-
-            <!-- Product Visibility -->
-            {#if product}
-              <span class="px-2 py-1 text-xs font-bold border-2 border-bh-border {product.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
-                {product.active ? 'Visible' : 'Hidden'}
-              </span>
-            {/if}
-
-            <!-- Expand Arrow -->
-            <svg
-              class="w-5 h-5 transition-transform flex-shrink-0 {expandedId === report.id ? 'rotate-180' : ''}"
-              fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
           </button>
 
           <!-- Expanded Details -->
