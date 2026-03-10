@@ -1022,8 +1022,8 @@
   }
 
   .image-upload-btn:hover:not(.disabled) {
-    background: var(--color-fg);
-    color: white;
+    background: #c42600;
+    filter: brightness(1.15);
   }
 
   .image-upload-btn.disabled {
@@ -1074,7 +1074,7 @@
     bottom: 0.5rem;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--color-fg);
+    background: rgba(0, 0, 0, 0.6);
     color: white;
     padding: 0.25rem 0.75rem;
     font-size: 1.25rem;
@@ -1083,6 +1083,8 @@
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.2s;
+    border-radius: 2px;
+    backdrop-filter: blur(4px);
   }
 
 
@@ -1131,11 +1133,13 @@
     position: absolute;
     bottom: 0.5rem;
     left: 0.5rem;
-    background: var(--color-fg);
+    background: rgba(0, 0, 0, 0.6);
     color: white;
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
     font-weight: 700;
+    border-radius: 2px;
+    backdrop-filter: blur(4px);
   }
 
 

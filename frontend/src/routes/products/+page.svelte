@@ -314,13 +314,14 @@
       const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      const pad = (n: number) => n < 10 ? `0${n}` : `${n}`;
 
       if (days > 0) {
-        countdowns[product.id] = `${days}d ${hours}h ${minutes}m`;
+        countdowns[product.id] = `${days}d ${pad(hours)}h ${pad(minutes)}m`;
       } else if (hours > 0) {
-        countdowns[product.id] = `${hours}h ${minutes}m ${seconds}s`;
+        countdowns[product.id] = `${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s`;
       } else {
-        countdowns[product.id] = `${minutes}m ${seconds}s`;
+        countdowns[product.id] = `${pad(minutes)}m ${pad(seconds)}s`;
       }
     }
   }
@@ -398,9 +399,14 @@
   }
 
   // Sort products to show ones with user bids first, filter out toggled items
+  // Also hide products whose countdown just ended (client-side) from active view
   let sortedProducts = $derived(
     [...data.products]
       .filter((p: any) => !removedProductIds.includes(p.id))
+      .filter((p: any) => {
+        if (data.status === 'active' && countdowns[p.id] === 'Ended') return false;
+        return true;
+      })
       .sort((a, b) => {
         const aHasBid = userBids[a.id] ? 1 : 0;
         const bHasBid = userBids[b.id] ? 1 : 0;
@@ -899,18 +905,11 @@
                 <div class="pricing">
                   {#if product.currentBid}
                     <div class="current-bid-section">
+                      <span class="label-small">{data.status === 'ended' && product.status === 'sold' ? 'Sold For:' : data.status === 'ended' ? 'Final Bid:' : 'Current Bid:'}</span>
                       <div class="current-bid-row">
-                        <div>
-                          <span class="label-small">{data.status === 'ended' && product.status === 'sold' ? 'Sold For:' : data.status === 'ended' ? 'Final Bid:' : 'Current Bid:'}</span>
-                          <span class="price-large current-bid">{formatPrice(product.currentBid, product.seller.currency)}</span>
-                        </div>
+                        <span class="price-large current-bid">{formatPrice(product.currentBid, product.seller.currency)}</span>
                         {#if product.currentBid > product.startingPrice}
-                          <div class="percent-increase">
-                            <svg class="arrow-up-mini" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
-                              <polyline points="18 15 12 9 6 15"></polyline>
-                            </svg>
-                            <span>{Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%</span>
-                          </div>
+                          <span class="percent-increase">+{Math.round(((product.currentBid - product.startingPrice) / product.startingPrice) * 100)}%</span>
                         {/if}
                       </div>
                       <div class="starting-price-row">
@@ -1074,37 +1073,37 @@
 
 <style>
   .products-page {
-    padding: 2rem 0;
+    padding: 1rem 0;
   }
 
   .page-header {
-    margin-bottom: 2rem;
+    margin-bottom: 1.25rem;
   }
 
-  h1 {
-    margin-bottom: 1.5rem;
-    font-size: 2.5rem;
+  .page-header h2 {
+    font-size: 1.25rem;
+    margin-bottom: 0.75rem;
   }
 
   .search-filter-container {
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
   }
 
   .search-container {
     position: relative;
     max-width: 600px;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
   }
 
   .search-input {
     width: 100%;
-    padding: 1rem 3rem 1rem 1rem;
-    font-size: 1rem;
+    padding: 0.65rem 2.5rem 0.65rem 0.85rem;
+    font-size: 0.9rem;
   }
 
   .location-filters {
     display: flex;
-    gap: 0.75rem;
+    gap: 0.5rem;
     align-items: center;
     flex-wrap: wrap;
     max-width: 600px;
@@ -1112,10 +1111,10 @@
 
   .location-select {
     flex: 1;
-    min-width: 200px;
-    padding: 0.75rem 1rem;
-    font-size: 0.95rem;
-    border: 2px solid var(--color-border);
+    min-width: 160px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    border: 1px solid var(--color-border);
     transition: border-color 0.2s;
     background-color: var(--color-surface);
     cursor: pointer;
@@ -1133,10 +1132,11 @@
   }
 
   .btn-clear-filters {
-    padding: 0.75rem 1.5rem;
-    background: var(--color-fg);
-    color: var(--color-bg);
-    border: 2px solid var(--color-fg);
+    padding: 0.5rem 1rem;
+    background: transparent;
+    color: var(--color-muted-fg);
+    border: 1px solid var(--color-border);
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     transition: background-color 0.15s ease-out, color 0.15s ease-out;
@@ -1195,26 +1195,25 @@
   }
 
   .controls-container {
-    margin-top: 1rem;
+    margin-top: 0.5rem;
   }
 
   .items-per-page {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .items-per-page label {
-    font-size: 0.95rem;
+    font-size: 0.8rem;
     color: var(--color-muted-fg);
     font-weight: 500;
   }
 
-
   .items-per-page select {
-    padding: 0.5rem 2.5rem 0.5rem 0.75rem;
-    font-size: 0.95rem;
-    border: 2px solid var(--color-border);
+    padding: 0.35rem 2rem 0.35rem 0.5rem;
+    font-size: 0.8rem;
+    border: 1px solid var(--color-border);
     background-color: var(--color-surface);
     background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
     background-repeat: no-repeat;
@@ -1263,6 +1262,7 @@
     gap: 0.5rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    white-space: nowrap;
   }
 
   .tab:hover:not(.active) {
@@ -1347,13 +1347,18 @@
 
   .products-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 2rem;
   }
 
   /* CSS-only glow on hover — replaces heavy JS GlowingEffect */
   .products-grid > .glow-card {
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    display: flex;
+    flex-direction: column;
+  }
+  .products-grid > .glow-card > .product-card {
+    flex: 1;
   }
   @media (hover: hover) {
     .products-grid > .glow-card:hover {
@@ -1524,8 +1529,6 @@
   }
 
   .pricing > div {
-    display: flex;
-    justify-content: space-between;
     margin-bottom: 0.5rem;
   }
 
@@ -1535,22 +1538,18 @@
 
   .current-bid-row {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.25rem;
-  }
-
-  .current-bid-row > div {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+    align-items: baseline;
+    gap: 0.4rem;
+    flex-wrap: wrap;
   }
 
   .starting-price-row {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.35rem;
     align-items: center;
-    opacity: 0.7;
+    margin-top: 0.15rem;
+    opacity: 0.6;
+    font-size: 0.75rem;
   }
 
   .user-bid-section {
@@ -1609,20 +1608,11 @@
   }
 
   .percent-increase {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    background: rgba(59, 130, 246, 0.15);
-    color: #8b93e0;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 700;
-  }
-
-
-  .arrow-up-mini {
-    color: #8b93e0;
-    flex-shrink: 0;
+    color: #22c55e;
+    opacity: 0.85;
+    letter-spacing: 0.02em;
   }
 
   .auction-info {
@@ -1660,35 +1650,29 @@
 
   .admin-hide-btn,
   .admin-show-btn {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.7rem;
-    font-weight: 700;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.65rem;
+    font-weight: 600;
     text-transform: uppercase;
-    color: white;
-    border: 2px solid transparent;
+    border: none;
     cursor: pointer;
-    letter-spacing: 0.5px;
-    transition: background-color 0.15s ease-out, color 0.15s ease-out;
+    letter-spacing: 0.3px;
+    background: transparent;
+    transition: color 0.15s ease-out, opacity 0.15s ease-out;
+    opacity: 0.5;
+  }
+
+  .admin-hide-btn:hover,
+  .admin-show-btn:hover {
+    opacity: 1;
   }
 
   .admin-hide-btn {
-    background: #dc3545;
-    border-color: #dc3545;
-  }
-
-  .admin-hide-btn:hover {
-    background: var(--color-surface-hover);
-    color: #dc3545;
+    color: #ef4444;
   }
 
   .admin-show-btn {
-    background: #198754;
-    border-color: #198754;
-  }
-
-  .admin-show-btn:hover {
-    background: var(--color-surface-hover);
-    color: #198754;
+    color: #22c55e;
   }
 
   .tab-admin {
@@ -1897,52 +1881,51 @@
   .countdown-badge {
     display: flex;
     align-items: center;
-    gap: 0.375rem;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
-    font-weight: 700;
-    font-family: 'Courier New', monospace;
+    gap: 0.35rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    border-radius: 2px;
     transition: all 0.15s ease-out;
+    white-space: nowrap;
   }
 
   .countdown-icon {
     flex-shrink: 0;
+    width: 13px;
+    height: 13px;
   }
 
   /* Normal - More than 24 hours */
   .countdown-normal {
-    background-color: var(--color-muted);
+    background: rgba(59, 130, 246, 0.1);
     color: var(--color-blue);
-    border: 2px solid var(--color-blue);
   }
 
   /* Warning - Less than 24 hours */
   .countdown-warning {
-    background-color: var(--color-muted);
-    color: var(--color-fg);
-    border: 2px solid var(--color-border);
+    background: rgba(234, 179, 8, 0.1);
+    color: #eab308;
   }
 
   /* Urgent - Less than 12 hours */
   .countdown-urgent {
-    background: var(--color-red);
-    color: white;
-    border: 2px solid var(--color-border);
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
   }
 
   /* Critical - Less than 3 hours */
   .countdown-critical {
-    background: var(--color-fg);
-    color: white;
-    border: 2px solid var(--color-fg);
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
     animation: pulse-critical 1s ease-in-out infinite;
   }
 
   /* Ended */
   .countdown-ended {
-    background-color: var(--color-muted);
+    background: rgba(107, 114, 128, 0.1);
     color: #6b7280;
-    border: 2px solid var(--color-border);
   }
 
   @keyframes pulse-critical {
@@ -2066,6 +2049,26 @@
     }
   }
 
+  /* ===== Tablet Responsive ===== */
+  @media (max-width: 900px) {
+    .tabs-container {
+      gap: 0.25rem;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .tabs-container::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab {
+      flex: 0 0 auto;
+      padding: 0.625rem 0.875rem;
+      font-size: 0.85rem;
+    }
+  }
+
   /* ===== Mobile Responsive ===== */
   @media (max-width: 768px) {
     .products-page {
@@ -2177,8 +2180,8 @@
     .countdown-badge {
       width: 100%;
       justify-content: center;
-      padding: 0.375rem 0.5rem;
-      font-size: 0.8rem;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.7rem;
     }
 
     /* Pagination */
@@ -2380,15 +2383,15 @@
   .search-type-toggle {
     display: flex;
     gap: 0;
-    margin-bottom: 0.75rem;
-    max-width: 600px;
+    margin-bottom: 0.5rem;
+    max-width: 240px;
   }
 
   .search-type-btn {
     flex: 1;
-    padding: 0.625rem 1rem;
+    padding: 0.4rem 0.75rem;
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     border: 1px solid var(--color-border);
     background: var(--color-surface);
     color: var(--color-muted-fg);

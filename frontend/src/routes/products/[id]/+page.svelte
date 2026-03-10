@@ -2313,6 +2313,19 @@
     }
   }
 
+  /* Tablet: switch to single column layout */
+  @media (max-width: 900px) {
+    .product-content {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .product-detail {
+      padding: 1.5rem;
+    }
+  }
+
   @media (max-width: 768px) {
     .product-detail {
       padding: 0.75rem 0;
@@ -2338,7 +2351,6 @@
     }
 
     .product-content {
-      grid-template-columns: 1fr;
       gap: 1rem;
       margin-bottom: 1rem;
     }

@@ -2,11 +2,12 @@ import path from 'path';
 import type { BeforeOperationHook } from 'payload/dist/collections/config/types';
 
 const WEBP_QUALITY = 82;
-const CONVERTIBLE_TYPES = ['image/jpeg', 'image/png', 'image/tiff', 'image/bmp', 'image/gif'];
+const CONVERTIBLE_TYPES = ['image/jpeg', 'image/png', 'image/tiff', 'image/bmp'];
+// GIF excluded — WebP conversion strips animation frames
 
 /**
  * beforeOperation hook for the media collection.
- * Converts uploaded images (JPEG, PNG, TIFF, BMP, GIF) to WebP format
+ * Converts uploaded images (JPEG, PNG, TIFF, BMP) to WebP format. GIFs are excluded to preserve animation.
  * BEFORE Payload processes the file (generateFileData, image resizing, S3 upload).
  *
  * Uses (global as any).convertImageToWebP assigned in server.ts
