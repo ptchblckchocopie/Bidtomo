@@ -2651,7 +2651,7 @@
 
   .price-info {
     background: var(--color-surface);
-    padding: 2rem;
+    padding: 2.75rem 2rem 2rem;
     margin-bottom: 1.5rem;
     text-align: center;
     border: 1px solid var(--color-blue);
