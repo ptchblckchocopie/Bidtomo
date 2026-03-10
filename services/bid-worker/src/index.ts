@@ -720,207 +720,212 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
       return;
     }
 
-    const freshCurrentBid = Number(product.currentBid) || 0;
+    let runningBid = Number(product.currentBid) || 0;
     const bidInterval = Number(product.bidInterval) || 1;
     const startingPrice = Number(product.startingPrice) || 0;
-    const nextMinimumBid = freshCurrentBid > 0 ? freshCurrentBid + bidInterval : startingPrice;
 
-    // Find active auto-bids for this product from OTHER bidders whose max can cover the next minimum
-    const autoBidsResult = await client.query(
+    // Get ALL active auto-bids for this product
+    const allAutoBidsResult = await client.query(
       `SELECT id, bidder_id, max_amount, censor_name, created_at FROM auto_bids
-       WHERE product_id = $1 AND bidder_id != $2 AND active = TRUE AND max_amount >= $3
+       WHERE product_id = $1 AND active = TRUE
        ORDER BY max_amount DESC, created_at ASC`,
-      [productId, currentBidderId, nextMinimumBid]
+      [productId]
     );
 
-    if (autoBidsResult.rows.length === 0) {
-      // Deactivate any auto-bids that can no longer compete (max < next minimum)
+    // Build a map of auto-bidders for fast lookup
+    const autoBidMap = new Map<number, { bidderId: number; maxAmount: number; censorName: boolean; createdAt: number }>();
+    for (const row of allAutoBidsResult.rows) {
+      autoBidMap.set(row.bidder_id, {
+        bidderId: row.bidder_id,
+        maxAmount: parseFloat(row.max_amount),
+        censorName: row.censor_name || false,
+        createdAt: new Date(row.created_at).getTime(),
+      });
+    }
+
+    // Check if there's at least one auto-bidder who can counter the current bid
+    const firstNextMin = runningBid > 0 ? runningBid + bidInterval : startingPrice;
+    let hasCompetitor = false;
+    for (const [bidderId, ab] of autoBidMap) {
+      if (bidderId !== currentBidderId && ab.maxAmount >= firstNextMin) {
+        hasCompetitor = true;
+        break;
+      }
+    }
+
+    if (!hasCompetitor) {
+      // No competitors — deactivate exhausted auto-bids and exit
       await client.query(
         `UPDATE auto_bids SET active = FALSE, updated_at = NOW()
          WHERE product_id = $1 AND active = TRUE AND max_amount < $2`,
-        [productId, nextMinimumBid]
+        [productId, firstNextMin]
       );
       await client.query('COMMIT');
       return;
     }
 
-    const autoBids = autoBidsResult.rows.map(row => ({
-      id: row.id,
-      bidderId: row.bidder_id,
-      maxAmount: parseFloat(row.max_amount),
-      censorName: row.censor_name || false,
-      createdAt: new Date(row.created_at).getTime(),
-    }));
+    // --- Incremental counter-bidding loop ---
+    // Instead of jumping to the final price, place bids one increment at a time.
+    // This creates a visible bidding war in the bid history.
+    const placedBids: Array<{ bidId: number; amount: number; bidderId: number; censorName: boolean }> = [];
+    let currentHighBidderId = currentBidderId;
 
-    // Also check if the current bidder has an active auto-bid (they might be an auto-bidder too)
-    const currentBidderAutoBidResult = await client.query(
-      `SELECT id, max_amount, censor_name, created_at FROM auto_bids
-       WHERE product_id = $1 AND bidder_id = $2 AND active = TRUE
-       LIMIT 1`,
-      [productId, currentBidderId]
-    );
+    // Safety limit: cap at 50 incremental steps, then jump to final for remainder
+    const MAX_INCREMENTAL_STEPS = 50;
 
-    let currentBidderMaxAmount = currentBidAmount; // Default: just the bid they placed
-    let currentBidderCensorName = false;
-    let currentBidderCreatedAt = Date.now(); // Default: now (manual bid, no auto-bid)
-    if (currentBidderAutoBidResult.rows.length > 0) {
-      currentBidderMaxAmount = parseFloat(currentBidderAutoBidResult.rows[0].max_amount);
-      currentBidderCensorName = currentBidderAutoBidResult.rows[0].censor_name || false;
-      currentBidderCreatedAt = new Date(currentBidderAutoBidResult.rows[0].created_at).getTime();
-    }
+    for (let step = 0; step < MAX_INCREMENTAL_STEPS; step++) {
+      const nextMin = runningBid > 0 ? runningBid + bidInterval : startingPrice;
 
-    // Resolve competition
-    // Combine all competing auto-bidders (including current bidder if they have an auto-bid)
-    // Sort by maxAmount DESC, then by createdAt ASC (first-come-first-served tiebreaker)
-    const allCompetitors = [
-      { bidderId: currentBidderId, maxAmount: currentBidderMaxAmount, isCurrentBidder: true, censorName: currentBidderCensorName, createdAt: currentBidderCreatedAt },
-      ...autoBids.map(ab => ({ bidderId: ab.bidderId, maxAmount: ab.maxAmount, isCurrentBidder: false, censorName: ab.censorName, createdAt: ab.createdAt })),
-    ].sort((a, b) => b.maxAmount - a.maxAmount || a.createdAt - b.createdAt);
-
-    const winner = allCompetitors[0];
-    const secondHighest = allCompetitors.length > 1 ? allCompetitors[1] : null;
-
-    // Determine the winning bid amount:
-    // Winner bids at second-highest max + bidInterval (or their own max if that's lower)
-    let winningBidAmount: number;
-    if (secondHighest) {
-      winningBidAmount = Math.min(winner.maxAmount, secondHighest.maxAmount + bidInterval);
-    } else {
-      winningBidAmount = nextMinimumBid;
-    }
-
-    // Ensure winning bid is at least the next minimum
-    winningBidAmount = Math.max(winningBidAmount, nextMinimumBid);
-
-    // If the winner is already the current highest bidder at a sufficient amount, no action needed
-    if (winner.isCurrentBidder && freshCurrentBid >= winningBidAmount) {
-      // Deactivate losers whose max can't beat the current bid
-      for (const competitor of allCompetitors) {
-        if (!competitor.isCurrentBidder && competitor.maxAmount < freshCurrentBid + bidInterval) {
-          await client.query(
-            `UPDATE auto_bids SET active = FALSE, updated_at = NOW()
-             WHERE product_id = $1 AND bidder_id = $2`,
-            [productId, competitor.bidderId]
-          );
+      // Find the best counter-bidder: not the current high bidder, can beat runningBid
+      // Prefer highest maxAmount, then earliest createdAt (first-come-first-served)
+      let bestCounter: { bidderId: number; maxAmount: number; censorName: boolean; createdAt: number } | null = null;
+      for (const [bidderId, ab] of autoBidMap) {
+        if (bidderId === currentHighBidderId) continue;
+        if (ab.maxAmount <= runningBid) continue; // Can't beat current bid at all
+        if (!bestCounter || ab.maxAmount > bestCounter.maxAmount ||
+            (ab.maxAmount === bestCounter.maxAmount && ab.createdAt < bestCounter.createdAt)) {
+          bestCounter = ab;
         }
       }
-      await client.query('COMMIT');
-      return;
+
+      if (!bestCounter) break; // No one can counter — current high bidder wins
+
+      // Determine bid amount: standard increment if affordable, otherwise their max
+      // (allows sub-interval final bids so both sides use their full max — fair tiebreaker)
+      const counterBidAmount = bestCounter.maxAmount >= nextMin ? nextMin : bestCounter.maxAmount;
+
+      // Place the counter-bid
+      const bidResult = await client.query(
+        `INSERT INTO bids (amount, bid_time, censor_name, created_at, updated_at)
+         VALUES ($1, NOW(), $2, NOW(), NOW()) RETURNING id`,
+        [counterBidAmount, bestCounter.censorName]
+      );
+      const bidId = bidResult.rows[0].id;
+
+      await client.query(
+        `INSERT INTO bids_rels (parent_id, path, products_id) VALUES ($1, 'product', $2)`,
+        [bidId, productId]
+      );
+      await client.query(
+        `INSERT INTO bids_rels (parent_id, path, users_id) VALUES ($1, 'bidder', $2)`,
+        [bidId, bestCounter.bidderId]
+      );
+
+      placedBids.push({ bidId, amount: counterBidAmount, bidderId: bestCounter.bidderId, censorName: bestCounter.censorName });
+      runningBid = counterBidAmount;
+      currentHighBidderId = bestCounter.bidderId;
     }
 
-    // If the current bidder is the winner (their auto-bid max is highest), they need to raise their bid
-    // If a different auto-bidder is the winner, they need to place a counter-bid
-    const winnerBidderId = winner.bidderId;
+    // If we hit the step limit and there's still competition, resolve remainder in one jump
+    if (placedBids.length >= MAX_INCREMENTAL_STEPS) {
+      const nextMin = runningBid + bidInterval;
+      const remaining: Array<{ bidderId: number; maxAmount: number; censorName: boolean; createdAt: number }> = [];
+      for (const [, ab] of autoBidMap) {
+        if (ab.maxAmount > runningBid) {
+          remaining.push(ab);
+        }
+      }
+      remaining.sort((a, b) => b.maxAmount - a.maxAmount || a.createdAt - b.createdAt);
 
-    // Don't place a bid if the winner is already the current highest bidder with a sufficient amount
-    if (winnerBidderId === currentBidderId && freshCurrentBid >= winningBidAmount) {
-      await client.query('COMMIT');
-      return;
+      if (remaining.length >= 2) {
+        const winner = remaining[0];
+        const second = remaining[1];
+        let finalAmount = Math.min(winner.maxAmount, second.maxAmount + bidInterval);
+        finalAmount = Math.max(finalAmount, nextMin);
+
+        if (finalAmount > runningBid && winner.bidderId !== currentHighBidderId) {
+          const bidResult = await client.query(
+            `INSERT INTO bids (amount, bid_time, censor_name, created_at, updated_at)
+             VALUES ($1, NOW(), $2, NOW(), NOW()) RETURNING id`,
+            [finalAmount, winner.censorName]
+          );
+          const bidId = bidResult.rows[0].id;
+          await client.query(
+            `INSERT INTO bids_rels (parent_id, path, products_id) VALUES ($1, 'product', $2)`,
+            [bidId, productId]
+          );
+          await client.query(
+            `INSERT INTO bids_rels (parent_id, path, users_id) VALUES ($1, 'bidder', $2)`,
+            [bidId, winner.bidderId]
+          );
+          placedBids.push({ bidId, amount: finalAmount, bidderId: winner.bidderId, censorName: winner.censorName });
+          runningBid = finalAmount;
+          currentHighBidderId = winner.bidderId;
+        }
+      }
     }
 
-    // Create the auto-bid (same SQL pattern as processBid)
-    const winnerCensorName = winner.censorName || false;
-    const bidResult = await client.query(
-      `INSERT INTO bids (amount, bid_time, censor_name, created_at, updated_at)
-       VALUES ($1, NOW(), $2, NOW(), NOW())
-       RETURNING id`,
-      [winningBidAmount, winnerCensorName]
-    );
-
-    const bidId = bidResult.rows[0].id;
-
-    // Create relationship to product
-    await client.query(
-      `INSERT INTO bids_rels (parent_id, path, products_id)
-       VALUES ($1, $2, $3)`,
-      [bidId, 'product', productId]
-    );
-
-    // Create relationship to bidder
-    await client.query(
-      `INSERT INTO bids_rels (parent_id, path, users_id)
-       VALUES ($1, $2, $3)`,
-      [bidId, 'bidder', winnerBidderId]
-    );
-
-    // Update product's current bid
-    await client.query(
-      `UPDATE products SET current_bid = $1, updated_at = NOW() WHERE id = $2`,
-      [winningBidAmount, productId]
-    );
-
-    // Get bidder name for SSE event
-    const bidderResult = await client.query(
-      `SELECT name FROM users WHERE id = $1`,
-      [winnerBidderId]
-    );
-    const bidderName = bidderResult.rows[0]?.name || 'Anonymous';
+    // Update product's current bid to final amount
+    const originalBid = Number(product.currentBid) || 0;
+    if (runningBid > originalBid) {
+      await client.query(
+        `UPDATE products SET current_bid = $1, updated_at = NOW() WHERE id = $2`,
+        [runningBid, productId]
+      );
+    }
 
     // Deactivate auto-bids that can no longer compete
-    const newMinimum = winningBidAmount + bidInterval;
+    const finalMinimum = runningBid + bidInterval;
     await client.query(
       `UPDATE auto_bids SET active = FALSE, updated_at = NOW()
        WHERE product_id = $1 AND active = TRUE AND max_amount < $2`,
-      [productId, newMinimum]
+      [productId, finalMinimum]
     );
 
     await client.query('COMMIT');
 
-    const bidTime = new Date().toISOString();
-    console.log(`[WORKER] Auto-bid ${bidId} placed: Product ${productId}, Bidder ${winnerBidderId}, Amount ${winningBidAmount}`);
+    // --- Publish SSE events for all placed bids ---
+    if (redisConnected && placedBids.length > 0) {
+      // Batch-fetch bidder names
+      const bidderIds = [...new Set(placedBids.map(b => b.bidderId))];
+      const bidderNamesResult = await pool.query(
+        `SELECT id, name FROM users WHERE id = ANY($1)`,
+        [bidderIds]
+      );
+      const bidderNames = new Map<number, string>();
+      for (const row of bidderNamesResult.rows) {
+        bidderNames.set(row.id, row.name || 'Anonymous');
+      }
 
-    // Publish SSE event for the auto-placed bid
-    if (redisConnected) {
       try {
         const channel = `sse:product:${productId}`;
-        const message = JSON.stringify({
-          type: 'bid',
-          success: true,
-          bidId,
-          amount: winningBidAmount,
-          bidderId: winnerBidderId,
-          bidderName,
-          censorName: winnerCensorName,
-          bidTime,
-          isAutoBid: true,
-          timestamp: Date.now(),
-        });
-        await redisPub.publish(channel, message);
+        for (const bid of placedBids) {
+          const message = JSON.stringify({
+            type: 'bid',
+            success: true,
+            bidId: bid.bidId,
+            amount: bid.amount,
+            bidderId: bid.bidderId,
+            bidderName: bidderNames.get(bid.bidderId) || 'Anonymous',
+            censorName: bid.censorName,
+            bidTime: new Date().toISOString(),
+            isAutoBid: true,
+            timestamp: Date.now(),
+          });
+          await redisPub.publish(channel, message);
+        }
 
-        // Also publish to global channel for browse page
+        // Publish final state to global channel for browse page
+        const lastBid = placedBids[placedBids.length - 1];
         const globalMessage = JSON.stringify({
           type: 'bid',
           productId,
-          amount: winningBidAmount,
+          amount: lastBid.amount,
           isAutoBid: true,
           timestamp: Date.now(),
         });
         await redisPub.publish('sse:global', globalMessage);
 
-        console.log(`[WORKER] Published auto-bid result to ${channel}`);
+        console.log(`[WORKER] Published ${placedBids.length} auto-bid results to ${channel}`);
       } catch (publishError) {
-        console.error('[WORKER] Failed to publish auto-bid result:', publishError);
+        console.error('[WORKER] Failed to publish auto-bid results:', publishError);
         Sentry.captureException(publishError, { level: 'warning', tags: { route: 'worker.processAutoBids.publish' } });
       }
     }
 
-    // Recursively check if there are more auto-bids to resolve
-    // (e.g., the loser may also have an auto-bid that can counter)
-    // But only if the winner was not the current bidder (to avoid infinite loops)
-    if (winnerBidderId !== currentBidderId) {
-      // Check if the original bidder (or another auto-bidder) can counter
-      // Use setImmediate to avoid stack overflow in deep recursion
-      await new Promise<void>((resolve) => {
-        setImmediate(async () => {
-          try {
-            await processAutoBids(productId, winningBidAmount, winnerBidderId);
-          } catch (recursionError) {
-            console.error('[WORKER] Error in recursive auto-bid processing:', recursionError);
-            Sentry.captureException(recursionError, { level: 'warning', tags: { route: 'worker.processAutoBids.recurse' } });
-          }
-          resolve();
-        });
-      });
+    if (placedBids.length > 0) {
+      const lastBid = placedBids[placedBids.length - 1];
+      console.log(`[WORKER] Auto-bid resolution: ${placedBids.length} incremental bids for product ${productId}, final: ${lastBid.amount} by bidder ${lastBid.bidderId}`);
     }
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
