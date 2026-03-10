@@ -778,10 +778,22 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
 
       // Find the best counter-bidder: not the current high bidder, can beat runningBid
       // Prefer highest maxAmount, then earliest createdAt (first-come-first-served)
+      const currentHolderAB = autoBidMap.get(currentHighBidderId);
       let bestCounter: { bidderId: number; maxAmount: number; censorName: boolean; createdAt: number } | null = null;
       for (const [bidderId, ab] of autoBidMap) {
         if (bidderId === currentHighBidderId) continue;
         if (ab.maxAmount <= runningBid) continue; // Can't beat current bid at all
+
+        // First-come-first-served tiebreaker: if this counter-bidder would bid their
+        // exact max, and the current high bidder has the same max but set their auto-bid
+        // earlier, skip — the later bidder can't win a tie against an earlier one.
+        const wouldBidAmount = ab.maxAmount >= nextMin ? nextMin : ab.maxAmount;
+        if (wouldBidAmount === ab.maxAmount && currentHolderAB &&
+            currentHolderAB.maxAmount === ab.maxAmount &&
+            currentHolderAB.createdAt < ab.createdAt) {
+          continue; // Current holder was first with same max — this counter can't win
+        }
+
         if (!bestCounter || ab.maxAmount > bestCounter.maxAmount ||
             (ab.maxAmount === bestCounter.maxAmount && ab.createdAt < bestCounter.createdAt)) {
           bestCounter = ab;
