@@ -2435,15 +2435,15 @@
     /* Countdown timer adjustments */
     .countdown-timer-badge {
       position: absolute;
-      top: 0;
-      right: 0;
-      padding: 0.5rem 0.75rem;
+      top: -1px;
+      right: -1px;
+      padding: 0.4rem 0.65rem;
       font-size: 0.75rem;
       z-index: 10;
     }
 
     .countdown-timer-badge .countdown-time {
-      font-size: 1rem;
+      font-size: 0.85rem;
     }
 
     .countdown-timer-inline {
@@ -2627,18 +2627,18 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    background: rgba(239, 68, 68, 0.15);
+    background: var(--color-muted);
     padding: 0.75rem 1.25rem;
-    border: 1px solid var(--color-red);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
   }
 
   .countdown-timer-inline .countdown-label {
-    color: var(--color-red);
-    font-size: 0.875rem;
+    color: var(--color-muted-fg);
+    font-size: 0.8rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
   }
 
   .countdown-timer-inline .countdown-time {
@@ -2689,25 +2689,30 @@
 
   .countdown-timer-badge {
     position: absolute;
-    top: 0;
-    right: 0;
+    top: -1px;
+    right: -1px;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background: rgba(239, 68, 68, 0.15);
-    padding: 0.75rem 1.25rem;
+    background: rgba(20, 20, 24, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 0.6rem 1rem;
     font-size: 0.875rem;
     font-weight: 700;
-    border: 1px solid var(--color-red);
+    border: 1px solid var(--color-border);
+    border-top-color: transparent;
+    border-right-color: transparent;
     margin: 0;
     z-index: 10;
-    border-radius: var(--radius-sm);
+    border-radius: 0 var(--radius-lg) 0 var(--radius-md);
   }
 
   .countdown-timer-badge .countdown-label {
-    color: var(--color-red);
+    color: var(--color-muted-fg);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
   }
 
   .countdown-timer-badge .countdown-time {
