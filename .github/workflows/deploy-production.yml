@@ -43,8 +43,9 @@ jobs:
           host: ${{ secrets.DROPLET_IP }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script_stop: true
+          command_timeout: 30m
           script: |
+            set -e
             docker network inspect bidtomo-shared >/dev/null 2>&1 || docker network create bidtomo-shared
             cd /opt/bidtomo
             git fetch origin
