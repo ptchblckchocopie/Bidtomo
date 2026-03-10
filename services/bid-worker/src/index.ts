@@ -727,9 +727,9 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
 
     // Find active auto-bids for this product from OTHER bidders whose max can cover the next minimum
     const autoBidsResult = await client.query(
-      `SELECT id, bidder_id, max_amount, censor_name FROM auto_bids
+      `SELECT id, bidder_id, max_amount, censor_name, created_at FROM auto_bids
        WHERE product_id = $1 AND bidder_id != $2 AND active = TRUE AND max_amount >= $3
-       ORDER BY max_amount DESC`,
+       ORDER BY max_amount DESC, created_at ASC`,
       [productId, currentBidderId, nextMinimumBid]
     );
 
@@ -749,11 +749,12 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
       bidderId: row.bidder_id,
       maxAmount: parseFloat(row.max_amount),
       censorName: row.censor_name || false,
+      createdAt: new Date(row.created_at).getTime(),
     }));
 
     // Also check if the current bidder has an active auto-bid (they might be an auto-bidder too)
     const currentBidderAutoBidResult = await client.query(
-      `SELECT id, max_amount, censor_name FROM auto_bids
+      `SELECT id, max_amount, censor_name, created_at FROM auto_bids
        WHERE product_id = $1 AND bidder_id = $2 AND active = TRUE
        LIMIT 1`,
       [productId, currentBidderId]
@@ -761,17 +762,20 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
 
     let currentBidderMaxAmount = currentBidAmount; // Default: just the bid they placed
     let currentBidderCensorName = false;
+    let currentBidderCreatedAt = Date.now(); // Default: now (manual bid, no auto-bid)
     if (currentBidderAutoBidResult.rows.length > 0) {
       currentBidderMaxAmount = parseFloat(currentBidderAutoBidResult.rows[0].max_amount);
       currentBidderCensorName = currentBidderAutoBidResult.rows[0].censor_name || false;
+      currentBidderCreatedAt = new Date(currentBidderAutoBidResult.rows[0].created_at).getTime();
     }
 
     // Resolve competition
     // Combine all competing auto-bidders (including current bidder if they have an auto-bid)
+    // Sort by maxAmount DESC, then by createdAt ASC (first-come-first-served tiebreaker)
     const allCompetitors = [
-      { bidderId: currentBidderId, maxAmount: currentBidderMaxAmount, isCurrentBidder: true, censorName: currentBidderCensorName },
-      ...autoBids.map(ab => ({ bidderId: ab.bidderId, maxAmount: ab.maxAmount, isCurrentBidder: false, censorName: ab.censorName })),
-    ].sort((a, b) => b.maxAmount - a.maxAmount);
+      { bidderId: currentBidderId, maxAmount: currentBidderMaxAmount, isCurrentBidder: true, censorName: currentBidderCensorName, createdAt: currentBidderCreatedAt },
+      ...autoBids.map(ab => ({ bidderId: ab.bidderId, maxAmount: ab.maxAmount, isCurrentBidder: false, censorName: ab.censorName, createdAt: ab.createdAt })),
+    ].sort((a, b) => b.maxAmount - a.maxAmount || a.createdAt - b.createdAt);
 
     const winner = allCompetitors[0];
     const secondHighest = allCompetitors.length > 1 ? allCompetitors[1] : null;
