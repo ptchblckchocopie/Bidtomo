@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { browser } from '$app/environment';
   import { authStore } from '$lib/stores/auth';
+  import { t } from '$lib/stores/locale';
 
   let email = $state('');
   let password = $state('');
@@ -80,8 +81,8 @@
     <!-- Gradient top accent -->
     <div class="card-accent" aria-hidden="true"></div>
 
-    <h1 class="headline-bh text-2xl sm:text-4xl mb-2 text-center uppercase tracking-tighter">Login</h1>
-    <p class="text-[var(--color-muted-fg)] text-center mb-8">Access your marketplace account</p>
+    <h1 class="headline-bh text-2xl sm:text-4xl mb-2 text-center uppercase tracking-tighter">{$t('auth.login')}</h1>
+    <p class="text-[var(--color-muted-fg)] text-center mb-8">{$t('auth.loginSubtitle')}</p>
 
     {#if error}
       <div class="error-banner mb-6 p-4 font-bold text-center">
@@ -92,7 +93,7 @@
 
     <form onsubmit={handleLogin}>
       <div class="mb-6 form-field" style="animation-delay: 0.1s;">
-        <label for="email" class="block mb-2 font-bold text-[var(--color-fg)]">Email Address</label>
+        <label for="email" class="block mb-2 font-bold text-[var(--color-fg)]">{$t('auth.email')}</label>
         <input
           id="email"
           type="email"
@@ -105,7 +106,7 @@
       </div>
 
       <div class="mb-6 form-field" style="animation-delay: 0.2s;">
-        <label for="password" class="block mb-2 font-bold text-[var(--color-fg)]">Password</label>
+        <label for="password" class="block mb-2 font-bold text-[var(--color-fg)]">{$t('auth.password')}</label>
         <div class="relative">
           <input
             id="password"
@@ -143,11 +144,11 @@
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
               </svg>
-              Logging in...
+              {$t('auth.signingIn')}
             </span>
           {:else}
             <span class="inline-flex items-center gap-2">
-              Login
+              {$t('auth.login')}
               <svg class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
             </span>
           {/if}
@@ -156,7 +157,7 @@
     </form>
 
     <div class="mt-8 text-center text-[var(--color-muted-fg)] form-field" style="animation-delay: 0.4s;">
-      <p>Don't have an account? <a href="/register?redirect={encodeURIComponent(redirectUrl)}" class="text-[var(--color-accent)] font-bold hover:underline transition-colors">Register here</a></p>
+      <p>{$t('auth.noAccount')} <a href="/register?redirect={encodeURIComponent(redirectUrl)}" class="text-[var(--color-accent)] font-bold hover:underline transition-colors">{$t('nav.register')}</a></p>
     </div>
   </div>
 </div>

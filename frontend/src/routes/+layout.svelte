@@ -8,8 +8,10 @@
   import { unreadCountStore } from '$lib/stores/inbox';
   import { watchlistStore } from '$lib/stores/watchlist';
   import { trackPageView } from '$lib/analytics';
+  import { t } from '$lib/stores/locale';
   import ClickSpark from '$lib/components/ClickSpark.svelte';
   import PageTransition from '$lib/components/PageTransition.svelte';
+  import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
   import type { Snippet } from 'svelte';
 
   let { children: pageContent }: { children: Snippet } = $props();
@@ -127,23 +129,24 @@
             href="/products"
             class="nav-link px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 {currentPath.startsWith('/products') ? 'text-[var(--color-fg)] bg-[var(--color-surface)] nav-active' : 'text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]'}"
           >
-            Browse
+            {$t('nav.browse')}
           </a>
           <a
             href="/about-us"
             class="nav-link px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 {currentPath === '/about-us' ? 'text-[var(--color-fg)] bg-[var(--color-surface)] nav-active' : 'text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] hover:bg-[var(--color-surface)]'}"
           >
-            About
+            {$t('nav.about')}
           </a>
         </div>
 
         <!-- Right actions — desktop only -->
         <div class="nav-actions">
+          <LanguageSwitcher />
           {#if $authStore.isAuthenticated}
             <a
               href="/inbox"
               class="relative p-2 text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200 hover:scale-110 {currentPath === '/inbox' ? 'text-[var(--color-fg)]' : ''}"
-              title="Inbox"
+              title={$t('nav.inbox')}
             >
               <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -159,7 +162,7 @@
               <a
                 href="/admin/reports"
                 class="p-2 text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200 hover:scale-110 {currentPath === '/admin/reports' ? 'text-[var(--color-fg)]' : ''}"
-                title="Reports"
+                title={$t('nav.reports')}
               >
                 <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -168,7 +171,7 @@
               <a
                 href="/admin/analytics"
                 class="p-2 text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200 hover:scale-110 {currentPath === '/admin/analytics' ? 'text-[var(--color-fg)]' : ''}"
-                title="Analytics"
+                title={$t('nav.analytics')}
               >
                 <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 13h2v8H3zm6-4h2v12H9zm6-6h2v18h-2zm6 10h2v8h-2z" />
@@ -180,7 +183,7 @@
               href="/sell"
               class="btn-bh-red text-xs sell-btn {currentPath === '/sell' ? 'bg-[var(--color-bg)] text-[var(--color-fg)]' : ''}"
             >
-              <span class="relative z-10">Sell &rarr;</span>
+              <span class="relative z-10">{$t('nav.sell')} &rarr;</span>
             </a>
 
             <!-- User Menu -->
@@ -189,7 +192,7 @@
                 onclick={(e) => { e.stopPropagation(); toggleUserMenu(); }}
                 class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200 rounded-md hover:bg-[var(--color-surface)] {userMenuOpen ? 'text-[var(--color-fg)] bg-[var(--color-surface)]' : ''}"
               >
-                <span>{$authStore.user?.name || 'Account'}</span>
+                <span>{$authStore.user?.name || $t('nav.account')}</span>
                 <svg class="w-3 h-3 transition-transform duration-200 {userMenuOpen ? 'rotate-180' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
@@ -199,22 +202,22 @@
                 <div class="user-dropdown absolute right-0 mt-1 w-52 py-1 z-50">
                   <a href="/dashboard" onclick={closeUserMenu}
                     class="dropdown-link block px-4 py-2.5 text-sm {currentPath.startsWith('/dashboard') ? 'active' : ''}">
-                    Dashboard
+                    {$t('nav.dashboard')}
                   </a>
                   <a href="/profile" onclick={closeUserMenu}
                     class="dropdown-link block px-4 py-2.5 text-sm {currentPath === '/profile' ? 'active' : ''}">
-                    Profile
+                    {$t('nav.profile')}
                   </a>
                   <a href="/watchlist" onclick={closeUserMenu}
                     class="dropdown-link block px-4 py-2.5 text-sm {currentPath === '/watchlist' ? 'active' : ''}">
-                    Watchlist
+                    {$t('nav.watchlist')}
                   </a>
                   <div class="dropdown-divider"></div>
                   <button
                     onclick={handleLogout}
                     class="dropdown-link w-full text-left px-4 py-2.5 text-sm text-[var(--color-red)]"
                   >
-                    Sign Out
+                    {$t('nav.signOut')}
                   </button>
                 </div>
               {/if}
@@ -224,13 +227,13 @@
               href="/login"
               class="px-3 py-1.5 text-sm font-medium text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200 rounded-md hover:bg-[var(--color-surface)]"
             >
-              Sign In
+              {$t('nav.signIn')}
             </a>
             <a
               href="/register"
               class="btn-bh-red text-xs"
             >
-              Register &rarr;
+              {$t('nav.register')} &rarr;
             </a>
           {/if}
         </div>
@@ -256,18 +259,21 @@
       <!-- Mobile Navigation -->
       {#if mobileMenuOpen}
         <div class="mobile-menu nav-mobile-menu pb-4 border-t border-[var(--color-border)] mt-2 pt-4 space-y-0">
+          <div class="px-0 py-2 mb-2 border-b border-[var(--color-border)]">
+            <LanguageSwitcher />
+          </div>
           <a href="/products" onclick={closeMobileMenu}
             class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath.startsWith('/products') ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
-            Browse
+            {$t('nav.browse')}
           </a>
           <a href="/about-us" onclick={closeMobileMenu}
             class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/about-us' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
-            About
+            {$t('nav.about')}
           </a>
           {#if $authStore.isAuthenticated}
             <a href="/inbox" onclick={closeMobileMenu}
               class="flex items-center gap-2 px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/inbox' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
-              <span>Inbox</span>
+              <span>{$t('nav.inbox')}</span>
               {#if unreadCount > 0}
                 <span class="bg-[var(--color-accent)] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
                   {unreadCount > 9 ? '9+' : unreadCount}
@@ -278,54 +284,54 @@
             {#if $authStore.user?.role === 'admin'}
               <a href="/admin/reports" onclick={closeMobileMenu}
                 class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/admin/reports' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
-                Reports
+                {$t('nav.reports')}
               </a>
               <a href="/admin/analytics" onclick={closeMobileMenu}
                 class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/admin/analytics' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
-                Analytics
+                {$t('nav.analytics')}
               </a>
             {/if}
 
             <a href="/sell" onclick={closeMobileMenu}
               class="block mt-4 btn-bh-red text-center min-h-[44px] flex items-center justify-center">
-              Sell Item &rarr;
+              {$t('nav.sellItem')} &rarr;
             </a>
 
             <div class="border-t border-[var(--color-border)] my-4"></div>
 
             <a href="/dashboard" onclick={closeMobileMenu}
               class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath.startsWith('/dashboard') ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
-              Dashboard
+              {$t('nav.dashboard')}
             </a>
             <a href="/profile" onclick={closeMobileMenu}
               class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/profile' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
-              Profile
+              {$t('nav.profile')}
             </a>
             <a href="/watchlist" onclick={closeMobileMenu}
               class="block px-0 py-3 text-sm font-medium border-b border-[var(--color-border)] {currentPath === '/watchlist' ? 'text-[var(--color-fg)] font-bold' : 'text-[var(--color-muted-fg)]'} hover:text-[var(--color-fg)] transition-colors">
-              Watchlist
+              {$t('nav.watchlist')}
             </a>
 
             <div class="pt-2">
               <div class="text-xs font-medium text-[var(--color-muted-fg)]">
-                {$authStore.user?.name || 'Account'}
+                {$authStore.user?.name || $t('nav.account')}
               </div>
             </div>
             <button
               onclick={handleLogout}
               class="w-full text-left py-3 text-sm font-medium text-[var(--color-red)] hover:underline transition-colors min-h-[44px]"
             >
-              Sign Out
+              {$t('nav.signOut')}
             </button>
           {:else}
             <div class="border-t border-[var(--color-border)] my-4"></div>
             <a href="/login" onclick={closeMobileMenu}
               class="block px-0 py-3 text-sm font-medium text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-colors">
-              Sign In
+              {$t('nav.signIn')}
             </a>
             <a href="/register" onclick={closeMobileMenu}
               class="block mt-2 btn-bh-red text-center min-h-[44px] flex items-center justify-center">
-              Register &rarr;
+              {$t('nav.register')} &rarr;
             </a>
           {/if}
         </div>
@@ -350,28 +356,28 @@
         <div class="col-span-12 sm:col-span-5">
           <span class="font-display text-2xl font-bold text-[var(--color-fg)]">BidMo.to</span>
           <p class="mt-3 text-sm text-[var(--color-muted-fg)] leading-relaxed max-w-xs">
-            The Filipino auction marketplace. Bid, buy, and sell unique items.
+            {$t('footer.tagline')}
           </p>
           <div class="accent-line mt-4"></div>
         </div>
         <div class="col-span-6 sm:col-span-2">
-          <h4 class="label-bh mb-4">Navigate</h4>
+          <h4 class="label-bh mb-4">{$t('footer.navigate')}</h4>
           <div class="space-y-2">
-            <a href="/products" class="footer-link block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200">Browse</a>
-            <a href="/about-us" class="footer-link block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200">About</a>
-            <a href="/sell" class="footer-link block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200">Sell</a>
+            <a href="/products" class="footer-link block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200">{$t('nav.browse')}</a>
+            <a href="/about-us" class="footer-link block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200">{$t('nav.about')}</a>
+            <a href="/sell" class="footer-link block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200">{$t('nav.sell')}</a>
           </div>
         </div>
         <div class="col-span-6 sm:col-span-2">
-          <h4 class="label-bh mb-4">Account</h4>
+          <h4 class="label-bh mb-4">{$t('footer.account')}</h4>
           <div class="space-y-2">
-            <a href="/login" class="footer-link block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200">Sign In</a>
-            <a href="/register" class="footer-link block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200">Register</a>
+            <a href="/login" class="footer-link block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200">{$t('nav.signIn')}</a>
+            <a href="/register" class="footer-link block text-sm text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200">{$t('nav.register')}</a>
           </div>
         </div>
         <div class="col-span-12 sm:col-span-3 border-t sm:border-t-0 sm:border-l border-[var(--color-border-light)] pt-6 sm:pt-0 sm:pl-8 mt-4 sm:mt-0">
           <span class="label-bh">&copy; {new Date().getFullYear()}</span>
-          <p class="mt-1 text-sm text-[var(--color-muted-fg)]">All rights reserved.</p>
+          <p class="mt-1 text-sm text-[var(--color-muted-fg)]">{$t('footer.allRightsReserved')}</p>
         </div>
       </div>
     </div>
