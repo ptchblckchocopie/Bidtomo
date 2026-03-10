@@ -5,7 +5,8 @@
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
   import { regions, getCitiesByRegion } from '$lib/data/philippineLocations';
-  import { categories, getCategoryLabel } from '$lib/data/categories';
+  import { categories } from '$lib/data/categories';
+  import { t } from '$lib/stores/locale';
   import { getGlobalSSE, disconnectGlobalSSE, type SSEEvent, type BidUpdateEvent, type ProductVisibilityEvent } from '$lib/sse';
   import { updateProduct } from '$lib/api';
   import { watchlistStore } from '$lib/stores/watchlist';
@@ -593,7 +594,7 @@
 
 <div class="products-page">
   <div class="page-header">
-    <h2>Browse Products</h2>
+    <h2>{$t('products.browseProducts')}</h2>
 
     <!-- Search and Filters -->
     <div class="search-filter-container">
@@ -603,14 +604,14 @@
           class:active={searchTypeInput === 'products'}
           onclick={() => handleSearchTypeChange('products')}
         >
-          Products
+          {$t('products.products')}
         </button>
         <button
           class="search-type-btn"
           class:active={searchTypeInput === 'users'}
           onclick={() => handleSearchTypeChange('users')}
         >
-          Users
+          {$t('products.sellers')}
         </button>
       </div>
 
@@ -619,7 +620,7 @@
           type="text"
           bind:value={searchInput}
           oninput={handleSearchInput}
-          placeholder={searchTypeInput === 'users' ? 'Search users by name...' : 'Search by title, description, or keywords...'}
+          placeholder={searchTypeInput === 'users' ? $t('products.searchSellers') : $t('products.searchProducts')}
           class="search-input input-bh"
           aria-label="Search products"
         />
@@ -636,7 +637,7 @@
             class="location-select"
             aria-label="Filter by region"
           >
-            <option value="">All Regions</option>
+            <option value="">{$t('products.allRegions')}</option>
             {#each regions as region}
               <option value={region}>{region}</option>
             {/each}
@@ -648,7 +649,7 @@
             disabled={!regionInput}
             aria-label="Filter by city"
           >
-            <option value="">All Cities</option>
+            <option value="">{$t('products.allCities')}</option>
             {#each availableCities as city}
               <option value={city}>{city}</option>
             {/each}
@@ -659,13 +660,13 @@
             class="location-select"
             aria-label="Filter by category"
           >
-            <option value="">All Categories</option>
+            <option value="">{$t('products.allCategories')}</option>
             {#each categories as category}
-              <option value={category.value}>{category.label}</option>
+              <option value={category.value}>{$t('categories.' + category.value)}</option>
             {/each}
           </select>
           {#if searchInput || regionInput || cityInput || categoryInput}
-            <button class="btn-clear-filters" onclick={clearFilters}>Clear All</button>
+            <button class="btn-clear-filters" onclick={clearFilters}>{$t('products.clearFilters')}</button>
           {/if}
         </div>
       {/if}
@@ -735,7 +736,7 @@
               disabled={data.currentPage === 1}
               onclick={() => goToPage(data.currentPage - 1)}
             >
-              ← Previous
+              ← {$t('products.prev')}
             </button>
             <div class="pagination-numbers">
               {#each Array(data.totalPages) as _, i}
@@ -753,7 +754,7 @@
               disabled={data.currentPage === data.totalPages}
               onclick={() => goToPage(data.currentPage + 1)}
             >
-              Next →
+              {$t('products.next')} →
             </button>
           </div>
         {/if}
@@ -768,11 +769,11 @@
     <!-- Product Search Mode -->
     {#if (data.search || data.region || data.city) && data.totalDocs === 0}
       <div class="empty-state">
-        <p>No products found matching your filters</p>
+        <p>{$t('products.noProductsFound')}</p>
         {#if data.search}<p class="filter-detail">Search: "{data.search}"</p>{/if}
         {#if data.region}<p class="filter-detail">Region: "{data.region}"</p>{/if}
         {#if data.city}<p class="filter-detail">City: "{data.city}"</p>{/if}
-        <button class="btn-clear-search" onclick={clearFilters}>Clear Filters</button>
+        <button class="btn-clear-search" onclick={clearFilters}>{$t('products.clearFilters')}</button>
       </div>
     {/if}
 
@@ -785,7 +786,7 @@
       class:active={data.status === 'active'}
       onclick={() => changeTab('active')}
     >
-      Active Auctions
+      {$t('products.activeAuctions')}
     </button>
     <button
       class="tab"
@@ -794,7 +795,7 @@
       class:active={data.status === 'ended'}
       onclick={() => changeTab('ended')}
     >
-      Ended Auctions
+      {$t('products.ended')}
     </button>
     <button
       class="tab"
@@ -803,7 +804,7 @@
       class:active={data.status === 'my-bids'}
       onclick={() => changeTab('my-bids')}
     >
-      My Bids
+      {$t('products.myBids')}
     </button>
     {#if $authStore.user?.role === 'admin'}
       <button
@@ -824,7 +825,7 @@
       class="new-products-banner"
       onclick={() => { newProductCount = 0; window.location.reload(); }}
     >
-      {newProductCount} new {newProductCount === 1 ? 'product' : 'products'} listed — click to refresh
+      {$t('products.newProductsAvailable', { count: newProductCount })}
     </button>
   {/if}
 
@@ -894,7 +895,7 @@
                 {#if product.categories && product.categories.length > 0}
                   <div class="category-tags">
                     {#each product.categories.slice(0, 3) as categoryValue}
-                      <span class="category-tag">{getCategoryLabel(categoryValue)}</span>
+                      <span class="category-tag">{$t('categories.' + categoryValue)}</span>
                     {/each}
                     {#if product.categories.length > 3}
                       <span class="category-tag category-overflow">+{product.categories.length - 3}</span>
@@ -905,7 +906,7 @@
                 <div class="pricing">
                   {#if product.currentBid}
                     <div class="current-bid-section">
-                      <span class="label-small">{data.status === 'ended' && product.status === 'sold' ? 'Sold For:' : data.status === 'ended' ? 'Final Bid:' : 'Current Bid:'}</span>
+                      <span class="label-small">{data.status === 'ended' && product.status === 'sold' ? $t('products.sold') + ':' : data.status === 'ended' ? $t('products.ended') + ':' : $t('products.currentBid') + ':'}</span>
                       <div class="current-bid-row">
                         <span class="price-large current-bid">{formatPrice(product.currentBid, product.seller.currency)}</span>
                         {#if product.currentBid > product.startingPrice}
@@ -919,14 +920,14 @@
                     </div>
                   {:else}
                     <div>
-                      <span class="label-small">Starting Price:</span>
+                      <span class="label-small">{$t('products.startingPrice')}:</span>
                       <span class="price-large">{formatPrice(product.startingPrice, product.seller.currency)}</span>
                     </div>
                   {/if}
 
                   {#if userBids[product.id]}
                     <div class="user-bid-section">
-                      <span class="label-small">Your Bid:</span>
+                      <span class="label-small">{$t('products.yourBid')}:</span>
                       <span class="price-large your-bid">{formatPrice(userBids[product.id], product.seller.currency)}</span>
                     </div>
                   {/if}
@@ -943,7 +944,7 @@
                         class="admin-hide-btn"
                         onclick={(e) => { e.preventDefault(); e.stopPropagation(); openAdminModal(product); }}
                       >
-                        Hide
+                        {$t('products.hide')}
                       </button>
                     {/if}
                     {#if data.status === 'hidden'}
@@ -961,7 +962,7 @@
                         <circle cx="12" cy="12" r="10"></circle>
                         <polyline points="12 6 12 12 16 14"></polyline>
                       </svg>
-                      <span>{countdowns[product.id] || 'Loading...'}</span>
+                      <span>{countdowns[product.id] || $t('common.loading')}</span>
                     </div>
                   {:else}
                     <div class="countdown-badge countdown-ended">
@@ -969,7 +970,7 @@
                         <circle cx="12" cy="12" r="10"></circle>
                         <polyline points="12 6 12 12 16 14"></polyline>
                       </svg>
-                      <span>Ended</span>
+                      <span>{$t('products.ended')}</span>
                     </div>
                   {/if}
                 </div>
@@ -987,7 +988,7 @@
               disabled={data.currentPage === 1}
               onclick={() => goToPage(data.currentPage - 1)}
             >
-              ← Previous
+              ← {$t('products.prev')}
             </button>
 
             <div class="pagination-numbers">
@@ -1007,7 +1008,7 @@
               disabled={data.currentPage === data.totalPages}
               onclick={() => goToPage(data.currentPage + 1)}
             >
-              Next →
+              {$t('products.next')} →
             </button>
           </div>
         {/if}
@@ -1036,7 +1037,7 @@
       <button class="modal-close" onclick={closeAdminModal}>&times;</button>
 
       <div class="modal-header">
-        <h2>{adminModalProduct.active ? 'Hide Item' : 'Unhide Item'}</h2>
+        <h2>{adminModalProduct.active ? $t('products.hideProduct') : $t('products.showProduct')}</h2>
       </div>
 
       <div class="modal-body">
@@ -1051,7 +1052,7 @@
 
         <div class="modal-actions">
           <button class="btn-modal-cancel" onclick={closeAdminModal} disabled={adminModalLoading}>
-            Cancel
+            {$t('products.cancel')}
           </button>
           <button
             class="btn-modal-confirm {adminModalProduct.active ? 'btn-modal-hide' : 'btn-modal-unhide'}"
@@ -1060,9 +1061,9 @@
           >
             {#if adminModalLoading}
               <span class="modal-spinner"></span>
-              Processing...
+              {$t('products.processing')}
             {:else}
-              {adminModalProduct.active ? 'Hide Item' : 'Unhide Item'}
+              {adminModalProduct.active ? $t('products.hideProduct') : $t('products.showProduct')}
             {/if}
           </button>
         </div>
