@@ -1391,7 +1391,7 @@
 
             {#if (data.product.status === 'active' || data.product.status === 'available') && data.product.status !== 'sold' && !hasAuctionEnded}
               <div class="countdown-timer-badge">
-                <span class="countdown-label">Ends in:</span>
+                <svg class="countdown-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
               </div>
             {/if}
@@ -1449,7 +1449,7 @@
               <div class="bid-section-header">
                 <h3>Your Listing</h3>
                 <div class="countdown-timer-inline">
-                  <span class="countdown-label">Ends in:</span>
+                  <svg class="countdown-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                   <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
                 </div>
               </div>
@@ -2437,13 +2437,18 @@
       position: absolute;
       top: -1px;
       right: -1px;
-      padding: 0.4rem 0.65rem;
-      font-size: 0.75rem;
+      padding: 0.35rem 0.6rem;
+      gap: 0.3rem;
       z-index: 10;
     }
 
+    .countdown-timer-badge .countdown-icon {
+      width: 12px;
+      height: 12px;
+    }
+
     .countdown-timer-badge .countdown-time {
-      font-size: 0.85rem;
+      font-size: 0.75rem;
     }
 
     .countdown-timer-inline {
@@ -2626,25 +2631,22 @@
   .countdown-timer-inline {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    background: var(--color-muted);
-    padding: 0.75rem 1.25rem;
-    border: 1px solid var(--color-border);
+    gap: 0.5rem;
+    background: rgba(15, 15, 18, 0.92);
+    padding: 0.5rem 1rem;
+    border: 1px solid rgba(251, 191, 36, 0.2);
     border-radius: var(--radius-md);
   }
 
-  .countdown-timer-inline .countdown-label {
-    color: var(--color-muted-fg);
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+  .countdown-timer-inline .countdown-icon {
+    color: rgba(251, 191, 36, 0.7);
+    flex-shrink: 0;
   }
 
   .countdown-timer-inline .countdown-time {
     color: var(--color-fg);
-    font-size: 1.5rem;
-    font-weight: 900;
+    font-size: 1.25rem;
+    font-weight: 800;
     font-family: 'Courier New', monospace;
     letter-spacing: 1.5px;
   }
@@ -2693,33 +2695,33 @@
     right: -1px;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    background: rgba(20, 20, 24, 0.85);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    padding: 0.6rem 1rem;
+    gap: 0.4rem;
+    background: rgba(15, 15, 18, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 0.5rem 0.9rem;
     font-size: 0.875rem;
     font-weight: 700;
-    border: 1px solid var(--color-border);
+    border: 1px solid rgba(251, 191, 36, 0.2);
     border-top-color: transparent;
     border-right-color: transparent;
     margin: 0;
     z-index: 10;
     border-radius: 0 var(--radius-lg) 0 var(--radius-md);
+    box-shadow: 0 0 12px rgba(251, 191, 36, 0.06);
   }
 
-  .countdown-timer-badge .countdown-label {
-    color: var(--color-muted-fg);
-    text-transform: uppercase;
-    font-size: 0.7rem;
-    letter-spacing: 1px;
+  .countdown-timer-badge .countdown-icon {
+    color: rgba(251, 191, 36, 0.7);
+    flex-shrink: 0;
   }
 
   .countdown-timer-badge .countdown-time {
     color: var(--color-fg);
-    font-weight: 900;
-    letter-spacing: 1px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
     font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
   }
 
   .bid-with-percentage {
