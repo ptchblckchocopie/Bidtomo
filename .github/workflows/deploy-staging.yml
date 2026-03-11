@@ -48,10 +48,32 @@ jobs:
             set -e
             docker network inspect bidtomo-shared >/dev/null 2>&1 || docker network create bidtomo-shared
             cd /opt/bidtomo-staging
+
+            # Enable maintenance mode via Redis before deploying
+            echo "Enabling maintenance mode..."
+            docker exec staging-redis redis-cli SET maintenance:status '{"enabled":true,"scheduledAt":null,"message":"Deploying updates..."}' || true
+
             git fetch origin
             git checkout staging
             git pull origin staging
             export GIT_SHA=$(git rev-parse --short HEAD)
             docker compose -f docker-compose.staging.yml build
             docker compose -f docker-compose.staging.yml up -d
+
+            # Wait for CMS to be healthy before disabling maintenance
+            echo "Waiting for CMS to be healthy..."
+            for i in $(seq 1 30); do
+              HEALTH=$(docker exec staging-cms curl -sf http://localhost:3001/api/health 2>/dev/null || echo '{}')
+              if echo "$HEALTH" | grep -q '"status":"ok"'; then
+                echo "CMS is healthy!"
+                break
+              fi
+              echo "Attempt $i/30 — CMS not ready, waiting 5s..."
+              sleep 5
+            done
+
+            # Disable maintenance mode
+            echo "Disabling maintenance mode..."
+            docker exec staging-redis redis-cli SET maintenance:status '{"enabled":false,"scheduledAt":null,"message":""}' || true
+
             echo "Staging deployed! Release: $GIT_SHA"
