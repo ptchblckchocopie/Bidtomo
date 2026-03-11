@@ -73,6 +73,15 @@
       bidInterval = product?.bidInterval || (userCurrency === 'PHP' ? 50 : 1);
     }
 
+    // Pre-fill region/city from last listing (create mode only)
+    if (mode === 'create' && !region && !city) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('seller_location') || '{}');
+        if (saved.region) region = saved.region;
+        if (saved.city) city = saved.city;
+      } catch {}
+    }
+
     if (mode === 'edit' && product) {
       title = product.title;
       description = product.description;
@@ -464,6 +473,9 @@
         if (result) {
           loadingMessage = 'Success! Redirecting...';
           success = true;
+          if (region || city) {
+            localStorage.setItem('seller_location', JSON.stringify({ region, city }));
+          }
           showToastNotification('Product created successfully!', 'success');
           if (onSuccess) {
             onSuccess(result);
