@@ -544,7 +544,7 @@
 
 <!-- Welcome Hero Section -->
 <div class="-mx-4 sm:-mx-6 lg:-mx-8 mb-8">
-  <section class="bg-bh-red border-b-2 border-black text-white px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 text-center">
+  <section class="bg-bh-red text-white px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 text-center">
     <div class="max-w-4xl mx-auto">
       <div class="mb-6">
         <img src="/bidmo.to.png" alt="BidMo.to" class="h-20 sm:h-28 lg:h-36 w-auto mx-auto" />

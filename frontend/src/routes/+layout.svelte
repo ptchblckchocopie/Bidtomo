@@ -11,6 +11,7 @@
   import { t } from '$lib/stores/locale';
   import ClickSpark from '$lib/components/ClickSpark.svelte';
   import PageTransition from '$lib/components/PageTransition.svelte';
+  import MaintenanceOverlay from '$lib/components/MaintenanceOverlay.svelte';
   import { backgroundStore, type BackgroundType } from '$lib/stores/background';
   import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
   import type { Snippet } from 'svelte';
@@ -108,6 +109,8 @@
 </script>
 
 <svelte:window onclick={handleClickOutside} />
+
+<MaintenanceOverlay />
 
 {#if showDecorations}
   {#if $backgroundStore === 'horizontal_wave'}
