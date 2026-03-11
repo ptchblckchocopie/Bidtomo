@@ -35,7 +35,7 @@
   <meta name="description" content="Learn about BidMo.to - The Filipino way to bid, buy, and sell unique items. Join our experimental auction platform and help us grow!" />
 </svelte:head>
 
-<div class="-mx-4 sm:-mx-6 lg:-mx-8 -my-6 sm:-my-8">
+<div class="about-fullwidth">
   <!-- Hero Section — Cinematic full-width -->
   <section class="about-hero relative overflow-hidden px-4 sm:px-6 lg:px-8 py-20 sm:py-28 lg:py-36">
     <!-- Radial gradient overlay -->
@@ -260,6 +260,12 @@
 </div>
 
 <style>
+  /* Break out of the constrained max-w-6xl <main> container */
+  .about-fullwidth {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+  }
+
   /* Hero — transparent in dark mode, content over Three.js bg */
   .about-hero {
     background: transparent;
