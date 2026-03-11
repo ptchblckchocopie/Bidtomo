@@ -39,13 +39,13 @@
     }
   }
 
-  async function checkManualMaintenance(): Promise<{ enabled: boolean; scheduledAt: number | null; message: string }> {
+  async function checkManualMaintenance(): Promise<{ enabled: boolean; scheduledAt: number | null; message: string; available: boolean }> {
     try {
       const res = await fetch('/api/bridge/maintenance');
-      if (!res.ok) return { enabled: false, scheduledAt: null, message: '' };
+      if (!res.ok) return { enabled: false, scheduledAt: null, message: '', available: false };
       return await res.json();
     } catch {
-      return { enabled: false, scheduledAt: null, message: '' };
+      return { enabled: false, scheduledAt: null, message: '', available: false };
     }
   }
 
@@ -87,9 +87,10 @@
       setTimeout(() => {
         if (disposed) return;
 
-        // Manual maintenance takes priority (unless user is admin)
+        // Gate users if: manual maintenance enabled, health check failed, OR backend not fully deployed
         const isAdmin = $authStore.user?.role === 'admin';
-        if ((maint.enabled && !isAdmin) || !healthy) {
+        const backendNotReady = !maint.available;
+        if ((maint.enabled && !isAdmin) || !healthy || backendNotReady) {
           if (maint.enabled && !isAdmin) isManualMaintenance = true;
           // Smooth crossfade: fade out intro content, then show maintenance
           phase = 'intro-exit';
@@ -134,7 +135,7 @@
           }
         }
 
-        if (!isManualMaintenance && healthy && !maint.enabled) {
+        if (!isManualMaintenance && healthy && !maint.enabled && maint.available) {
           phase = 'recovering';
           setTimeout(() => { if (!disposed) phase = 'healthy'; }, 900);
           return;

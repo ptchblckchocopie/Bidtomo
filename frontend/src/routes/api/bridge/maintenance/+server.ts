@@ -2,16 +2,19 @@ import { cmsRequest, getTokenFromRequest, jsonResponse } from '$lib/server/cms';
 import type { RequestHandler } from './$types';
 
 // GET /api/bridge/maintenance - Get current maintenance status (public)
+// Returns { enabled, scheduledAt, message, available } — available=false means CMS endpoint missing (mid-deploy)
 export const GET: RequestHandler = async () => {
   try {
     const response = await cmsRequest('/api/maintenance');
     if (!response.ok) {
-      return jsonResponse({ enabled: false, scheduledAt: null, message: '' });
+      // CMS returned 404 or error — endpoint not deployed yet
+      return jsonResponse({ enabled: false, scheduledAt: null, message: '', available: false });
     }
     const data = await response.json();
-    return jsonResponse(data);
+    return jsonResponse({ ...data, available: true });
   } catch {
-    return jsonResponse({ enabled: false, scheduledAt: null, message: '' });
+    // CMS unreachable
+    return jsonResponse({ enabled: false, scheduledAt: null, message: '', available: false });
   }
 };
 
