@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore, getAuthToken } from '$lib/stores/auth';
+  import { t } from '$lib/stores/locale';
   import { getUserLimits, getCurrentUser, type UserLimits } from '$lib/api';
 
   let userLimits: UserLimits | null = null;
@@ -140,7 +141,7 @@
   }
 
   function formatPhoneNumber(countryCode: string, phone: string): string {
-    if (!phone) return 'Not set';
+    if (!phone) return $t('profile.notSet');
     return `${countryCode} ${phone}`;
   }
 
@@ -287,7 +288,7 @@
 </script>
 
 <svelte:head>
-  <title>Profile - BidMo.to</title>
+  <title>{$t('profile.title')} - BidMo.to</title>
 </svelte:head>
 
 <div class="profile-page">
@@ -311,11 +312,11 @@
 
       <div class="avatar-actions">
         <button class="btn-upload" onclick={triggerFileSelect} disabled={uploadingPicture}>
-          {getProfilePictureUrl() ? 'Change Photo' : 'Upload Photo'}
+          {getProfilePictureUrl() ? $t('profile.changePhoto') : $t('profile.uploadPhoto')}
         </button>
         {#if getProfilePictureUrl()}
           <button class="btn-remove-photo" onclick={removeProfilePicture} disabled={uploadingPicture}>
-            Remove
+            {$t('profile.remove')}
           </button>
         {/if}
       </div>
@@ -330,7 +331,7 @@
     </div>
 
     <div class="header-text">
-      <h1>{$authStore.user?.name || 'My Profile'}</h1>
+      <h1>{$authStore.user?.name || $t('profile.myProfile')}</h1>
       <p class="subtitle">{$authStore.user?.email || 'View and edit your account information'}</p>
     </div>
   </div>
@@ -348,10 +349,10 @@
     <div class="card-header">
       <div class="header-left">
         <span class="icon">👤</span>
-        <h2>Account Information</h2>
+        <h2>{$t('profile.accountInfo')}</h2>
       </div>
       {#if !isEditing}
-        <button class="btn-edit" onclick={startEditing}>Edit Profile</button>
+        <button class="btn-edit" onclick={startEditing}>{$t('profile.editProfile')}</button>
       {/if}
     </div>
 
@@ -359,7 +360,7 @@
       <!-- Edit Form -->
       <form onsubmit={(e) => { e.preventDefault(); saveProfile(); }} class="edit-form">
         <div class="form-group">
-          <label for="editName">Full Name</label>
+          <label for="editName">{$t('profile.fullName')}</label>
           <input
             id="editName"
             type="text"
@@ -370,7 +371,7 @@
         </div>
 
         <div class="form-group">
-          <label for="editPhone">Phone Number</label>
+          <label for="editPhone">{$t('profile.phoneNumber')}</label>
           <div class="phone-input-group">
             <select
               id="editCountryCode"
@@ -394,17 +395,17 @@
         </div>
 
         <div class="form-group readonly">
-          <label>Email Address</label>
+          <label>{$t('profile.emailAddress')}</label>
           <div class="readonly-value">{$authStore.user?.email || 'N/A'}</div>
-          <span class="readonly-hint">Email cannot be changed</span>
+          <span class="readonly-hint">{$t('profile.emailCannotChange')}</span>
         </div>
 
         <div class="form-actions">
           <button type="button" class="btn-cancel" onclick={cancelEditing} disabled={saving}>
-            Cancel
+            {$t('common.cancel')}
           </button>
           <button type="submit" class="btn-save" disabled={saving}>
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? $t('profile.saving') : $t('profile.saveChanges')}
           </button>
         </div>
       </form>
@@ -412,25 +413,25 @@
       <!-- Display Mode -->
       <div class="info-grid">
         <div class="info-item">
-          <span class="info-label">Name:</span>
+          <span class="info-label">{$t('profile.nameLabel')}</span>
           <span class="info-value">{$authStore.user?.name || 'N/A'}</span>
         </div>
         <div class="info-item">
-          <span class="info-label">Email:</span>
+          <span class="info-label">{$t('profile.emailLabel')}</span>
           <span class="info-value">{$authStore.user?.email || 'N/A'}</span>
         </div>
         <div class="info-item">
-          <span class="info-label">Phone:</span>
+          <span class="info-label">{$t('profile.phoneLabel')}</span>
           <span class="info-value">
             {formatPhoneNumber($authStore.user?.countryCode || '+63', $authStore.user?.phoneNumber || '')}
           </span>
         </div>
         <div class="info-item">
-          <span class="info-label">Currency:</span>
+          <span class="info-label">{$t('profile.currencyLabel')}</span>
           <span class="info-value">{$authStore.user?.currency || 'PHP'}</span>
         </div>
         <div class="info-item">
-          <span class="info-label">Role:</span>
+          <span class="info-label">{$t('profile.roleLabel')}</span>
           <span class="info-value capitalize">{$authStore.user?.role || 'buyer'}</span>
         </div>
       </div>
@@ -441,29 +442,29 @@
   {#if loading}
     <div class="loading-state">
       <div class="spinner"></div>
-      <p>Loading your limits...</p>
+      <p>{$t('profile.loadingLimits')}</p>
     </div>
   {:else if userLimits}
     <div class="limits-section">
-      <h2 class="section-title">Activity Limits</h2>
-      <p class="section-description">Track your usage of bidding and posting features</p>
+      <h2 class="section-title">{$t('profile.activityLimits')}</h2>
+      <p class="section-description">{$t('profile.activityLimitsDesc')}</p>
 
       <div class="limits-grid">
         <!-- Bidding Limits Card -->
         <div class="limit-card">
           <div class="card-header">
             <span class="icon">🔨</span>
-            <h3>Bidding Limit</h3>
+            <h3>{$t('profile.biddingLimit')}</h3>
           </div>
           <div class="limit-content">
             <div class="limit-stats">
               <div class="stat-large">
                 <span class="stat-number">{userLimits.bids.current}</span>
-                <span class="stat-label">of {userLimits.bids.max}</span>
+                <span class="stat-label">{$t('common.of')} {userLimits.bids.max}</span>
               </div>
               <div class="stat-remaining" class:warning={userLimits.bids.remaining === 1} class:danger={userLimits.bids.remaining === 0}>
                 <span class="remaining-number">{userLimits.bids.remaining}</span>
-                <span class="remaining-label">remaining</span>
+                <span class="remaining-label">{$t('profile.remaining')}</span>
               </div>
             </div>
 
@@ -472,16 +473,16 @@
             </div>
 
             <p class="limit-description">
-              You can bid on up to {userLimits.bids.max} different products at a time.
+              {$t('profile.bidLimitDesc', { max: userLimits.bids.max })}
               {#if userLimits.bids.remaining === 0}
-                <strong class="text-danger">Limit reached!</strong> Wait for your auctions to end before bidding on new items.
+                <strong class="text-danger">{$t('profile.limitReached')}</strong> {$t('profile.waitForAuctions')}
               {:else if userLimits.bids.remaining === 1}
-                <strong class="text-warning">Only {userLimits.bids.remaining} slot left!</strong>
+                <strong class="text-warning">{$t('profile.onlySlotLeft', { remaining: userLimits.bids.remaining })}</strong>
               {/if}
             </p>
 
             <div class="card-footer">
-              <a href="/products?status=my-bids" class="btn-secondary">View My Bids</a>
+              <a href="/products?status=my-bids" class="btn-secondary">{$t('profile.viewMyBids')}</a>
             </div>
           </div>
         </div>
@@ -490,17 +491,17 @@
         <div class="limit-card">
           <div class="card-header">
             <span class="icon">📝</span>
-            <h3>Posting Limit</h3>
+            <h3>{$t('profile.postingLimit')}</h3>
           </div>
           <div class="limit-content">
             <div class="limit-stats">
               <div class="stat-large">
                 <span class="stat-number">{userLimits.posts.current}</span>
-                <span class="stat-label">of {userLimits.posts.max}</span>
+                <span class="stat-label">{$t('common.of')} {userLimits.posts.max}</span>
               </div>
               <div class="stat-remaining" class:warning={userLimits.posts.remaining === 1} class:danger={userLimits.posts.remaining === 0}>
                 <span class="remaining-number">{userLimits.posts.remaining}</span>
-                <span class="remaining-label">remaining</span>
+                <span class="remaining-label">{$t('profile.remaining')}</span>
               </div>
             </div>
 
@@ -509,21 +510,21 @@
             </div>
 
             <p class="limit-description">
-              You can list up to {userLimits.posts.max} products for free.
+              {$t('profile.postLimitDesc', { max: userLimits.posts.max })}
               {#if userLimits.posts.remaining === 0}
-                <strong class="text-danger">Limit reached!</strong> To list more, you'll need to add a deposit (coming soon).
+                <strong class="text-danger">{$t('profile.limitReached')}</strong> {$t('profile.depositNeeded')}
               {:else if userLimits.posts.remaining === 1}
-                <strong class="text-warning">Only {userLimits.posts.remaining} slot left!</strong>
+                <strong class="text-warning">{$t('profile.onlySlotLeft', { remaining: userLimits.posts.remaining })}</strong>
               {/if}
             </p>
 
             <div class="card-footer">
               {#if userLimits.posts.remaining > 0}
-                <a href="/sell" class="btn-primary">Create New Listing</a>
+                <a href="/sell" class="btn-primary">{$t('profile.createNewListing')}</a>
               {:else}
-                <button class="btn-disabled" disabled>Limit Reached</button>
+                <button class="btn-disabled" disabled>{$t('profile.limitReached')}</button>
               {/if}
-              <a href="/dashboard" class="btn-secondary">View My Products</a>
+              <a href="/dashboard" class="btn-secondary">{$t('profile.viewMyProducts')}</a>
             </div>
           </div>
         </div>
@@ -533,14 +534,13 @@
       <div class="info-banner">
         <span class="info-icon">ℹ️</span>
         <div class="info-text">
-          <strong>Coming Soon:</strong> Deposit system to unlock unlimited bidding and posting capabilities.
-          With a refundable deposit, you'll be able to bid on unlimited products and list unlimited items!
+          <strong>{$t('profile.comingSoonTitle')}</strong> {$t('profile.comingSoonDesc')}
         </div>
       </div>
     </div>
   {:else}
     <div class="error-state">
-      <p>Unable to load your limits. Please try again later.</p>
+      <p>{$t('profile.unableToLoad')}</p>
     </div>
   {/if}
 </div>
