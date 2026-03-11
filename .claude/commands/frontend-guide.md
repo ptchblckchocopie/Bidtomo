@@ -1,46 +1,91 @@
 # Frontend Guide
 
 ## Tech Stack
-SvelteKit 2 + Svelte 5, Tailwind CSS 3, adapter-vercel (both adapter-vercel and adapter-node installed).
+
+SvelteKit 2 + Svelte 5, Tailwind CSS 3, adapter-vercel. SSR disabled globally (`export const ssr = false` in `+layout.ts`) — client-side SPA.
 
 ## API Bridge Pattern
-The frontend never calls the CMS directly from the browser. All requests go through SvelteKit server routes at `frontend/src/routes/api/bridge/[...path]/` which proxy to the CMS backend. This keeps the CMS URL private and handles auth header forwarding.
 
-**Request flow:** Browser → SvelteKit server route (`/api/bridge/*`) → Payload CMS (`localhost:3001/api/*`)
+Browser → `/api/bridge/<resource>` (+server.ts) → `cmsRequest()` → CMS `:3001/api/<resource>`
 
-## API Client
-`frontend/src/lib/api.ts` contains typed functions for all API operations. It reads the auth token from `localStorage.auth_token` and attaches `Authorization: JWT {token}` headers.
+- `src/lib/server/cms.ts` — Server-only `cmsRequest()`, uses `$env/dynamic/private`. Never import in client code.
+- `src/lib/api.ts` — Client-side typed API layer. All calls go to `/api/bridge/*`.
+- Token extraction order: `Authorization: JWT` → `Authorization: Bearer` → `auth_token` httpOnly cookie.
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/hooks.server.ts` | CSRF protection (Origin validation on bridge mutating requests) + Sentry |
+| `src/hooks.client.ts` | Client-side Sentry + Session Replay on errors |
+| `src/lib/api.ts` | Typed API client (~1500 lines, JWT auth) |
+| `src/lib/sse.ts` | SSE clients: Product, User, Global (with polling fallback) |
+| `src/lib/server/cms.ts` | Bridge proxy helper |
+| `src/lib/stores/auth.ts` | Auth store (Svelte 4 `writable`, not yet migrated to runes) |
+| `src/lib/stores/inbox.ts` | Unread message count |
+| `src/lib/stores/theme.ts` | Theme (`light`/`dark`/`system`, persisted to localStorage) |
+| `src/lib/stores/watchlist.ts` | Watchlist with `Map<productId, watchlistItemId>` for O(1) lookup |
+| `src/lib/stores/locale.ts` | i18n store with `t` derived store |
+| `src/lib/analytics.ts` | Client-side analytics batching (3s flush, sendBeacon on unload) |
+| `src/lib/data/categories.ts` | 19 product categories, `CategoryValue` type |
+| `src/lib/i18n/` | Translation JSON files (en, fil, ja, zh, vi) |
 
 ## Auth & Stores
-- `frontend/src/lib/stores/auth.ts` — Svelte store managing JWT token + user data (persisted in localStorage)
-- `frontend/src/lib/stores/inbox.ts` — Unread message count store
-- Token format in headers: `Authorization: JWT {token}` (also accepts `Bearer`)
+
+- Dual token: httpOnly `auth_token` cookie (bridge routes) + localStorage token (SSE connections)
+- Token format: `Authorization: JWT {token}` (also accepts `Bearer`)
 - User roles: `admin`, `seller`, `buyer` (default)
+- Protected routes use `+page.ts` load guards with `redirect()`, not client-side `onMount` checks
 
 ## Admin Features
-- Only `admin` role users can access the Payload CMS admin panel (`access.admin` in users collection)
-- Non-admin users who try to log into the CMS see a custom Unauthorized page (frog video + auto-redirect to login). Implemented via webpack alias in `payload.config.ts` replacing Payload's `Unauthorized` view with `cms/src/components/UnauthorizedView.tsx`
-- Express middleware in `cms/src/server.ts` also redirects non-admin users to `/admin/access-denied`
-- Admin users see a **Hide/Unhide** button on product cards and detail pages
-- **Hidden Items** tab (admin-only) in the products browse page at `?status=hidden`
-- Products use the existing `active` field (boolean) to control visibility
 
-## Search
-- Bridge route: `GET /api/bridge/products/search?q=...&status=...&region=...&city=...&page=...&limit=...`
-- Proxies to CMS `GET /api/search/products` (Elasticsearch-powered with Payload fallback)
-- Bridge route file: `frontend/src/routes/api/bridge/products/search/+server.ts`
-- Sync trigger (admin): `POST /api/bridge/elasticsearch/sync`
+- Only `admin` role can access CMS admin panel
+- Non-admin CMS login shows custom Unauthorized page (webpack alias override)
+- Admin sees **Hide/Unhide** button on products + **Hidden Items** tab (`?status=hidden`)
+
+## i18n System (`src/lib/i18n/`)
+
+Custom store-based i18n (no external library). English bundled at startup; Filipino, Japanese, Chinese, Vietnamese lazy-loaded via dynamic import.
+
+```svelte
+<script>
+  import { t } from '$lib/stores/locale';
+</script>
+<p>{$t('nav.browse')}</p>
+<p>{$t('greeting', { name: 'Alice' })}</p>
+```
+
+- Locale persisted to `localStorage` key `locale`, updates `<html lang>`
+- Fallback chain: current locale → English → raw key
+- Category labels: `$t('categories.' + category.value)` (not `getCategoryLabel()`)
+- Frontend-only — CMS admin and product content not translated
+
+**Translated:** layout (nav + footer), login, register, browse page.
+**Not yet:** product detail, sell, dashboard, inbox, profile, watchlist, about-us, admin pages.
 
 ## Real-Time (SSE)
-- `frontend/src/lib/sse.ts` — SSE client: connections, reconnection logic, event dispatching
-- **Redis channels:** `sse:product:{id}` (bids), `sse:user:{id}` (messages), `sse:global` (new listings)
-- **SSE endpoints:** `/events/products/:productId`, `/events/users/:userId`, `/events/global`
 
-## Rendering & Design
-- SSR is disabled globally (`export const ssr = false` in `+layout.ts`) — client-side SPA.
-- **Bauhaus design system**: sharp corners (`* { border-radius: 0 !important }` in `app.css`, only `.rounded-full` exempted), bold borders, Outfit font.
-- Tailwind `bh-*` tokens: colors (`bh-red`, `bh-blue`, `bh-yellow`, `bh-bg`, `bh-fg`), shadows (`shadow-bh-sm`, `shadow-bh-md`), borders (`border-bh`, `border-bh-lg`).
-- Utility classes: `.btn-bh`, `.btn-bh-red`, `.btn-bh-blue`, `.card-bh`, `.input-bh`, `.headline-bh`.
+- `src/lib/sse.ts` — ProductSSEClient, UserSSEClient, GlobalSSEClient
+- Exponential backoff reconnection with fallback polling
+- Redis channels: `sse:product:{id}`, `sse:user:{id}`, `sse:global`
+- SSE endpoints: `/events/products/:id`, `/events/users/:id` (auth via `?token=`), `/events/global`
+
+## Search
+
+- Bridge: `GET /api/bridge/products/search?q=...&status=...&region=...&city=...`
+- Proxies to CMS `GET /api/search/products` (Elasticsearch with Payload fallback)
+- Admin sync: `POST /api/bridge/elasticsearch/sync`
+
+## Design System (Bauhaus)
+
+- Sharp corners: `* { border-radius: 0 !important }` in `app.css` (only `.rounded-full` exempted)
+- Bold borders, Outfit font
+- Tailwind `bh-*` tokens: `bh-red`, `bh-blue`, `bh-yellow`, `bh-bg`, `bh-fg`
+- Shadows: `shadow-bh-sm`, `shadow-bh-md`
+- Borders: `border-bh`, `border-bh-lg`
+- Utility classes: `.btn-bh`, `.btn-bh-red`, `.btn-bh-blue`, `.card-bh`, `.input-bh`, `.headline-bh`
+- For deep frontend craft (motion, dark theme, Three.js, accessibility), invoke `/frontend-god`
 
 ## Error Tracking
-Frontend uses `@sentry/sveltekit`. SvelteKit config enables experimental `tracing` and `instrumentation` for server-side tracing.
+
+`@sentry/sveltekit` with `sentrySvelteKit()` vite plugin. Source maps + Session Replay on errors. User ID attached via `authStore.subscribe()`.

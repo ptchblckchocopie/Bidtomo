@@ -59,6 +59,9 @@ docker-compose.override.yml
 # Screenshots
 screenshot-*.png
 
+# Wake word model
+scripts/vosk-model/
+
 # Sentry
 frontend/.env.sentry-build-plugin
 .vercel

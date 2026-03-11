@@ -1,38 +1,63 @@
 # Deployment Guide
 
+## Current Setup (March 2026)
+
+**Railway expired** — all Railway deployments removed. Backend migrated to **DigitalOcean**.
+
+- **Frontend** → Vercel at `www.bidmo.to` (auto-deploy from `main` branch)
+- **Backend** → DigitalOcean droplet `188.166.216.176` with `docker-compose.prod.yml`
+- **App directory on droplet:** `/opt/bidtomo`
+
+## URLs
+
+| Environment | Frontend | Backend HTTPS | Admin | SSE |
+|-------------|----------|---------------|-------|-----|
+| **Production** | `https://www.bidmo.to` | `https://188-166-216-176.sslip.io` | `/admin` | `/sse` |
+| **Staging** | Vercel preview | `https://staging.188-166-216-176.sslip.io` | `/admin` | `/sse` |
+
+- Backend HTTP (internal): `http://188.166.216.176` (server-to-server from Vercel)
+- Portainer (Docker UI): `https://188.166.216.176:9443`
+- sslip.io provides free auto-HTTPS via Let's Encrypt (temporary until `api.bidmo.to` DNS configured)
+
+## Vercel Environment Variables
+
+**Production** (scope: Production):
+- `CMS_URL` = `http://188.166.216.176` (HTTP via Caddy `:80`)
+- `PUBLIC_SSE_URL` = `https://188-166-216-176.sslip.io/sse`
+
+**Staging** (scope: Preview):
+- `CMS_URL` = `https://staging.188-166-216-176.sslip.io` (HTTPS required — Caddy 308 redirects strip Authorization headers)
+- `PUBLIC_SSE_URL` = `https://staging.188-166-216-176.sslip.io/sse`
+- `PUBLIC_SENTRY_ENVIRONMENT` = `staging`
+
 ## Production Infrastructure
-- **Frontend** — Deployed on **Vercel** (auto-deploys from `main` branch via GitHub integration)
-- **CMS** — Deployed on **Railway** (project: `accomplished-perception`, service: `cms`). Deploy manually via `npx @railway/cli up` from `cms/` directory. NOT auto-deploy — requires `railway up` each time.
-- **SSE Service** — Railway service `sse-service`
-- **Bid Worker** — Railway service `bid-worker`
-- **Database** — Railway PostgreSQL service
-- **Redis** — Railway Redis service
-- **Elasticsearch** — Railway Elasticsearch service (used for product search)
-- **Storage** — Supabase Storage (S3-compatible), bucket: `bidmo-media`, prefix: `bidmoto/`
 
-## Deploying CMS to Railway
-```bash
-cd cms
-npx @railway/cli up --detach    # Upload and deploy
-npx @railway/cli deployment list --json --limit 1  # Check status
-npx @railway/cli logs --lines 50  # View deploy logs
-npx @railway/cli logs --build --lines 50  # View build logs
-```
+- **`docker-compose.prod.yml`** — Caddy + 5 prod containers + Postgres + Redis (7 total). Container names: `prod-caddy`, `prod-cms`, `prod-sse`, `prod-postgres`, `prod-redis`, `prod-bid-worker`. Networks: `bidtomo-shared` (external) + `prod-internal`.
+- **`Caddyfile`** — HTTPS `{$DOMAIN}` → prod, HTTPS `{$STAGING_DOMAIN}` → staging, HTTP `:80` with host-based routing. Uses container names (`prod-cms`, `staging-cms`).
+- **`scripts/setup-droplet.sh`** — Initial droplet setup: Docker, fail2ban, UFW.
+- **`.env.production.example`** — Production env template.
+- **`deploy.sh`** — Blue/green deployment with atomic symlink swaps.
 
-## Railway Project IDs
-- Project: `d5441340-2ee1-4ecf-be7f-62325c9ea414` (accomplished-perception)
-- CMS service: `3aee625c-eb29-4833-9e1f-7513cf5a718a`
-- Bid worker service: `d6c2ca56-140b-4ad8-9284-ae96c8323293`
-- SSE service: `f9a804a8-cfd6-4405-8e7e-6ac978458372`
-- Environment: `production` (`a2ef8422-b3b9-4c28-9fb5-649aa4799877`)
+## Docker Compose Files
 
-## Vercel Project
-- Team: `team_xP9PApyY2co0Lt9dlBg4XaPp` (ptchblckchocopie's projects)
-- Project: `prj_xtn99uGJzihF1jyk5WKQloVoKg0E` (bidtomo)
-- Auto-deploys from GitHub `main` branch
+- `docker-compose.local.yml` — Local dev (Postgres :5433, Redis :6380, no app containers)
+- `docker-compose.prod.yml` — Production (Caddy + `prod-*` containers, `bidtomo-shared` + `prod-internal`)
+- `docker-compose.staging.yml` — Staging (`staging-*` containers, `bidtomo-shared` + `staging-internal`)
+- `docker-compose.yml` — **Stale/legacy**, do not use
 
-## Important: CMS Admin Webpack Build
-Do NOT add `admin.css` to the Payload config. The `css` property in `admin: { css: ... }` triggers a Sass `@import '~payload-user-css'` during `payload build` that fails in the Nixpacks build environment. If you need to customize admin styles, use Payload's `components` API or webpack aliases instead.
+## CI/CD
 
-## Important: CMS `serverURL`
-The `serverURL` in `payload.config.ts` is set to `process.env.SERVER_URL || ''` (empty string). Do NOT hardcode a domain — empty string makes Payload use relative URLs, which works from any domain (Railway, custom domain, localhost).
+- **CI gate:** `tsc --noEmit` (CMS) + `npm run check` (frontend). No unit tests.
+- **GitHub Actions:** `deploy-staging.yml` (`staging` → `/opt/bidtomo-staging/`), `deploy-production.yml` (`main` → `/opt/bidtomo/`). Both via SSH (`appleboy/ssh-action@v1`) with concurrency groups.
+- **GitHub Secrets:** `DROPLET_IP`, `SSH_USER`, `SSH_PRIVATE_KEY`.
+- **Sentry** — All 4 services report errors. Release tracking via `GIT_SHA` build arg. Frontend: `sentrySvelteKit()` + Session Replay. Backend: `@sentry/node` with `instrument.ts` files. Key files: `frontend/src/hooks.client.ts`, `cms/src/instrument.ts`, `services/*/src/instrument.ts`.
+- **DigitalOcean MCP** configured in `.claude.json`. Use `/mcp` to connect.
+
+## DNS (pending)
+
+DigitalOcean DNS zone configured (A records for `@` and `api` → droplet, CNAME `www` → Vercel, MX + SPF). Nameservers need changing at Namecheap from `registrar-servers.com` to `ns1/ns2/ns3.digitalocean.com`. Then update `DOMAIN=api.bidmo.to` and Vercel env vars.
+
+## Important Notes
+
+- **CMS `serverURL`** — Set to `process.env.SERVER_URL || ''` (empty string = relative URLs, works from any domain).
+- **CMS Admin Webpack** — Do NOT add `admin.css` to Payload config. The `css` property triggers a Sass import that fails in Nixpacks builds.

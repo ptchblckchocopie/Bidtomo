@@ -1,49 +1,94 @@
 # CMS (Payload CMS) Guide
 
 ## Structure
-- Collections defined inline in `cms/src/payload.config.ts` (~1,000 lines): `users`, `products`, `bids`, `messages`, `transactions`, `void-requests`, `ratings`, `media`. `EmailTemplates` is in `cms/src/collections/EmailTemplates.ts`.
-- `cms/src/server.ts` (~1,750 lines) — All custom Express endpoints (20+). Main business logic file.
-- `cms/src/redis.ts` — Redis client, queue helpers (`queueBid`, `queueAcceptBid`), pub/sub publishers.
-- `cms/src/auth-helpers.ts` — `authenticateJWT()` helper for custom endpoints.
-- `cms/src/services/emailService.ts` — Resend-based transactional email service.
-- Payload hooks (`beforeChange`, `afterChange`) are inline in collections and use `(global as any).publishProductUpdate` etc. for Redis pub/sub to avoid Webpack bundling issues.
 
-## Custom Admin React Components
-TSX files in `cms/src/components/` are used only by Payload's webpack admin bundle (browser-side), NOT by the server-side `tsc` build. They are excluded from `tsconfig.json` via `"exclude": ["src/components/**/*.tsx"]`. To override a built-in Payload view, add a webpack alias in `payload.config.ts` (see `UnauthorizedView.tsx` as an example).
+- Collections defined inline in `cms/src/payload.config.ts` (~1,000 lines). `EmailTemplates` in `cms/src/collections/EmailTemplates.ts`.
+- `cms/src/server.ts` (~2,200 lines) — All custom Express endpoints, main business logic, global function injection.
+- `cms/src/redis.ts` — Redis client, queue helpers (`queueBid`, `queueAcceptBid`), pub/sub publishers.
+- `cms/src/auth-helpers.ts` — `authenticateJWT()` for custom endpoints.
+- `cms/src/services/emailService.ts` — Resend-based transactional email.
+- `cms/src/services/backupService.ts` — PostgreSQL dump to DigitalOcean Spaces.
+- `cms/src/services/elasticSearch.ts` — Elasticsearch indexing and search.
+
+## Collections
+
+| Collection | Notes |
+|------------|-------|
+| **users** | Auth, roles (admin/seller/buyer), profile, PII stripping in afterRead |
+| **products** | Auction listings, media rels, `status` + `active` fields, multi-select `categories` |
+| **bids** | Bid history, bidder/product relationships |
+| **messages** | User-to-user messaging with conversation threads |
+| **transactions** | Purchase/sale records, links to void-requests |
+| **void-requests** | 4-step dispute/refund workflow |
+| **media** | S3-backed file uploads (DigitalOcean Spaces) |
+| **ratings** | User ratings and reviews |
+| **reports** | Product moderation reports (pending/reviewed/dismissed) |
+| **user-events** | Analytics tracking (admin-only, "Analytics" group) |
+| **EmailTemplates** | Transactional email templates |
+
+## Route Architecture (`cms/src/routes/`)
+
+Custom endpoints in **modular route files**, each exporting `(app, payload, pool)` factory. All registered **before** `payload.init()` to avoid Payload's route interception. Most use `overrideAccess: true` (doesn't skip field validation).
+
+| Module | Endpoints |
+|--------|-----------|
+| `admin.ts` | Admin route shadowing |
+| `analytics.ts` | `POST /api/analytics/track`, `GET /api/analytics/dashboard` |
+| `bids.ts` | `/api/bid/queue`, `/api/bid/accept` |
+| `health.ts` | `/api/health` |
+| `misc.ts` | `/api/create-conversations`, `/api/elasticsearch/sync`, `/api/sync-bids`, `/api/backup/trigger` |
+| `products.ts` | Product-specific endpoints |
+| `search.ts` | `/api/search/products` (Elasticsearch + Payload fallback) |
+| `typing.ts` | `/api/typing`, `/api/typing/:productId` |
+| `users.ts` | `/api/users/limits`, `/api/users/profile-picture`, auth |
+| `voidRequests.ts` | `/api/void-request/*` (4-step void flow) |
+
+## Redis Module (`cms/src/redis.ts`)
+
+Exports: `isRedisConnected()`, `queueBid()`, `queueAcceptBid()`, `publishMessageNotification()`, `publishProductUpdate()`, `publishTypingStatus()`, `publishGlobalEvent()`, `closeRedis()`. `queueAcceptBid()` pushes `accept_bid` type jobs to `bids:pending`. Retries up to 3 times.
 
 ## Column Naming Convention
-Payload CMS v2 postgres adapter uses `to-snake-case` for most column names, BUT **select/enum field columns keep the raw camelCase fieldName** as the column name. For example:
-- `bidInterval` → column `bid_interval` (regular field, snake_case)
-- `raterRole` (select field) → column `"raterRole"` (camelCase, quoted)
-- Enum TYPE names are always snake_case: `enum_ratings_rater_role`
 
-This was discovered by reading `@payloadcms/db-postgres/schema/traverseFields.js`. Keep this in mind when writing raw SQL or creating migration files.
+Payload CMS v2 postgres adapter: most columns are snake_case, BUT **select/enum field columns keep raw camelCase**:
+- `bidInterval` → column `bid_interval` (regular field)
+- `raterRole` (select) → column `"raterRole"` (camelCase, quoted)
+- Enum TYPE names always snake_case: `enum_ratings_rater_role`
 
-## Startup Database Migrations
-The CMS `server.ts` runs auto-migrations on startup (after `payload.init`) using a direct `pg` Pool connection:
-- Creates `users_rels` table (needed for `profilePicture` upload field)
-- Adds `void_requests_id` column to `transactions_rels` (needed for `voidRequest` relationship)
-- Uses `IF NOT EXISTS` / `EXCEPTION WHEN duplicate_*` so it's safe to run repeatedly.
+## Custom Admin React Components
+
+TSX files in `cms/src/components/` — Payload's webpack admin bundle only (browser-side). Excluded from `tsconfig.json` via `"exclude": ["src/components/**/*.tsx"]`. Override views via webpack alias in `payload.config.ts`.
+
+## Email Service (`cms/src/services/emailService.ts`)
+
+Uses **Resend** npm package. Handles void request notifications, auction restarts, second bidder offers. Jobs queued via Redis `email:queue`. Rate-limited 2/sec internally. Falls back to direct send if Redis unavailable.
+
+## Backup Service (`cms/src/services/backupService.ts`)
+
+PostgreSQL dump → gzip → DigitalOcean Spaces. Scheduled via `node-cron` (daily 3 AM). Env vars: `BACKUP_ENABLED`, `BACKUP_CRON_SCHEDULE`, `BACKUP_RETENTION_DAYS` (default 7). Manual: `POST /api/backup/trigger` (admin-only).
 
 ## Storage
-Image uploads go to **Supabase Storage** (S3-compatible) via `@payloadcms/plugin-cloud-storage`.
-- Supabase URL: `https://htcdkqplcmdbyjlvzono.supabase.co`
-- Bucket: `bidmo-media`
-- Prefix: `bidmoto/`
-- Public URL pattern: `https://htcdkqplcmdbyjlvzono.supabase.co/storage/v1/object/public/bidmo-media/bidmoto/{filename}`
 
-## Elasticsearch Integration
-- `cms/src/services/elasticSearch.ts` — Client, indexing, search, bulk sync functions.
-- **Index name:** `products` — mappings for title, description, keywords, status, region, city, etc.
-- **Search endpoint:** `GET /api/search/products?q=...&status=...&region=...&city=...&page=...&limit=...` (in `server.ts`). **NOT** `/api/products/search` — that path conflicts with Payload's built-in `GET /api/products/:id` route.
-- **Sync endpoint:** `POST /api/elasticsearch/sync` (admin-only) — bulk indexes all products from Payload into ES.
-- **Auto-indexing:** Payload `afterChange` hooks on the `products` collection call `indexProduct()` / `updateProductIndex()` / `removeProductFromIndex()` via `(global as any)` pattern.
-- **ES v9 client compatibility:** The `@elastic/elasticsearch` v9 client sends `compatible-with=9` vendored headers that v7/v8 servers reject. The client in `elasticSearch.ts` overrides these with plain `application/json` headers.
-- **Fallback:** If ES is unavailable, search falls back to Payload's built-in `find()` with regex-based text matching (slower but functional).
-- **Env var:** `ELASTICSEARCH_URL` — on Railway, uses reference syntax `http://${{Elasticsearch.RAILWAY_PRIVATE_DOMAIN}}:9200` for proper service linking.
+DigitalOcean Spaces (S3-compatible) via `cms/src/s3Adapter.ts`:
+- Bucket: `veent`, region: `sgp1`, prefix: `bidmoto`
+- Public URL: `https://veent.sgp1.digitaloceanspaces.com/bidmoto/{filename}`
 
-## Profile Picture Feature
-- `profilePicture` field on users collection (`type: 'upload', relationTo: 'media'`).
-- CMS endpoints: `POST /api/users/profile-picture` (set new, delete old) and `DELETE /api/users/profile-picture` (remove).
-- Bridge: `POST/DELETE /api/bridge/users/profile-picture`.
-- Old profile pictures are automatically deleted from Supabase when replaced.
+## Elasticsearch
+
+- **Index:** `products` — title, description, keywords, status, region, city
+- **Search:** `GET /api/search/products?q=...&status=...&region=...&city=...&page=...&limit=...`
+- **Sync:** `POST /api/elasticsearch/sync` (admin-only, bulk index)
+- **Auto-indexing:** `afterChange` hooks via `(global as any).indexProduct()`
+- **ES v9 compat:** Client overrides vendored headers with plain `application/json`
+- **Fallback:** Payload `find()` with regex matching if ES unavailable
+- **Env:** `ELASTICSEARCH_URL`
+
+## Startup Migrations
+
+`server.ts` runs auto-migrations after `payload.init()` using direct `pg` Pool:
+- Creates `users_rels` table (for `profilePicture` upload field)
+- Adds `void_requests_id` to `transactions_rels`
+- Uses `IF NOT EXISTS` / `EXCEPTION WHEN duplicate_*` (safe to repeat)
+
+## Analytics
+
+`user-events` collection tracking frontend events (page views, searches) and CMS-side events (bids, messages, transactions) via `(global as any).trackEvent` + `setImmediate`. Full spec: `docs/analytics-spec.md`.
