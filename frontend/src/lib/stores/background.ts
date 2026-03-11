@@ -1,14 +1,14 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
-export type BackgroundType = 'horizontal_wave' | 'interactive_tile' | 'none';
+export type BackgroundType = 'horizontal_wave' | 'interactive_tile' | 'purple_planet' | 'stream' | 'none';
 
 const STORAGE_KEY = 'background_preference';
 
 function createBackgroundStore() {
 	const initial: BackgroundType = browser
-		? (localStorage.getItem(STORAGE_KEY) as BackgroundType) || 'horizontal_wave'
-		: 'horizontal_wave';
+		? (localStorage.getItem(STORAGE_KEY) as BackgroundType) || 'stream'
+		: 'stream';
 
 	const { subscribe, set: rawSet } = writable<BackgroundType>(initial);
 
