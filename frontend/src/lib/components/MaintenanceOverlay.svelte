@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
+  import type { Snippet } from 'svelte';
 
   const POLL_INTERVAL = 10_000; // 10 seconds
-  const INITIAL_DELAY = 3_000; // Wait 3s before first check (give backend a chance)
 
-  let isDown = $state(false);
-  let isChecking = $state(false);
+  let { children }: { children: Snippet } = $props();
+
+  // Start as "checking" — user sees nothing until we know the backend status
+  let status = $state<'checking' | 'healthy' | 'down'>('checking');
   let fadeOut = $state(false);
   let dotCount = $state(1);
 
@@ -38,41 +40,56 @@
 
     async function poll() {
       if (disposed) return;
-      isChecking = true;
       const healthy = await checkHealth();
-      isChecking = false;
       if (disposed) return;
 
-      if (healthy && isDown) {
-        // Backend is back — fade out
-        fadeOut = true;
-        setTimeout(() => {
-          if (!disposed) isDown = false;
-        }, 600);
-      } else if (!healthy) {
-        isDown = true;
+      if (healthy) {
+        if (status === 'down') {
+          // Was down, now recovering — fade out maintenance screen
+          fadeOut = true;
+          setTimeout(() => {
+            if (!disposed) status = 'healthy';
+          }, 600);
+        } else {
+          status = 'healthy';
+        }
+      } else {
+        status = 'down';
         fadeOut = false;
       }
 
+      // Keep polling even when healthy — detect if backend goes down again
       if (!disposed) {
         pollTimer = setTimeout(poll, POLL_INTERVAL);
       }
     }
 
-    // Delay initial check so we don't flash the overlay on normal page loads
-    const initialTimer = setTimeout(poll, INITIAL_DELAY);
+    // Check immediately — no delay
+    poll();
 
     return () => {
       disposed = true;
-      clearTimeout(initialTimer);
       clearTimeout(pollTimer);
       clearInterval(dotTimer);
     };
   });
 </script>
 
-{#if isDown}
-  <div class="maintenance-overlay" class:fade-out={fadeOut} aria-live="assertive">
+{#if status === 'checking'}
+  <!-- Brief loading state while we check backend health -->
+  <div class="maintenance-gate" aria-live="polite">
+    <div class="maintenance-content">
+      <div class="loading-logo">
+        <img src="/bidmo.to.png" alt="BidMo.to" class="logo-img" />
+      </div>
+      <div class="pulse-bar" aria-hidden="true">
+        <div class="pulse-bar-inner"></div>
+      </div>
+    </div>
+  </div>
+{:else if status === 'down'}
+  <!-- Backend is down — full maintenance page -->
+  <div class="maintenance-gate" class:fade-out={fadeOut} aria-live="assertive">
     <div class="maintenance-content">
       <!-- Animated wrench icon -->
       <div class="maintenance-icon" aria-hidden="true">
@@ -92,36 +109,37 @@
       </div>
 
       <p class="maintenance-note">
-        This page will automatically reload when the server is back online.
+        This page will automatically refresh when we're back online.
       </p>
     </div>
   </div>
+{:else}
+  <!-- Backend is healthy — render the actual site -->
+  {@render children()}
 {/if}
 
 <style>
-  .maintenance-overlay {
+  .maintenance-gate {
     position: fixed;
     inset: 0;
     z-index: 9990;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(10, 10, 10, 0.97);
-    backdrop-filter: blur(30px);
-    -webkit-backdrop-filter: blur(30px);
-    animation: overlayIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    background: #0A0A0A;
+    animation: gateIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .maintenance-overlay.fade-out {
-    animation: overlayOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  .maintenance-gate.fade-out {
+    animation: gateOut 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 
-  @keyframes overlayIn {
+  @keyframes gateIn {
     from { opacity: 0; }
     to { opacity: 1; }
   }
 
-  @keyframes overlayOut {
+  @keyframes gateOut {
     from { opacity: 1; }
     to { opacity: 0; }
   }
@@ -138,6 +156,27 @@
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
+  /* Loading state — just logo + pulse bar */
+  .loading-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 2rem;
+  }
+
+  .logo-img {
+    height: 48px;
+    width: auto;
+    opacity: 0.6;
+    animation: logoPulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes logoPulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+  }
+
+  /* Maintenance state — icon + text */
   .maintenance-icon {
     display: inline-flex;
     align-items: center;

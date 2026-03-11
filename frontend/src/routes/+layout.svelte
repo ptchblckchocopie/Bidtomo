@@ -110,7 +110,8 @@
 
 <svelte:window onclick={handleClickOutside} />
 
-<MaintenanceOverlay />
+<MaintenanceOverlay>
+{#snippet children()}
 
 {#if showDecorations}
   {#if $backgroundStore === 'horizontal_wave'}
@@ -477,6 +478,8 @@
 </div>
 </ClickSpark>
 
+{/snippet}
+</MaintenanceOverlay>
 
 <style>
   /* Nav layout — 3-column: logo | center links | actions */
