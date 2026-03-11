@@ -290,6 +290,40 @@ export async function publishGlobalEvent(
   }
 }
 
+// ── Maintenance Mode ──
+
+const MAINTENANCE_KEY = 'maintenance:status';
+
+export interface MaintenanceStatus {
+  enabled: boolean;
+  scheduledAt: number | null; // Unix timestamp (ms)
+  message: string;
+}
+
+export async function getMaintenanceStatus(): Promise<MaintenanceStatus> {
+  try {
+    const client = getRedis();
+    if (!redisConnected) return { enabled: false, scheduledAt: null, message: '' };
+    const raw = await client.get(MAINTENANCE_KEY);
+    if (!raw) return { enabled: false, scheduledAt: null, message: '' };
+    return JSON.parse(raw);
+  } catch {
+    return { enabled: false, scheduledAt: null, message: '' };
+  }
+}
+
+export async function setMaintenanceStatus(status: MaintenanceStatus): Promise<boolean> {
+  try {
+    const client = getRedis();
+    if (!redisConnected) return false;
+    await client.set(MAINTENANCE_KEY, JSON.stringify(status));
+    return true;
+  } catch (error) {
+    console.error('[CMS] Failed to set maintenance status:', error);
+    return false;
+  }
+}
+
 // Graceful shutdown
 export async function closeRedis(): Promise<void> {
   if (redis) {

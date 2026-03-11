@@ -7,7 +7,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
-import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
+import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected, getMaintenanceStatus, setMaintenanceStatus } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
 import { getOverviewStats, getTimeSeries, getTopSearchKeywords, getTopViewedProducts, getTopSoldProducts, getEventBreakdown } from './services/analyticsQueries';
@@ -1881,6 +1881,64 @@ const start = async () => {
       elasticsearch: esAvailable ? 'connected' : 'disconnected',
       timestamp: Date.now(),
     });
+  });
+
+  // ── Maintenance Mode Endpoints ──
+
+  // GET /api/maintenance — public, returns current maintenance status
+  app.get('/api/maintenance', async (req, res) => {
+    try {
+      const status = await getMaintenanceStatus();
+      res.json(status);
+    } catch {
+      res.json({ enabled: false, scheduledAt: null, message: '' });
+    }
+  });
+
+  // POST /api/maintenance — admin-only, toggle maintenance mode
+  app.post('/api/maintenance', requireAuth, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const user = await payload.findByID({ collection: 'users', id: userId });
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { enabled, message, scheduledAt } = req.body;
+
+      const status = {
+        enabled: Boolean(enabled),
+        scheduledAt: scheduledAt ? Number(scheduledAt) : null,
+        message: message || '',
+      };
+
+      const saved = await setMaintenanceStatus(status);
+      if (!saved) {
+        return res.status(500).json({ error: 'Failed to save maintenance status' });
+      }
+
+      // Broadcast to all connected clients via SSE
+      if (status.scheduledAt && !status.enabled) {
+        // Scheduled maintenance — notify clients to show countdown
+        await publishGlobalEvent({
+          type: 'maintenance_scheduled',
+          scheduledAt: status.scheduledAt,
+          message: status.message,
+        });
+      } else {
+        // Immediate toggle
+        await publishGlobalEvent({
+          type: 'maintenance_toggle',
+          enabled: status.enabled,
+          message: status.message,
+        });
+      }
+
+      res.json({ success: true, ...status });
+    } catch (error: any) {
+      console.error('[Maintenance] Error:', error);
+      res.status(500).json({ error: 'Failed to update maintenance status' });
+    }
   });
 
   // Elasticsearch: search products (path avoids Payload's /api/products/:id route)

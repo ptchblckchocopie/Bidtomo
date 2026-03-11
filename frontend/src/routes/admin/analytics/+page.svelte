@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { fetchAnalyticsDashboard, type AnalyticsDashboard } from '$lib/api';
+  import { maintenanceStore, type MaintenanceStatus } from '$lib/stores/maintenance';
   import { Chart, LineController, BarController, DoughnutController, LineElement, BarElement, ArcElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend, Filler } from 'chart.js';
 
   Chart.register(LineController, BarController, DoughnutController, LineElement, BarElement, ArcElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend, Filler);
@@ -10,6 +11,15 @@
   let data: AnalyticsDashboard | null = $state(null);
   let loading = $state(true);
   let error = $state('');
+
+  // Maintenance controls
+  let maintEnabled = $state(false);
+  let maintMessage = $state('');
+  let maintScheduledAt = $state<number | null>(null);
+  let maintScheduleDate = $state('');
+  let maintScheduleTime = $state('');
+  let maintLoading = $state(false);
+  let maintFeedback = $state<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Date range — default last 30 days
   const now = new Date();
@@ -51,7 +61,81 @@
       return;
     }
     loadData();
+    loadMaintenance();
   });
+
+  async function loadMaintenance() {
+    const status = await maintenanceStore.fetch();
+    maintEnabled = status.enabled;
+    maintMessage = status.message;
+    maintScheduledAt = status.scheduledAt;
+    if (status.scheduledAt) {
+      const d = new Date(status.scheduledAt);
+      maintScheduleDate = d.toISOString().slice(0, 10);
+      maintScheduleTime = d.toTimeString().slice(0, 5);
+    }
+  }
+
+  function showMaintFeedback(type: 'success' | 'error', text: string) {
+    maintFeedback = { type, text };
+    setTimeout(() => { maintFeedback = null; }, 3000);
+  }
+
+  async function toggleMaintenance() {
+    maintLoading = true;
+    const newState = !maintEnabled;
+    const ok = await maintenanceStore.toggle(newState, newState ? maintMessage : '');
+    maintLoading = false;
+    if (ok) {
+      maintEnabled = newState;
+      if (!newState) {
+        maintMessage = '';
+        maintScheduledAt = null;
+        maintScheduleDate = '';
+        maintScheduleTime = '';
+      }
+      showMaintFeedback('success', newState ? 'Maintenance mode enabled' : 'Maintenance mode disabled');
+    } else {
+      showMaintFeedback('error', 'Failed to update maintenance mode');
+    }
+  }
+
+  async function scheduleMaintenance() {
+    if (!maintScheduleDate || !maintScheduleTime) {
+      showMaintFeedback('error', 'Please set both date and time');
+      return;
+    }
+    const dt = new Date(`${maintScheduleDate}T${maintScheduleTime}`);
+    if (isNaN(dt.getTime()) || dt.getTime() <= Date.now()) {
+      showMaintFeedback('error', 'Scheduled time must be in the future');
+      return;
+    }
+    maintLoading = true;
+    const ok = await maintenanceStore.schedule(dt.getTime(), maintMessage);
+    maintLoading = false;
+    if (ok) {
+      maintScheduledAt = dt.getTime();
+      showMaintFeedback('success', `Maintenance scheduled for ${dt.toLocaleString()}`);
+    } else {
+      showMaintFeedback('error', 'Failed to schedule maintenance');
+    }
+  }
+
+  async function cancelSchedule() {
+    maintLoading = true;
+    const ok = await maintenanceStore.cancel();
+    maintLoading = false;
+    if (ok) {
+      maintScheduledAt = null;
+      maintScheduleDate = '';
+      maintScheduleTime = '';
+      maintEnabled = false;
+      maintMessage = '';
+      showMaintFeedback('success', 'Scheduled maintenance cancelled');
+    } else {
+      showMaintFeedback('error', 'Failed to cancel scheduled maintenance');
+    }
+  }
 
   onDestroy(() => {
     lineChart?.destroy();
@@ -458,6 +542,105 @@
         </svg>
         Export
       </button>
+    </div>
+  </div>
+
+  <!-- Maintenance Control Panel -->
+  <div class="maint-panel" style="animation-delay: 50ms">
+    <div class="maint-panel-header">
+      <div class="maint-panel-title-row">
+        <svg class="maint-panel-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+        </svg>
+        <h2 class="maint-panel-title">Maintenance Mode</h2>
+        <span class="maint-status-badge" class:maint-status-badge--active={maintEnabled} class:maint-status-badge--scheduled={!maintEnabled && !!maintScheduledAt}>
+          {maintEnabled ? 'ACTIVE' : maintScheduledAt ? 'SCHEDULED' : 'INACTIVE'}
+        </span>
+      </div>
+      {#if maintFeedback}
+        <div class="maint-feedback" class:maint-feedback--error={maintFeedback.type === 'error'}>
+          {maintFeedback.text}
+        </div>
+      {/if}
+    </div>
+
+    <div class="maint-panel-body">
+      <!-- Toggle row -->
+      <div class="maint-row">
+        <div class="maint-row-info">
+          <span class="maint-row-label">Enable Maintenance</span>
+          <span class="maint-row-desc">Immediately blocks all non-admin users from the site</span>
+        </div>
+        <button
+          class="maint-toggle"
+          class:maint-toggle--on={maintEnabled}
+          onclick={toggleMaintenance}
+          disabled={maintLoading}
+          aria-label={maintEnabled ? 'Disable maintenance' : 'Enable maintenance'}
+        >
+          <span class="maint-toggle-thumb"></span>
+        </button>
+      </div>
+
+      <!-- Message -->
+      <div class="maint-row maint-row--stacked">
+        <label class="maint-row-label" for="maint-msg">Message (optional)</label>
+        <input
+          id="maint-msg"
+          type="text"
+          class="input-bh maint-input"
+          placeholder="e.g. Upgrading database..."
+          bind:value={maintMessage}
+          disabled={maintLoading}
+        />
+      </div>
+
+      <!-- Divider -->
+      <div class="maint-divider"></div>
+
+      <!-- Scheduler -->
+      <div class="maint-row maint-row--stacked">
+        <span class="maint-row-label">Schedule Maintenance</span>
+        <span class="maint-row-desc">Set a future time. All users see a countdown banner, then maintenance auto-activates.</span>
+        <div class="maint-schedule-inputs">
+          <input
+            type="date"
+            class="input-bh maint-input"
+            bind:value={maintScheduleDate}
+            disabled={maintLoading || maintEnabled}
+          />
+          <input
+            type="time"
+            class="input-bh maint-input"
+            bind:value={maintScheduleTime}
+            disabled={maintLoading || maintEnabled}
+          />
+          <button
+            class="maint-schedule-btn"
+            onclick={scheduleMaintenance}
+            disabled={maintLoading || maintEnabled || !maintScheduleDate || !maintScheduleTime}
+          >
+            {#if maintLoading}
+              <span class="maint-spinner"></span>
+            {:else}
+              Schedule
+            {/if}
+          </button>
+        </div>
+      </div>
+
+      {#if maintScheduledAt}
+        <div class="maint-scheduled-info">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          <span>Scheduled for {new Date(maintScheduledAt).toLocaleString()}</span>
+          <button class="maint-cancel-btn" onclick={cancelSchedule} disabled={maintLoading}>
+            Cancel
+          </button>
+        </div>
+      {/if}
     </div>
   </div>
 
@@ -948,6 +1131,263 @@
   }
   .product-link:hover {
     color: var(--color-accent);
+  }
+
+  /* ─── Maintenance Panel ─── */
+  .maint-panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    animation: fadeUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  .maint-panel-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .maint-panel-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+  }
+
+  .maint-panel-icon {
+    color: var(--color-accent);
+    flex-shrink: 0;
+  }
+
+  .maint-panel-title {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--color-fg);
+    margin: 0;
+  }
+
+  .maint-status-badge {
+    margin-left: auto;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.625rem;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-muted-fg);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .maint-status-badge--active {
+    background: rgba(239, 68, 68, 0.1);
+    color: #F87171;
+    border-color: rgba(239, 68, 68, 0.2);
+  }
+
+  .maint-status-badge--scheduled {
+    background: rgba(245, 158, 11, 0.1);
+    color: #FBBF24;
+    border-color: rgba(245, 158, 11, 0.2);
+  }
+
+  .maint-feedback {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--color-accent);
+    animation: fadeUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .maint-feedback--error {
+    color: #F87171;
+  }
+
+  .maint-panel-body {
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .maint-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .maint-row--stacked {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .maint-row-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .maint-row-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-fg);
+  }
+
+  .maint-row-desc {
+    font-size: 0.7rem;
+    color: var(--color-muted-fg);
+    line-height: 1.4;
+  }
+
+  /* Toggle switch */
+  .maint-toggle {
+    position: relative;
+    width: 48px;
+    height: 26px;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .maint-toggle:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .maint-toggle--on {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  .maint-toggle--on:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: rgba(239, 68, 68, 0.5);
+  }
+
+  .maint-toggle:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .maint-toggle-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--color-muted-fg);
+    transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .maint-toggle--on .maint-toggle-thumb {
+    left: 25px;
+    background: #F87171;
+    box-shadow: 0 0 8px rgba(248, 113, 113, 0.4);
+  }
+
+  .maint-input {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .maint-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: 0.25rem 0;
+  }
+
+  .maint-schedule-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .maint-schedule-inputs .maint-input {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .maint-schedule-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1.25rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #FBBF24;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 90px;
+  }
+
+  .maint-schedule-btn:hover:not(:disabled) {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.4);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.08);
+  }
+
+  .maint-schedule-btn:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .maint-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(251, 191, 36, 0.3);
+    border-top-color: #FBBF24;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .maint-scheduled-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    background: rgba(245, 158, 11, 0.06);
+    border: 1px solid rgba(245, 158, 11, 0.12);
+    border-radius: var(--radius-md);
+    font-size: 0.8rem;
+    color: #FBBF24;
+  }
+
+  .maint-scheduled-info svg {
+    flex-shrink: 0;
+  }
+
+  .maint-cancel-btn {
+    margin-left: auto;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #F87171;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 200ms;
+  }
+
+  .maint-cancel-btn:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+
+  .maint-cancel-btn:disabled {
+    opacity: 0.4;
+    pointer-events: none;
   }
 
   /* Entrance animation */
