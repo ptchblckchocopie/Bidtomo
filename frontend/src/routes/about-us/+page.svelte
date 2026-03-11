@@ -1,5 +1,6 @@
 <script lang="ts">
   import { authStore } from '$lib/stores/auth';
+  import { t } from '$lib/stores/locale';
   import GlowingEffect from '$lib/components/GlowingEffect.svelte';
   import ScrollReveal from '$lib/components/ScrollReveal.svelte';
   import MagneticButton from '$lib/components/MagneticButton.svelte';
@@ -48,7 +49,7 @@
       </div>
 
       <h1 bind:this={heroTextEl} class="text-5xl md:text-7xl lg:text-8xl font-bold mb-6 text-center font-display tracking-tighter hero-element hero-text" style="animation-delay: 0.15s;">
-        Welcome to
+        {$t('hero.welcomeTo')}
         <span class="relative inline-block">
           BidMo.to
           <span class="hero-underline"></span>
@@ -56,26 +57,25 @@
       </h1>
 
       <p class="text-lg sm:text-xl lg:text-2xl mb-4 opacity-90 text-center max-w-3xl mx-auto hero-element hero-text" style="animation-delay: 0.3s;">
-        Bid mo 'to! The Filipino way to bid, buy, and sell unique items
+        {$t('hero.tagline')}
       </p>
 
       <p class="text-base sm:text-lg mb-12 opacity-50 max-w-2xl mx-auto text-center hero-element hero-text" style="animation-delay: 0.4s;">
-        Join us in building the Philippines' most exciting auction platform.
-        Your participation helps us understand what features matter most!
+        {$t('hero.subtitle')}
       </p>
 
       <!-- CTA buttons -->
       <div class="flex flex-col sm:flex-row gap-4 justify-center mb-16 hero-element" style="animation-delay: 0.5s;">
         <MagneticButton href="/products" class="btn-bh-red text-base sm:text-lg !px-8 !py-3.5" strength={0.2}>
-          {#snippet children()}Browse Auctions{/snippet}
+          {#snippet children()}{$t('hero.browseAuctions')}{/snippet}
         </MagneticButton>
         {#if $authStore.isAuthenticated}
           <MagneticButton href="/sell" class="btn-bh text-base sm:text-lg !px-8 !py-3.5 hero-outline-btn" strength={0.2}>
-            {#snippet children()}List an Item{/snippet}
+            {#snippet children()}{$t('hero.listAnItem')}{/snippet}
           </MagneticButton>
         {:else}
           <MagneticButton href="/register" class="btn-bh text-base sm:text-lg !px-8 !py-3.5 hero-outline-btn" strength={0.2}>
-            {#snippet children()}Join Beta{/snippet}
+            {#snippet children()}{$t('hero.joinBeta')}{/snippet}
           </MagneticButton>
         {/if}
       </div>
@@ -83,18 +83,18 @@
       <!-- Stats row -->
       <div class="flex flex-wrap justify-center gap-0 hero-element" style="animation-delay: 0.6s;">
         <div class="stat-item text-center px-8 sm:px-12">
-          <div class="text-xs uppercase tracking-widest opacity-40 mb-1 font-mono">Cost</div>
-          <div class="text-2xl sm:text-3xl font-bold tracking-tight text-shimmer">FREE</div>
+          <div class="text-xs uppercase tracking-widest opacity-40 mb-1 font-mono">{$t('hero.cost')}</div>
+          <div class="text-2xl sm:text-3xl font-bold tracking-tight text-shimmer">{$t('hero.free')}</div>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item text-center px-8 sm:px-12">
-          <div class="text-xs uppercase tracking-widest opacity-40 mb-1 font-mono">Risk</div>
-          <div class="text-2xl sm:text-3xl font-bold tracking-tight text-shimmer">SAFE</div>
+          <div class="text-xs uppercase tracking-widest opacity-40 mb-1 font-mono">{$t('hero.risk')}</div>
+          <div class="text-2xl sm:text-3xl font-bold tracking-tight text-shimmer">{$t('hero.safe')}</div>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item text-center px-8 sm:px-12">
-          <div class="text-xs uppercase tracking-widest opacity-40 mb-1 font-mono">Stage</div>
-          <div class="text-2xl sm:text-3xl font-bold tracking-tight text-shimmer">BETA</div>
+          <div class="text-xs uppercase tracking-widest opacity-40 mb-1 font-mono">{$t('hero.stage')}</div>
+          <div class="text-2xl sm:text-3xl font-bold tracking-tight text-shimmer">{$t('hero.beta')}</div>
         </div>
       </div>
     </div>
@@ -110,19 +110,19 @@
     <div class="max-w-7xl mx-auto">
       <ScrollReveal>
         <div class="text-center mb-16">
-          <span class="label-bh block mb-3">The Process</span>
-          <h2 class="font-display tracking-tighter text-3xl sm:text-4xl lg:text-5xl">How It Works</h2>
-          <p class="mt-4 text-lg opacity-50">Simple, experimental, and evolving</p>
+          <span class="label-bh block mb-3">{$t('about.theProcess')}</span>
+          <h2 class="font-display tracking-tighter text-3xl sm:text-4xl lg:text-5xl">{$t('about.howItWorks')}</h2>
+          <p class="mt-4 text-lg opacity-50">{$t('about.howItWorksSubtitle')}</p>
           <div class="accent-line mx-auto mt-6"></div>
         </div>
       </ScrollReveal>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {#each [
-          { num: '01', title: 'Create Account', desc: 'Sign up for free and join our beta community', icon: '&#9733;' },
-          { num: '02', title: 'Browse or List', desc: 'Explore active auctions or list your own items', icon: '&#9776;' },
-          { num: '03', title: 'Place Bids', desc: 'Bid on items you want - no payment needed yet', icon: '&#9889;' },
-          { num: '04', title: 'Connect', desc: 'Winners chat with sellers to arrange payment & delivery', icon: '&#9829;' }
+          { num: '01', title: $t('about.step1Title'), desc: $t('about.step1Desc'), icon: '&#9733;' },
+          { num: '02', title: $t('about.step2Title'), desc: $t('about.step2Desc'), icon: '&#9776;' },
+          { num: '03', title: $t('about.step3Title'), desc: $t('about.step3Desc'), icon: '&#9889;' },
+          { num: '04', title: $t('about.step4Title'), desc: $t('about.step4Desc'), icon: '&#9829;' }
         ] as step, i}
           <ScrollReveal delay={i * 100} direction="up">
             <div class="glow-card relative rounded-2xl border border-[rgba(255,255,255,0.06)] p-1.5 h-full">
@@ -152,21 +152,21 @@
     <div class="max-w-7xl mx-auto">
       <ScrollReveal>
         <div class="text-center mb-16">
-          <span class="label-bh block mb-3">Features</span>
-          <h2 class="font-display tracking-tighter text-3xl sm:text-4xl lg:text-5xl">What We're Building</h2>
-          <p class="mt-4 text-lg opacity-50">Available now in our experimental phase</p>
+          <span class="label-bh block mb-3">{$t('about.features')}</span>
+          <h2 class="font-display tracking-tighter text-3xl sm:text-4xl lg:text-5xl">{$t('about.whatWereBuilding')}</h2>
+          <p class="mt-4 text-lg opacity-50">{$t('about.featuresSubtitle')}</p>
           <div class="accent-line mx-auto mt-6"></div>
         </div>
       </ScrollReveal>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {#each [
-          { icon: '&#9734;', title: 'Live Bidding', desc: 'Real-time auction updates and competitive bidding', status: 'live' },
-          { icon: '&#9993;', title: 'Direct Messaging', desc: 'Chat with buyers/sellers after winning bids', status: 'live' },
-          { icon: '&#9783;', title: 'Price Analytics', desc: 'Track bidding trends and price history', status: 'live' },
-          { icon: '&#128269;', title: 'Smart Search', desc: 'Find items by keywords, categories, and status', status: 'live' },
-          { icon: '&#9744;', title: 'Payment Integration', desc: 'Secure, integrated payment processing', status: 'coming' },
-          { icon: '&#9745;', title: 'Buyer Protection', desc: 'Escrow services and dispute resolution', status: 'coming' }
+          { icon: '&#9734;', title: $t('about.liveBidding'), desc: $t('about.liveBiddingDesc'), status: 'live' },
+          { icon: '&#9993;', title: $t('about.directMessaging'), desc: $t('about.directMessagingDesc'), status: 'live' },
+          { icon: '&#9783;', title: $t('about.priceAnalytics'), desc: $t('about.priceAnalyticsDesc'), status: 'live' },
+          { icon: '&#128269;', title: $t('about.smartSearch'), desc: $t('about.smartSearchDesc'), status: 'live' },
+          { icon: '&#9744;', title: $t('about.paymentIntegration'), desc: $t('about.paymentIntegrationDesc'), status: 'coming' },
+          { icon: '&#9745;', title: $t('about.buyerProtection'), desc: $t('about.buyerProtectionDesc'), status: 'coming' }
         ] as feature, i}
           <ScrollReveal delay={i * 80} direction="up">
             <div class="glow-card relative rounded-2xl border border-[rgba(255,255,255,0.06)] p-1.5 h-full">
@@ -179,7 +179,7 @@
                   {#if feature.status === 'live'}
                     <span class="live-dot"></span>
                   {/if}
-                  {feature.status === 'live' ? 'Live Now' : 'Coming Soon'}
+                  {feature.status === 'live' ? $t('about.liveNow') : $t('about.comingSoon')}
                 </span>
               </div>
             </div>
@@ -194,18 +194,18 @@
     <div class="max-w-5xl mx-auto">
       <ScrollReveal>
         <div class="text-center mb-16">
-          <span class="label-bh block mb-3 !opacity-50">Join Us</span>
-          <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold font-display tracking-tighter">Why Join Our Beta?</h2>
+          <span class="label-bh block mb-3 !opacity-50">{$t('about.joinUs')}</span>
+          <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold font-display tracking-tighter">{$t('about.whyJoinBeta')}</h2>
           <div class="accent-line mx-auto mt-6"></div>
         </div>
       </ScrollReveal>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {#each [
-          { title: 'Shape the Future', desc: 'Your feedback directly influences what features we build next' },
-          { title: 'Beta Benefits', desc: 'Early adopters get premium features when we launch officially' },
-          { title: 'Build Community', desc: 'Connect with fellow Filipinos who love unique finds and good deals' },
-          { title: 'Grow With Us', desc: 'Be part of the journey from experimental platform to full marketplace' }
+          { title: $t('about.shapeFuture'), desc: $t('about.shapeFutureDesc') },
+          { title: $t('about.betaBenefits'), desc: $t('about.betaBenefitsDesc') },
+          { title: $t('about.buildCommunity'), desc: $t('about.buildCommunityDesc') },
+          { title: $t('about.growWithUs'), desc: $t('about.growWithUsDesc') }
         ] as benefit, i}
           <ScrollReveal delay={i * 100} direction={i % 2 === 0 ? 'left' : 'right'}>
             <div class="glow-card relative rounded-2xl border border-[rgba(255,255,255,0.06)] p-1.5 h-full">
@@ -233,24 +233,24 @@
 
     <div class="max-w-4xl mx-auto relative z-10">
       <ScrollReveal>
-        <span class="label-bh block mb-4 !opacity-50">Get Started</span>
-        <h2 class="font-display tracking-tighter text-3xl sm:text-4xl lg:text-5xl mb-6">Ready to Bid?</h2>
-        <p class="text-lg sm:text-xl mb-12 opacity-50">Join us and help build something amazing for the Filipino community</p>
+        <span class="label-bh block mb-4 !opacity-50">{$t('about.getStarted')}</span>
+        <h2 class="font-display tracking-tighter text-3xl sm:text-4xl lg:text-5xl mb-6">{$t('about.readyToBid')}</h2>
+        <p class="text-lg sm:text-xl mb-12 opacity-50">{$t('about.readyToBidSubtitle')}</p>
 
         <div class="flex flex-col sm:flex-row gap-4 justify-center">
           {#if $authStore.isAuthenticated}
             <MagneticButton href="/products" class="btn-bh-red text-lg sm:text-xl !px-10 !py-4" strength={0.15}>
-              {#snippet children()}Start Browsing{/snippet}
+              {#snippet children()}{$t('about.startBrowsing')}{/snippet}
             </MagneticButton>
             <MagneticButton href="/sell" class="btn-bh text-lg sm:text-xl !px-10 !py-4" strength={0.15}>
-              {#snippet children()}List Your First Item{/snippet}
+              {#snippet children()}{$t('about.listYourFirstItem')}{/snippet}
             </MagneticButton>
           {:else}
             <MagneticButton href="/register" class="btn-bh-red text-lg sm:text-xl !px-10 !py-4" strength={0.15}>
-              {#snippet children()}Join Beta Now{/snippet}
+              {#snippet children()}{$t('about.joinBetaNow')}{/snippet}
             </MagneticButton>
             <MagneticButton href="/products" class="btn-bh text-lg sm:text-xl !px-10 !py-4" strength={0.15}>
-              {#snippet children()}Browse First{/snippet}
+              {#snippet children()}{$t('about.browseFirst')}{/snippet}
             </MagneticButton>
           {/if}
         </div>

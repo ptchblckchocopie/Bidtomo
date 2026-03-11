@@ -13,6 +13,7 @@
   import { watchlistStore } from '$lib/stores/watchlist';
   import WatchlistToggle from '$lib/components/WatchlistToggle.svelte';
   import { getCategoryLabel } from '$lib/data/categories';
+  import { t } from '$lib/stores/locale';
   import { onMount, onDestroy } from 'svelte';
 
   let { data } = $props<{ data: PageData }>();
@@ -35,11 +36,11 @@
     const from = $page.url.searchParams.get('from');
     switch (from) {
       case 'inbox':
-        return 'Back to Inbox';
+        return $t('product.backToInbox');
       case 'browse':
-        return 'Back to Products';
+        return $t('product.backToProducts');
       default:
-        return 'Back to Products';
+        return $t('product.backToProducts');
     }
   });
 
@@ -1162,8 +1163,8 @@
 
 {#if !data.product}
   <div class="error">
-    <h1>Product Not Found</h1>
-    <p>The product you're looking for doesn't exist.</p>
+    <h1>{$t('product.productNotFound')}</h1>
+    <p>{$t('product.productNotFoundDesc')}</p>
     <a href={backLink}>{backLinkText}</a>
   </div>
 {:else}
@@ -1190,7 +1191,7 @@
               title="Real-time updates active (SSE + fallback polling)"
             >
               <span class="live-dot"></span>
-              <span class="live-text">LIVE</span>
+              <span class="live-text">{$t('product.live')}</span>
             </div>
           </div>
         </div>
@@ -1200,7 +1201,7 @@
             {#if isOwner}
               <button class="action-btn action-edit" onclick={openEditModal}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                Edit
+                {$t('product.edit')}
               </button>
             {/if}
             {#if $authStore.user?.role === 'admin'}
@@ -1210,17 +1211,17 @@
               >
                 {#if data.product.active}
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  Hide
+                  {$t('products.hide')}
                 {:else}
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  Show
+                  {$t('products.show')}
                 {/if}
               </button>
             {/if}
             {#if $authStore.isAuthenticated && !isOwner}
               <button class="action-btn action-report" onclick={openReportModal}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-                Report
+                {$t('product.report')}
               </button>
             {/if}
           </div>
@@ -1229,14 +1230,14 @@
         <ImageSlider images={data.product.images || []} productTitle={data.product.title} />
 
         <div class="description-section">
-          <h3>Description</h3>
+          <h3>{$t('product.description')}</h3>
           <p>{data.product.description}</p>
         </div>
 
         <!-- Price Analytics Graph -->
         {#if sortedBids.length > 0 && chartData.length > 0}
           <div class="price-analytics">
-            <h3>📊 Price Analytics Over Time</h3>
+            <h3>📊 {$t('product.priceAnalytics')}</h3>
             <div class="chart-container">
               <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="price-chart">
                 <!-- Gradient definition -->
@@ -1281,14 +1282,14 @@
 
               <div class="chart-labels">
                 <div class="label-left">
-                  <div class="label-title">Starting</div>
+                  <div class="label-title">{$t('products.startingPrice')}</div>
                   <div class="label-value">{formatPrice(data.product?.startingPrice || chartData[0]?.price || 0, sellerCurrency)}</div>
                 </div>
                 <div class="label-center">
-                  <div class="label-title">{chartData.length} Bid{chartData.length !== 1 ? 's' : ''}</div>
+                  <div class="label-title">{chartData.length} {chartData.length !== 1 ? $t('products.bids') : $t('products.bid')}</div>
                 </div>
                 <div class="label-right">
-                  <div class="label-title">Current</div>
+                  <div class="label-title">{$t('products.currentBid')}</div>
                   <div class="label-value">{formatPrice(chartData[chartData.length - 1]?.price || 0, sellerCurrency)}</div>
                 </div>
               </div>
@@ -1297,7 +1298,7 @@
         {/if}
 
         <div class="seller-info">
-          <h3>Seller Information</h3>
+          <h3>{$t('product.sellerInformation')}</h3>
           <div class="seller-card">
             <div class="seller-header">
               <div class="seller-avatar">
@@ -1312,36 +1313,36 @@
                   {data.product.seller?.name || 'Unknown'}
                 </a>
                 {#if data.product.seller?.createdAt}
-                  <span class="member-since">Member since {new Date(data.product.seller.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
+                  <span class="member-since">{$t('products.memberSince')} {new Date(data.product.seller.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
                 {/if}
               </div>
             </div>
 
             <div class="seller-stats">
               {#if loadingSellerData}
-                <div class="loading-stats">Loading...</div>
+                <div class="loading-stats">{$t('common.loading')}</div>
               {:else}
                 <div class="stat-item">
-                  <span class="stat-title">Seller</span>
+                  <span class="stat-title">{$t('product.seller')}</span>
                   <div class="stat-rating">
                     <StarRating rating={sellerRatingStats?.asSeller?.averageRating || 0} size="small" />
                     <span class="stat-value">{(sellerRatingStats?.asSeller?.averageRating || 0).toFixed(1)}</span>
                   </div>
-                  <span class="stat-label">{sellerRatingStats?.asSeller?.totalRatings || 0} rating{(sellerRatingStats?.asSeller?.totalRatings || 0) !== 1 ? 's' : ''}</span>
+                  <span class="stat-label">{sellerRatingStats?.asSeller?.totalRatings || 0} {$t('products.rating')}{(sellerRatingStats?.asSeller?.totalRatings || 0) !== 1 ? 's' : ''}</span>
                 </div>
                 <div class="stat-divider"></div>
                 <div class="stat-item">
-                  <span class="stat-title">Buyer</span>
+                  <span class="stat-title">{$t('product.buyer')}</span>
                   <div class="stat-rating">
                     <StarRating rating={sellerRatingStats?.asBuyer?.averageRating || 0} size="small" />
                     <span class="stat-value">{(sellerRatingStats?.asBuyer?.averageRating || 0).toFixed(1)}</span>
                   </div>
-                  <span class="stat-label">{sellerRatingStats?.asBuyer?.totalRatings || 0} rating{(sellerRatingStats?.asBuyer?.totalRatings || 0) !== 1 ? 's' : ''}</span>
+                  <span class="stat-label">{sellerRatingStats?.asBuyer?.totalRatings || 0} {$t('products.rating')}{(sellerRatingStats?.asBuyer?.totalRatings || 0) !== 1 ? 's' : ''}</span>
                 </div>
                 <div class="stat-divider"></div>
                 <div class="stat-item">
                   <span class="stat-value">{sellerCompletedSales}</span>
-                  <span class="stat-label">sale{sellerCompletedSales !== 1 ? 's' : ''}</span>
+                  <span class="stat-label">{sellerCompletedSales !== 1 ? $t('product.sales') : $t('product.sale')}</span>
                 </div>
               {/if}
             </div>
@@ -1366,7 +1367,7 @@
               </div>
             {/if}
 
-            <a href="/users/{data.product.seller?.id}" class="view-profile-btn">View Profile</a>
+            <a href="/users/{data.product.seller?.id}" class="view-profile-btn">{$t('products.viewProfile')}</a>
           </div>
         </div>
       </div>
@@ -1375,7 +1376,7 @@
         {#if !data.product.active}
           <div class="inactive-warning">
             <span class="warning-icon">⚠️</span>
-            <span>This product is currently inactive and hidden from Browse Products</span>
+            <span>{$t('product.inactiveWarning')}</span>
           </div>
         {/if}
 
@@ -1399,7 +1400,7 @@
             {#if data.product.currentBid && !hasAuctionEnded && data.product.status !== 'ended' && data.product.status !== 'sold'}
               <div class="highest-bid-container" class:expanded={bidSectionOpen && !isOwner}>
                 <div class="highest-bid-header">
-                  <div class="highest-bid-label" class:label-pulse={priceChanged}>CURRENT HIGHEST BID</div>
+                  <div class="highest-bid-label" class:label-pulse={priceChanged}>{$t('product.currentHighestBid')}</div>
                 </div>
                 <div class="bid-with-percentage">
                   <div class="highest-bid-amount" class:price-animate={priceChanged}>{formatPrice(data.product.currentBid, sellerCurrency)}</div>
@@ -1412,10 +1413,10 @@
                     </div>
                   {/if}
                 </div>
-                <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+                <div class="starting-price-small">{$t('products.startingPrice')}: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
                 {#if !isOwner}
                   <button class="bid-toggle-pill" onclick={() => bidSectionOpen = !bidSectionOpen} aria-label={bidSectionOpen ? 'Hide bid form' : 'Show bid form'}>
-                    <span class="pill-text">{bidSectionOpen ? 'Close' : 'Place Bid'}</span>
+                    <span class="pill-text">{bidSectionOpen ? $t('product.close') : $t('product.placeBid')}</span>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class:chevron-up={bidSectionOpen}>
                       <polyline points="6 9 12 15 18 9"></polyline>
                     </svg>
@@ -1425,13 +1426,13 @@
             {:else if !hasAuctionEnded && data.product.status !== 'ended'}
               <div class="highest-bid-container" class:expanded={bidSectionOpen && !isOwner}>
                 <div class="highest-bid-header">
-                  <div class="highest-bid-label">STARTING BID</div>
+                  <div class="highest-bid-label">{$t('product.startingBid')}</div>
                 </div>
                 <div class="highest-bid-amount">{formatPrice(data.product.startingPrice, sellerCurrency)}</div>
-                <div class="starting-price-small">No bids yet - be the first!</div>
+                <div class="starting-price-small">{$t('product.noBidsYetFirst')}</div>
                 {#if !isOwner}
                   <button class="bid-toggle-pill" onclick={() => bidSectionOpen = !bidSectionOpen} aria-label={bidSectionOpen ? 'Hide bid form' : 'Show bid form'}>
-                    <span class="pill-text">{bidSectionOpen ? 'Close' : 'Place Bid'}</span>
+                    <span class="pill-text">{bidSectionOpen ? $t('product.close') : $t('product.placeBid')}</span>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class:chevron-up={bidSectionOpen}>
                       <polyline points="6 9 12 15 18 9"></polyline>
                     </svg>
@@ -1447,7 +1448,7 @@
             <!-- Owner view - Accept Bid section -->
             <div class="bid-section owner-section">
               <div class="bid-section-header">
-                <h3>Your Listing</h3>
+                <h3>{$t('products.yourListing')}</h3>
                 <div class="countdown-timer-inline">
                   <svg class="countdown-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                   <span class="countdown-time">{timeRemaining || 'Loading...'}</span>
@@ -1456,19 +1457,19 @@
 
               {#if highestBid}
                 <div class="highest-bid-info">
-                  <p class="info-text">Current Highest Bid:</p>
+                  <p class="info-text">{$t('product.currentHighestBid')}:</p>
                   <p class="bid-amount-large">{formatPrice(highestBid.amount, sellerCurrency)}</p>
                   <p class="bidder-info">by {getBidderName(highestBid)}</p>
-                  <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+                  <div class="starting-price-small">{$t('products.startingPrice')}: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
                 </div>
 
                 <button class="accept-bid-btn" onclick={openAcceptBidModal}>
-                  ✓ Accept Bid & Close Auction
+                  ✓ {$t('product.acceptBidClose')}
                 </button>
               {:else}
                 <div class="info-message">
-                  <p>No bids yet. Waiting for bidders...</p>
-                  <div class="starting-price-small">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+                  <p>{$t('product.noBidsWaiting')}</p>
+                  <div class="starting-price-small">{$t('products.startingPrice')}: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
                 </div>
               {/if}
             </div>
@@ -1477,12 +1478,12 @@
             <div class="bid-section" class:bid-section-open={bidSectionOpen} class:bid-section-closed={!bidSectionOpen}>
               <div class="bid-section-content">
                 <div class="bid-section-header">
-                  <h3>Place Your Bid</h3>
+                  <h3>{$t('product.placeYourBid')}</h3>
                 </div>
 
                 {#if !$authStore.isAuthenticated}
                   <div class="info-message">
-                    <p>🔒 You must be logged in to place a bid</p>
+                    <p>🔒 {$t('product.mustLoginToBid')}</p>
                   </div>
                 {/if}
 
@@ -1494,7 +1495,7 @@
 
                 <div class="bid-form">
                   <div class="bid-input-group">
-                    <label>Your Bid Amount</label>
+                    <label>{$t('product.yourBidAmount')}</label>
                     <div class="bid-row">
                       <div class="bid-control">
                         <button
@@ -1530,11 +1531,11 @@
                         </button>
                       </div>
                       <button class="place-bid-btn" onclick={handlePlaceBid} disabled={bidding}>
-                        {bidding ? 'Placing Bid...' : 'Place Bid'}
+                        {bidding ? $t('product.placingBid') : $t('product.placeBid')}
                       </button>
                     </div>
                     <p class="bid-hint">
-                      Minimum bid: {formatPrice(minBid, sellerCurrency)} • Increment: {formatPrice(bidInterval, sellerCurrency)}
+                      {$t('product.minimumBid')}: {formatPrice(minBid, sellerCurrency)} • Increment: {formatPrice(bidInterval, sellerCurrency)}
                     </p>
                   </div>
                 </div>
@@ -1547,21 +1548,21 @@
                         <div class="auto-bid-status-header">
                           <div class="auto-bid-indicator">
                             <span class="auto-bid-pulse"></span>
-                            <span class="auto-bid-label">Auto-Bid Active</span>
+                            <span class="auto-bid-label">{$t('product.autoBidEnabled')}</span>
                           </div>
                           <span class="auto-bid-max">Up to {formatPrice(autoBidCurrentMax, sellerCurrency)}</span>
                         </div>
                         <p class="auto-bid-desc">The system will automatically bid on your behalf up to your maximum.</p>
                         <div class="auto-bid-actions">
                           <button class="auto-bid-edit-btn" onclick={openAutoBidModal}>
-                            Edit Limit
+                            {$t('product.editLimit')}
                           </button>
                           <button
                             class="auto-bid-cancel-btn"
                             onclick={handleCancelAutoBid}
                             disabled={cancellingAutoBid}
                           >
-                            {cancellingAutoBid ? 'Cancelling...' : 'Cancel Auto-Bid'}
+                            {cancellingAutoBid ? $t('product.cancellingAutoBid') : $t('product.cancelAutoBid')}
                           </button>
                         </div>
                       </div>
@@ -1570,7 +1571,7 @@
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                         </svg>
-                        Set Auto-Bid
+                        {$t('product.setAutoBid')}
                       </button>
                     {/if}
                   </div>
@@ -1582,11 +1583,11 @@
           <!-- Auction has ended - show results -->
           <div class="auction-ended-section">
             <div class="ended-header">
-              <h3>🏁 Auction Ended</h3>
+              <h3>🏁 {$t('product.auctionEnded')}</h3>
             </div>
             {#if highestBid}
               <div class="winner-info">
-                <div class="winner-label">Winning Bid:</div>
+                <div class="winner-label">{$t('product.winningBid')}:</div>
                 <div class="winner-amount-with-increase">
                   <div class="winner-amount">{formatPrice(highestBid.amount, sellerCurrency)}</div>
                   {#if highestBid.amount > data.product.startingPrice}
@@ -1598,15 +1599,15 @@
                     </div>
                   {/if}
                 </div>
-                <div class="winner-bidder">Winner: {getBidderName(highestBid)}</div>
-                <div class="starting-price-note">Starting price: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+                <div class="winner-bidder">{$t('product.winner')}: {getBidderName(highestBid)}</div>
+                <div class="starting-price-note">{$t('products.startingPrice')}: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
               </div>
             {:else}
               <div class="no-winner-info">
                 <div class="no-winner-icon">📭</div>
-                <div class="no-winner-text">No Winning Bid</div>
-                <div class="no-winner-desc">This auction ended without any bids.</div>
-                <div class="starting-price-note">Starting price was: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
+                <div class="no-winner-text">{$t('product.noWinningBid')}</div>
+                <div class="no-winner-desc">{$t('product.auctionEndedNoBids')}</div>
+                <div class="starting-price-note">{$t('products.startingPrice')}: {formatPrice(data.product.startingPrice, sellerCurrency)}</div>
               </div>
             {/if}
           </div>
@@ -1631,11 +1632,11 @@
             <div class="winner-alert">
               <div class="winner-alert-header">
                 <span class="alert-icon">🎉</span>
-                <span class="alert-text">Congratulations! You won this auction!</span>
+                <span class="alert-text">{$t('product.congratsWon')}</span>
               </div>
-              <p class="winner-alert-message">Please contact the seller to arrange payment and delivery.</p>
+              <p class="winner-alert-message">{$t('product.contactSellerArrange')}</p>
               <a href="/inbox?product={data.product.id}" class="winner-message-btn">
-                💬 Message Seller
+                💬 {$t('product.messagesSeller')}
               </a>
             </div>
           {/if}
@@ -1646,7 +1647,7 @@
           <!-- Sellers can contact buyer only after accepting the bid -->
           <div class="contact-section">
             <a href="/inbox?product={data.product.id}" class="contact-btn">
-              💬 Contact Buyer
+              💬 {$t('product.contactBuyer')}
             </a>
           </div>
         {/if}
@@ -1661,7 +1662,7 @@
                   <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
                   <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
                 </svg>
-                Share
+                {$t('product.share')}
                 <svg class="share-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
@@ -1699,7 +1700,7 @@
                       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
                       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
                     </svg>
-                    {linkCopied ? 'Copied!' : 'Copy Link'}
+                    {linkCopied ? $t('product.copied') : $t('product.copyLink')}
                   </button>
                 </div>
               {/if}
@@ -1722,12 +1723,12 @@
               {#if data.product.createdAt}
                 <span class="meta-item">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                  Listed {new Date(data.product.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {$t('product.listed')} {new Date(data.product.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
               {/if}
               <span class="meta-item">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                {data.bids.length} bid{data.bids.length !== 1 ? 's' : ''}
+                {data.bids.length} {data.bids.length !== 1 ? $t('products.bids') : $t('products.bid')}
               </span>
             </div>
           </div>
@@ -1735,7 +1736,7 @@
 
         {#if sortedBids.length > 0}
           <div class="bid-history">
-            <h3>Bid History</h3>
+            <h3>{$t('product.bidHistory')}</h3>
             <div class="bid-history-list">
               {#each sortedBids.slice(0, 10) as bid, index (bid.id)}
                 <div
@@ -1745,7 +1746,7 @@
                   style="--rank: {index + 1}; --delay: {index * 0.05}s"
                 >
                   {#if newBidIds.has(bid.id)}
-                    <div class="new-bid-indicator">NEW!</div>
+                    <div class="new-bid-indicator">{$t('product.new')}</div>
                   {/if}
                   <div class="bid-rank">#{index + 1}</div>
                   <div class="bid-info">
@@ -1757,7 +1758,7 @@
                   </div>
                   {#if index === 0}
                     <div class="highest-badge">
-                      👑 HIGHEST BID
+                      👑 {$t('product.highestBid')}
                     </div>
                   {/if}
                 </div>
@@ -1781,13 +1782,13 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:text-bottom;">
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
           </svg>
-          {autoBidActive ? 'Update Auto-Bid' : 'Set Auto-Bid'}
+          {autoBidActive ? $t('product.updateAutoBid') : $t('product.setAutoBid')}
         </h2>
       </div>
 
       <div class="modal-body">
         <div class="auto-bid-explainer">
-          <p class="auto-bid-explainer-title">How Auto-Bid Works</p>
+          <p class="auto-bid-explainer-title">{$t('product.howAutoBidWorks')}</p>
           <ul class="auto-bid-steps">
             <li>Set your maximum — the most you're willing to pay</li>
             <li>We'll place the minimum winning bid for you now</li>
@@ -1803,7 +1804,7 @@
         {/if}
 
         <div class="auto-bid-form">
-          <label class="auto-bid-form-label">Your Maximum Bid</label>
+          <label class="auto-bid-form-label">{$t('product.yourMaxBid')}</label>
           <div class="auto-bid-input-row">
             <div class="bid-control">
               <button
@@ -1862,7 +1863,7 @@
 
         <div class="modal-actions">
           <button class="btn-cancel-bid" onclick={closeAutoBidModal}>
-            Cancel
+            {$t('common.cancel')}
           </button>
           <button
             class="btn-confirm-bid auto-bid-confirm"
@@ -1875,7 +1876,7 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
               </svg>
-              {autoBidActive ? 'Update Auto-Bid' : 'Activate Auto-Bid'}
+              {autoBidActive ? $t('product.updateAutoBid') : $t('product.activateAutoBid')}
             {/if}
           </button>
         </div>
@@ -1891,7 +1892,7 @@
       <button class="modal-close" onclick={cancelBid}>&times;</button>
 
       <div class="modal-header">
-        <h2>Confirm Your Bid</h2>
+        <h2>{$t('product.confirmYourBid')}</h2>
       </div>
 
       <div class="modal-body">
@@ -1900,32 +1901,32 @@
 
           <div class="bid-confirmation">
             <div class="confirm-row">
-              <span class="label">Your Bid:</span>
+              <span class="label">{$t('product.yourBid')}</span>
               <span class="value bid-value">{formatPrice(bidAmount, sellerCurrency)}</span>
             </div>
 
             {#if data.product.currentBid}
               <div class="confirm-row">
-                <span class="label">Current Highest:</span>
+                <span class="label">{$t('product.currentHighest')}</span>
                 <span class="value">{formatPrice(data.product.currentBid, sellerCurrency)}</span>
               </div>
             {:else}
               <div class="confirm-row">
-                <span class="label">Starting Price:</span>
+                <span class="label">{$t('product.startingPriceLabel')}</span>
                 <span class="value">{formatPrice(data.product.startingPrice, sellerCurrency)}</span>
               </div>
             {/if}
           </div>
 
           <p class="confirm-message">
-            Are you sure you want to place this bid? This action cannot be undone.
+            {$t('product.confirmBidMessage')}
           </p>
 
           <div class="privacy-toggle">
             <label class="toggle-label">
               <input type="checkbox" bind:checked={censorMyName} />
               <span class="toggle-text">
-                🔒 Hide my full name (show only initials)
+                🔒 {$t('product.hideFullName')}
               </span>
             </label>
             <p class="toggle-hint">
@@ -1936,10 +1937,10 @@
 
         <div class="modal-actions">
           <button class="btn-cancel-bid" onclick={cancelBid}>
-            Cancel
+            {$t('common.cancel')}
           </button>
           <button class="btn-confirm-bid" onclick={confirmPlaceBid}>
-            Confirm Bid
+            {$t('product.confirmBid')}
           </button>
         </div>
       </div>
@@ -1954,7 +1955,7 @@
       <button class="modal-close" onclick={closeAcceptBidModal}>&times;</button>
 
       <div class="modal-header">
-        <h2>Accept Bid & Close Auction</h2>
+        <h2>{$t('product.acceptBidClose')}</h2>
       </div>
 
       <div class="modal-body">
@@ -1975,32 +1976,32 @@
 
           <div class="bid-confirmation accept-confirmation">
             <div class="confirm-row">
-              <span class="label">Winning Bid:</span>
+              <span class="label">{$t('product.winningBid')}:</span>
               <span class="value bid-value">{formatPrice(highestBid.amount, sellerCurrency)}</span>
             </div>
 
             <div class="confirm-row">
-              <span class="label">Winner:</span>
+              <span class="label">{$t('product.winner')}:</span>
               <span class="value">{getBidderName(highestBid)}</span>
             </div>
 
             <div class="confirm-row">
-              <span class="label">Bid Time:</span>
+              <span class="label">{$t('product.bidTime')}:</span>
               <span class="value">{formatDate(highestBid.bidTime)}</span>
             </div>
           </div>
 
           <p class="confirm-message warning-message">
-            ⚠️ Are you sure you want to accept this bid? This will close the auction and mark the item as SOLD. This action cannot be undone.
+            ⚠️ {$t('product.acceptBidWarning')}
           </p>
         </div>
 
         <div class="modal-actions">
           <button class="btn-cancel-bid" onclick={closeAcceptBidModal} disabled={accepting}>
-            Cancel
+            {$t('common.cancel')}
           </button>
           <button class="btn-accept-bid" onclick={confirmAcceptBid} disabled={accepting}>
-            {accepting ? 'Accepting...' : 'Accept Bid & Close'}
+            {accepting ? $t('product.accepting') : $t('product.acceptBidCloseBtn')}
           </button>
         </div>
       </div>
@@ -2023,8 +2024,8 @@
         </svg>
       </div>
       <div class="toast-text">
-        <span class="toast-title">Bid Placed Successfully!</span>
-        <span class="toast-subtitle">You're now the highest bidder</span>
+        <span class="toast-title">{$t('product.bidPlacedSuccess')}</span>
+        <span class="toast-subtitle">{$t('product.youreHighestBidder')}</span>
       </div>
       <button class="toast-close" onclick={closeSuccessAlert} aria-label="Close">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2044,23 +2045,23 @@
       <button class="modal-close" onclick={closeModal}>&times;</button>
 
       <div class="modal-header">
-        <h2>🔒 Login Required</h2>
+        <h2>🔒 {$t('product.loginRequired')}</h2>
       </div>
 
       <div class="modal-body">
-        <p>You need to be logged in to place a bid on this product.</p>
+        <p>{$t('product.loginToBidMessage')}</p>
 
         <div class="modal-actions">
           <a href="/login?redirect=/products/{data.product?.id}" class="btn-login">
-            Login
+            {$t('auth.login')}
           </a>
           <a href="/register?redirect=/products/{data.product?.id}" class="btn-register">
-            Create Account
+            {$t('auth.registerTitle')}
           </a>
         </div>
 
         <p class="modal-note">
-          Don't have an account? Register now to start bidding!
+          {$t('product.registerToBid')}
         </p>
       </div>
     </div>
@@ -2074,7 +2075,7 @@
       <button class="modal-close" onclick={closeEditModal}>&times;</button>
 
       <div class="modal-header">
-        <h2>Edit Product</h2>
+        <h2>{$t('sell.editTitle')}</h2>
       </div>
 
       <div class="modal-body">
@@ -2096,22 +2097,22 @@
       <button class="admin-modal-close" onclick={closeAdminModal}>&times;</button>
 
       <div class="admin-modal-header">
-        <h2>{data.product.active ? 'Hide Product' : 'Unhide Product'}</h2>
+        <h2>{data.product.active ? $t('products.hideProduct') : $t('products.showProduct')}</h2>
       </div>
 
       <div class="admin-modal-body">
         <p class="admin-modal-product-title">"{data.product.title}"</p>
         <p class="admin-modal-description">
           {#if data.product.active}
-            This item will be hidden from all users and moved to the <strong>Hidden Items</strong> tab. The seller will not be notified.
+            {$t('product.hideDescription')}
           {:else}
-            This item will be restored and visible to all users again under <strong>Active Auctions</strong>.
+            {$t('product.unhideDescription')}
           {/if}
         </p>
 
         <div class="admin-modal-actions">
           <button class="btn-admin-cancel" onclick={closeAdminModal} disabled={adminModalLoading}>
-            Cancel
+            {$t('common.cancel')}
           </button>
           <button
             class="btn-admin-confirm {data.product.active ? 'btn-admin-hide' : 'btn-admin-unhide'}"
@@ -2122,7 +2123,7 @@
               <span class="admin-spinner"></span>
               Processing...
             {:else}
-              {data.product.active ? 'Hide Product' : 'Unhide Product'}
+              {data.product.active ? $t('products.hideProduct') : $t('products.showProduct')}
             {/if}
           </button>
         </div>
@@ -2138,29 +2139,29 @@
       <button class="report-modal-close" onclick={closeReportModal}>&times;</button>
 
       <div class="report-modal-header">
-        <h2>Report Product</h2>
+        <h2>{$t('product.reportProduct')}</h2>
       </div>
 
       <div class="report-modal-body">
         {#if reportSuccess}
           <div class="report-success">
-            <p>Thank you for your report. Our team will review it shortly.</p>
-            <button class="btn-report-done" onclick={closeReportModal}>Done</button>
+            <p>{$t('product.reportThanks')}</p>
+            <button class="btn-report-done" onclick={closeReportModal}>{$t('product.done')}</button>
           </div>
         {:else}
           <p class="report-modal-product-title">"{data.product.title}"</p>
 
           <label class="report-label" for="report-reason">Reason</label>
           <select id="report-reason" class="report-select" bind:value={reportReason}>
-            <option value="" disabled>Select a reason...</option>
-            <option value="spam">Spam</option>
-            <option value="inappropriate">Inappropriate Content</option>
-            <option value="scam">Scam</option>
-            <option value="counterfeit">Counterfeit</option>
-            <option value="other">Other</option>
+            <option value="" disabled>{$t('product.selectReason')}</option>
+            <option value="spam">{$t('product.reportSpam')}</option>
+            <option value="inappropriate">{$t('product.reportInappropriate')}</option>
+            <option value="scam">{$t('product.reportScam')}</option>
+            <option value="counterfeit">{$t('product.reportCounterfeit')}</option>
+            <option value="other">{$t('product.reportOther')}</option>
           </select>
 
-          <label class="report-label" for="report-description">Details (optional)</label>
+          <label class="report-label" for="report-description">{$t('product.detailsOptional')}</label>
           <textarea
             id="report-description"
             class="report-textarea"
@@ -2176,13 +2177,13 @@
 
           <div class="report-modal-actions">
             <button class="btn-report-cancel" onclick={closeReportModal} disabled={submittingReport}>
-              Cancel
+              {$t('common.cancel')}
             </button>
             <button class="btn-report-submit" onclick={submitReport} disabled={submittingReport}>
               {#if submittingReport}
-                Submitting...
+                {$t('product.submittingReport')}
               {:else}
-                Submit Report
+                {$t('product.submitReport')}
               {/if}
             </button>
           </div>
@@ -4313,6 +4314,19 @@
     background: var(--color-muted);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
+    padding: 1.5rem;
+  }
+
+  .owner-section .bid-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .owner-section .bid-section-header h3 {
+    margin: 0;
   }
 
   .highest-bid-info {

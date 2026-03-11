@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { authStore } from '$lib/stores/auth';
   import { watchlistStore } from '$lib/stores/watchlist';
+  import { t } from '$lib/stores/locale';
   import { fetchWatchlist } from '$lib/api';
   import { goto } from '$app/navigation';
   import WatchlistToggle from '$lib/components/WatchlistToggle.svelte';
@@ -50,11 +51,11 @@
 </script>
 
 <svelte:head>
-  <title>Watchlist - BidMo.to</title>
+  <title>{$t('watchlist.title')} - BidMo.to</title>
 </svelte:head>
 
 <div class="watchlist-page">
-  <h1>Watchlist</h1>
+  <h1>{$t('watchlist.title')}</h1>
 
   {#if loading}
     <div class="products-grid">
@@ -74,9 +75,9 @@
       <svg class="w-16 h-16 mx-auto mb-4 text-bh-muted-fg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
       </svg>
-      <h2>Your watchlist is empty</h2>
-      <p>Browse products and tap the heart icon to save items you're interested in.</p>
-      <a href="/products" class="btn-bh-red mt-4 inline-block">Browse Products</a>
+      <h2>{$t('watchlist.empty')}</h2>
+      <p>{$t('watchlist.emptyDesc')}</p>
+      <a href="/products" class="btn-bh-red mt-4 inline-block">{$t('watchlist.browseProducts')}</a>
     </div>
   {:else}
     <div class="products-grid">
@@ -93,7 +94,7 @@
               />
             {:else}
               <div class="placeholder-image">
-                <span>No Image</span>
+                <span>{$t('watchlist.noImage')}</span>
               </div>
             {/if}
             <div class="watchlist-btn">
@@ -105,10 +106,10 @@
             <p class="description">{product.description?.substring(0, 100)}{product.description?.length > 100 ? '...' : ''}</p>
             <div class="pricing">
               {#if product.currentBid}
-                <span class="label-small">Current Bid:</span>
+                <span class="label-small">{$t('watchlist.currentBid')}</span>
                 <span class="price-large">{formatPrice(product.currentBid, product.seller?.currency)}</span>
               {:else}
-                <span class="label-small">Starting Price:</span>
+                <span class="label-small">{$t('watchlist.startingPrice')}</span>
                 <span class="price-large">{formatPrice(product.startingPrice, product.seller?.currency)}</span>
               {/if}
             </div>
@@ -125,15 +126,15 @@
           disabled={currentPage <= 1}
           onclick={() => loadPage(currentPage - 1)}
         >
-          Previous
+          {$t('watchlist.previous')}
         </button>
-        <span class="page-info">Page {currentPage} of {totalPages}</span>
+        <span class="page-info">{$t('products.page', { current: currentPage, total: totalPages })}</span>
         <button
           class="btn-bh"
           disabled={currentPage >= totalPages}
           onclick={() => loadPage(currentPage + 1)}
         >
-          Next
+          {$t('watchlist.next')}
         </button>
       </div>
     {/if}

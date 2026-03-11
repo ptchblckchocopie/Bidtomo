@@ -10,6 +10,7 @@
 
   import ImageSlider from '$lib/components/ImageSlider.svelte';
   import ProductForm from '$lib/components/ProductForm.svelte';
+  import { t } from '$lib/stores/locale';
 
   let { data } = $props<{ data: PageData }>();
 
@@ -326,8 +327,8 @@
 
 <div class="dashboard-page">
   <div class="page-header">
-    <h1>Dashboard</h1>
-    <p class="subtitle">Manage your products and purchases</p>
+    <h1>{$t('dashboard.title')}</h1>
+    <p class="subtitle">{$t('dashboard.subtitle')}</p>
   </div>
 
   <!-- Main Tabs -->
@@ -338,7 +339,7 @@
       onclick={() => switchTab('products')}
     >
       <span class="tab-icon">📦</span>
-      <span class="tab-label">My Products</span>
+      <span class="tab-label">{$t('dashboard.myProducts')}</span>
     </button>
     <button
       class="main-tab"
@@ -346,7 +347,7 @@
       onclick={() => switchTab('purchases')}
     >
       <span class="tab-icon">🛍️</span>
-      <span class="tab-label">My Purchases</span>
+      <span class="tab-label">{$t('dashboard.myPurchases')}</span>
     </button>
   </div>
 
@@ -362,21 +363,21 @@
             class:active={productTab === 'active'}
             onclick={() => productTab = 'active'}
           >
-            Active ({activeProducts.length})
+            {$t('dashboard.active')} ({activeProducts.length})
           </button>
           <button
             class="sub-tab"
             class:active={productTab === 'hidden'}
             onclick={() => productTab = 'hidden'}
           >
-            Hidden ({hiddenProducts.length})
+            {$t('dashboard.hidden')} ({hiddenProducts.length})
           </button>
           <button
             class="sub-tab"
             class:active={productTab === 'ended'}
             onclick={() => productTab = 'ended'}
           >
-            Ended ({endedProducts.length})
+            {$t('dashboard.ended')} ({endedProducts.length})
           </button>
         </div>
 
@@ -385,9 +386,9 @@
           {#if activeProducts.length === 0}
             <div class="empty-state">
               <div class="empty-icon">📦</div>
-              <h2>No Active Products</h2>
-              <p>You don't have any active products. Start selling now!</p>
-              <a href="/sell" class="btn-primary">+ List a Product</a>
+              <h2>{$t('dashboard.noActiveProducts')}</h2>
+              <p>{$t('dashboard.noActiveProductsDesc')}</p>
+              <a href="/sell" class="btn-primary">{$t('dashboard.listProduct')}</a>
             </div>
           {:else}
             <div class="products-grid">
@@ -416,12 +417,12 @@
                       <h3>{product.title}</h3>
                       <div class="product-price">
                         <div class="price-row">
-                          <span class="price-label">Starting:</span>
+                          <span class="price-label">{$t('products.startingPrice')}:</span>
                           <span class="price-value">{formatPrice(product.startingPrice, product.seller?.currency)}</span>
                         </div>
                         {#if product.currentBid}
                           <div class="price-row current-bid">
-                            <span class="price-label">Current Bid:</span>
+                            <span class="price-label">{$t('products.currentBid')}:</span>
                             <span class="price-value">{formatPrice(product.currentBid, product.seller?.currency)}</span>
                           </div>
                         {/if}
@@ -437,15 +438,15 @@
 
                   <div class="product-actions">
                     <button class="btn-edit" onclick={() => openEditModal(product)}>
-                      ✏️ Edit
+                      ✏️ {$t('dashboard.edit')}
                     </button>
                     {#if data.user?.role === 'admin'}
                       <button class="btn-hide" onclick={() => openHideModal(product)}>
-                        🙈 Hide
+                        🙈 {$t('dashboard.hide')}
                       </button>
                     {/if}
                     <a href="/products/{product.id}" class="btn-view">
-                      👁️ View
+                      👁️ {$t('dashboard.view')}
                     </a>
                   </div>
                 </div>
@@ -456,8 +457,8 @@
           {#if hiddenProducts.length === 0}
             <div class="empty-state">
               <div class="empty-icon">🙈</div>
-              <h2>No Hidden Products</h2>
-              <p>You don't have any hidden products.</p>
+              <h2>{$t('dashboard.noHiddenProducts')}</h2>
+              <p>{$t('dashboard.noHiddenProductsDesc')}</p>
             </div>
           {:else}
             <div class="products-grid">
@@ -486,12 +487,12 @@
                       <h3>{product.title}</h3>
                       <div class="product-price">
                         <div class="price-row">
-                          <span class="price-label">Starting:</span>
+                          <span class="price-label">{$t('products.startingPrice')}:</span>
                           <span class="price-value">{formatPrice(product.startingPrice, product.seller?.currency)}</span>
                         </div>
                         {#if product.currentBid}
                           <div class="price-row current-bid">
-                            <span class="price-label">Current Bid:</span>
+                            <span class="price-label">{$t('products.currentBid')}:</span>
                             <span class="price-value">{formatPrice(product.currentBid, product.seller?.currency)}</span>
                           </div>
                         {/if}
@@ -505,15 +506,15 @@
 
                   <div class="product-actions">
                     <button class="btn-edit" onclick={() => openEditModal(product)}>
-                      ✏️ Edit
+                      ✏️ {$t('dashboard.edit')}
                     </button>
                     {#if data.user?.role === 'admin'}
                       <button class="btn-unhide" onclick={() => openHideModal(product)}>
-                        👁️ Unhide
+                        👁️ {$t('dashboard.unhide')}
                       </button>
                     {/if}
                     <a href="/products/{product.id}" class="btn-view">
-                      🔗 View
+                      🔗 {$t('dashboard.view')}
                     </a>
                   </div>
                 </div>
@@ -524,8 +525,8 @@
           {#if endedProducts.length === 0}
             <div class="empty-state">
               <div class="empty-icon">🏁</div>
-              <h2>No Ended Auctions</h2>
-              <p>When your auctions end, they'll appear here.</p>
+              <h2>{$t('dashboard.noEndedAuctions')}</h2>
+              <p>{$t('dashboard.noEndedAuctionsDesc')}</p>
             </div>
           {:else}
             <div class="products-grid">
@@ -554,7 +555,7 @@
                       <h3>{product.title}</h3>
                       <div class="product-price">
                         <div class="price-row">
-                          <span class="price-label">{product.status === 'sold' ? 'Sold for:' : 'Final bid:'}</span>
+                          <span class="price-label">{product.status === 'sold' ? $t('dashboard.soldFor') : $t('dashboard.finalBid')}</span>
                           <span class="price-value sold">{formatPrice(product.currentBid || product.startingPrice, product.seller?.currency)}</span>
                         </div>
                       </div>
@@ -567,7 +568,7 @@
 
                   <div class="product-actions">
                     <a href="/products/{product.id}" class="btn-view">
-                      👁️ View
+                      👁️ {$t('dashboard.view')}
                     </a>
                   </div>
                 </div>
@@ -580,15 +581,15 @@
       <!-- My Purchases Tab Content -->
       <div class="purchases-section">
         {#if purchasesLoading}
-          <div class="loading">Loading your purchases...</div>
+          <div class="loading">{$t('dashboard.loadingPurchases')}</div>
         {:else if purchasesError}
           <div class="error-message">{purchasesError}</div>
         {:else if purchases.length === 0}
           <div class="empty-state">
             <div class="empty-icon">🛍️</div>
-            <h2>No Purchases Yet</h2>
-            <p>You haven't won any auctions yet. Start bidding to see your purchases here!</p>
-            <a href="/products" class="btn-primary">Browse Products</a>
+            <h2>{$t('dashboard.noPurchasesYet')}</h2>
+            <p>{$t('dashboard.noPurchasesDesc')}</p>
+            <a href="/products" class="btn-primary">{$t('products.browseProducts')}</a>
           </div>
         {:else}
           <div class="purchases-list">
@@ -626,7 +627,7 @@
                         </span>
                       </div>
                       <div class="purchase-seller">
-                        Seller: {product.seller?.name || 'Unknown'}
+                        {$t('product.seller')}: {product.seller?.name || $t('dashboard.unknown')}
                       </div>
                     </div>
                   </div>
@@ -637,10 +638,10 @@
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
-                    Message Seller
+                    {$t('product.messagesSeller')}
                   </a>
                   <a href="/products/{product.id}" class="btn-view-product">
-                    View Details
+                    {$t('dashboard.viewDetails')}
                   </a>
                 </div>
               </div>
@@ -659,7 +660,7 @@
       <button class="modal-close" onclick={closeEditModal}>&times;</button>
 
       <div class="modal-header">
-        <h2>Edit Product</h2>
+        <h2>{$t('sell.editTitle')}</h2>
       </div>
 
       <div class="modal-body">
@@ -704,28 +705,28 @@
 
           <div class="info-grid">
             <div class="info-item">
-              <span class="info-label">Starting Price:</span>
+              <span class="info-label">{$t('products.startingPrice')}:</span>
               <span class="info-value">{formatPrice(viewingProduct.startingPrice, viewingProduct.seller?.currency)}</span>
             </div>
             {#if viewingProduct.currentBid}
               <div class="info-item">
-                <span class="info-label">Current Bid:</span>
+                <span class="info-label">{$t('products.currentBid')}:</span>
                 <span class="info-value">{formatPrice(viewingProduct.currentBid, viewingProduct.seller?.currency)}</span>
               </div>
             {/if}
             <div class="info-item">
-              <span class="info-label">Auction Ends:</span>
+              <span class="info-label">{$t('dashboard.auctionEnds')}:</span>
               <span class="info-value">{formatDate(viewingProduct.auctionEndDate)}</span>
             </div>
             <div class="info-item">
-              <span class="info-label">Status:</span>
+              <span class="info-label">{$t('dashboard.status')}:</span>
               <span class="status-badge {getStatusBadgeClass(viewingProduct.status)}">
                 {getStatusText(viewingProduct.status)}
               </span>
             </div>
           </div>
 
-          <a href="/products/{viewingProduct.id}" class="btn-view-full">View Full Details</a>
+          <a href="/products/{viewingProduct.id}" class="btn-view-full">{$t('dashboard.viewDetails')}</a>
         </div>
       </div>
     </div>
@@ -762,22 +763,22 @@
 
           <div class="info-grid">
             <div class="info-item">
-              <span class="info-label">Won For:</span>
+              <span class="info-label">{$t('dashboard.wonFor')}:</span>
               <span class="info-value won">{formatPrice(selectedProduct.currentBid || selectedProduct.startingPrice, selectedProduct.seller?.currency)}</span>
             </div>
             <div class="info-item">
-              <span class="info-label">Purchase Date:</span>
+              <span class="info-label">{$t('dashboard.purchaseDate')}:</span>
               <span class="info-value">{formatDate(selectedProduct.updatedAt)}</span>
             </div>
             <div class="info-item">
-              <span class="info-label">Status:</span>
+              <span class="info-label">{$t('dashboard.status')}:</span>
               <span class="status-badge {getStatusBadgeClass(selectedProduct.status)}">
                 {getStatusText(selectedProduct.status)}
               </span>
             </div>
           </div>
 
-          <a href="/products/{selectedProduct.id}" class="btn-view-full">View Full Details</a>
+          <a href="/products/{selectedProduct.id}" class="btn-view-full">{$t('dashboard.viewDetails')}</a>
         </div>
       </div>
     </div>
@@ -791,22 +792,22 @@
       <button class="hide-modal-close" onclick={closeHideModal} disabled={hideModalLoading}>&times;</button>
 
       <div class="hide-modal-header">
-        <h2>{hideModalProduct.active ? 'Hide Product' : 'Unhide Product'}</h2>
+        <h2>{hideModalProduct.active ? $t('products.hideProduct') : $t('products.showProduct')}</h2>
       </div>
 
       <div class="hide-modal-body">
         <p class="hide-modal-product-title">"{hideModalProduct.title}"</p>
         <p class="hide-modal-description">
           {#if hideModalProduct.active}
-            This product will be hidden from the Browse Products page and won't be visible to other users. You can unhide it later from the Hidden tab.
+            {$t('dashboard.hideDescription')}
           {:else}
-            This product will be restored and visible to all users again on the Browse Products page.
+            {$t('dashboard.unhideDescription')}
           {/if}
         </p>
 
         <div class="hide-modal-actions">
           <button class="btn-hide-cancel" onclick={closeHideModal} disabled={hideModalLoading}>
-            Cancel
+            {$t('common.cancel')}
           </button>
           <button
             class="btn-hide-confirm {hideModalProduct.active ? 'btn-confirm-hide' : 'btn-confirm-unhide'}"
@@ -815,9 +816,9 @@
           >
             {#if hideModalLoading}
               <span class="hide-spinner"></span>
-              Processing...
+              {$t('products.processing')}
             {:else}
-              {hideModalProduct.active ? 'Hide Product' : 'Unhide Product'}
+              {hideModalProduct.active ? $t('products.hideProduct') : $t('products.showProduct')}
             {/if}
           </button>
         </div>

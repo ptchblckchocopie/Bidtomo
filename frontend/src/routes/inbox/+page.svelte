@@ -10,6 +10,7 @@
   import { goto } from '$app/navigation';
   import { getUserSSE, disconnectUserSSE, getProductSSE, disconnectProductSSE, type SSEEvent, type MessageEvent as SSEMessageEvent, type TypingEvent } from '$lib/sse';
   import { trackConversationOpened } from '$lib/analytics';
+  import { t } from '$lib/stores/locale';
 
   function handleBackToList() {
     selectedProduct = null;
@@ -1208,19 +1209,19 @@
 
 <div class="inbox-page">
   {#if !selectedProduct}
-    <h1>Inbox</h1>
+    <h1>{$t('inbox.title')}</h1>
   {:else}
-    <h1 class="desktop-only-heading">Inbox</h1>
+    <h1 class="desktop-only-heading">{$t('inbox.title')}</h1>
   {/if}
 
   {#if loading}
-    <div class="loading">Loading conversations...</div>
+    <div class="loading">{$t('inbox.loadingConversations')}</div>
   {:else if conversations.length === 0}
     <div class="empty-state">
       <div class="empty-icon">📬</div>
-      <h2>No Messages Yet</h2>
-      <p>Your conversations with buyers and sellers will appear here.</p>
-      <a href="/products" class="btn-browse">Browse Products</a>
+      <h2>{$t('inbox.noMessagesYet')}</h2>
+      <p>{$t('inbox.noMessagesDesc')}</p>
+      <a href="/products" class="btn-browse">{$t('products.browseProducts')}</a>
     </div>
   {:else}
     <div class="inbox-container">
@@ -1232,7 +1233,7 @@
             class:active={activeTab === 'products'}
             onclick={() => activeTab = 'products'}
           >
-            My Products
+            {$t('inbox.myProducts')}
             {#if myProductsConversations.length > 0}
               <span class="tab-badge">{myProductsConversations.length}</span>
             {/if}
@@ -1242,7 +1243,7 @@
             class:active={activeTab === 'purchases'}
             onclick={() => activeTab = 'purchases'}
           >
-            My Purchases
+            {$t('inbox.myPurchases')}
             {#if myPurchasesConversations.length > 0}
               <span class="tab-badge">{myPurchasesConversations.length}</span>
             {/if}
@@ -1251,7 +1252,7 @@
 
         {#if displayedConversations.length === 0}
           <div class="no-conversations">
-            <p>No conversations yet</p>
+            <p>{$t('inbox.noConversationsYet')}</p>
           </div>
         {/if}
 
@@ -1277,9 +1278,9 @@
               <h3>{conv.product.title}</h3>
               <p class="seller-name">
                 {#if isMyProduct}
-                  Buyer: {otherUserInConv?.name || 'Unknown'}
+                  {$t('inbox.buyer')}: {otherUserInConv?.name || $t('inbox.unknown')}
                 {:else}
-                  Seller: {conv.product.seller?.name || 'Unknown'}
+                  {$t('inbox.sellerLabel')}: {conv.product.seller?.name || $t('inbox.unknown')}
                 {/if}
               </p>
               <p class="last-message">
@@ -1287,7 +1288,7 @@
                   {@const senderId = typeof conv.lastMessage.sender === 'object' ? conv.lastMessage.sender.id : conv.lastMessage.sender}
                   {@const isMine = $authStore.user?.id === senderId}
                   {#if isMine}
-                    <span class="sender-name">Me:</span>
+                    <span class="sender-name">{$t('inbox.me')}:</span>
                   {:else}
                     {#if otherUserInConv}
                       <span class="sender-name">{otherUserInConv.name}:</span>
@@ -1295,7 +1296,7 @@
                   {/if}
                   {conv.lastMessage.message.substring(0, 50)}{conv.lastMessage.message.length > 50 ? '...' : ''}
                 {:else}
-                  No messages yet
+                  {$t('inbox.noMessages')}
                 {/if}
               </p>
               <span class="timestamp">{formatDate(conv.lastMessage.createdAt)}</span>
@@ -1313,7 +1314,7 @@
         {#if selectedProduct}
           <div class="chat-header">
             <button class="back-btn" onclick={handleBackToList} disabled={loadingConversation}>
-              ← Back
+              ← {$t('common.back')}
             </button>
             <div class="product-summary">
               <h3>{selectedProduct.title}</h3>
@@ -1324,16 +1325,16 @@
               </p>
               <div class="transaction-parties">
                 <div class="party-info">
-                  <span class="party-label">Seller:</span>
-                  <a href="/users/{selectedProduct.seller.id}" class="party-name">{sellerName || selectedProduct.seller?.name || 'Unknown'}</a>
+                  <span class="party-label">{$t('inbox.sellerLabel')}:</span>
+                  <a href="/users/{selectedProduct.seller.id}" class="party-name">{sellerName || selectedProduct.seller?.name || $t('inbox.unknown')}</a>
                 </div>
                 {#if buyerName || (selectedProduct.status === 'sold' && transaction)}
                   <div class="party-info">
-                    <span class="party-label">Buyer:</span>
+                    <span class="party-label">{$t('inbox.buyer')}:</span>
                     {#if transaction && typeof transaction.buyer === 'object' && transaction.buyer}
-                      <a href="/users/{transaction.buyer.id}" class="party-name">{buyerName || 'Unknown'}</a>
+                      <a href="/users/{transaction.buyer.id}" class="party-name">{buyerName || $t('inbox.unknown')}</a>
                     {:else}
-                      <span class="party-name">{buyerName || 'Unknown'}</span>
+                      <span class="party-name">{buyerName || $t('inbox.unknown')}</span>
                     {/if}
                   </div>
                 {/if}
@@ -1341,8 +1342,8 @@
             </div>
             <KebabMenu
               items={[
-                { label: 'View Product', action: 'view_product', show: true, icon: '🔗' },
-                { label: 'Void Bid', action: 'void_bid', show: selectedProduct.status === 'sold' && !!transaction && (transaction.status === 'pending' || transaction.status === 'in_progress'), variant: 'danger', icon: '❌' }
+                { label: $t('inbox.viewProduct'), action: 'view_product', show: true, icon: '🔗' },
+                { label: $t('inbox.voidBid'), action: 'void_bid', show: selectedProduct.status === 'sold' && !!transaction && (transaction.status === 'pending' || transaction.status === 'in_progress'), variant: 'danger', icon: '❌' }
               ]}
               onSelect={(detail) => handleMenuAction(detail.action)}
             />
@@ -1352,13 +1353,13 @@
             {#if loadingConversation}
               <div class="loading-conversation">
                 <div class="loading-spinner"></div>
-                <span>Loading conversation...</span>
+                <span>{$t('inbox.loadingConversation')}</span>
               </div>
             {:else}
               {#if loadingOlderMessages}
                 <div class="loading-older">
                   <div class="loading-spinner"></div>
-                  <span>Loading older messages...</span>
+                  <span>{$t('inbox.loadingOlderMessages')}</span>
                 </div>
               {/if}
 
@@ -1385,7 +1386,7 @@
                     <span class="dot"></span>
                     <span class="dot"></span>
                   </div>
-                  <span class="typing-text">typing...</span>
+                  <span class="typing-text">{$t('inbox.typing')}</span>
                 </div>
               {/if}
             {/if}
@@ -1401,15 +1402,15 @@
               {#if !myRating}
                 <button class="rating-bar-btn" onclick={() => { ratingValue = 0; ratingComment = ''; ratingError = ''; showRatingModal = true; }}>
                   <span class="rating-bar-star">★</span>
-                  <span>Rate {$authStore.user?.id === selectedProduct.seller.id ? (buyerName || 'the buyer') : (sellerName || 'the seller')}</span>
+                  <span>{$authStore.user?.id === selectedProduct.seller.id ? $t('inbox.rateBuyer') : $t('inbox.rateSeller')}</span>
                 </button>
               {:else}
                 <div class="rating-bar-done">
                   <span class="rating-bar-star filled">★</span>
-                  <span class="rating-bar-label">You rated {myRating.rating}/5</span>
+                  <span class="rating-bar-label">{$t('inbox.youRated', { rating: myRating.rating })}</span>
                   {#if otherPartyRating}
                     <span class="rating-bar-divider"></span>
-                    <span class="rating-bar-label">They rated you {otherPartyRating.rating}/5</span>
+                    <span class="rating-bar-label">{$t('inbox.theyRatedYou', { rating: otherPartyRating.rating })}</span>
                   {/if}
                 </div>
               {/if}
@@ -1421,7 +1422,7 @@
               <div class="blocked-icon">🔒</div>
               <p class="blocked-text">{chatBlockedReason}</p>
               <a href="/products/{selectedProduct.id}?from=inbox" class="view-product-btn">
-                View Product Page
+                {$t('inbox.viewProductPage')}
               </a>
             </div>
           {:else}
@@ -1431,18 +1432,18 @@
                 bind:value={newMessage}
                 bind:this={chatInputElement}
                 oninput={handleTyping}
-                placeholder="Type your message..."
+                placeholder={$t('inbox.typeMessage')}
                 class="chat-input"
                 disabled={sendingMessage}
               />
               <button type="submit" class="send-btn" disabled={sendingMessage || !newMessage.trim()}>
-                {sendingMessage ? 'Sending...' : 'Send'}
+                {sendingMessage ? $t('inbox.sending') : $t('inbox.send')}
               </button>
             </form>
           {/if}
         {:else}
           <div class="no-conversation-selected">
-            <p>Select a conversation to start messaging</p>
+            <p>{$t('inbox.selectConversation')}</p>
           </div>
         {/if}
       </main>
@@ -1455,12 +1456,12 @@
   <div class="modal-overlay" onclick={() => showRatingModal = false} onkeydown={(e) => e.key === 'Escape' && (showRatingModal = false)} role="button" tabindex="0">
     <div class="modal-content" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
       <button class="modal-close" onclick={() => showRatingModal = false}>&times;</button>
-      <h2>Rate Your {$authStore.user?.id === selectedProduct.seller.id ? 'Buyer' : 'Seller'}</h2>
+      <h2>{$t('inbox.rateYour')} {$authStore.user?.id === selectedProduct.seller.id ? $t('inbox.buyer') : $t('inbox.sellerLabel')}</h2>
       <p class="modal-subtitle">
         {#if $authStore.user?.id === selectedProduct.seller.id}
-          How was your experience with {buyerName || 'the buyer'}?
+          {$t('inbox.experienceWith', { name: buyerName || $t('inbox.theBuyer') })}
         {:else}
-          How was your experience with {sellerName || 'the seller'}?
+          {$t('inbox.experienceWith', { name: sellerName || $t('inbox.theSeller') })}
         {/if}
       </p>
 
@@ -1471,15 +1472,15 @@
           size="large"
           onChange={(detail) => ratingValue = detail.rating}
         />
-        <span class="rating-value-display">{ratingValue > 0 ? `${ratingValue}/5` : 'Select rating'}</span>
+        <span class="rating-value-display">{ratingValue > 0 ? `${ratingValue}/5` : $t('inbox.selectRating')}</span>
       </div>
 
       <div class="comment-input">
-        <label for="rating-comment">Comment (optional)</label>
+        <label for="rating-comment">{$t('inbox.commentOptional')}</label>
         <textarea
           id="rating-comment"
           bind:value={ratingComment}
-          placeholder="Share your experience..."
+          placeholder={$t('inbox.shareExperience')}
           rows="3"
         ></textarea>
       </div>
@@ -1489,13 +1490,13 @@
       {/if}
 
       <div class="modal-actions">
-        <button class="btn-cancel" onclick={() => showRatingModal = false}>Cancel</button>
+        <button class="btn-cancel" onclick={() => showRatingModal = false}>{$t('common.cancel')}</button>
         <button
           class="btn-submit"
           onclick={submitRating}
           disabled={submittingRating || ratingValue === 0}
         >
-          {submittingRating ? 'Submitting...' : 'Submit Rating'}
+          {submittingRating ? $t('inbox.submitting') : $t('inbox.submitRating')}
         </button>
       </div>
     </div>
@@ -1507,10 +1508,9 @@
   <div class="modal-overlay" onclick={closeVoidModal}>
     <div class="modal void-modal" onclick={(e) => e.stopPropagation()}>
       <button class="modal-close" onclick={closeVoidModal}>&times;</button>
-      <h2>Request Void</h2>
+      <h2>{$t('inbox.requestVoid')}</h2>
       <p class="void-description">
-        You are requesting to void the transaction for <strong>{selectedProduct?.title}</strong>.
-        The other party will need to approve this request.
+        {$t('inbox.voidDescription', { title: selectedProduct?.title || '' })}
       </p>
 
       <div class="form-group">
@@ -1528,13 +1528,13 @@
       {/if}
 
       <div class="modal-actions">
-        <button class="btn-cancel" onclick={closeVoidModal}>Cancel</button>
+        <button class="btn-cancel" onclick={closeVoidModal}>{$t('common.cancel')}</button>
         <button
           class="btn-submit btn-danger"
           onclick={handleSubmitVoidRequest}
           disabled={submittingVoid || !voidReason.trim()}
         >
-          {submittingVoid ? 'Submitting...' : 'Submit Void Request'}
+          {submittingVoid ? $t('inbox.submitting') : $t('inbox.submitVoidRequest')}
         </button>
       </div>
     </div>
@@ -1546,14 +1546,14 @@
   <div class="modal-overlay" onclick={closeVoidApprovalModal}>
     <div class="modal void-modal" onclick={(e) => e.stopPropagation()}>
       <button class="modal-close" onclick={closeVoidApprovalModal}>&times;</button>
-      <h2>Void Request</h2>
+      <h2>{$t('inbox.voidRequest')}</h2>
       <p class="void-description">
         <strong>{typeof pendingVoidRequest.initiator === 'object' ? pendingVoidRequest.initiator.name : 'User'}</strong>
         has requested to void the transaction for <strong>{selectedProduct?.title}</strong>.
       </p>
 
       <div class="void-reason-display">
-        <label>Their reason:</label>
+        <label>{$t('inbox.theirReason')}:</label>
         <p>{pendingVoidRequest.reason}</p>
       </div>
 
@@ -1572,7 +1572,7 @@
       {/if}
 
       <div class="modal-actions three-buttons">
-        <button class="btn-cancel" onclick={closeVoidApprovalModal}>Cancel</button>
+        <button class="btn-cancel" onclick={closeVoidApprovalModal}>{$t('common.cancel')}</button>
         <button
           class="btn-reject"
           onclick={() => {
@@ -1585,14 +1585,14 @@
           }}
           disabled={submittingVoid}
         >
-          {submittingVoid ? 'Processing...' : 'Reject'}
+          {submittingVoid ? $t('products.processing') : $t('inbox.reject')}
         </button>
         <button
           class="btn-submit btn-success"
           onclick={() => handleRespondToVoid('approve')}
           disabled={submittingVoid}
         >
-          {submittingVoid ? 'Processing...' : 'Approve Void'}
+          {submittingVoid ? $t('products.processing') : $t('inbox.approveVoid')}
         </button>
       </div>
     </div>
@@ -1604,10 +1604,9 @@
   <div class="modal-overlay" onclick={() => showSellerChoiceModal = false}>
     <div class="modal void-modal seller-choice-modal" onclick={(e) => e.stopPropagation()}>
       <button class="modal-close" onclick={() => showSellerChoiceModal = false}>&times;</button>
-      <h2>Transaction Voided</h2>
+      <h2>{$t('inbox.transactionVoided')}</h2>
       <p class="void-description">
-        The void request for <strong>{selectedProduct?.title}</strong> has been approved.
-        As the seller, please choose what to do next:
+        {$t('inbox.voidApprovedDesc', { title: selectedProduct?.title || '' })}
       </p>
 
       <div class="choice-options">
@@ -1618,8 +1617,8 @@
         >
           <div class="choice-icon">🔄</div>
           <div class="choice-content">
-            <h3>Restart Bidding</h3>
-            <p>Reopen the auction and let all bidders participate again</p>
+            <h3>{$t('inbox.restartBidding')}</h3>
+            <p>{$t('inbox.restartBiddingDesc')}</p>
           </div>
         </button>
 
@@ -1630,8 +1629,8 @@
         >
           <div class="choice-icon">🥈</div>
           <div class="choice-content">
-            <h3>Offer to 2nd Highest Bidder</h3>
-            <p>Give the second highest bidder a chance to purchase at their bid amount</p>
+            <h3>{$t('inbox.offerSecondBidder')}</h3>
+            <p>{$t('inbox.offerSecondBidderDesc')}</p>
           </div>
         </button>
       </div>
@@ -1648,19 +1647,18 @@
   <div class="modal-overlay" onclick={() => showSecondBidderOfferModal = false}>
     <div class="modal void-modal" onclick={(e) => e.stopPropagation()}>
       <button class="modal-close" onclick={() => showSecondBidderOfferModal = false}>&times;</button>
-      <h2>Purchase Offer</h2>
+      <h2>{$t('inbox.purchaseOffer')}</h2>
       <p class="void-description">
-        You have been offered the chance to purchase <strong>{selectedProduct?.title}</strong>
-        as the second highest bidder!
+        {$t('inbox.purchaseOfferDesc', { title: selectedProduct?.title || '' })}
       </p>
 
       <div class="offer-details">
         <div class="offer-amount">
-          <label>Your bid amount:</label>
+          <label>{$t('inbox.yourBidAmount')}:</label>
           <span class="amount">{formatPrice(pendingVoidRequest.secondBidderOffer.offerAmount, selectedProduct?.seller?.currency || 'PHP')}</span>
         </div>
         <p class="offer-note">
-          The original winner has voided their purchase. Would you like to buy this item at your bid amount?
+          {$t('inbox.originalWinnerVoided')}
         </p>
       </div>
 
@@ -1674,14 +1672,14 @@
           onclick={() => handleSecondBidderResponse('decline')}
           disabled={submittingVoid}
         >
-          {submittingVoid ? 'Processing...' : 'Decline'}
+          {submittingVoid ? $t('products.processing') : $t('inbox.decline')}
         </button>
         <button
           class="btn-submit btn-success"
           onclick={() => handleSecondBidderResponse('accept')}
           disabled={submittingVoid}
         >
-          {submittingVoid ? 'Processing...' : 'Accept Offer'}
+          {submittingVoid ? $t('products.processing') : $t('inbox.acceptOffer')}
         </button>
       </div>
     </div>

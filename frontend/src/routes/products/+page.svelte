@@ -531,13 +531,12 @@
   <div class="bg-bh-red border-b-2 border-black px-3 py-4">
     <div class="max-w-7xl mx-auto text-center">
       <div class="inline-block bg-black/20 text-white px-2 sm:px-3 py-1 border-2 border-black text-xs font-bold uppercase tracking-widest mb-2">
-        🚧 EXPERIMENTAL
+        🚧 {$t('hero.experimental')}
       </div>
       <p class="text-white text-xs sm:text-sm md:text-base leading-snug sm:leading-relaxed mx-auto max-w-5xl px-2 break-words">
-        We're testing what works and gathering public interest.
-        <strong class="font-bold underline whitespace-nowrap">No integrated payments yet</strong> —
-        transactions are coordinated directly between buyers and sellers.
-        Once we have enough traction, we'll integrate secure payments and become a full-blown bidding platform!
+        {$t('hero.betaNotice')}
+        <strong class="font-bold underline whitespace-nowrap">{$t('hero.noPayments')}</strong> —
+        {$t('hero.betaNoticeDetail')}
       </p>
     </div>
   </div>
@@ -552,40 +551,39 @@
       </div>
 
       <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold mb-3 uppercase tracking-widest">
-        Welcome to <span class="text-white">BidMo.to</span>
+        {$t('hero.welcomeTo')} <span class="text-white">BidMo.to</span>
       </h1>
 
       <p class="text-base sm:text-lg lg:text-xl mb-3 opacity-95">
-        Bid mo 'to! The Filipino way to bid, buy, and sell unique items
+        {$t('hero.tagline')}
       </p>
 
       <p class="text-sm sm:text-base mb-6 opacity-90 max-w-2xl mx-auto">
-        Join us in building the Philippines' most exciting auction platform.
-        Your participation helps us understand what features matter most!
+        {$t('hero.subtitle')}
       </p>
 
       <div class="flex flex-wrap gap-4 sm:gap-8 justify-center text-sm sm:text-base">
         <div class="flex items-center gap-2">
           <span class="text-xl">🔍</span>
-          <span>Browse Auctions</span>
+          <span>{$t('hero.browseAuctions')}</span>
         </div>
         {#if $authStore.isAuthenticated}
           <div class="flex items-center gap-2">
             <span class="text-xl">🔨</span>
-            <a href="/sell" class="hover:text-black transition-colors duration-150 ease-out">List an Item</a>
+            <a href="/sell" class="hover:text-black transition-colors duration-150 ease-out">{$t('hero.listAnItem')}</a>
           </div>
         {/if}
         <div class="flex items-center gap-2">
-          <span class="text-xl font-bold">FREE</span>
-          <span>To Join</span>
+          <span class="text-xl font-bold">{$t('hero.free')}</span>
+          <span>{$t('hero.toJoin')}</span>
         </div>
         <div class="flex items-center gap-2">
-          <span class="text-xl font-bold">SAFE</span>
-          <span>No Payment Integration</span>
+          <span class="text-xl font-bold">{$t('hero.safe')}</span>
+          <span>{$t('hero.noPaymentIntegration')}</span>
         </div>
         <div class="flex items-center gap-2">
-          <span class="text-xl font-bold">BETA</span>
-          <span>Help Us Grow</span>
+          <span class="text-xl font-bold">{$t('hero.beta')}</span>
+          <span>{$t('hero.helpUsGrow')}</span>
         </div>
       </div>
     </div>
@@ -622,7 +620,7 @@
           oninput={handleSearchInput}
           placeholder={searchTypeInput === 'users' ? $t('products.searchSellers') : $t('products.searchProducts')}
           class="search-input input-bh"
-          aria-label="Search products"
+          aria-label={$t('products.searchProducts')}
         />
         {#if searchInput}
           <button class="clear-search" aria-label="Clear search" onclick={() => { searchInput = ''; handleSearchInput(); }}>✕</button>
@@ -673,13 +671,13 @@
     </div>
 
     {#if (data.search || data.region || data.city || data.category) && data.totalDocs > 0}
-      <p class="search-results">Found {data.totalDocs} result{data.totalDocs !== 1 ? 's' : ''}</p>
+      <p class="search-results">{$t('products.foundResults', { count: data.totalDocs })}</p>
     {/if}
 
     <!-- Items per page selector -->
     <div class="controls-container">
       <div class="items-per-page">
-        <label for="items-per-page">Items per page:</label>
+        <label for="items-per-page">{$t('products.itemsPerPage')}</label>
         <select id="items-per-page" value={data.limit} onchange={(e) => changeItemsPerPage(parseInt(e.currentTarget.value))}>
           {#each itemsPerPageOptions as option}
             <option value={option}>{option}</option>
@@ -722,7 +720,7 @@
                 <span class="user-card-role role-{user.role}">{user.role}</span>
               </div>
               <div class="user-card-meta">
-                <span class="user-card-date">Joined {new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
+                <span class="user-card-date">{$t('products.joined')} {new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
               </div>
             </a>
           {/each}
@@ -761,8 +759,8 @@
       </section>
     {:else}
       <div class="empty-state">
-        <p>No users found matching "{data.search}"</p>
-        <button class="btn-clear-search" onclick={clearFilters}>Clear Search</button>
+        <p>{$t('products.noSellersFound')} "{data.search}"</p>
+        <button class="btn-clear-search" onclick={clearFilters}>{$t('products.clearSearch')}</button>
       </div>
     {/if}
   {:else}
@@ -814,7 +812,7 @@
         class:active={data.status === 'hidden'}
         onclick={() => changeTab('hidden')}
       >
-        Hidden Items
+        {$t('products.hiddenItems')}
       </button>
     {/if}
   </div>
@@ -863,7 +861,7 @@
                   <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" width="400" height="200" loading="lazy" decoding="async" onload={(e) => e.currentTarget.classList.add('loaded')} />
                 {:else}
                   <div class="placeholder-image">
-                    <span>No Image</span>
+                    <span>{$t('products.noImage')}</span>
                   </div>
                 {/if}
                 {#if data.status === 'ended'}
@@ -914,7 +912,7 @@
                         {/if}
                       </div>
                       <div class="starting-price-row">
-                        <span class="label-tiny">Starting:</span>
+                        <span class="label-tiny">{$t('products.starting')}:</span>
                         <span class="price-tiny">{formatPrice(product.startingPrice, product.seller.currency)}</span>
                       </div>
                     </div>
@@ -935,9 +933,9 @@
 
                 <div class="auction-info">
                   <div class="status-row">
-                    <span class="status status-{product.status}">{product.status}</span>
+                    <span class="status status-{product.status}">{product.status === 'available' ? $t('product.available') : product.status === 'sold' ? $t('product.sold') : product.status === 'ended' ? $t('product.ended') : product.status}</span>
                     {#if $authStore.user && product.seller?.id === $authStore.user.id}
-                      <span class="owner-badge">Your Listing</span>
+                      <span class="owner-badge">{$t('products.yourListing')}</span>
                     {/if}
                     {#if $authStore.user?.role === 'admin' && data.status !== 'hidden'}
                       <button
@@ -952,7 +950,7 @@
                         class="admin-show-btn"
                         onclick={(e) => { e.preventDefault(); e.stopPropagation(); openAdminModal(product); }}
                       >
-                        Unhide
+                        {$t('products.unhide')}
                       </button>
                     {/if}
                   </div>
