@@ -115,6 +115,15 @@ export default buildConfig({
           mockModulePath,
         ),
       ];
+      // Suppress benign webpack 5 CJS-ESM interop warnings
+      // (webpack can't statically analyze conditional CJS exports, but they work at runtime)
+      config.ignoreWarnings = [
+        ...(config.ignoreWarnings || []),
+        { message: /export .* was not found in 'react'/ },
+        { message: /export .* was not found in 'react-dom'/ },
+        { message: /export .* was not found in 'react-is'/ },
+        { message: /export .* was not found in 'scheduler'/ },
+      ];
       return config;
     },
   },
