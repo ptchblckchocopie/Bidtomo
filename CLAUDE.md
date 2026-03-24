@@ -64,6 +64,15 @@ Bids queue to Redis (`bids:pending`) → bid-worker consumes → writes SQL dire
 
 Three endpoints on port 3002: `/events/products/:id` (public), `/events/users/:id` (auth via `?token=`), `/events/global` (public). Redis pub/sub channels: `sse:product:<id>`, `sse:user:<id>`, `sse:global`.
 
+### CMS Entry Point & Route Validation
+
+`cms/src/server.ts` is the monolith entry point (~107KB) — all route registration, Redis setup, email queue, Elasticsearch init. Custom CMS routes use Zod validation middleware (`cms/src/middleware/validate.ts`) for all POST/PATCH bodies. Add schemas there when creating new routes.
+
+### Email & Observability
+
+- **Email** — Resend integration via `cms/src/services/emailService.ts`, queue-based sending.
+- **Sentry** — Integrated in all four services (frontend SvelteKit plugin, CMS, SSE, bid-worker). Each has an `instrument.ts`.
+
 ### CMS Global Function Injection
 
 Collection hooks use `(global as any).*` because importing `ioredis` directly crashes the Payload Webpack admin bundle. Functions assigned in `cms/src/server.ts`: `publishProductUpdate`, `publishMessageNotification`, `publishGlobalEvent`, `indexProduct`, `updateProductIndex`, `trackEvent`.
@@ -76,7 +85,8 @@ Payload v2 hashes `PAYLOAD_SECRET` with SHA-256 before signing JWTs. SSE service
 
 - **SSR disabled** — Client-side SPA (`export const ssr = false` in `+layout.ts`). `+page.ts` load functions run in the browser.
 - **Svelte 5 runes** — Use `$state`, `$derived`, `$props`. Note: `stores/auth.ts` still uses Svelte 4 `writable`.
-- **Bauhaus design system** — Sharp corners, bold borders, Outfit font. See `/project:frontend-guide`.
+- **Dark mode** — `darkMode: 'class'` in Tailwind, `stores/theme.ts` toggles. CSS vars (`--color-bg`, `--color-fg`, `--color-border`, `--color-muted`) adapt per theme.
+- **Bauhaus design system** — Sharp corners, bold borders, Plus Jakarta Sans font, emerald accent (#10B981). See `/project:frontend-guide`.
 - **CI gates** — `npm run check` (frontend) + `tsc --noEmit` (CMS). No linter. No unit tests.
 - **CMS hooks auto-set fields** — Don't set manually: `seller` on Products, `bidder`/`bidTime` on Bids, `rater` on Ratings.
 - **Type generation** — Run `npm run generate:types` in `cms/` after changing collections.
@@ -90,7 +100,7 @@ Payload v2 hashes `PAYLOAD_SECRET` with SHA-256 before signing JWTs. SSE service
 ## Deployment
 
 - **Frontend** → Vercel at `www.bidmo.to` (auto-deploy from `main`)
-- **Backend** → DigitalOcean droplet `188.166.216.176` with `docker-compose.prod.yml`
+- **Backend** → DigitalOcean droplet `188.166.216.176` with `docker-compose.prod.yml`, Caddy reverse proxy (auto-HTTPS)
 - **Workflow:** `feature/x → staging → main` (staging branch deploys to `/opt/bidtomo-staging/`, main deploys to `/opt/bidtomo/`)
 - **CI/CD:** GitHub Actions via SSH. Production runs `npm run migrate`; staging uses `DB_PUSH=true`.
 

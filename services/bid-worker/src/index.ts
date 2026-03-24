@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/node';
 import Redis from 'ioredis';
 import { Pool } from 'pg';
 import crypto from 'crypto';
+import log from './logger';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/marketplace';
@@ -75,7 +76,7 @@ async function initRedis(): Promise<void> {
     redisQueue = new Redis(REDIS_URL, {
       retryStrategy: (times) => {
         const delay = Math.min(times * 500, 5000);
-        console.log(`[WORKER] Redis reconnecting in ${delay}ms (attempt ${times})`);
+        log.info({ delay, attempt: times }, 'Redis reconnecting');
         return delay;
       },
       maxRetriesPerRequest: null,
@@ -90,22 +91,22 @@ async function initRedis(): Promise<void> {
     });
 
     redisQueue.on('connect', () => {
-      console.log('[WORKER] Redis queue connected');
+      log.info('Redis queue connected');
       redisConnected = true;
     });
 
     redisQueue.on('error', (err) => {
-      console.error('[WORKER] Redis queue error:', err.message);
+      log.error({ err: err.message }, 'Redis queue error');
       redisConnected = false;
     });
 
     redisQueue.on('close', () => {
-      console.log('[WORKER] Redis queue disconnected');
+      log.info('Redis queue disconnected');
       redisConnected = false;
     });
 
     redisPub.on('error', (err) => {
-      console.error('[WORKER] Redis pub error:', err.message);
+      log.error({ err: err.message }, 'Redis pub error');
     });
 
     // Wait for connection
@@ -115,7 +116,7 @@ async function initRedis(): Promise<void> {
 
     setTimeout(() => {
       if (!redisConnected) {
-        console.warn('[WORKER] Redis connection timeout, will retry...');
+        log.warn('Redis connection timeout, will retry');
         resolve(); // Continue anyway, Redis has retry logic
       }
     }, 5000);
@@ -131,9 +132,9 @@ async function savePendingBidToDb(job: BidJob): Promise<void> {
        ON CONFLICT (job_id) DO NOTHING`,
       [job.productId, job.bidderId, job.amount, new Date(job.timestamp), job.censorName || false, job.jobId, job.type || 'bid', job.sellerId || null]
     );
-    console.log(`[WORKER] Saved pending ${job.type || 'bid'} to database: ${job.jobId}`);
+    log.info({ jobId: job.jobId, type: job.type || 'bid' }, 'Saved pending job to database');
   } catch (error) {
-    console.error('[WORKER] Failed to save pending bid to database:', error);
+    log.error({ err: error, jobId: job.jobId, productId: job.productId }, 'Failed to save pending bid to database');
     Sentry.captureException(error, { tags: { route: 'worker.savePendingBidToDb' }, extra: { jobId: job.jobId, productId: job.productId } });
   }
 }
@@ -143,7 +144,7 @@ async function removePendingBidFromDb(jobId: string): Promise<void> {
   try {
     await pool.query('DELETE FROM pending_bids WHERE job_id = $1', [jobId]);
   } catch (error) {
-    console.error('[WORKER] Failed to remove pending bid from database:', error);
+    log.error({ err: error, jobId }, 'Failed to remove pending bid from database');
   }
 }
 
@@ -169,9 +170,9 @@ async function ensureAutoBidsTable(): Promise<void> {
     } catch {
       // Column may already exist
     }
-    console.log('[WORKER] auto_bids table ensured');
+    log.info('auto_bids table ensured');
   } catch (error) {
-    console.error('[WORKER] Failed to ensure auto_bids table:', error);
+    log.error({ err: error }, 'Failed to ensure auto_bids table');
     Sentry.captureException(error, { tags: { route: 'worker.ensureAutoBidsTable' } });
   }
 }
@@ -189,7 +190,7 @@ async function recoverPendingBids(): Promise<void> {
     `);
 
     if (!tableCheck.rows[0].exists) {
-      console.log('[WORKER] Creating pending_bids table...');
+      log.info('Creating pending_bids table');
       await pool.query(`
         CREATE TABLE IF NOT EXISTS pending_bids (
           id SERIAL PRIMARY KEY,
@@ -205,7 +206,7 @@ async function recoverPendingBids(): Promise<void> {
           created_at TIMESTAMP DEFAULT NOW()
         )
       `);
-      console.log('[WORKER] Created pending_bids table');
+      log.info('Created pending_bids table');
       return;
     }
 
@@ -222,7 +223,7 @@ async function recoverPendingBids(): Promise<void> {
     );
 
     if (result.rows.length > 0) {
-      console.log(`[WORKER] Recovering ${result.rows.length} pending bids from database...`);
+      log.info({ count: result.rows.length }, 'Recovering pending bids from database');
 
       for (const row of result.rows) {
         const job: BidJob = {
@@ -240,12 +241,12 @@ async function recoverPendingBids(): Promise<void> {
         // Re-queue the job
         if (redisConnected) {
           await redisQueue.rpush(QUEUE_KEY, JSON.stringify(job));
-          console.log(`[WORKER] Re-queued bid ${job.jobId}`);
+          log.info({ jobId: job.jobId }, 'Re-queued bid');
         }
       }
     }
   } catch (error) {
-    console.error('[WORKER] Failed to recover pending bids:', error);
+    log.error({ err: error }, 'Failed to recover pending bids');
     Sentry.captureException(error, { tags: { route: 'worker.recoverPendingBids' } });
   }
 }
@@ -358,12 +359,12 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
     await client.query('COMMIT');
 
     const bidTime = new Date().toISOString();
-    console.log(`[WORKER] Bid ${bidId} processed: Product ${job.productId}, Amount ${job.amount}`);
+    log.info({ bidId, productId: job.productId, amount: job.amount }, 'Bid processed');
 
     return { success: true, bidId, bidderName, bidTime };
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('[WORKER] Error processing bid:', error);
+    log.error({ err: error, productId: job.productId, bidderId: job.bidderId, amount: job.amount }, 'Error processing bid');
     Sentry.captureException(error, { tags: { route: 'worker.processBid' }, extra: { productId: job.productId, bidderId: job.bidderId, amount: job.amount } });
     return { success: false, error: String(error) };
   } finally {
@@ -384,7 +385,7 @@ async function queueEmail(emailData: {
   };
 }): Promise<boolean> {
   if (!redisConnected) {
-    console.warn('[WORKER] Redis not connected, cannot queue email');
+    log.warn('Redis not connected, cannot queue email');
     return false;
   }
 
@@ -396,10 +397,10 @@ async function queueEmail(emailData: {
       attempts: 0,
     };
     await redisPub.rpush(EMAIL_QUEUE_KEY, JSON.stringify(queuedEmail));
-    console.log(`[WORKER] Queued email to ${emailData.to}: ${emailData.subject}`);
+    log.info({ to: emailData.to, subject: emailData.subject }, 'Queued email');
     return true;
   } catch (error) {
-    console.error('[WORKER] Failed to queue email:', error);
+    log.error({ err: error, to: emailData.to }, 'Failed to queue email');
     return false;
   }
 }
@@ -519,8 +520,7 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
 
     await client.query('COMMIT');
 
-    console.log(`[WORKER] Accept bid processed: Product ${job.productId} marked as sold`);
-    console.log(`[WORKER] Auto-created congratulation message (ID: ${messageId}) and transaction (ID: ${transactionId})`);
+    log.info({ productId: job.productId, messageId, transactionId }, 'Accept bid processed, product marked as sold');
 
     // Publish message notification to buyer via SSE (with full message data)
     if (redisConnected) {
@@ -546,9 +546,9 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
           },
         });
         await redisPub.publish(channel, notification);
-        console.log(`[WORKER] Published message notification to buyer ${job.bidderId}`);
+        log.info({ buyerId: job.bidderId, channel }, 'Published message notification');
       } catch (notifyError) {
-        console.error('[WORKER] Failed to publish message notification:', notifyError);
+        log.error({ err: notifyError, buyerId: job.bidderId }, 'Failed to publish message notification');
         Sentry.captureException(notifyError, { level: 'warning', tags: { route: 'worker.processAcceptBid.notify' } });
       }
     }
@@ -620,12 +620,12 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
       });
     }
 
-    console.log(`[WORKER] Queued email notifications for buyer and seller`);
+    log.info({ productId: job.productId, buyerId: job.bidderId, sellerId: job.sellerId }, 'Queued email notifications for buyer and seller');
 
     return { success: true };
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('[WORKER] Error processing accept bid:', error);
+    log.error({ err: error, productId: job.productId, sellerId: job.sellerId, bidderId: job.bidderId }, 'Error processing accept bid');
     Sentry.captureException(error, { tags: { route: 'worker.processAcceptBid' }, extra: { productId: job.productId, sellerId: job.sellerId, bidderId: job.bidderId } });
     return { success: false, error: String(error) };
   } finally {
@@ -648,7 +648,7 @@ async function publishBidResult(
   }
 ) {
   if (!redisConnected) {
-    console.warn('[WORKER] Redis not connected, cannot publish result');
+    log.warn({ productId }, 'Redis not connected, cannot publish bid result');
     return;
   }
 
@@ -661,9 +661,9 @@ async function publishBidResult(
 
   try {
     await redisPub.publish(channel, message);
-    console.log(`[WORKER] Published to ${channel}`);
+    log.info({ channel, productId }, 'Published bid result');
   } catch (error) {
-    console.error('[WORKER] Failed to publish bid result:', error);
+    log.error({ err: error, channel, productId }, 'Failed to publish bid result');
     Sentry.captureException(error, { level: 'warning', tags: { route: 'worker.publishBidResult' } });
   }
 }
@@ -671,7 +671,7 @@ async function publishBidResult(
 // Publish accept bid result to SSE service via Redis
 async function publishAcceptResult(productId: number, result: { success: boolean; winnerId?: number; amount?: number; error?: string }) {
   if (!redisConnected) {
-    console.warn('[WORKER] Redis not connected, cannot publish result');
+    log.warn({ productId }, 'Redis not connected, cannot publish accept result');
     return;
   }
 
@@ -685,9 +685,9 @@ async function publishAcceptResult(productId: number, result: { success: boolean
 
   try {
     await redisPub.publish(channel, message);
-    console.log(`[WORKER] Published accept result to ${channel}`);
+    log.info({ channel, productId }, 'Published accept result');
   } catch (error) {
-    console.error('[WORKER] Failed to publish accept result:', error);
+    log.error({ err: error, channel, productId }, 'Failed to publish accept result');
     Sentry.captureException(error, { level: 'warning', tags: { route: 'worker.publishAcceptResult' } });
   }
 }
@@ -928,20 +928,20 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
         });
         await redisPub.publish('sse:global', globalMessage);
 
-        console.log(`[WORKER] Published ${placedBids.length} auto-bid results to ${channel}`);
+        log.info({ channel, count: placedBids.length, productId }, 'Published auto-bid results');
       } catch (publishError) {
-        console.error('[WORKER] Failed to publish auto-bid results:', publishError);
+        log.error({ err: publishError, productId }, 'Failed to publish auto-bid results');
         Sentry.captureException(publishError, { level: 'warning', tags: { route: 'worker.processAutoBids.publish' } });
       }
     }
 
     if (placedBids.length > 0) {
       const lastBid = placedBids[placedBids.length - 1];
-      console.log(`[WORKER] Auto-bid resolution: ${placedBids.length} incremental bids for product ${productId}, final: ${lastBid.amount} by bidder ${lastBid.bidderId}`);
+      log.info({ productId, totalBids: placedBids.length, finalAmount: lastBid.amount, winnerId: lastBid.bidderId }, 'Auto-bid resolution complete');
     }
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
-    console.error('[WORKER] Error processing auto-bids:', error);
+    log.error({ err: error, productId, currentBidAmount, currentBidderId }, 'Error processing auto-bids');
     Sentry.captureException(error, { tags: { route: 'worker.processAutoBids' }, extra: { productId, currentBidAmount, currentBidderId } });
   } finally {
     client.release();
@@ -958,9 +958,9 @@ async function moveToFailedQueue(job: BidJob, error: string): Promise<void> {
 
   try {
     await redisQueue.rpush(FAILED_QUEUE_KEY, JSON.stringify(failedJob));
-    console.log(`[WORKER] Moved job ${job.jobId} to failed queue`);
+    log.info({ jobId: job.jobId, error }, 'Moved job to failed queue');
   } catch (err) {
-    console.error('[WORKER] Failed to move to failed queue:', err);
+    log.error({ err, jobId: job.jobId }, 'Failed to move to failed queue');
     Sentry.captureException(err, { tags: { route: 'worker.moveToFailedQueue' }, extra: { jobId: job.jobId, error } });
   }
 }
@@ -1032,7 +1032,7 @@ async function drainAndDeduplicateQueue(firstJob: BidJob): Promise<BidJob[]> {
         if (!job.jobId) job.jobId = generateJobId();
         jobs.push(job);
       } catch (parseErr) {
-        console.warn('[WORKER] Skipping malformed job in queue:', raw.substring(0, 200));
+        log.warn({ rawPreview: raw.substring(0, 200) }, 'Skipping malformed job in queue');
         Sentry.captureException(parseErr, { level: 'warning', tags: { route: 'worker.drainAndDeduplicate' }, extra: { rawPreview: raw.substring(0, 200) } });
       }
     }
@@ -1040,7 +1040,7 @@ async function drainAndDeduplicateQueue(firstJob: BidJob): Promise<BidJob[]> {
 
   if (jobs.length <= 1) return jobs;
 
-  console.log(`[WORKER] Drained ${jobs.length} jobs from queue for batch processing`);
+  log.info({ count: jobs.length }, 'Drained jobs from queue for batch processing');
 
   // Group by productId — for each product, keep only the highest bid
   const byProduct = new Map<number, BidJob[]>();
@@ -1083,7 +1083,7 @@ async function drainAndDeduplicateQueue(firstJob: BidJob): Promise<BidJob[]> {
   }
 
   if (rejected > 0) {
-    console.log(`[WORKER] Batch-rejected ${rejected} lower bids, ${survivors.length} remain`);
+    log.info({ rejected, remaining: survivors.length }, 'Batch-rejected lower bids');
   }
 
   // Re-queue survivors that aren't the first job (they'll be picked up next iteration)
@@ -1098,10 +1098,7 @@ async function drainAndDeduplicateQueue(firstJob: BidJob): Promise<BidJob[]> {
 
 // Main worker loop
 async function runWorker() {
-  console.log('[WORKER] Bid worker starting...');
-  console.log(`[WORKER] Redis: ${REDIS_URL}`);
-  console.log(`[WORKER] Database: ${DATABASE_URL.replace(/:[^@]+@/, ':***@')}`);
-  console.log(`[WORKER] Queue: ${QUEUE_KEY}`);
+  log.info({ redis: REDIS_URL, database: DATABASE_URL.replace(/:[^@]+@/, ':***@'), queue: QUEUE_KEY }, 'Bid worker starting');
 
   // Initialize Redis
   await initRedis();
@@ -1112,12 +1109,12 @@ async function runWorker() {
   // Ensure auto_bids table exists
   await ensureAutoBidsTable();
 
-  console.log('[WORKER] Bid worker started');
+  log.info('Bid worker started');
 
   while (true) {
     try {
       if (!redisConnected) {
-        console.log('[WORKER] Waiting for Redis connection...');
+        log.info('Waiting for Redis connection');
         await new Promise((resolve) => setTimeout(resolve, 1000));
         continue;
       }
@@ -1138,7 +1135,7 @@ async function runWorker() {
       // Handle different job types
       if (job.type === 'accept_bid') {
         // Process accept bid
-        console.log(`[WORKER] Processing accept_bid: Product ${job.productId}, Job ${job.jobId}`);
+        log.info({ productId: job.productId, jobId: job.jobId }, 'Processing accept_bid');
 
         // Save to database in case of crash
         await savePendingBidToDb(job);
@@ -1154,7 +1151,7 @@ async function runWorker() {
             winnerId: job.bidderId,
             amount: job.amount,
           });
-          console.log(`[WORKER] Accept bid completed: Product ${job.productId}`);
+          log.info({ productId: job.productId }, 'Accept bid completed');
         } else {
           // Check if it's a validation error (non-retriable)
           const isValidationError = [
@@ -1169,18 +1166,18 @@ async function runWorker() {
               success: false,
               error: acceptResult.error,
             });
-            console.log(`[WORKER] Accept bid rejected: ${acceptResult.error}`);
+            log.info({ productId: job.productId, reason: acceptResult.error }, 'Accept bid rejected');
           } else {
             // Transient error - retry
             const retryCount = (job.retryCount || 0) + 1;
 
             if (retryCount < MAX_RETRIES) {
               job.retryCount = retryCount;
-              console.log(`[WORKER] Retrying accept_bid ${job.jobId} (attempt ${retryCount}/${MAX_RETRIES})`);
+              log.info({ jobId: job.jobId, attempt: retryCount, maxRetries: MAX_RETRIES }, 'Retrying accept_bid');
               await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY * retryCount));
               await redisQueue.rpush(QUEUE_KEY, JSON.stringify(job));
             } else {
-              console.error(`[WORKER] Accept bid ${job.jobId} failed after ${MAX_RETRIES} retries`);
+              log.error({ jobId: job.jobId, maxRetries: MAX_RETRIES }, 'Accept bid failed after max retries');
               await moveToFailedQueue(job, acceptResult.error || 'Unknown error');
               await removePendingBidFromDb(job.jobId!);
               await publishAcceptResult(job.productId, {
@@ -1192,7 +1189,7 @@ async function runWorker() {
         }
       } else {
         // Process regular bid
-        console.log(`[WORKER] Processing bid: Product ${job.productId}, Amount ${job.amount}, Job ${job.jobId}`);
+        log.info({ productId: job.productId, amount: job.amount, jobId: job.jobId }, 'Processing bid');
 
         // --- Optimization 1: Batch dedup ---
         // If queue is deep, drain it and reject lower bids for the same product.
@@ -1203,7 +1200,7 @@ async function runWorker() {
         // for bids that are already outbid. Also covers auction-ended check.
         const preCheck = await fastRejectCheck(jobToProcess);
         if (preCheck.reject) {
-          console.log(`[WORKER] Fast-rejected bid ${jobToProcess.jobId}: ${preCheck.error}`);
+          log.info({ jobId: jobToProcess.jobId, reason: preCheck.error }, 'Fast-rejected bid');
           publishBidResult(jobToProcess.productId, {
             success: false,
             error: preCheck.error,
@@ -1234,7 +1231,7 @@ async function runWorker() {
           try {
             await processAutoBids(jobToProcess.productId, jobToProcess.amount, jobToProcess.bidderId);
           } catch (autoBidError) {
-            console.error('[WORKER] Auto-bid processing error (non-fatal):', autoBidError);
+            log.error({ err: autoBidError, productId: jobToProcess.productId }, 'Auto-bid processing error (non-fatal)');
             Sentry.captureException(autoBidError, { level: 'warning', tags: { route: 'worker.processAutoBids.trigger' }, extra: { productId: jobToProcess.productId } });
           }
         } else {
@@ -1256,18 +1253,18 @@ async function runWorker() {
               amount: jobToProcess.amount,
               bidderId: jobToProcess.bidderId,
             });
-            console.log(`[WORKER] Bid rejected: ${bidResult.error}`);
+            log.info({ jobId: jobToProcess.jobId, reason: bidResult.error }, 'Bid rejected');
           } else {
             // Transient error - retry
             const retryCount = (jobToProcess.retryCount || 0) + 1;
 
             if (retryCount < MAX_RETRIES) {
               jobToProcess.retryCount = retryCount;
-              console.log(`[WORKER] Retrying bid ${jobToProcess.jobId} (attempt ${retryCount}/${MAX_RETRIES})`);
+              log.info({ jobId: jobToProcess.jobId, attempt: retryCount, maxRetries: MAX_RETRIES }, 'Retrying bid');
               await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY * retryCount));
               await redisQueue.rpush(QUEUE_KEY, JSON.stringify(jobToProcess));
             } else {
-              console.error(`[WORKER] Bid ${jobToProcess.jobId} failed after ${MAX_RETRIES} retries`);
+              log.error({ jobId: jobToProcess.jobId, maxRetries: MAX_RETRIES }, 'Bid failed after max retries');
               await moveToFailedQueue(jobToProcess, bidResult.error || 'Unknown error');
               await removePendingBidFromDb(jobToProcess.jobId!);
               await publishBidResult(jobToProcess.productId, {
@@ -1281,7 +1278,7 @@ async function runWorker() {
         }
       }
     } catch (error) {
-      console.error('[WORKER] Error in worker loop:', error);
+      log.error({ err: error }, 'Error in worker loop');
       Sentry.captureException(error, { tags: { route: 'worker.mainLoop' } });
       // Wait a bit before retrying
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -1291,14 +1288,14 @@ async function runWorker() {
 
 // Graceful shutdown
 async function shutdown() {
-  console.log('[WORKER] Shutting down...');
+  log.info('Shutting down');
 
   try {
     if (redisQueue) await redisQueue.quit();
     if (redisPub) await redisPub.quit();
     await pool.end();
   } catch (error) {
-    console.error('[WORKER] Error during shutdown:', error);
+    log.error({ err: error }, 'Error during shutdown');
   }
 
   await Sentry.flush(2000);
@@ -1310,7 +1307,7 @@ process.on('SIGINT', shutdown);
 
 // Start the worker
 runWorker().catch(async (error) => {
-  console.error('[WORKER] Fatal error:', error);
+  log.fatal({ err: error }, 'Fatal error');
   Sentry.captureException(error);
   await Sentry.flush(2000);
   process.exit(1);
