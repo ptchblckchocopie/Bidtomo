@@ -147,8 +147,7 @@
       <div class="nav-layout">
         <!-- Logo — left -->
         <a href="/" class="nav-logo group" onclick={closeMobileMenu}>
-          <img src="/bidmo.to.png" alt="BidMo.to" class="h-7 w-auto transition-transform duration-300 group-hover:scale-110" />
-          <span class="hidden sm:inline font-display text-base font-bold tracking-tight text-[var(--color-fg)] transition-all duration-300 group-hover:text-shimmer">BidMo.to</span>
+          <video src="/logo.mp4" autoplay loop muted playsinline class="h-9 w-auto transition-transform duration-300 group-hover:scale-110"></video>
         </a>
 
         <!-- Center navigation — desktop only -->
