@@ -51,7 +51,8 @@ jobs:
 
             # Enable maintenance mode via Redis before deploying
             echo "Enabling maintenance mode..."
-            docker exec staging-redis redis-cli SET maintenance:status '{"enabled":true,"scheduledAt":null,"message":"Deploying updates..."}' || true
+            REDIS_PW=$(grep REDIS_PASSWORD .env | cut -d= -f2-)
+            docker exec staging-redis redis-cli -a "$REDIS_PW" --no-auth-warning SET maintenance:status '{"enabled":true,"scheduledAt":null,"message":"Deploying updates..."}' || true
 
             git fetch origin
             git checkout staging
@@ -74,6 +75,6 @@ jobs:
 
             # Disable maintenance mode
             echo "Disabling maintenance mode..."
-            docker exec staging-redis redis-cli SET maintenance:status '{"enabled":false,"scheduledAt":null,"message":""}' || true
+            docker exec staging-redis redis-cli -a "$REDIS_PW" --no-auth-warning SET maintenance:status '{"enabled":false,"scheduledAt":null,"message":""}' || true
 
             echo "Staging deployed! Release: $GIT_SHA"

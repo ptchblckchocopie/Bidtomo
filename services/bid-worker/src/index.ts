@@ -728,7 +728,8 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
     const allAutoBidsResult = await client.query(
       `SELECT id, bidder_id, max_amount, censor_name, created_at FROM auto_bids
        WHERE product_id = $1 AND active = TRUE
-       ORDER BY max_amount DESC, created_at ASC`,
+       ORDER BY max_amount DESC, created_at ASC
+       FOR UPDATE`,
       [productId]
     );
 

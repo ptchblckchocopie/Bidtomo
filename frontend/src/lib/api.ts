@@ -820,10 +820,11 @@ export async function fetchProductBids(productId: string, customFetch?: typeof f
   }
 }
 
-// Fetch user's purchases (products they won)
+// Fetch user's purchases (products they won) via transactions
 export async function fetchMyPurchases(): Promise<Product[]> {
   try {
-    const response = await fetch(`${BRIDGE_URL}/api/bridge/products?where[status][in][0]=sold&where[status][in][1]=ended&limit=100&depth=1`, {
+    // Transactions collection has access control that filters to buyer/seller only
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/transactions?depth=2&limit=100`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -833,26 +834,19 @@ export async function fetchMyPurchases(): Promise<Product[]> {
     }
 
     const data = await response.json();
-    const products = data.docs || [];
+    const transactions = data.docs || [];
 
-    // Filter to only include products where the current user is the highest bidder
     const currentUser = await getCurrentUser();
     if (!currentUser) return [];
 
-    const purchases: Product[] = [];
-    for (const product of products) {
-      // Fetch bids for this product to check if user is the winner
-      const bids = await fetchProductBids(product.id);
-      if (bids.length > 0) {
-        const highestBid = bids[0];
-        const bidderId = typeof highestBid.bidder === 'object' ? highestBid.bidder.id : highestBid.bidder;
-        if (bidderId === currentUser.id) {
-          purchases.push(product);
-        }
-      }
-    }
-
-    return purchases;
+    // Filter to transactions where the current user is the buyer, extract products
+    return transactions
+      .filter((tx: any) => {
+        const buyerId = typeof tx.buyer === 'object' ? tx.buyer?.id : tx.buyer;
+        return buyerId === currentUser.id;
+      })
+      .map((tx: any) => tx.product)
+      .filter((p: any) => p && typeof p === 'object');
   } catch (error) {
     console.error('Error fetching purchases:', error);
     return [];

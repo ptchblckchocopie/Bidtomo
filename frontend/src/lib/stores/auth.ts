@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
+import { disconnectAll } from '$lib/sse';
 
 export interface User {
   id: string;
@@ -88,6 +89,7 @@ function createAuthStore() {
     update,
     logout: () => {
       if (browser) {
+        disconnectAll();
         localStorage.removeItem('auth_token');
         localStorage.removeItem('user_data');
         // Also call the bridge to clear the httpOnly cookie

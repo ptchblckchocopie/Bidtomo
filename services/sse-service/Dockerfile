@@ -13,6 +13,8 @@ COPY src ./src
 
 RUN npm run build
 
+USER node
+
 EXPOSE 3002
 
 CMD ["npm", "start"]

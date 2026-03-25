@@ -56,6 +56,11 @@ export default buildConfig({
     ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
     ...(process.env.SERVER_URL ? [process.env.SERVER_URL] : []),
   ],
+  upload: {
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5 MB max
+    },
+  },
   admin: {
     user: 'users',
     bundler: webpackBundler(),
@@ -171,6 +176,17 @@ export default buildConfig({
         delete: ({ req }) => req.user?.role === 'admin',
       },
       hooks: {
+        beforeValidate: [
+          ({ data, operation }: any) => {
+            if ((operation === 'create' || operation === 'update') && data?.password) {
+              const pw = data.password;
+              if (pw.length < 8 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw)) {
+                throw new Error('Password must be at least 8 characters with uppercase, lowercase, and a number');
+              }
+            }
+            return data;
+          },
+        ],
         beforeChange: [
           ({ req, data, operation, originalDoc }: any) => {
             // Prevent role escalation: only admins can set/change the role field

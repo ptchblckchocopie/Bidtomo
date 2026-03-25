@@ -1,17 +1,11 @@
-import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse } from '$lib/server/cms';
+import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse, sanitizeQueryParams } from '$lib/server/cms';
 import type { RequestHandler } from './$types';
 
 // GET /api/bridge/ratings/[id] - Get single rating
 export const GET: RequestHandler = async ({ params, url, request }) => {
   try {
     const token = getTokenFromRequest(request);
-    const queryParams = new URLSearchParams();
-
-    // Forward query parameters (for depth, etc.)
-    url.searchParams.forEach((value, key) => {
-      queryParams.append(key, value);
-    });
-
+    const queryParams = sanitizeQueryParams(url.searchParams);
     const queryString = queryParams.toString();
     const endpoint = `/api/ratings/${params.id}${queryString ? `?${queryString}` : ''}`;
 

@@ -120,6 +120,10 @@ app.use('/api/users', (req, res, next) => {
   if (req.method === 'POST' && req.path === '/') return registrationLimiter(req, res, next);
   next();
 });
+app.use('/api/messages', (req, res, next) => {
+  if (req.method === 'POST') return messageLimiter(req, res, next);
+  next();
+});
 
 const analyticsLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -141,6 +145,14 @@ const analyticsDashboardLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
   message: { error: 'Too many analytics dashboard requests.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const messageLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20, // 20 messages per minute per IP
+  message: { error: 'Too many messages. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
 });

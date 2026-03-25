@@ -30,11 +30,14 @@ COPY . .
 # Build TypeScript and Payload admin (SERVER_URL is now available)
 RUN npm run build
 
-# Create media directory
-RUN mkdir -p media
+# Create media directory and set ownership
+RUN mkdir -p media && chown -R node:node /app
 
 # Set environment to production (after build)
 ENV NODE_ENV=production
+
+# Run as non-root
+USER node
 
 # Expose port (Railway uses PORT env var, defaults to 3001)
 EXPOSE 3001

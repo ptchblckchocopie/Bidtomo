@@ -76,4 +76,42 @@ export function errorResponse(message: string, status = 500): Response {
   return jsonResponse({ error: message }, status);
 }
 
+/**
+ * Sanitize query params before forwarding to CMS.
+ * Blocks arbitrary Payload `where` operators and caps `depth` to prevent
+ * data exfiltration via the bridge proxy.
+ *
+ * @param incoming - raw URLSearchParams from the browser request
+ * @param opts.maxDepth - maximum allowed depth (default 2)
+ * @param opts.allowWhere - specific where keys the route explicitly sets (e.g. 'where[seller][equals]')
+ */
+export function sanitizeQueryParams(
+  incoming: URLSearchParams,
+  opts: { maxDepth?: number; allowWhere?: string[] } = {}
+): URLSearchParams {
+  const { maxDepth = 2, allowWhere = [] } = opts;
+  const safe = new URLSearchParams();
+  const allowSet = new Set(allowWhere.map((k) => k.toLowerCase()));
+
+  incoming.forEach((value, key) => {
+    const keyLower = key.toLowerCase();
+
+    // Block all where[] params unless explicitly allowed by the route
+    if (keyLower.startsWith('where[') || keyLower === 'where') {
+      if (!allowSet.has(keyLower)) return;
+    }
+
+    // Cap depth
+    if (keyLower === 'depth') {
+      const d = parseInt(value, 10);
+      safe.set('depth', String(Math.min(isNaN(d) ? 1 : d, maxDepth)));
+      return;
+    }
+
+    safe.append(key, value);
+  });
+
+  return safe;
+}
+
 export { CMS_URL };

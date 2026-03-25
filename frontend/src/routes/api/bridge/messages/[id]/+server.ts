@@ -1,4 +1,4 @@
-import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse } from '$lib/server/cms';
+import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse, sanitizeQueryParams } from '$lib/server/cms';
 import type { RequestHandler } from './$types';
 
 // GET /api/bridge/messages/[id] - Get single message
@@ -9,11 +9,7 @@ export const GET: RequestHandler = async ({ params, url, request }) => {
       return errorResponse('Unauthorized', 401);
     }
 
-    const queryParams = new URLSearchParams();
-    url.searchParams.forEach((value, key) => {
-      queryParams.append(key, value);
-    });
-
+    const queryParams = sanitizeQueryParams(url.searchParams);
     const queryString = queryParams.toString();
     const endpoint = `/api/messages/${params.id}${queryString ? `?${queryString}` : ''}`;
 

@@ -1,4 +1,4 @@
-import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse } from '$lib/server/cms';
+import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse, sanitizeQueryParams } from '$lib/server/cms';
 import type { RequestHandler } from './$types';
 
 // GET /api/bridge/messages - List messages
@@ -9,10 +9,7 @@ export const GET: RequestHandler = async ({ url, request }) => {
       return errorResponse('Unauthorized', 401);
     }
 
-    const params = new URLSearchParams();
-    url.searchParams.forEach((value, key) => {
-      params.append(key, value);
-    });
+    const params = sanitizeQueryParams(url.searchParams);
 
     const response = await cmsRequest(`/api/messages?${params.toString()}`, {
       token,

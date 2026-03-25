@@ -34,9 +34,9 @@ services:
       - "6380:6379"
     volumes:
       - marketplace_local_redis_data:/data
-    command: redis-server --appendonly yes --appendfsync everysec
+    command: redis-server --appendonly yes --appendfsync everysec --requirepass localdev
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "localdev", "--no-auth-warning", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5

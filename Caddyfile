@@ -1,5 +1,19 @@
+# Shared security headers snippet
+(security_headers) {
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        -Server
+    }
+}
+
 # Production HTTPS (browser access, auto Let's Encrypt)
 {$DOMAIN:localhost} {
+    import security_headers
+
     handle /sse/* {
         uri strip_prefix /sse
         reverse_proxy prod-sse:3002
@@ -24,6 +38,8 @@
 
 # Staging HTTPS (auto Let's Encrypt — sslip.io subdomains resolve correctly)
 {$STAGING_DOMAIN:staging.localhost} {
+    import security_headers
+
     handle /sse/* {
         uri strip_prefix /sse
         reverse_proxy staging-sse:3002
