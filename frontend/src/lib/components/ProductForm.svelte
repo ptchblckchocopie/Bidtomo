@@ -392,6 +392,7 @@
     // Show confirmation dialog before proceeding
     submitting = false;
     showConfirmModal = true;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function confirmAndSubmit() {
