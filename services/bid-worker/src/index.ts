@@ -186,16 +186,30 @@ async function ensureAutoBidsTable(): Promise<void> {
       // Constraint may already exist
     }
 
-    // Deactivate orphaned auto-bids: products that are no longer available
+    // Deactivate orphaned auto-bids:
+    // 1. Products that are no longer available (sold/ended/inactive)
+    // 2. Products that no longer exist (deleted after DB reset)
+    // 3. Auto-bids created BEFORE the product they reference (product was recreated with same ID)
     try {
       const cleaned = await pool.query(`
-        UPDATE auto_bids SET active = FALSE, updated_at = NOW()
-        WHERE active = TRUE AND product_id IN (
-          SELECT id FROM products WHERE status != 'available' OR active = FALSE
+        UPDATE auto_bids ab SET active = FALSE, updated_at = NOW()
+        WHERE ab.active = TRUE AND (
+          -- Product is sold, ended, or inactive
+          ab.product_id IN (
+            SELECT id FROM products WHERE status != 'available' OR active = FALSE
+          )
+          -- Product was deleted (ID no longer exists)
+          OR NOT EXISTS (
+            SELECT 1 FROM products WHERE id = ab.product_id
+          )
+          -- Product was recreated after auto-bid was set (DB reset scenario)
+          OR ab.created_at < (
+            SELECT p.created_at FROM products p WHERE p.id = ab.product_id
+          )
         )
       `);
       if (cleaned.rowCount && cleaned.rowCount > 0) {
-        log.info({ count: cleaned.rowCount }, 'Deactivated orphaned auto-bids for ended/sold products');
+        log.info({ count: cleaned.rowCount }, 'Deactivated orphaned auto-bids');
       }
     } catch (cleanupErr) {
       log.warn({ err: cleanupErr }, 'Failed to clean up orphaned auto-bids (non-fatal)');
