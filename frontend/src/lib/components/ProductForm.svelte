@@ -392,15 +392,11 @@
     // Show confirmation dialog before proceeding
     submitting = false;
     showConfirmModal = true;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function confirmAndSubmit() {
     showConfirmModal = false;
     submitting = true;
-
-    // Scroll to top so the loading overlay is visible
-    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     try {
       if (mode === 'edit' && product) {
