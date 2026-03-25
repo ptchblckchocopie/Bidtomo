@@ -54,6 +54,7 @@ export interface Product {
   }>;
   startingPrice: number;
   bidInterval: number;
+  autoExtendMinutes?: number;
   currentBid?: number;
   auctionEndDate: string;
   active: boolean;
@@ -603,6 +604,7 @@ export async function createProduct(productData: {
   keywords?: Array<{ keyword: string }>;
   startingPrice: number;
   bidInterval?: number;
+  autoExtendMinutes?: number;
   auctionEndDate: string;
   images?: Array<{ image: string }>;
   region?: string;
@@ -799,11 +801,11 @@ export async function placeBid(productId: string, amount: number, censorName: bo
   }
 }
 
-// Fetch bids for a product
+// Fetch bids for a product (uses custom SQL endpoint to bypass Payload v2 relationship query bug)
 export async function fetchProductBids(productId: string, customFetch?: typeof fetch): Promise<Bid[]> {
   try {
     const fetchFn = customFetch || fetch;
-    const response = await fetchFn(`${BRIDGE_URL}/api/bridge/bids?where[product][equals]=${productId}&sort=-bidTime&limit=1000`, {
+    const response = await fetchFn(`${BRIDGE_URL}/api/bridge/product-bids/${productId}`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });

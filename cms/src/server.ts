@@ -1293,7 +1293,7 @@ const start = async () => {
 
           // Lock the product row — prevents concurrent bids from both passing validation
           const lockedResult = await client.query(
-            `SELECT id, current_bid, starting_price, bid_interval, status, active, auction_end_date
+            `SELECT id, current_bid, starting_price, bid_interval, status, active, auction_end_date, auto_extend_minutes
              FROM products WHERE id = $1 FOR UPDATE`,
             [parseInt(productId, 10)]
           );
@@ -1366,6 +1366,23 @@ const start = async () => {
             [amount, parseInt(productId, 10)]
           );
 
+          // Auto-extend if bid arrives near auction end
+          let fallbackExtendedEndDate: string | null = null;
+          const fallbackAutoExtend = Number(locked.auto_extend_minutes) || 0;
+          if (fallbackAutoExtend > 0) {
+            const endTime = new Date(locked.auction_end_date).getTime();
+            const now = Date.now();
+            const thresholdMs = fallbackAutoExtend * 60 * 1000;
+            if (endTime - now < thresholdMs && endTime > now) {
+              const extended = new Date(now + thresholdMs);
+              await client.query(
+                `UPDATE products SET auction_end_date = $1, updated_at = NOW() WHERE id = $2`,
+                [extended.toISOString(), parseInt(productId, 10)]
+              );
+              fallbackExtendedEndDate = extended.toISOString();
+            }
+          }
+
           // Get bidder name for SSE event
           const bidderResult = await client.query(
             `SELECT name FROM users WHERE id = $1`,
@@ -1388,6 +1405,15 @@ const start = async () => {
             censorName: censorName || false,
             bidTime,
           });
+
+          // Publish auction extension if applicable
+          if (fallbackExtendedEndDate) {
+            publishProductUpdate(parseInt(productId, 10), {
+              type: 'auction_extended',
+              newEndDate: fallbackExtendedEndDate,
+              autoExtendMinutes: fallbackAutoExtend,
+            });
+          }
 
           return res.json({
             success: true,
@@ -1887,10 +1913,24 @@ const start = async () => {
   // Health check endpoint for Redis status
   app.get('/api/health', async (req, res) => {
     const esAvailable = await isElasticAvailable();
+
+    let pendingExpiredAuctions = 0;
+    try {
+      const pool = (payload.db as any).pool;
+      const result = await pool.query(
+        `SELECT COUNT(*) as count FROM products
+         WHERE status = 'available' AND active = true AND auction_end_date < NOW()`
+      );
+      pendingExpiredAuctions = parseInt(result.rows[0].count, 10);
+    } catch {
+      // Non-critical — don't fail health check
+    }
+
     res.json({
       status: 'ok',
       redis: isRedisConnected() ? 'connected' : 'disconnected',
       elasticsearch: esAvailable ? 'connected' : 'disconnected',
+      pendingExpiredAuctions,
       timestamp: Date.now(),
     });
   });

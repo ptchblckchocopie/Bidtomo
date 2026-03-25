@@ -125,7 +125,24 @@ export interface ProductVisibilityEvent {
   timestamp: number;
 }
 
-export type SSEEvent = BidEvent | MessageEvent | RedisStatusEvent | ConnectedEvent | AcceptedEvent | TypingEvent | NewProductEvent | BidUpdateEvent | ProductVisibilityEvent;
+export interface AuctionClosedEvent {
+  type: 'auction_closed';
+  status: 'ended';
+  winnerId: number | null;
+  winnerName?: string;
+  amount: number | null;
+  transactionId?: number;
+  timestamp: number;
+}
+
+export interface AuctionExtendedEvent {
+  type: 'auction_extended';
+  newEndDate: string;
+  autoExtendMinutes: number;
+  timestamp: number;
+}
+
+export type SSEEvent = BidEvent | MessageEvent | RedisStatusEvent | ConnectedEvent | AcceptedEvent | TypingEvent | NewProductEvent | BidUpdateEvent | ProductVisibilityEvent | AuctionClosedEvent | AuctionExtendedEvent;
 
 // Product SSE client
 class ProductSSEClient {

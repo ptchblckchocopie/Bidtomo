@@ -43,10 +43,6 @@
     <div class="hero-gradient" aria-hidden="true"></div>
 
     <div class="max-w-5xl mx-auto relative z-10">
-      <!-- Logo with entrance animation -->
-      <div class="mb-10 flex justify-center hero-element" style="animation-delay: 0s;">
-        <img src="/bidmo.to.png" alt="BidMo.to" class="h-20 sm:h-28 w-auto animate-float" />
-      </div>
 
       <h1 bind:this={heroTextEl} class="text-5xl md:text-7xl lg:text-8xl font-bold mb-6 text-center font-display tracking-tighter hero-element hero-text" style="animation-delay: 0.15s;">
         {$t('hero.welcomeTo')}

@@ -698,6 +698,16 @@ export default buildConfig({
           },
         },
         {
+          name: 'autoExtendMinutes',
+          type: 'number',
+          defaultValue: 5,
+          min: 0,
+          max: 30,
+          admin: {
+            description: 'Auto-extend auction by this many minutes when a bid arrives near the deadline (0 to disable)',
+          },
+        },
+        {
           name: 'region',
           type: 'text',
           admin: {

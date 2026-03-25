@@ -63,6 +63,7 @@ interface Product {
   status: string;
   auctionEndDate: string;
   active: boolean;
+  autoExtendMinutes: number;
 }
 
 // Generate unique job ID
@@ -306,7 +307,8 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
     // Get current product state with lock
     const productResult = await client.query<Product>(
       `SELECT id, current_bid as "currentBid", starting_price as "startingPrice",
-              bid_interval as "bidInterval", status, auction_end_date as "auctionEndDate", active
+              bid_interval as "bidInterval", status, auction_end_date as "auctionEndDate", active,
+              auto_extend_minutes as "autoExtendMinutes"
        FROM products WHERE id = $1 FOR UPDATE`,
       [job.productId]
     );
@@ -394,6 +396,26 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
       [job.amount, job.productId]
     );
 
+    // Auto-extend: if bid arrives near auction end, extend the deadline
+    let auctionExtended = false;
+    let newEndDate: string | null = null;
+    const autoExtendMinutes = Number(product.autoExtendMinutes) || 0;
+    if (autoExtendMinutes > 0) {
+      const endTime = new Date(product.auctionEndDate).getTime();
+      const now = Date.now();
+      const thresholdMs = autoExtendMinutes * 60 * 1000;
+      if (endTime - now < thresholdMs && endTime > now) {
+        const extended = new Date(now + thresholdMs);
+        await client.query(
+          `UPDATE products SET auction_end_date = $1, updated_at = NOW() WHERE id = $2`,
+          [extended.toISOString(), job.productId]
+        );
+        auctionExtended = true;
+        newEndDate = extended.toISOString();
+        log.info({ productId: job.productId, newEndDate, autoExtendMinutes }, 'Auction auto-extended');
+      }
+    }
+
     // Get bidder name for SSE event
     const bidderResult = await client.query(
       `SELECT name FROM users WHERE id = $1`,
@@ -402,6 +424,20 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
     const bidderName = bidderResult.rows[0]?.name || 'Anonymous';
 
     await client.query('COMMIT');
+
+    // Publish auction extension SSE after commit (fire-and-forget)
+    if (auctionExtended && newEndDate && redisConnected) {
+      try {
+        await redisPub.publish(`sse:product:${job.productId}`, JSON.stringify({
+          type: 'auction_extended',
+          newEndDate,
+          autoExtendMinutes,
+          timestamp: Date.now(),
+        }));
+      } catch (sseError) {
+        log.error({ err: sseError, productId: job.productId }, 'Failed to publish auction extension SSE');
+      }
+    }
 
     const bidTime = new Date().toISOString();
     log.info({ bidId, productId: job.productId, amount: job.amount }, 'Bid processed');
@@ -753,7 +789,8 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
     // Lock the product row to get fresh state and prevent races
     const productResult = await client.query(
       `SELECT id, current_bid as "currentBid", starting_price as "startingPrice",
-              bid_interval as "bidInterval", status, auction_end_date as "auctionEndDate", active
+              bid_interval as "bidInterval", status, auction_end_date as "auctionEndDate", active,
+              auto_extend_minutes as "autoExtendMinutes"
        FROM products WHERE id = $1 FOR UPDATE`,
       [productId]
     );
@@ -952,7 +989,44 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
       [productId, finalMinimum]
     );
 
+    // Auto-extend if auto-bids landed near auction end
+    let autoExtendNewEndDate: string | null = null;
+    const autoExtendMin = Number(productResult.rows[0].autoExtendMinutes) || 0;
+    if (autoExtendMin > 0 && placedBids.length > 0) {
+      // Re-read auction_end_date (may have been extended by processBid already)
+      const freshEnd = await client.query(
+        `SELECT auction_end_date FROM products WHERE id = $1`,
+        [productId]
+      );
+      const endTime = new Date(freshEnd.rows[0].auction_end_date).getTime();
+      const now = Date.now();
+      const thresholdMs = autoExtendMin * 60 * 1000;
+      if (endTime - now < thresholdMs && endTime > now) {
+        const extended = new Date(now + thresholdMs);
+        await client.query(
+          `UPDATE products SET auction_end_date = $1, updated_at = NOW() WHERE id = $2`,
+          [extended.toISOString(), productId]
+        );
+        autoExtendNewEndDate = extended.toISOString();
+        log.info({ productId, newEndDate: autoExtendNewEndDate, autoExtendMin }, 'Auction auto-extended by auto-bids');
+      }
+    }
+
     await client.query('COMMIT');
+
+    // Publish auction extension SSE after commit
+    if (autoExtendNewEndDate && redisConnected) {
+      try {
+        await redisPub.publish(`sse:product:${productId}`, JSON.stringify({
+          type: 'auction_extended',
+          newEndDate: autoExtendNewEndDate,
+          autoExtendMinutes: autoExtendMin,
+          timestamp: Date.now(),
+        }));
+      } catch (sseError) {
+        log.error({ err: sseError, productId }, 'Failed to publish auto-bid auction extension SSE');
+      }
+    }
 
     // --- Publish SSE events for all placed bids ---
     if (redisConnected && placedBids.length > 0) {
@@ -1013,6 +1087,473 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
     Sentry.captureException(error, { tags: { route: 'worker.processAutoBids' }, extra: { productId, currentBidAmount, currentBidderId } });
   } finally {
     client.release();
+  }
+}
+
+// ============================================================================
+// AUCTION CLOSE SCHEDULER — runs every 60s to end expired auctions
+// ============================================================================
+
+let schedulerRunning = false;
+let auctionCloseInterval: ReturnType<typeof setInterval> | null = null;
+
+async function closeExpiredAuctions(): Promise<void> {
+  if (schedulerRunning) return; // Prevent overlapping runs
+  schedulerRunning = true;
+
+  try {
+    // Find up to 50 expired auctions per tick
+    const expired = await pool.query(
+      `SELECT id, title, current_bid, starting_price, status
+       FROM products
+       WHERE status = 'available' AND active = true AND auction_end_date < NOW()
+       LIMIT 50`
+    );
+
+    if (expired.rows.length === 0) return;
+
+    log.info({ count: expired.rows.length }, 'Found expired auctions to close');
+
+    for (const product of expired.rows) {
+      const client = await pool.connect();
+
+      try {
+        await client.query('BEGIN');
+
+        // Re-check with lock (another tick may have closed it)
+        const locked = await client.query(
+          `SELECT id, title, current_bid, starting_price, status, active, auction_end_date
+           FROM products WHERE id = $1 AND status = 'available' FOR UPDATE`,
+          [product.id]
+        );
+
+        if (locked.rows.length === 0) {
+          await client.query('ROLLBACK');
+          continue;
+        }
+
+        const p = locked.rows[0];
+
+        // Double-check it's actually expired
+        if (new Date(p.auction_end_date) > new Date()) {
+          await client.query('ROLLBACK');
+          continue;
+        }
+
+        // Set status to 'ended'
+        await client.query(
+          `UPDATE products SET status = 'ended', updated_at = NOW() WHERE id = $1`,
+          [product.id]
+        );
+
+        // Get seller info
+        const sellerRel = await client.query(
+          `SELECT users_id FROM products_rels WHERE parent_id = $1 AND path = 'seller'`,
+          [product.id]
+        );
+        const sellerId = sellerRel.rows[0]?.users_id;
+
+        // Find highest bid and winner
+        const highestBid = await client.query(
+          `SELECT b.id as bid_id, b.amount, br_bidder.users_id as bidder_id
+           FROM bids b
+           JOIN bids_rels br_product ON b.id = br_product.parent_id AND br_product.path = 'product'
+           JOIN bids_rels br_bidder ON b.id = br_bidder.parent_id AND br_bidder.path = 'bidder'
+           WHERE br_product.products_id = $1
+           ORDER BY b.amount DESC
+           LIMIT 1`,
+          [product.id]
+        );
+
+        const winner = highestBid.rows[0];
+
+        if (winner && sellerId) {
+          // Get buyer and seller details
+          const buyerResult = await client.query(
+            `SELECT id, name, email, currency FROM users WHERE id = $1`,
+            [winner.bidder_id]
+          );
+          const sellerResult = await client.query(
+            `SELECT id, name, email, currency FROM users WHERE id = $1`,
+            [sellerId]
+          );
+          const buyer = buyerResult.rows[0];
+          const seller = sellerResult.rows[0];
+
+          // Create congratulation message from seller to buyer
+          const congratsMessage = `Congratulations! The auction for "${p.title}" has ended and you are the winner! Let's discuss the next steps for completing this transaction.`;
+
+          const messageResult = await client.query(
+            `INSERT INTO messages (message, read, created_at, updated_at)
+             VALUES ($1, false, NOW(), NOW()) RETURNING id`,
+            [congratsMessage]
+          );
+          const messageId = messageResult.rows[0].id;
+
+          await client.query(
+            `INSERT INTO messages_rels (parent_id, path, products_id) VALUES ($1, 'product', $2)`,
+            [messageId, product.id]
+          );
+          await client.query(
+            `INSERT INTO messages_rels (parent_id, path, users_id) VALUES ($1, 'sender', $2)`,
+            [messageId, sellerId]
+          );
+          await client.query(
+            `INSERT INTO messages_rels (parent_id, path, users_id) VALUES ($1, 'receiver', $2)`,
+            [messageId, winner.bidder_id]
+          );
+
+          // Create transaction record
+          const transactionNotes = `Auction ended — "${p.title}" won by highest bidder with ${winner.amount}`;
+          const transactionResult = await client.query(
+            `INSERT INTO transactions (amount, status, notes, created_at, updated_at)
+             VALUES ($1, 'pending', $2, NOW(), NOW()) RETURNING id`,
+            [winner.amount, transactionNotes]
+          );
+          const transactionId = transactionResult.rows[0].id;
+
+          await client.query(
+            `INSERT INTO transactions_rels (parent_id, path, products_id) VALUES ($1, 'product', $2)`,
+            [transactionId, product.id]
+          );
+          await client.query(
+            `INSERT INTO transactions_rels (parent_id, path, users_id) VALUES ($1, 'seller', $2)`,
+            [transactionId, sellerId]
+          );
+          await client.query(
+            `INSERT INTO transactions_rels (parent_id, path, users_id) VALUES ($1, 'buyer', $2)`,
+            [transactionId, winner.bidder_id]
+          );
+
+          await client.query('COMMIT');
+
+          log.info({ productId: product.id, winnerId: winner.bidder_id, amount: winner.amount, transactionId }, 'Auction closed with winner');
+
+          // Publish SSE events (outside transaction)
+          if (redisConnected) {
+            try {
+              // Product channel — auction closed
+              await redisPub.publish(`sse:product:${product.id}`, JSON.stringify({
+                type: 'auction_closed',
+                status: 'ended',
+                winnerId: winner.bidder_id,
+                winnerName: buyer?.name || 'Winner',
+                amount: winner.amount,
+                transactionId,
+                timestamp: Date.now(),
+              }));
+
+              // Winner user channel — notification
+              await redisPub.publish(`sse:user:${winner.bidder_id}`, JSON.stringify({
+                type: 'new_message',
+                messageId,
+                productId: product.id,
+                senderId: sellerId,
+                preview: congratsMessage.substring(0, 50),
+                timestamp: Date.now(),
+                message: {
+                  id: messageId,
+                  message: congratsMessage,
+                  sender: { id: sellerId, name: seller?.name, email: seller?.email },
+                  receiver: { id: winner.bidder_id },
+                  product: { id: product.id },
+                  read: false,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                },
+              }));
+            } catch (sseError) {
+              log.error({ err: sseError, productId: product.id }, 'Failed to publish auction close SSE');
+              Sentry.captureException(sseError, { level: 'warning', tags: { route: 'worker.closeExpiredAuctions.sse' } });
+            }
+          }
+
+          // Queue emails
+          const currencySymbol = CURRENCY_SYMBOLS[seller?.currency || 'PHP'] || '₱';
+          const platformUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+          if (buyer?.email) {
+            const safeBuyerName = escHtml(buyer.name || 'Buyer');
+            const safeTitle = escHtml(p.title);
+            const safeSellerName = escHtml(seller?.name || 'Seller');
+
+            await queueEmail({
+              to: buyer.email,
+              subject: `You won the auction for "${p.title}"!`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <div style="background: #dc2626; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <h1 style="margin: 0;">You Won!</h1>
+                  </div>
+                  <div style="background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px;">
+                    <p>Hi ${safeBuyerName},</p>
+                    <p>The auction for <strong>${safeTitle}</strong> has ended and you are the highest bidder!</p>
+                    <div style="background: #fef3c7; padding: 15px; border-radius: 4px; margin: 15px 0;">
+                      <p style="margin: 5px 0;"><strong>Winning Bid:</strong> ${escHtml(currencySymbol)}${escHtml(winner.amount.toLocaleString())}</p>
+                      <p style="margin: 5px 0;"><strong>Seller:</strong> ${safeSellerName}</p>
+                    </div>
+                    <p>A conversation has been created. The seller will reach out to discuss payment and delivery.</p>
+                    <p><a href="${escHtml(platformUrl)}/inbox?product=${product.id}" style="display: inline-block; background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 15px;">Go to Inbox</a></p>
+                  </div>
+                </div>
+              `,
+              metadata: { type: 'auction_won_buyer', productId: product.id, userId: winner.bidder_id },
+            });
+          }
+
+          if (seller?.email) {
+            const safeSellerName = escHtml(seller.name || 'Seller');
+            const safeTitle = escHtml(p.title);
+            const safeBuyerName = escHtml(buyer?.name || 'Buyer');
+            const safeBuyerEmail = escHtml(buyer?.email || 'N/A');
+
+            await queueEmail({
+              to: seller.email,
+              subject: `Your auction for "${p.title}" has ended — item sold!`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <div style="background: #16a34a; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <h1 style="margin: 0;">Auction Ended — Item Sold!</h1>
+                  </div>
+                  <div style="background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px;">
+                    <p>Hi ${safeSellerName},</p>
+                    <p>Your auction for <strong>${safeTitle}</strong> has ended.</p>
+                    <div style="background: #dcfce7; padding: 15px; border-radius: 4px; margin: 15px 0;">
+                      <p style="margin: 5px 0;"><strong>Winning Bid:</strong> ${escHtml(currencySymbol)}${escHtml(winner.amount.toLocaleString())}</p>
+                      <p style="margin: 5px 0;"><strong>Winner:</strong> ${safeBuyerName} (${safeBuyerEmail})</p>
+                    </div>
+                    <p>A conversation has been created. Please reach out to the buyer to arrange payment and delivery.</p>
+                    <p><a href="${escHtml(platformUrl)}/inbox?product=${product.id}" style="display: inline-block; background: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 15px;">Contact Buyer</a></p>
+                  </div>
+                </div>
+              `,
+              metadata: { type: 'auction_ended_seller', productId: product.id, userId: sellerId },
+            });
+          }
+        } else {
+          // No bids — just end the auction
+          await client.query('COMMIT');
+          log.info({ productId: product.id }, 'Auction closed with no bids');
+
+          // Publish SSE — auction ended with no winner
+          if (redisConnected) {
+            try {
+              await redisPub.publish(`sse:product:${product.id}`, JSON.stringify({
+                type: 'auction_closed',
+                status: 'ended',
+                winnerId: null,
+                amount: null,
+                timestamp: Date.now(),
+              }));
+            } catch (sseError) {
+              log.error({ err: sseError, productId: product.id }, 'Failed to publish no-winner auction close SSE');
+            }
+          }
+
+          // Notify seller that auction ended with no bids
+          if (sellerId) {
+            const sellerResult = await pool.query(
+              `SELECT name, email, currency FROM users WHERE id = $1`,
+              [sellerId]
+            );
+            const seller = sellerResult.rows[0];
+            const platformUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+            if (seller?.email) {
+              await queueEmail({
+                to: seller.email,
+                subject: `Your auction for "${p.title}" has ended with no bids`,
+                html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <div style="background: #6b7280; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                      <h1 style="margin: 0;">Auction Ended</h1>
+                    </div>
+                    <div style="background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px;">
+                      <p>Hi ${escHtml(seller.name || 'Seller')},</p>
+                      <p>Your auction for <strong>${escHtml(p.title)}</strong> has ended without receiving any bids.</p>
+                      <p>You can relist the item to try again.</p>
+                      <p><a href="${escHtml(platformUrl)}/dashboard" style="display: inline-block; background: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 15px;">Go to Dashboard</a></p>
+                    </div>
+                  </div>
+                `,
+                metadata: { type: 'auction_ended_no_bids', productId: product.id, userId: sellerId },
+              });
+            }
+          }
+        }
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        log.error({ err: error, productId: product.id }, 'Error closing expired auction');
+        Sentry.captureException(error, { tags: { route: 'worker.closeExpiredAuctions' }, extra: { productId: product.id } });
+      } finally {
+        client.release();
+      }
+    }
+  } catch (error) {
+    log.error({ err: error }, 'Error in auction close scheduler');
+    Sentry.captureException(error, { tags: { route: 'worker.closeExpiredAuctions.outer' } });
+  } finally {
+    schedulerRunning = false;
+  }
+
+  // Also check for expired void request offers
+  await expireVoidRequestOffers();
+}
+
+// ============================================================================
+// VOID REQUEST OFFER EXPIRATION — expires pending second-bidder offers after 48h
+// ============================================================================
+
+async function expireVoidRequestOffers(): Promise<void> {
+  try {
+    // Find void requests with expired second-bidder offers
+    // offeredTo is a relationship in void_requests_rels, not a direct column
+    const expired = await pool.query(
+      `SELECT vr.id, vr.second_bidder_offer_offer_amount as offer_amount,
+              pr.products_id as product_id,
+              offered.users_id as offered_to_id
+       FROM void_requests vr
+       JOIN void_requests_rels pr ON vr.id = pr.parent_id AND pr.path = 'product'
+       LEFT JOIN void_requests_rels offered ON vr.id = offered.parent_id AND offered.path = 'secondBidderOffer_offeredTo'
+       WHERE vr.second_bidder_offer_offer_status = 'pending'
+       AND vr.offer_expires_at IS NOT NULL
+       AND vr.offer_expires_at < NOW()
+       LIMIT 20`
+    );
+
+    if (expired.rows.length === 0) return;
+
+    log.info({ count: expired.rows.length }, 'Found expired void request offers');
+
+    for (const offer of expired.rows) {
+      const client = await pool.connect();
+
+      try {
+        await client.query('BEGIN');
+
+        // Set offer status to 'expired'
+        await client.query(
+          `UPDATE void_requests
+           SET second_bidder_offer_offer_status = 'expired', updated_at = NOW()
+           WHERE id = $1 AND second_bidder_offer_offer_status = 'pending'`,
+          [offer.id]
+        );
+
+        // Restart the auction — set product back to available with 24h extension
+        const newEndDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await client.query(
+          `UPDATE products SET status = 'available', auction_end_date = $1, updated_at = NOW()
+           WHERE id = $2`,
+          [newEndDate, offer.product_id]
+        );
+
+        await client.query('COMMIT');
+
+        log.info({ voidRequestId: offer.id, productId: offer.product_id }, 'Void request offer expired, auction restarted');
+
+        // Publish SSE — auction restarted
+        if (redisConnected) {
+          try {
+            await redisPub.publish(`sse:product:${offer.product_id}`, JSON.stringify({
+              type: 'status_change',
+              status: 'available',
+              auctionEndDate: newEndDate,
+              timestamp: Date.now(),
+            }));
+          } catch (sseError) {
+            log.error({ err: sseError, productId: offer.product_id }, 'Failed to publish offer expiry SSE');
+          }
+        }
+
+        // Notify second bidder that offer expired
+        if (offer.offered_to_id) {
+          const bidderResult = await pool.query(
+            `SELECT name, email FROM users WHERE id = $1`,
+            [offer.offered_to_id]
+          );
+          const bidder = bidderResult.rows[0];
+
+          if (bidder?.email) {
+            const productResult = await pool.query(
+              `SELECT title FROM products WHERE id = $1`,
+              [offer.product_id]
+            );
+            const productTitle = productResult.rows[0]?.title || 'Unknown Product';
+            const platformUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+            await queueEmail({
+              to: bidder.email,
+              subject: `Your offer for "${productTitle}" has expired`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <div style="background: #6b7280; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <h1 style="margin: 0;">Offer Expired</h1>
+                  </div>
+                  <div style="background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px;">
+                    <p>Hi ${escHtml(bidder.name || 'Bidder')},</p>
+                    <p>The offer to purchase <strong>${escHtml(productTitle)}</strong> has expired because no response was received within 48 hours.</p>
+                    <p>The auction has been restarted and is open for bidding again.</p>
+                    <p><a href="${escHtml(platformUrl)}/products/${offer.product_id}" style="display: inline-block; background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 15px;">View Auction</a></p>
+                  </div>
+                </div>
+              `,
+              metadata: { type: 'offer_expired', productId: offer.product_id, userId: offer.offered_to_id },
+            });
+          }
+        }
+
+        // Notify seller
+        const sellerRel = await pool.query(
+          `SELECT users_id FROM products_rels WHERE parent_id = $1 AND path = 'seller'`,
+          [offer.product_id]
+        );
+        const sellerId = sellerRel.rows[0]?.users_id;
+        if (sellerId) {
+          const sellerResult = await pool.query(
+            `SELECT name, email FROM users WHERE id = $1`,
+            [sellerId]
+          );
+          const seller = sellerResult.rows[0];
+
+          if (seller?.email) {
+            const productResult = await pool.query(
+              `SELECT title FROM products WHERE id = $1`,
+              [offer.product_id]
+            );
+            const productTitle = productResult.rows[0]?.title || 'Unknown Product';
+            const platformUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+            await queueEmail({
+              to: seller.email,
+              subject: `Second bidder offer expired for "${productTitle}" — auction restarted`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <div style="background: #f59e0b; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <h1 style="margin: 0;">Offer Expired — Auction Restarted</h1>
+                  </div>
+                  <div style="background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px;">
+                    <p>Hi ${escHtml(seller.name || 'Seller')},</p>
+                    <p>The second-bidder offer for <strong>${escHtml(productTitle)}</strong> expired without a response.</p>
+                    <p>The auction has been automatically restarted with a new 24-hour deadline.</p>
+                    <p><a href="${escHtml(platformUrl)}/products/${offer.product_id}" style="display: inline-block; background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin-top: 15px;">View Auction</a></p>
+                  </div>
+                </div>
+              `,
+              metadata: { type: 'offer_expired_seller', productId: offer.product_id, userId: sellerId },
+            });
+          }
+        }
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        log.error({ err: error, voidRequestId: offer.id }, 'Error expiring void request offer');
+        Sentry.captureException(error, { tags: { route: 'worker.expireVoidRequestOffers' }, extra: { voidRequestId: offer.id } });
+      } finally {
+        client.release();
+      }
+    }
+  } catch (error) {
+    log.error({ err: error }, 'Error checking void request offer expirations');
+    Sentry.captureException(error, { tags: { route: 'worker.expireVoidRequestOffers.outer' } });
   }
 }
 
@@ -1178,6 +1719,11 @@ async function runWorker() {
   await ensureAutoBidsTable();
 
   log.info('Bid worker started');
+
+  // Start auction close scheduler (every 60 seconds)
+  auctionCloseInterval = setInterval(closeExpiredAuctions, 60_000);
+  // Run once immediately on startup to catch any backlog
+  closeExpiredAuctions();
 
   while (true) {
     try {
@@ -1357,6 +1903,8 @@ async function runWorker() {
 // Graceful shutdown
 async function shutdown() {
   log.info('Shutting down');
+
+  if (auctionCloseInterval) clearInterval(auctionCloseInterval);
 
   try {
     if (redisQueue) await redisQueue.quit();

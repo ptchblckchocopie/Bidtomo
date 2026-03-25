@@ -90,4 +90,26 @@ export async function runPreInitMigrations(pool: PoolType): Promise<void> {
     console.error('Pre-init migration (ratings) failed:', preErr.message);
     Sentry.captureException(preErr, { tags: { route: 'startup.migration.ratings' } });
   }
+
+  // Auto-extend minutes — add column for anti-snipe feature
+  try {
+    await pool.query(`
+      ALTER TABLE "products"
+      ADD COLUMN IF NOT EXISTS "auto_extend_minutes" numeric DEFAULT 5;
+    `);
+  } catch (preErr: any) {
+    console.error('Pre-init migration (products auto_extend_minutes) failed:', preErr.message);
+    Sentry.captureException(preErr, { tags: { route: 'startup.migration.products' } });
+  }
+
+  // Void request offer expiration — add offer_expires_at column
+  try {
+    await pool.query(`
+      ALTER TABLE "void_requests"
+      ADD COLUMN IF NOT EXISTS "offer_expires_at" timestamp(3) with time zone;
+    `);
+  } catch (preErr: any) {
+    console.error('Pre-init migration (void_requests offer_expires_at) failed:', preErr.message);
+    Sentry.captureException(preErr, { tags: { route: 'startup.migration.void_requests' } });
+  }
 }

@@ -670,6 +670,34 @@
               acceptSuccess = false;
             }, 3000);
           }
+        } else if (event.type === 'auction_closed') {
+          // Auction ended by scheduler
+          if (data.product) {
+            data.product.status = 'ended';
+            data = { ...data };
+
+            // Stop countdown
+            if (countdownInterval) {
+              clearInterval(countdownInterval);
+              countdownInterval = null;
+            }
+            hasAuctionEnded = true;
+            timeRemaining = 'Ended';
+          }
+        } else if (event.type === 'auction_extended') {
+          // Auction deadline extended (anti-snipe)
+          if (data.product && (event as any).newEndDate) {
+            data.product.auctionEndDate = (event as any).newEndDate;
+            hasAuctionEnded = false;
+
+            // Restart countdown with new end date
+            updateCountdown();
+            if (!countdownInterval) {
+              countdownInterval = setInterval(updateCountdown, 1000);
+            }
+
+            data = { ...data };
+          }
         } else if (event.type === 'product_visibility') {
           const visEvent = event as ProductVisibilityEvent;
           if (data.product) {

@@ -24,8 +24,9 @@
   let title = $state(product?.title || '');
   let description = $state(product?.description || '');
   let keywords = $state<string[]>(product?.keywords?.map(k => k.keyword) || []);
-  let startingPrice = $state(product?.startingPrice || 0);
-  let bidInterval = $state(0);
+  let startingPrice: number | '' = $state(product?.startingPrice || '');
+  let bidInterval: number | '' = $state('');
+  let autoExtendMinutes = $state(product?.autoExtendMinutes ?? 5);
   let auctionEndDate = $state('');
   let active = $state(product?.active ?? true);
   let region = $state(product?.region || '');
@@ -44,6 +45,7 @@
   let success = $state(false);
   let hasBids = $state(false);
   let loadingMessage = $state('');
+  let showConfirmModal = $state(false);
   let showToast = $state(false);
   let toastMessage = $state('');
   let toastType: 'success' | 'error' = $state('success');
@@ -69,8 +71,8 @@
 
   // Initialize form on mount
   onMount(() => {
-    if (bidInterval === 0 || !bidInterval) {
-      bidInterval = product?.bidInterval || (userCurrency === 'PHP' ? 50 : 1);
+    if (!bidInterval && mode === 'edit' && product?.bidInterval) {
+      bidInterval = product.bidInterval;
     }
 
     // Pre-fill region/city from last listing (create mode only)
@@ -88,6 +90,7 @@
       keywords = product.keywords?.map(k => k.keyword) || [];
       startingPrice = product.startingPrice;
       bidInterval = product.bidInterval;
+      autoExtendMinutes = product.autoExtendMinutes ?? 5;
       region = product.region || '';
       city = product.city || '';
       deliveryOptions = product.delivery_options || '';
@@ -158,7 +161,7 @@
     }
 
     const minDate = new Date(now);
-    minDate.setHours(minDate.getHours() + 1);
+    minDate.setMinutes(minDate.getMinutes() + 1);
     return formatDateToLocalInput(minDate);
   }
 
@@ -346,21 +349,29 @@
     success = false;
     submitting = true;
 
-    if (!title || !description || startingPrice <= 0 || !auctionEndDate) {
-      showToastNotification('Please fill in all required fields', 'error');
-      submitting = false;
-      return;
-    }
-
-    if (startingPrice < 100) {
-      showToastNotification('Starting price must be at least 100', 'error');
-      submitting = false;
-      return;
-    }
+    // Validate all required fields
+    const missingFields: string[] = [];
+    if (!title) missingFields.push('Title');
+    if (!description) missingFields.push('Description');
+    if (!startingPrice || Number(startingPrice) <= 0) missingFields.push('Starting Price');
+    if (!auctionEndDate) missingFields.push('Auction End Date');
+    if (!region) missingFields.push('Region');
+    if (!city) missingFields.push('City');
+    if (!deliveryOptions) missingFields.push('Delivery Options');
+    if (!bidInterval || Number(bidInterval) <= 0) missingFields.push('Bid Increment');
+    if (selectedCategories.length === 0) missingFields.push('Categories');
 
     const totalImages = mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length;
-    if (totalImages === 0) {
-      showToastNotification('Please upload at least one product image', 'error');
+    if (totalImages === 0) missingFields.push('Product Image');
+
+    if (missingFields.length > 0) {
+      showToastNotification(`Please fill in: ${missingFields.join(', ')}`, 'error');
+      submitting = false;
+      return;
+    }
+
+    if (Number(startingPrice) < 100) {
+      showToastNotification('Starting price must be at least 100', 'error');
       submitting = false;
       return;
     }
@@ -377,6 +388,18 @@
         return;
       }
     }
+
+    // Show confirmation dialog before proceeding
+    submitting = false;
+    showConfirmModal = true;
+  }
+
+  async function confirmAndSubmit() {
+    showConfirmModal = false;
+    submitting = true;
+
+    // Scroll to top so the loading overlay is visible
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     try {
       if (mode === 'edit' && product) {
@@ -411,7 +434,8 @@
           title,
           description,
           keywords: keywords.map(k => ({ keyword: k })),
-          bidInterval,
+          bidInterval: Number(bidInterval),
+          autoExtendMinutes,
           auctionEndDate: new Date(auctionEndDate).toISOString(),
           active,
           images: allImageIds.map(id => ({ image: id })),
@@ -422,7 +446,7 @@
         };
 
         if (!hasBids) {
-          updateData.startingPrice = startingPrice;
+          updateData.startingPrice = Number(startingPrice);
         }
 
         const result = await updateProduct(product.id, updateData);
@@ -460,8 +484,9 @@
           title,
           description,
           keywords: keywords.map(k => ({ keyword: k })),
-          startingPrice,
-          bidInterval,
+          startingPrice: Number(startingPrice),
+          bidInterval: Number(bidInterval),
+          autoExtendMinutes,
           auctionEndDate: new Date(auctionEndDate).toISOString(),
           images: uploadedImageIds.map(imageId => ({ image: imageId })),
           region,
@@ -756,6 +781,21 @@
   </div>
 
   <div class="form-group">
+    <label for="autoExtendMinutes">Anti-Snipe Extension (minutes)</label>
+    <input
+      id="autoExtendMinutes"
+      type="number"
+      bind:value={autoExtendMinutes}
+      min="0"
+      max="30"
+      step="1"
+      disabled={submitting}
+      class="input-bh"
+    />
+    <p class="field-hint">If a bid arrives within this many minutes of the deadline, the auction extends. Set to 0 to disable.</p>
+  </div>
+
+  <div class="form-group">
     <label for="auctionEndDate">Auction End Date *</label>
 
     <div class="duration-section">
@@ -835,6 +875,31 @@
     {/if}
   </div>
 </form>
+
+<!-- Confirmation Modal -->
+{#if showConfirmModal}
+  <div class="confirm-overlay" role="dialog" aria-modal="true">
+    <div class="confirm-modal">
+      <h3 class="confirm-title">Confirm Your Listing</h3>
+      <p class="confirm-subtitle">Please review your listing details:</p>
+      <div class="confirm-details">
+        <div class="confirm-row"><span class="confirm-label">Title:</span> <span>{title}</span></div>
+        <div class="confirm-row"><span class="confirm-label">Starting Price:</span> <span>{userCurrency === 'PHP' ? '₱' : userCurrency} {Number(startingPrice).toLocaleString()}</span></div>
+        <div class="confirm-row"><span class="confirm-label">Bid Increment:</span> <span>{userCurrency === 'PHP' ? '₱' : userCurrency} {Number(bidInterval).toLocaleString()}</span></div>
+        <div class="confirm-row"><span class="confirm-label">Anti-Snipe:</span> <span>{autoExtendMinutes > 0 ? `${autoExtendMinutes} min` : 'Disabled'}</span></div>
+        <div class="confirm-row"><span class="confirm-label">End Date:</span> <span>{new Date(auctionEndDate).toLocaleString()}</span></div>
+        <div class="confirm-row"><span class="confirm-label">Location:</span> <span>{city}, {region}</span></div>
+        <div class="confirm-row"><span class="confirm-label">Delivery:</span> <span>{deliveryOptions === 'both' ? 'Delivery & Meetup' : deliveryOptions}</span></div>
+        <div class="confirm-row"><span class="confirm-label">Categories:</span> <span>{selectedCategories.join(', ')}</span></div>
+        <div class="confirm-row"><span class="confirm-label">Images:</span> <span>{mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length} photo(s)</span></div>
+      </div>
+      <div class="confirm-actions">
+        <button class="btn-bh" onclick={confirmAndSubmit}>{mode === 'edit' ? 'Update Listing' : 'Create Listing'}</button>
+        <button class="btn-bh-outline" onclick={() => showConfirmModal = false}>Go Back & Edit</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- Fullscreen Loading Overlay -->
 {#if submitting}
@@ -1176,6 +1241,80 @@
     .form-actions {
       flex-direction: column;
     }
+  }
+
+  /* Confirmation Modal */
+  .confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+  }
+
+  .confirm-modal {
+    background: var(--color-bg);
+    border: 2px solid var(--color-border);
+    border-radius: 0;
+    padding: 2rem;
+    max-width: 500px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .confirm-title {
+    font-size: 1.25rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+  }
+
+  .confirm-subtitle {
+    color: var(--color-muted-fg);
+    font-size: 0.875rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .confirm-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--color-border);
+  }
+
+  .confirm-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    gap: 1rem;
+  }
+
+  .confirm-row span:last-child {
+    text-align: right;
+    font-weight: 600;
+  }
+
+  .confirm-label {
+    color: var(--color-muted-fg);
+    flex-shrink: 0;
+  }
+
+  .confirm-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
   }
 
   /* Fullscreen Loader */
