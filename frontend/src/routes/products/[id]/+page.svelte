@@ -714,7 +714,7 @@
     // Fallback polling every 10 seconds (reduced frequency since we have SSE)
     pollingInterval = setInterval(() => {
       checkForUpdates();
-    }, 10000);
+    }, 5000);
 
     // Initial check
     checkForUpdates();
@@ -737,7 +737,7 @@
           checkForUpdates(); // Immediate update when returning
           pollingInterval = setInterval(() => {
             checkForUpdates();
-          }, 10000); // Use same 10 second interval as initial
+          }, 5000); // Use same 10 second interval as initial
         }
         if (!countdownInterval && data.product?.auctionEndDate) {
           updateCountdown(); // Immediate update
