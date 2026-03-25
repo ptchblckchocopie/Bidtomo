@@ -78,33 +78,42 @@ export function errorResponse(message: string, status = 500): Response {
 
 /**
  * Sanitize query params before forwarding to CMS.
- * Blocks arbitrary Payload `where` operators and caps `depth` to prevent
- * data exfiltration via the bridge proxy.
+ * Blocks where[] queries targeting sensitive/PII fields and caps depth
+ * to prevent data exfiltration via the bridge proxy.
+ * Allows legitimate where[] filters (product, status, seller, etc.).
  *
  * @param incoming - raw URLSearchParams from the browser request
  * @param opts.maxDepth - maximum allowed depth (default 2)
- * @param opts.allowWhere - specific where keys the route explicitly sets (e.g. 'where[seller][equals]')
  */
 export function sanitizeQueryParams(
   incoming: URLSearchParams,
-  opts: { maxDepth?: number; allowWhere?: string[] } = {}
+  opts: { maxDepth?: number } = {}
 ): URLSearchParams {
-  const { maxDepth = 2, allowWhere = [] } = opts;
+  const { maxDepth = 2 } = opts;
   const safe = new URLSearchParams();
-  const allowSet = new Set(allowWhere.map((k) => k.toLowerCase()));
+
+  // Block where[] targeting PII or auth fields
+  const blockedFields = /\b(email|password|hash|salt|phonenumber|countrycode|token|secret|resetpassword)\b/i;
 
   incoming.forEach((value, key) => {
     const keyLower = key.toLowerCase();
 
-    // Block all where[] params unless explicitly allowed by the route
+    // Block where queries on sensitive fields
     if (keyLower.startsWith('where[') || keyLower === 'where') {
-      if (!allowSet.has(keyLower)) return;
+      if (blockedFields.test(keyLower)) return;
     }
 
     // Cap depth
     if (keyLower === 'depth') {
       const d = parseInt(value, 10);
       safe.set('depth', String(Math.min(isNaN(d) ? 1 : d, maxDepth)));
+      return;
+    }
+
+    // Block limit above 1000 to prevent data dumps
+    if (keyLower === 'limit') {
+      const l = parseInt(value, 10);
+      safe.set('limit', String(Math.min(isNaN(l) ? 10 : l, 1000)));
       return;
     }
 
