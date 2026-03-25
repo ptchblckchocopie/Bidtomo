@@ -170,6 +170,37 @@ async function ensureAutoBidsTable(): Promise<void> {
     } catch {
       // Column may already exist
     }
+
+    // Ensure UNIQUE constraint exists (CREATE TABLE IF NOT EXISTS won't add it to existing tables)
+    try {
+      await pool.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'auto_bids_product_id_bidder_id_key'
+          ) THEN
+            ALTER TABLE auto_bids ADD CONSTRAINT auto_bids_product_id_bidder_id_key UNIQUE (product_id, bidder_id);
+          END IF;
+        END $$;
+      `);
+    } catch {
+      // Constraint may already exist
+    }
+
+    // Deactivate orphaned auto-bids: products that are no longer available
+    try {
+      const cleaned = await pool.query(`
+        UPDATE auto_bids SET active = FALSE, updated_at = NOW()
+        WHERE active = TRUE AND product_id IN (
+          SELECT id FROM products WHERE status != 'available' OR active = FALSE
+        )
+      `);
+      if (cleaned.rowCount && cleaned.rowCount > 0) {
+        log.info({ count: cleaned.rowCount }, 'Deactivated orphaned auto-bids for ended/sold products');
+      }
+    } catch (cleanupErr) {
+      log.warn({ err: cleanupErr }, 'Failed to clean up orphaned auto-bids (non-fatal)');
+    }
+
     log.info('auto_bids table ensured');
   } catch (error) {
     log.error({ err: error }, 'Failed to ensure auto_bids table');
@@ -462,6 +493,12 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
       [job.productId]
     );
 
+    // Deactivate all auto-bids for this product — auction is over
+    await client.query(
+      `UPDATE auto_bids SET active = FALSE, updated_at = NOW() WHERE product_id = $1 AND active = TRUE`,
+      [job.productId]
+    );
+
     // Create congratulation message from seller to buyer
     const congratsMessage = `Congratulations! Your bid has been accepted for "${product.title}". Let's discuss the next steps for completing this transaction.`;
 
@@ -724,14 +761,30 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
     const bidInterval = Number(product.bidInterval) || 1;
     const startingPrice = Number(product.startingPrice) || 0;
 
-    // Get ALL active auto-bids for this product
-    const allAutoBidsResult = await client.query(
-      `SELECT id, bidder_id, max_amount, censor_name, created_at FROM auto_bids
-       WHERE product_id = $1 AND active = TRUE
-       ORDER BY max_amount DESC, created_at ASC
-       FOR UPDATE`,
+    // Get the seller so we can exclude them from auto-bidding (defense-in-depth)
+    const sellerResult = await client.query(
+      `SELECT users_id FROM products_rels WHERE parent_id = $1 AND path = 'seller'`,
       [productId]
     );
+    const sellerId = sellerResult.rows[0]?.users_id;
+
+    // Get ALL active auto-bids for this product (excluding seller)
+    const allAutoBidsResult = await client.query(
+      `SELECT id, bidder_id, max_amount, censor_name, created_at FROM auto_bids
+       WHERE product_id = $1 AND active = TRUE AND bidder_id != COALESCE($2, 0)
+       ORDER BY max_amount DESC, created_at ASC
+       FOR UPDATE`,
+      [productId, sellerId]
+    );
+
+    // Deactivate any auto-bids from the seller (shouldn't exist, but clean up)
+    if (sellerId) {
+      await client.query(
+        `UPDATE auto_bids SET active = FALSE, updated_at = NOW()
+         WHERE product_id = $1 AND bidder_id = $2 AND active = TRUE`,
+        [productId, sellerId]
+      );
+    }
 
     // Build a map of auto-bidders for fast lookup
     const autoBidMap = new Map<number, { bidderId: number; maxAmount: number; censorName: boolean; createdAt: number }>();

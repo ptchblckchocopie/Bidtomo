@@ -389,6 +389,19 @@ export default buildConfig({
         ],
         afterChange: [
           async ({ req, doc, operation, previousDoc }) => {
+            // Deactivate all auto-bids when product is sold or ended
+            if (operation === 'update' && (doc.status === 'sold' || doc.status === 'ended') && previousDoc?.status === 'available') {
+              try {
+                const pool = (req.payload.db as any).pool;
+                await pool.query(
+                  `UPDATE auto_bids SET active = FALSE, updated_at = NOW() WHERE product_id = $1 AND active = TRUE`,
+                  [doc.id]
+                );
+              } catch (err) {
+                console.error('Error deactivating auto-bids on product status change:', err);
+              }
+            }
+
             // Create automatic conversation when product is sold
             if (operation === 'update' && doc.status === 'sold' && previousDoc?.status !== 'sold') {
               // Run in background without blocking the response
