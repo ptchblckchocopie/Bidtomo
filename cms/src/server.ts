@@ -594,10 +594,22 @@ const start = async () => {
       CREATE INDEX IF NOT EXISTS "ratings_rels_path_idx" ON "ratings_rels" USING btree ("path");
     `);
 
+    // Auto-extend minutes — add column for anti-snipe feature
+    await prePool.query(`
+      ALTER TABLE "products"
+      ADD COLUMN IF NOT EXISTS "auto_extend_minutes" numeric DEFAULT 5;
+    `);
+
+    // Void request offer expiration
+    await prePool.query(`
+      ALTER TABLE "void_requests"
+      ADD COLUMN IF NOT EXISTS "offer_expires_at" timestamp(3) with time zone;
+    `);
+
     await prePool.end();
   } catch (preErr: any) {
-    console.error('Pre-init migration (ratings) failed:', preErr.message);
-    Sentry.captureException(preErr, { tags: { route: 'startup.migration.ratings' } });
+    console.error('Pre-init migration failed:', preErr.message);
+    Sentry.captureException(preErr, { tags: { route: 'startup.migration' } });
   }
 
   await payload.init({
