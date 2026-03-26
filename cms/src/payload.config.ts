@@ -188,12 +188,20 @@ export default buildConfig({
           },
         ],
         beforeChange: [
-          ({ req, data, operation, originalDoc }: any) => {
+          async ({ req, data, operation, originalDoc }: any) => {
             // Prevent role escalation: only admins can set/change the role field
+            // Exception: Payload's first-register creates the initial admin user
             if (req.user?.role !== 'admin') {
               if (operation === 'create') {
-                // Force default role on registration — ignore any client-supplied role
-                data.role = 'buyer';
+                // Check if this is the first user (Payload first-register flow)
+                const { totalDocs } = await req.payload.find({ collection: 'users', limit: 0, overrideAccess: true });
+                if (totalDocs === 0) {
+                  // First user — let Payload set admin role
+                  data.role = 'admin';
+                } else {
+                  // Force default role on registration — ignore any client-supplied role
+                  data.role = 'buyer';
+                }
               } else if (operation === 'update') {
                 // Preserve existing role — using `delete` would cause "required" validation
                 // failure on partial updates (e.g. profile picture)

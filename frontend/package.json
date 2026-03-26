@@ -24,7 +24,7 @@
   "type": "module",
   "dependencies": {
     "@sentry/sveltekit": "^10.39.0",
-    "@splinetool/runtime": "^1.12.68",
+    "@splinetool/runtime": "^1.12.72",
     "@sveltejs/adapter-node": "^5.5.3",
     "@sveltejs/adapter-vercel": "^6.3.2",
     "@types/three": "^0.183.1",
