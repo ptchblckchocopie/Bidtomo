@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { createProduct, updateProduct, uploadMedia, deleteMedia } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import KeywordInput from './KeywordInput.svelte';
@@ -49,6 +49,102 @@
   let showToast = $state(false);
   let toastMessage = $state('');
   let toastType: 'success' | 'error' = $state('success');
+
+  // Portal containers for overlays (appended to document.body to avoid transform containment)
+  let confirmPortal: HTMLDivElement | null = null;
+  let loaderPortal: HTMLDivElement | null = null;
+
+  function ensureConfirmPortal() {
+    if (!confirmPortal) {
+      confirmPortal = document.createElement('div');
+      confirmPortal.id = 'pf-confirm-portal';
+      document.body.appendChild(confirmPortal);
+    }
+    return confirmPortal;
+  }
+
+  function ensureLoaderPortal() {
+    if (!loaderPortal) {
+      loaderPortal = document.createElement('div');
+      loaderPortal.id = 'pf-loader-portal';
+      document.body.appendChild(loaderPortal);
+    }
+    return loaderPortal;
+  }
+
+  function renderConfirmModal() {
+    const portal = ensureConfirmPortal();
+    if (!showConfirmModal) {
+      portal.innerHTML = '';
+      return;
+    }
+    const currency = userCurrency === 'PHP' ? '₱' : userCurrency;
+    portal.innerHTML = `
+      <div class="pf-overlay" id="pf-confirm-overlay">
+        <div class="pf-modal">
+          <h3 class="pf-modal-title">CONFIRM YOUR LISTING</h3>
+          <p class="pf-modal-subtitle">Please review your listing details:</p>
+          <div class="pf-modal-details">
+            <div class="pf-row"><span class="pf-label">Title:</span> <span>${title}</span></div>
+            <div class="pf-row"><span class="pf-label">Starting Price:</span> <span>${currency} ${Number(startingPrice).toLocaleString()}</span></div>
+            <div class="pf-row"><span class="pf-label">Bid Increment:</span> <span>${currency} ${Number(bidInterval).toLocaleString()}</span></div>
+            <div class="pf-row"><span class="pf-label">Anti-Snipe:</span> <span>${autoExtendMinutes > 0 ? autoExtendMinutes + ' min' : 'Disabled'}</span></div>
+            <div class="pf-row"><span class="pf-label">End Date:</span> <span>${new Date(auctionEndDate).toLocaleString()}</span></div>
+            <div class="pf-row"><span class="pf-label">Location:</span> <span>${city}, ${region}</span></div>
+            <div class="pf-row"><span class="pf-label">Delivery:</span> <span>${deliveryOptions === 'both' ? 'Delivery & Meetup' : deliveryOptions}</span></div>
+            <div class="pf-row"><span class="pf-label">Categories:</span> <span>${selectedCategories.join(', ')}</span></div>
+            <div class="pf-row"><span class="pf-label">Images:</span> <span>${mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length} photo(s)</span></div>
+          </div>
+          <div class="pf-modal-actions">
+            <button class="btn-bh pf-confirm-btn" id="pf-confirm-submit">${mode === 'edit' ? 'Update Listing' : 'Create Listing'}</button>
+            <button class="btn-bh-outline pf-cancel-btn" id="pf-confirm-cancel">Go Back & Edit</button>
+          </div>
+        </div>
+      </div>
+    `;
+    // Attach event listeners
+    portal.querySelector('#pf-confirm-submit')?.addEventListener('click', confirmAndSubmit);
+    portal.querySelector('#pf-confirm-cancel')?.addEventListener('click', () => { showConfirmModal = false; });
+  }
+
+  function renderLoaderOverlay() {
+    const portal = ensureLoaderPortal();
+    if (!submitting) {
+      portal.innerHTML = '';
+      return;
+    }
+    portal.innerHTML = `
+      <div class="pf-overlay" id="pf-loader-overlay">
+        <div class="pf-loader-content">
+          <div class="pf-spinner"></div>
+          <p class="pf-loader-msg">${loadingMessage}</p>
+          <p class="pf-loader-hint">Please wait, do not close this window...</p>
+        </div>
+      </div>
+    `;
+  }
+
+  $effect(() => {
+    const _show = showConfirmModal;
+    const _t = title; const _sp = startingPrice; const _bi = bidInterval;
+    const _ae = autoExtendMinutes; const _ed = auctionEndDate;
+    const _c = city; const _r = region; const _d = deliveryOptions;
+    const _sc = selectedCategories; const _ei = existingImages; const _if = imageFiles;
+    renderConfirmModal();
+  });
+
+  $effect(() => {
+    // Track reactive deps explicitly by reading them
+    const _s = submitting;
+    const _m = loadingMessage;
+    renderLoaderOverlay();
+  });
+
+  onDestroy(() => {
+    confirmPortal?.remove();
+    loaderPortal?.remove();
+    document.getElementById('pf-toast')?.remove();
+  });
 
   // Duration controls
   let customDays = $state(0);
@@ -334,12 +430,20 @@
   }
 
   function showToastNotification(message: string, type: 'success' | 'error' = 'success') {
-    toastMessage = message;
-    toastType = type;
-    showToast = true;
-    setTimeout(() => {
-      showToast = false;
-    }, 4000);
+    // Remove any existing toast
+    document.getElementById('pf-toast')?.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'pf-toast';
+    toast.className = `pf-toast pf-toast-${type}`;
+    toast.innerHTML = `
+      <div class="pf-toast-icon">${type === 'success' ? '✓' : '✕'}</div>
+      <div class="pf-toast-msg">${message}</div>
+    `;
+    document.body.appendChild(toast);
+
+    setTimeout(() => toast.classList.add('pf-toast-out'), 3700);
+    setTimeout(() => toast.remove(), 4000);
   }
 
   async function handleSubmit(e: Event) {
@@ -348,6 +452,20 @@
     error = '';
     success = false;
     submitting = true;
+
+    // Field name → DOM element ID for scroll targeting
+    const fieldIds: Record<string, string> = {
+      'Title': 'title',
+      'Description': 'description',
+      'Starting Price': 'startingPrice',
+      'Auction End Date': 'auctionEndDate',
+      'Region': 'region',
+      'City': 'city',
+      'Delivery Options': 'deliveryOptions',
+      'Bid Increment': 'bidInterval',
+      'Categories': 'categories-section',
+      'Product Image': 'image-upload-section',
+    };
 
     // Validate all required fields
     const missingFields: string[] = [];
@@ -365,13 +483,39 @@
     if (totalImages === 0) missingFields.push('Product Image');
 
     if (missingFields.length > 0) {
-      showToastNotification(`Please fill in: ${missingFields.join(', ')}`, 'error');
+      // Scroll to first missing field, then show toast after scroll settles
+      const firstFieldId = fieldIds[missingFields[0]];
+      if (firstFieldId) {
+        const el = document.getElementById(firstFieldId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => {
+            el.classList.add('field-shake');
+            el.addEventListener('animationend', () => el.classList.remove('field-shake'), { once: true });
+            showToastNotification(`Please fill in: ${missingFields.join(', ')}`, 'error');
+          }, 400);
+        } else {
+          showToastNotification(`Please fill in: ${missingFields.join(', ')}`, 'error');
+        }
+      } else {
+        showToastNotification(`Please fill in: ${missingFields.join(', ')}`, 'error');
+      }
       submitting = false;
       return;
     }
 
     if (Number(startingPrice) < 100) {
-      showToastNotification('Starting price must be at least 100', 'error');
+      const el = document.getElementById('startingPrice');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          el.classList.add('field-shake');
+          el.addEventListener('animationend', () => el.classList.remove('field-shake'), { once: true });
+          showToastNotification('Starting price must be at least 100', 'error');
+        }, 400);
+      } else {
+        showToastNotification('Starting price must be at least 100', 'error');
+      }
       submitting = false;
       return;
     }
@@ -545,7 +689,7 @@
   }
 </script>
 
-<form onsubmit={handleSubmit} class="product-form">
+<form onsubmit={handleSubmit} class="product-form" novalidate>
   <div class="form-group">
     <label for="title">Product Title *</label>
     <input
@@ -631,7 +775,7 @@
     <p class="field-hint">How will the buyer receive the product?</p>
   </div>
 
-  <div class="form-group">
+  <div class="form-group" id="categories-section">
     <label>Product Categories</label>
     <div class="categories-grid">
       {#each categories as category}
@@ -656,7 +800,7 @@
     <p class="field-hint">Select one or more categories that describe your product</p>
   </div>
 
-  <div class="form-group">
+  <div class="form-group" id="image-upload-section">
     <label for="images">Product Images * (1-5 images)</label>
     <div class="image-upload-container">
       {#if (mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length) < 5}
@@ -873,55 +1017,8 @@
   </div>
 </form>
 
-<!-- Confirmation Modal -->
-{#if showConfirmModal}
-  <div class="confirm-overlay" role="dialog" aria-modal="true">
-    <div class="confirm-modal">
-      <h3 class="confirm-title">Confirm Your Listing</h3>
-      <p class="confirm-subtitle">Please review your listing details:</p>
-      <div class="confirm-details">
-        <div class="confirm-row"><span class="confirm-label">Title:</span> <span>{title}</span></div>
-        <div class="confirm-row"><span class="confirm-label">Starting Price:</span> <span>{userCurrency === 'PHP' ? '₱' : userCurrency} {Number(startingPrice).toLocaleString()}</span></div>
-        <div class="confirm-row"><span class="confirm-label">Bid Increment:</span> <span>{userCurrency === 'PHP' ? '₱' : userCurrency} {Number(bidInterval).toLocaleString()}</span></div>
-        <div class="confirm-row"><span class="confirm-label">Anti-Snipe:</span> <span>{autoExtendMinutes > 0 ? `${autoExtendMinutes} min` : 'Disabled'}</span></div>
-        <div class="confirm-row"><span class="confirm-label">End Date:</span> <span>{new Date(auctionEndDate).toLocaleString()}</span></div>
-        <div class="confirm-row"><span class="confirm-label">Location:</span> <span>{city}, {region}</span></div>
-        <div class="confirm-row"><span class="confirm-label">Delivery:</span> <span>{deliveryOptions === 'both' ? 'Delivery & Meetup' : deliveryOptions}</span></div>
-        <div class="confirm-row"><span class="confirm-label">Categories:</span> <span>{selectedCategories.join(', ')}</span></div>
-        <div class="confirm-row"><span class="confirm-label">Images:</span> <span>{mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length} photo(s)</span></div>
-      </div>
-      <div class="confirm-actions">
-        <button class="btn-bh" onclick={confirmAndSubmit}>{mode === 'edit' ? 'Update Listing' : 'Create Listing'}</button>
-        <button class="btn-bh-outline" onclick={() => showConfirmModal = false}>Go Back & Edit</button>
-      </div>
-    </div>
-  </div>
-{/if}
+<!-- Confirm modal and loader are rendered as portals on document.body (see $effect above) -->
 
-<!-- Fullscreen Loading Overlay -->
-{#if submitting}
-  <div class="fullscreen-loader">
-    <div class="loader-content">
-      <div class="spinner"></div>
-      <p class="loader-message">{loadingMessage}</p>
-      <p class="loader-hint">Please wait, do not close this window...</p>
-    </div>
-  </div>
-{/if}
-
-<!-- Toast Notification -->
-{#if showToast}
-  <div class="toast {toastType}" class:show={showToast}>
-    <div class="toast-icon">
-      {#if toastType === 'success'}
-        &#10003;
-      {:else}
-        ✕
-      {/if}
-    </div>
-    <div class="toast-message">{toastMessage}</div>
-  </div>
-{/if}
 
 <style>
   .product-form {
@@ -1241,119 +1338,63 @@
   }
 
   /* Confirmation Modal */
-  .confirm-overlay {
+  /* Overlay, modal, and loader — rendered on document.body via portal */
+  :global(.pf-overlay) {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
+    inset: 0;
+    background: rgba(0, 0, 0, 0.9);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 9999;
     padding: 1rem;
   }
-
-  .confirm-modal {
-    background: var(--color-bg);
-    border: 2px solid var(--color-border);
-    border-radius: 0;
+  :global(.pf-modal) {
+    background: var(--color-bg, #111);
+    border: 2px solid var(--color-border, #333);
     padding: 2rem;
     max-width: 500px;
     width: 100%;
     max-height: 80vh;
     overflow-y: auto;
   }
-
-  .confirm-title {
-    font-size: 1.25rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 0.25rem;
+  :global(.pf-modal-title) {
+    font-size: 1.25rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    margin-bottom: 0.25rem; color: var(--color-fg, #fff);
   }
-
-  .confirm-subtitle {
-    color: var(--color-muted-fg);
-    font-size: 0.875rem;
-    margin-bottom: 1.25rem;
+  :global(.pf-modal-subtitle) {
+    color: var(--color-muted-fg, #888); font-size: 0.875rem; margin-bottom: 1.25rem;
   }
-
-  .confirm-details {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    padding: 1rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--color-border);
+  :global(.pf-modal-details) {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    margin-bottom: 1.5rem; padding: 1rem;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--color-border, #333);
   }
-
-  .confirm-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.875rem;
-    gap: 1rem;
+  :global(.pf-row) {
+    display: flex; justify-content: space-between;
+    font-size: 0.875rem; gap: 1rem; color: var(--color-fg, #fff);
   }
+  :global(.pf-row span:last-child) { text-align: right; font-weight: 600; }
+  :global(.pf-label) { color: var(--color-muted-fg, #888); flex-shrink: 0; }
+  :global(.pf-modal-actions) { display: flex; flex-direction: column; gap: 0.75rem; }
 
-  .confirm-row span:last-child {
-    text-align: right;
-    font-weight: 600;
+  :global(.pf-loader-content) {
+    text-align: center; color: white; max-width: 400px; padding: 2rem;
   }
-
-  .confirm-label {
-    color: var(--color-muted-fg);
-    flex-shrink: 0;
-  }
-
-  .confirm-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  /* Fullscreen Loader */
-  .fullscreen-loader {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.9);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-    animation: fadeIn 0.3s ease-in;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  .loader-content {
-    text-align: center;
-    color: white;
-    max-width: 400px;
-    padding: 2rem;
-  }
-
-  .spinner {
-    width: 64px;
-    height: 64px;
-    border: 6px solid rgba(255, 255, 255, 0.2);
-    border-top-color: var(--color-red);
+  :global(.pf-spinner) {
+    width: 64px; height: 64px;
+    border: 6px solid rgba(255,255,255,0.2);
+    border-top-color: var(--color-red, #ef4444);
     border-radius: 50% !important;
-    animation: spin 1s linear infinite;
+    animation: pf-spin 1s linear infinite;
     margin: 0 auto 1.5rem;
   }
+  :global(.pf-loader-msg) { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
+  :global(.pf-loader-hint) { font-size: 0.85rem; opacity: 0.6; }
 
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
+  @keyframes pf-spin { to { transform: rotate(360deg); } }
 
   .loader-message {
     font-size: 1.25rem;
@@ -1368,8 +1409,8 @@
     margin: 0;
   }
 
-  /* Toast Notification */
-  .toast {
+  /* Toast — rendered on document.body, needs :global */
+  :global(.pf-toast) {
     position: fixed;
     top: 20px;
     right: 20px;
@@ -1377,59 +1418,50 @@
     align-items: center;
     gap: 12px;
     padding: 16px 24px;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid rgba(255,255,255,0.15);
     z-index: 10000;
     min-width: 300px;
     max-width: 500px;
-    animation: slideInRight 0.3s ease-out, fadeOut 0.3s ease-in 3.7s;
+    animation: pf-slideIn 0.3s ease-out;
     font-size: 1rem;
+    font-family: var(--font-body, 'Plus Jakarta Sans', sans-serif);
   }
+  :global(.pf-toast-out) { opacity: 0; transition: opacity 0.3s ease-out; }
+  :global(.pf-toast-success) { background: var(--color-blue, #3b82f6); color: white; }
+  :global(.pf-toast-error) { background: var(--color-red, #ef4444); color: white; }
+  :global(.pf-toast-icon) {
+    width: 28px; height: 28px;
+    background: rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold; font-size: 1.2rem; flex-shrink: 0;
+  }
+  :global(.pf-toast-msg) { flex: 1; font-weight: 500; }
 
-  @keyframes slideInRight {
+  @keyframes pf-slideIn {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
   }
 
-  @keyframes fadeOut {
-    from { opacity: 1; }
-    to { opacity: 0; }
-  }
-
-  .toast.success {
-    background: var(--color-blue);
-    color: white;
-  }
-
-  .toast.error {
-    background: var(--color-red);
-    color: white;
-  }
-
-
-  .toast-icon {
-    width: 28px;
-    height: 28px;
-    background: rgba(255, 255, 255, 0.2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 1.2rem;
-    flex-shrink: 0;
-  }
-
-  .toast-message {
-    flex: 1;
-    font-weight: 500;
-  }
-
   @media (max-width: 768px) {
-    .toast {
-      top: 10px;
-      right: 10px;
-      left: 10px;
-      min-width: auto;
-      max-width: none;
+    :global(.pf-toast) {
+      top: 10px; right: 10px; left: 10px;
+      min-width: auto; max-width: none;
     }
+  }
+
+  /* Shake animation for missing fields */
+  :global(.field-shake) {
+    animation: fieldShake 0.5s ease-out;
+    outline: 2px solid var(--color-red) !important;
+    outline-offset: 2px;
+  }
+
+  @keyframes fieldShake {
+    0%, 100% { transform: translateX(0); }
+    15% { transform: translateX(-6px); }
+    30% { transform: translateX(5px); }
+    45% { transform: translateX(-4px); }
+    60% { transform: translateX(3px); }
+    75% { transform: translateX(-2px); }
   }
 </style>

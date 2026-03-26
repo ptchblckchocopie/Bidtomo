@@ -78,8 +78,8 @@
       return;
     }
 
-    if (password.length < 6) {
-      showError('Password must be at least 6 characters');
+    if (password.length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+      showError('Password must be at least 8 characters with uppercase, lowercase, and a number');
       return;
     }
 
@@ -260,7 +260,7 @@
             id="password"
             type={showPassword ? 'text' : 'password'}
             bind:value={password}
-            placeholder="Enter a strong password (min 6 characters)"
+            placeholder="Min 8 chars, uppercase, lowercase, number"
             required
             disabled={submitting || success}
             class="input-bh pr-12"
