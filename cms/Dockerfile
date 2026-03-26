@@ -17,8 +17,8 @@ ENV PAYLOAD_SECRET=${PAYLOAD_SECRET}
 ARG GIT_SHA=unknown
 ENV GIT_SHA=${GIT_SHA}
 
-# Copy package files
-COPY package*.json ./
+# Copy package files and postinstall script
+COPY package*.json postinstall.js ./
 
 # Explicitly install ALL dependencies including devDependencies
 # Unset NODE_ENV to ensure devDependencies are installed

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 const KURUMI_GIF = path.resolve(__dirname, '../../cms/media/kurumi.gif');
 
 // Helper: log in by hitting CMS directly and setting localStorage + cookie
-async function login(page) {
+async function login(page: Page) {
   // Try login via CMS API directly
   let res = await page.request.post('http://localhost:3001/api/users/login', {
     data: { email: 'test@playwright.dev', password: 'Test1234' },
@@ -30,7 +30,7 @@ async function login(page) {
 
   // Navigate to app and inject auth
   await page.goto('/');
-  await page.evaluate(({ token, user }) => {
+  await page.evaluate(({ token, user }: { token: string; user: unknown }) => {
     localStorage.setItem('auth_token', token);
     localStorage.setItem('user_data', JSON.stringify(user));
   }, { token, user });
