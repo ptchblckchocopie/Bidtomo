@@ -224,14 +224,10 @@
 
     <div class="intro-content" class:intro-content-exit={phase === 'intro-exit'}>
       <div class="intro-logo" class:logo-visible={introStep >= 0}>
-        <img src="/bidmo.to.png" alt="BidMo.to" class="intro-logo-img" />
+        <img src="/logo-new.png" alt="BidMo.to" class="intro-logo-img" />
       </div>
 
-      <h1 class="intro-brand" class:text-visible={introStep >= 2}>
-        <span class="intro-letter" style="--i:0">B</span><span class="intro-letter" style="--i:1">i</span><span class="intro-letter" style="--i:2">d</span><span class="intro-letter" style="--i:3">M</span><span class="intro-letter" style="--i:4">o</span><span class="intro-letter" style="--i:5">.</span><span class="intro-letter" style="--i:6">t</span><span class="intro-letter" style="--i:7">o</span>
-      </h1>
-
-      <p class="intro-tagline" class:text-visible={introStep >= 3}>
+      <p class="intro-tagline" class:text-visible={introStep >= 2}>
         The Filipino Auction Marketplace
       </p>
 
