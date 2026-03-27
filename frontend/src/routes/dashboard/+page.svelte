@@ -400,7 +400,7 @@
                         {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
                         {#if validImages.length > 0}
                           {@const firstImage = validImages[0]}
-                          <img src={firstImage.image.url} alt={product.title} />
+                          <img src={firstImage.image.url} alt={product.title} loading="lazy" />
                         {:else}
                           <div class="placeholder-image">
                             <span class="placeholder-icon">📦</span>
@@ -470,7 +470,7 @@
                         {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
                         {#if validImages.length > 0}
                           {@const firstImage = validImages[0]}
-                          <img src={firstImage.image.url} alt={product.title} />
+                          <img src={firstImage.image.url} alt={product.title} loading="lazy" />
                         {:else}
                           <div class="placeholder-image">
                             <span class="placeholder-icon">📦</span>
@@ -538,7 +538,7 @@
                         {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
                         {#if validImages.length > 0}
                           {@const firstImage = validImages[0]}
-                          <img src={firstImage.image.url} alt={product.title} />
+                          <img src={firstImage.image.url} alt={product.title} loading="lazy" />
                         {:else}
                           <div class="placeholder-image">
                             <span class="placeholder-icon">📦</span>
@@ -601,7 +601,7 @@
                       {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
                       {#if validImages.length > 0}
                         {@const firstImage = validImages[0]}
-                        <img src={firstImage.image.url} alt={product.title} />
+                        <img src={firstImage.image.url} alt={product.title} loading="lazy" />
                       {:else}
                         <div class="placeholder-image">
                           <span class="placeholder-icon">📦</span>

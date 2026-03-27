@@ -1187,6 +1187,28 @@
   {#if data.product?.images && data.product.images.length > 0 && data.product.images[0].image}
     <meta property="twitter:image" content={data.product.images[0].image.url} />
   {/if}
+
+  <!-- JSON-LD Structured Data -->
+  {#if data.product}
+    {@const sellerName = typeof data.product.seller === 'object' ? data.product.seller?.name : ''}
+    {@const currency = typeof data.product.seller === 'object' ? (data.product.seller?.currency || 'PHP') : 'PHP'}
+    {@const price = data.product.currentBid || data.product.startingPrice || 0}
+    {@const imageUrl = data.product.images?.[0]?.image?.url || ''}
+    {@html `<script type="application/ld+json">${JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": data.product.title,
+      "description": data.product.description?.substring(0, 300),
+      "image": imageUrl,
+      "offers": {
+        "@type": "Offer",
+        "price": price,
+        "priceCurrency": currency,
+        "availability": data.product.status === 'available' ? "https://schema.org/InStock" : "https://schema.org/SoldOut",
+        "seller": { "@type": "Person", "name": sellerName }
+      }
+    })}</script>`}
+  {/if}
 </svelte:head>
 
 {#if !data.product}

@@ -106,7 +106,13 @@
 </script>
 
 <svelte:head>
-  <title>{data.user.name} - User Profile</title>
+  <title>{data.user.name} - BidMo.to</title>
+  <meta name="description" content="{data.user.name}'s profile on BidMo.to — view their listings and ratings.">
+  <meta property="og:title" content="{data.user.name} - BidMo.to">
+  <meta property="og:description" content="View {data.user.name}'s auction listings and seller ratings on BidMo.to.">
+  {#if data.user.profilePicture?.url}
+    <meta property="og:image" content={data.user.profilePicture.url}>
+  {/if}
 </svelte:head>
 
 <div class="profile-page">
@@ -255,7 +261,7 @@
                 <a href="/products/{product.id}" class="product-card">
                   <div class="product-image">
                     {#if getProductImage(product)}
-                      <img src={getProductImage(product)} alt={product.title} />
+                      <img src={getProductImage(product)} alt={product.title} loading="lazy" />
                     {:else}
                       <div class="no-image">No Image</div>
                     {/if}
@@ -288,7 +294,7 @@
                 <a href="/products/{product.id}" class="product-card sold">
                   <div class="product-image">
                     {#if getProductImage(product)}
-                      <img src={getProductImage(product)} alt={product.title} />
+                      <img src={getProductImage(product)} alt={product.title} loading="lazy" />
                     {:else}
                       <div class="no-image">No Image</div>
                     {/if}

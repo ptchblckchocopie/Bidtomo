@@ -14,6 +14,7 @@
   import MaintenanceOverlay from '$lib/components/MaintenanceOverlay.svelte';
   import { backgroundStore, type BackgroundType } from '$lib/stores/background';
   import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
+  import ToastContainer from '$lib/components/ToastContainer.svelte';
   import type { Snippet } from 'svelte';
 
   let { children: pageContent }: { children: Snippet } = $props();
@@ -107,6 +108,16 @@
     trackPageView();
   });
 </script>
+
+<svelte:head>
+  <meta name="description" content="BidMo.to is the Filipino auction marketplace for unique items. Buy and sell through real-time bidding.">
+  <meta property="og:site_name" content="BidMo.to">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_PH">
+  <meta property="og:image" content="https://www.bidmo.to/bidmo.to.png">
+  <meta name="twitter:card" content="summary">
+  <link rel="canonical" href="https://www.bidmo.to">
+</svelte:head>
 
 <svelte:window onclick={handleClickOutside} />
 
@@ -479,6 +490,8 @@
 
 {/snippet}
 </MaintenanceOverlay>
+
+<ToastContainer />
 
 <style>
   /* Nav layout — 3-column: logo | center links | actions */

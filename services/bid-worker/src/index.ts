@@ -878,25 +878,23 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
     // Safety limit: cap at 50 incremental steps, then jump to final for remainder
     const MAX_INCREMENTAL_STEPS = 50;
 
+    // Collect all bids first (compute only, no DB writes)
+    const pendingBids: Array<{ amount: number; bidderId: number; censorName: boolean }> = [];
+
     for (let step = 0; step < MAX_INCREMENTAL_STEPS; step++) {
       const nextMin = runningBid > 0 ? runningBid + bidInterval : startingPrice;
 
-      // Find the best counter-bidder: not the current high bidder, can beat runningBid
-      // Prefer highest maxAmount, then earliest createdAt (first-come-first-served)
       const currentHolderAB = autoBidMap.get(currentHighBidderId);
       let bestCounter: { bidderId: number; maxAmount: number; censorName: boolean; createdAt: number } | null = null;
       for (const [bidderId, ab] of autoBidMap) {
         if (bidderId === currentHighBidderId) continue;
-        if (ab.maxAmount <= runningBid) continue; // Can't beat current bid at all
+        if (ab.maxAmount <= runningBid) continue;
 
-        // First-come-first-served tiebreaker: if this counter-bidder would bid their
-        // exact max, and the current high bidder has the same max but set their auto-bid
-        // earlier, skip — the later bidder can't win a tie against an earlier one.
         const wouldBidAmount = ab.maxAmount >= nextMin ? nextMin : ab.maxAmount;
         if (wouldBidAmount === ab.maxAmount && currentHolderAB &&
             currentHolderAB.maxAmount === ab.maxAmount &&
             currentHolderAB.createdAt < ab.createdAt) {
-          continue; // Current holder was first with same max — this counter can't win
+          continue;
         }
 
         if (!bestCounter || ab.maxAmount > bestCounter.maxAmount ||
@@ -905,32 +903,57 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
         }
       }
 
-      if (!bestCounter) break; // No one can counter — current high bidder wins
+      if (!bestCounter) break;
 
-      // Determine bid amount: standard increment if affordable, otherwise their max
-      // (allows sub-interval final bids so both sides use their full max — fair tiebreaker)
       const counterBidAmount = bestCounter.maxAmount >= nextMin ? nextMin : bestCounter.maxAmount;
-
-      // Place the counter-bid
-      const bidResult = await client.query(
-        `INSERT INTO bids (amount, bid_time, censor_name, created_at, updated_at)
-         VALUES ($1, NOW(), $2, NOW(), NOW()) RETURNING id`,
-        [counterBidAmount, bestCounter.censorName]
-      );
-      const bidId = bidResult.rows[0].id;
-
-      await client.query(
-        `INSERT INTO bids_rels (parent_id, path, products_id) VALUES ($1, 'product', $2)`,
-        [bidId, productId]
-      );
-      await client.query(
-        `INSERT INTO bids_rels (parent_id, path, users_id) VALUES ($1, 'bidder', $2)`,
-        [bidId, bestCounter.bidderId]
-      );
-
-      placedBids.push({ bidId, amount: counterBidAmount, bidderId: bestCounter.bidderId, censorName: bestCounter.censorName });
+      pendingBids.push({ amount: counterBidAmount, bidderId: bestCounter.bidderId, censorName: bestCounter.censorName });
       runningBid = counterBidAmount;
       currentHighBidderId = bestCounter.bidderId;
+    }
+
+    // Batch-insert all bids in one query (instead of 3 queries per bid)
+    if (pendingBids.length > 0) {
+      // Insert all bids at once
+      const bidValues = pendingBids.map((_, i) => `($${i * 2 + 1}, NOW(), $${i * 2 + 2}, NOW(), NOW())`).join(', ');
+      const bidParams: any[] = [];
+      for (const b of pendingBids) {
+        bidParams.push(b.amount, b.censorName);
+      }
+      const bidInsert = await client.query(
+        `INSERT INTO bids (amount, bid_time, censor_name, created_at, updated_at)
+         VALUES ${bidValues} RETURNING id`,
+        bidParams
+      );
+
+      // Batch-insert all bids_rels (product + bidder per bid)
+      const relValues: string[] = [];
+      const relParams: any[] = [];
+      let paramIdx = 1;
+      for (let i = 0; i < pendingBids.length; i++) {
+        const bidId = bidInsert.rows[i].id;
+        // Product rel
+        relValues.push(`($${paramIdx}, 'product', $${paramIdx + 1}, NULL)`);
+        relParams.push(bidId, productId);
+        paramIdx += 2;
+        // Bidder rel
+        relValues.push(`($${paramIdx}, 'bidder', NULL, $${paramIdx + 1})`);
+        relParams.push(bidId, pendingBids[i].bidderId);
+        paramIdx += 2;
+      }
+      await client.query(
+        `INSERT INTO bids_rels (parent_id, path, products_id, users_id) VALUES ${relValues.join(', ')}`,
+        relParams
+      );
+
+      // Populate placedBids for SSE events
+      for (let i = 0; i < pendingBids.length; i++) {
+        placedBids.push({
+          bidId: bidInsert.rows[i].id,
+          amount: pendingBids[i].amount,
+          bidderId: pendingBids[i].bidderId,
+          censorName: pendingBids[i].censorName,
+        });
+      }
     }
 
     // If we hit the step limit and there's still competition, resolve remainder in one jump

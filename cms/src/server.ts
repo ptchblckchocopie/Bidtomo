@@ -7,7 +7,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
-import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected, getMaintenanceStatus, setMaintenanceStatus } from './redis';
+import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected, getRedisClient, getMaintenanceStatus, setMaintenanceStatus } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
 import { getOverviewStats, getTimeSeries, getTopSearchKeywords, getTopViewedProducts, getTopSoldProducts, getEventBreakdown } from './services/analyticsQueries';
@@ -605,6 +605,16 @@ const start = async () => {
     await prePool.query(`
       ALTER TABLE "void_requests"
       ADD COLUMN IF NOT EXISTS "offer_expires_at" timestamp(3) with time zone;
+    `);
+
+    // Performance indexes
+    await prePool.query(`
+      CREATE INDEX IF NOT EXISTS idx_products_status_active ON products(status, active);
+      CREATE INDEX IF NOT EXISTS idx_products_auction_end ON products(auction_end_date) WHERE status = 'available';
+      CREATE INDEX IF NOT EXISTS idx_bids_amount_desc ON bids(amount DESC);
+      CREATE INDEX IF NOT EXISTS idx_auto_bids_active_product ON auto_bids(product_id) WHERE active = true;
+      CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_void_requests_status ON void_requests(status, created_at);
     `);
 
     await prePool.end();
@@ -1979,24 +1989,55 @@ const start = async () => {
   // Health check endpoint for Redis status
   app.get('/api/health', async (req, res) => {
     const esAvailable = await isElasticAvailable();
+    const pool = (payload.db as any).pool;
 
+    // Postgres connectivity
+    let postgres = 'disconnected';
+    try {
+      await pool.query('SELECT 1');
+      postgres = 'connected';
+    } catch { /* non-critical */ }
+
+    // Pending expired auctions
     let pendingExpiredAuctions = 0;
     try {
-      const pool = (payload.db as any).pool;
       const result = await pool.query(
         `SELECT COUNT(*) as count FROM products
          WHERE status = 'available' AND active = true AND auction_end_date < NOW()`
       );
       pendingExpiredAuctions = parseInt(result.rows[0].count, 10);
-    } catch {
-      // Non-critical — don't fail health check
-    }
+    } catch { /* non-critical */ }
+
+    // Email queue depth (via Redis)
+    let emailQueueDepth = 0;
+    try {
+      if (isRedisConnected()) {
+        const redisClient = getRedisClient();
+        if (redisClient) {
+          emailQueueDepth = await redisClient.llen('email:queue');
+        }
+      }
+    } catch { /* non-critical */ }
+
+    // Pending bids backlog
+    let pendingBidsBacklog = 0;
+    try {
+      const result = await pool.query(
+        `SELECT COUNT(*) as count FROM pending_bids`
+      );
+      pendingBidsBacklog = parseInt(result.rows[0].count, 10);
+    } catch { /* table may not exist */ }
+
+    const allOk = postgres === 'connected' && isRedisConnected();
 
     res.json({
-      status: 'ok',
+      status: allOk ? 'ok' : 'degraded',
+      postgres,
       redis: isRedisConnected() ? 'connected' : 'disconnected',
       elasticsearch: esAvailable ? 'connected' : 'disconnected',
       pendingExpiredAuctions,
+      emailQueueDepth,
+      pendingBidsBacklog,
       timestamp: Date.now(),
     });
   });

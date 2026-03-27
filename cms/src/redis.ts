@@ -50,6 +50,10 @@ function getRedis(): Redis {
 }
 
 // Check if Redis is connected
+export function getRedisClient(): Redis | null {
+  return redis;
+}
+
 export function isRedisConnected(): boolean {
   return redisConnected;
 }

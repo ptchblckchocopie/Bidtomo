@@ -11,6 +11,7 @@
   import { getUserSSE, disconnectUserSSE, getProductSSE, disconnectProductSSE, type SSEEvent, type MessageEvent as SSEMessageEvent, type TypingEvent } from '$lib/sse';
   import { trackConversationOpened } from '$lib/analytics';
   import { t } from '$lib/stores/locale';
+  import { addToast } from '$lib/stores/toast';
 
   function handleBackToList() {
     selectedProduct = null;
@@ -59,7 +60,7 @@
       if (result.success) {
         closeVoidModal();
         // Show success message or update UI
-        alert('Void request submitted successfully. Waiting for the other party to respond.');
+        addToast('Void request submitted. Waiting for the other party to respond.', 'success');
       } else {
         voidError = result.error || 'Failed to create void request';
       }
@@ -110,10 +111,10 @@
           if (isSeller) {
             showSellerChoiceModal = true;
           } else {
-            alert('Void request approved. The seller will decide what to do next.');
+            addToast('Void request approved. The seller will decide what to do next.', 'success');
           }
         } else {
-          alert(action === 'approve' ? 'Void request approved' : 'Void request rejected');
+          addToast(action === 'approve' ? 'Void request approved' : 'Void request rejected', action === 'approve' ? 'success' : 'info');
         }
       } else {
         voidError = result.error || 'Failed to respond to void request';
@@ -142,9 +143,9 @@
       if (result.success) {
         closeSellerChoiceModal();
         if (choice === 'restart_bidding') {
-          alert(`Auction restarted! ${result.notifiedBidders || 0} bidders have been notified.`);
+          addToast(`Auction restarted! ${result.notifiedBidders || 0} bidders notified.`, 'success');
         } else {
-          alert(`Offer sent to the second highest bidder.`);
+          addToast('Offer sent to the second highest bidder.', 'success');
         }
         // Refresh the page to update product status
         window.location.reload();
@@ -185,10 +186,10 @@
       if (result.success) {
         closeSecondBidderOfferModal();
         if (action === 'accept') {
-          alert('Congratulations! You have secured the item. Check your inbox for next steps.');
+          addToast('Congratulations! You have secured the item.', 'success', 6000);
           window.location.reload();
         } else {
-          alert('You have declined the offer.');
+          addToast('You have declined the offer.', 'info');
         }
       } else {
         voidError = result.error || 'Failed to respond to offer';
@@ -1268,7 +1269,7 @@
           >
             <div class="conversation-image">
               {#if conv.product.images && conv.product.images.length > 0 && conv.product.images[0].image}
-                <img src={conv.product.images[0].image.url} alt={conv.product.title} />
+                <img src={conv.product.images[0].image.url} alt={conv.product.title} loading="lazy" />
               {:else}
                 <div class="no-image">📦</div>
               {/if}

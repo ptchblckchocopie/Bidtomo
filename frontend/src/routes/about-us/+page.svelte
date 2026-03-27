@@ -33,7 +33,9 @@
 
 <svelte:head>
   <title>About Us - BidMo.to</title>
-  <meta name="description" content="Learn about BidMo.to - The Filipino way to bid, buy, and sell unique items. Join our experimental auction platform and help us grow!" />
+  <meta name="description" content="Learn about BidMo.to - The Filipino way to bid, buy, and sell unique items. Join our experimental auction platform and help us grow!">
+  <meta property="og:title" content="About Us - BidMo.to">
+  <meta property="og:description" content="The Filipino way to bid, buy, and sell unique items.">
 </svelte:head>
 
 <div class="about-fullwidth">
