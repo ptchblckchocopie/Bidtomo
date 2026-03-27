@@ -12,7 +12,7 @@ import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRes
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
 import { getOverviewStats, getTimeSeries, getTopSearchKeywords, getTopViewedProducts, getTopSoldProducts, getEventBreakdown } from './services/analyticsQueries';
 import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress, getLatestBackupAgeHours } from './services/backupService';
-import { getCachedProductDetail, getCachedProductList, invalidateProductCache } from './services/cache';
+import { invalidateProductCache } from './services/cache';
 import { authenticateJWT } from './auth-helpers';
 import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
 import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema, analyticsTrackSchema, reportCreateSchema, autoBidSchema, autoBidCancelSchema } from './middleware/validate';
@@ -648,54 +648,49 @@ const start = async () => {
   }
 
   // ── Redis cache middleware for Payload product routes ──
-  // Intercepts GET /api/products and /api/products/:id before Payload handles them.
-  // Only caches unauthenticated/public reads. Authenticated requests bypass cache.
-  app.use('/api/products', (req, res, next) => {
-    // Only cache GET requests
-    if (req.method !== 'GET') return next();
-    // Skip cache for authenticated requests (admin edits, seller views)
-    if (req.headers.authorization) return next();
+  // Checks Redis cache for GET product requests before Payload handles them.
+  // On cache hit: responds immediately without calling next().
+  // On cache miss: lets Payload handle it, then caches the response.
+  app.use('/api/products', async (req, res, next) => {
+    // Only cache GET requests from unauthenticated clients
+    if (req.method !== 'GET' || req.headers.authorization) return next();
 
-    const originalJson = res.json.bind(res);
+    const redis = getRedisClient();
+    if (!redis || !isRedisConnected()) return next();
 
-    // Product detail: /api/products/:id (numeric ID)
+    // Determine cache key
+    let cacheKey: string | null = null;
     const idMatch = req.path.match(/^\/(\d+)$/);
     if (idMatch) {
-      const productId = idMatch[1];
-      getCachedProductDetail(productId, () => {
-        return new Promise((resolve) => {
-          res.json = (body: any) => {
-            resolve(body);
-            return originalJson(body);
-          };
-          next();
-        });
-      }).then((cached) => {
-        // If the response was already sent by the promise resolution, skip
-        if (res.headersSent) return;
-        originalJson(cached);
-      }).catch(() => next());
-      return;
+      cacheKey = `cache:products:detail:${idMatch[1]}`;
+    } else if (req.path === '/' || req.path === '') {
+      const crypto = require('crypto');
+      const hash = crypto.createHash('md5').update(JSON.stringify(req.query)).digest('hex').slice(0, 12);
+      cacheKey = `cache:products:list:${hash}`;
     }
 
-    // Product list: /api/products (with query params)
-    if (req.path === '/' || req.path === '') {
-      getCachedProductList(req.query, () => {
-        return new Promise((resolve) => {
-          res.json = (body: any) => {
-            resolve(body);
-            return originalJson(body);
-          };
-          next();
-        });
-      }).then((cached) => {
-        if (res.headersSent) return;
-        originalJson(cached);
-      }).catch(() => next());
-      return;
-    }
+    if (!cacheKey) return next();
 
-    // All other product sub-routes (e.g. /api/products/:id/status) — no cache
+    // Check cache — serve immediately on hit
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        res.setHeader('X-Cache', 'HIT');
+        return res.json(JSON.parse(cached));
+      }
+    } catch { /* cache read failed, fall through */ }
+
+    // Cache miss — intercept response to cache it
+    res.setHeader('X-Cache', 'MISS');
+    const originalJson = res.json.bind(res);
+    const ttl = idMatch ? 5 : 10;
+    res.json = (body: any) => {
+      // Only cache successful responses
+      if (res.statusCode >= 200 && res.statusCode < 300 && cacheKey) {
+        redis.setex(cacheKey, ttl, JSON.stringify(body)).catch(() => {});
+      }
+      return originalJson(body);
+    };
     next();
   });
 
