@@ -37,7 +37,8 @@ RUN mkdir -p media && chown -R node:node /app
 ARG GIT_SHA=unknown
 ENV GIT_SHA=${GIT_SHA}
 ENV NODE_ENV=production
+ENV PAYLOAD_CONFIG_PATH=dist/payload.config.js
 
 USER node
 EXPOSE 3001
-CMD ["npm", "start"]
+CMD ["node", "dist/server.js"]
