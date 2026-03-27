@@ -703,7 +703,9 @@
     trackConversationOpened(product.id);
 
     try {
-      selectedProduct = product;
+      // Fetch full product data (conversations endpoint returns lightweight version)
+      const fullProduct = await fetchProduct(String(product.id));
+      selectedProduct = fullProduct || product;
 
       // Reset chat permission state
       canChat = true;
@@ -711,8 +713,8 @@
 
       // Fetch permission check and messages in parallel (independent queries)
       const [permission, fetchedMessages] = await Promise.all([
-        checkChatPermission(product),
-        fetchProductMessages(product.id, undefined, {
+        checkChatPermission(selectedProduct),
+        fetchProductMessages(selectedProduct.id, undefined, {
           limit: MESSAGE_PAGE_SIZE,
           latest: true
         }),
@@ -752,9 +754,9 @@
       }
 
       // Load rating data and buyer name in parallel
-      const ratingPromise = loadRatingData(product);
-      const buyerPromise = (!buyerName && product.seller?.id === $authStore.user?.id)
-        ? getBuyerFromProduct(product)
+      const ratingPromise = loadRatingData(selectedProduct);
+      const buyerPromise = (!buyerName && selectedProduct.seller?.id === $authStore.user?.id)
+        ? getBuyerFromProduct(selectedProduct)
         : Promise.resolve(null);
 
       const [, fetchedBuyer] = await Promise.all([ratingPromise, buyerPromise]);

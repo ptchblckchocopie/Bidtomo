@@ -303,9 +303,13 @@ function startEmailProcessor(): void {
   processorRunning = true;
   console.log('[EMAIL] Starting email queue processor');
 
+  const EMAIL_CONCURRENCY = 5;
+
   const runProcessor = async () => {
     while (processorRunning && redisConnected) {
-      await processEmailQueue();
+      // Process up to EMAIL_CONCURRENCY emails in parallel
+      const workers = Array.from({ length: EMAIL_CONCURRENCY }, () => processEmailQueue());
+      await Promise.allSettled(workers);
     }
     console.log('[EMAIL] Email queue processor stopped');
     processorRunning = false;

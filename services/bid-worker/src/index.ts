@@ -1136,25 +1136,44 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
 
 let schedulerRunning = false;
 let auctionCloseInterval: ReturnType<typeof setInterval> | null = null;
+let processingBid = false; // S9: track if a bid is being processed
 
 async function closeExpiredAuctions(): Promise<void> {
   if (schedulerRunning) return; // Prevent overlapping runs
   schedulerRunning = true;
 
   try {
-    // Find up to 50 expired auctions per tick
+    // Find up to 200 expired auctions per tick
     const expired = await pool.query(
       `SELECT id, title, current_bid, starting_price, status
        FROM products
        WHERE status = 'available' AND active = true AND auction_end_date < NOW()
-       LIMIT 50`
+       LIMIT 200`
     );
 
     if (expired.rows.length === 0) return;
 
     log.info({ count: expired.rows.length }, 'Found expired auctions to close');
 
-    for (const product of expired.rows) {
+    // Process in parallel batches of 5
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < expired.rows.length; i += BATCH_SIZE) {
+      const batch = expired.rows.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(batch.map(product => closeOneAuction(product)));
+    }
+  } catch (error) {
+    log.error({ err: error }, 'Error in auction close scheduler');
+    Sentry.captureException(error, { tags: { route: 'worker.closeExpiredAuctions.outer' } });
+  } finally {
+    schedulerRunning = false;
+  }
+
+  // Also check for expired void request offers
+  await expireVoidRequestOffers();
+}
+
+async function closeOneAuction(product: any): Promise<void> {
+    {
       const client = await pool.connect();
 
       try {
@@ -1436,16 +1455,6 @@ async function closeExpiredAuctions(): Promise<void> {
       } finally {
         client.release();
       }
-    }
-  } catch (error) {
-    log.error({ err: error }, 'Error in auction close scheduler');
-    Sentry.captureException(error, { tags: { route: 'worker.closeExpiredAuctions.outer' } });
-  } finally {
-    schedulerRunning = false;
-  }
-
-  // Also check for expired void request offers
-  await expireVoidRequestOffers();
 }
 
 // ============================================================================
@@ -1769,7 +1778,7 @@ async function runWorker() {
   log.info('Bid worker started');
 
   // Start auction close scheduler (every 60 seconds)
-  auctionCloseInterval = setInterval(closeExpiredAuctions, 60_000);
+  auctionCloseInterval = setInterval(closeExpiredAuctions, 15_000);
   // Run once immediately on startup to catch any backlog
   closeExpiredAuctions();
 
@@ -1788,6 +1797,7 @@ async function runWorker() {
 
       const [, jobData] = result;
       const job: BidJob = JSON.parse(jobData);
+      processingBid = true;
 
       // Ensure job has an ID
       if (!job.jobId) {
@@ -1944,6 +1954,8 @@ async function runWorker() {
       Sentry.captureException(error, { tags: { route: 'worker.mainLoop' } });
       // Wait a bit before retrying
       await new Promise((resolve) => setTimeout(resolve, 1000));
+    } finally {
+      processingBid = false;
     }
   }
 }
@@ -1953,6 +1965,14 @@ async function shutdown() {
   log.info('Shutting down');
 
   if (auctionCloseInterval) clearInterval(auctionCloseInterval);
+
+  // Wait up to 10s for current bid to finish processing
+  if (processingBid) {
+    log.info('Waiting for current bid to finish...');
+    for (let i = 0; i < 20 && processingBid; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }
 
   try {
     if (redisQueue) await redisQueue.quit();

@@ -1098,7 +1098,9 @@ const start = async () => {
           p.current_bid as product_current_bid,
           p.starting_price as product_starting_price,
           sender_user.name as sender_name,
-          receiver_user.name as receiver_name
+          receiver_user.name as receiver_name,
+          seller_rel.users_id as seller_id,
+          seller_user.name as seller_name
         FROM messages m
         JOIN messages_rels br_product ON m.id = br_product.parent_id AND br_product.path = 'product'
         JOIN messages_rels br_sender ON m.id = br_sender.parent_id AND br_sender.path = 'sender'
@@ -1106,6 +1108,8 @@ const start = async () => {
         JOIN products p ON br_product.products_id = p.id
         LEFT JOIN users sender_user ON br_sender.users_id = sender_user.id
         LEFT JOIN users receiver_user ON br_receiver.users_id = receiver_user.id
+        LEFT JOIN products_rels seller_rel ON p.id = seller_rel.parent_id AND seller_rel.path = 'seller'
+        LEFT JOIN users seller_user ON seller_rel.users_id = seller_user.id
         WHERE br_sender.users_id = $1 OR br_receiver.users_id = $1
         ORDER BY br_product.products_id, m.created_at DESC`,
         [user.id]
@@ -1145,14 +1149,17 @@ const start = async () => {
       }
 
       // Format response
-      const conversations = result.rows.map((row: any) => ({
+      const conversations = result.rows.map((row: any) => {
+        const imageUrl = imageMap.get(row.product_id) || null;
+        return {
         product: {
           id: row.product_id,
           title: row.product_title,
           status: row.product_status,
           currentBid: row.product_current_bid ? Number(row.product_current_bid) : null,
           startingPrice: row.product_starting_price ? Number(row.product_starting_price) : null,
-          image: imageMap.get(row.product_id) || null,
+          seller: row.seller_id ? { id: row.seller_id, name: row.seller_name } : null,
+          images: imageUrl ? [{ image: { url: imageUrl } }] : [],
         },
         lastMessage: {
           id: row.message_id,
@@ -1163,7 +1170,7 @@ const start = async () => {
           receiver: { id: row.receiver_id, name: row.receiver_name },
         },
         unreadCount: unreadMap.get(row.product_id) || 0,
-      }));
+      }; });
 
       // Sort by latest message first
       conversations.sort((a: any, b: any) =>
