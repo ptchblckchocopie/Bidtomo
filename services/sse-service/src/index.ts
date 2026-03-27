@@ -67,9 +67,11 @@ const ALLOWED_ORIGINS = (process.env.SSE_CORS_ORIGIN || '')
   .map(o => o.trim())
   .filter(Boolean);
 
-// Per-IP SSE connection limit to prevent DoS
+// SSE connection limits
 const connectionCountByIp = new Map<string, number>();
 const MAX_CONNECTIONS_PER_IP = 20;
+const MAX_GLOBAL_CONNECTIONS = 10000;
+let globalConnectionCount = 0;
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -107,9 +109,11 @@ app.use(cors({
 app.get('/health', (req, res) => {
   res.json({
     status: redisConnected ? 'ok' : 'degraded',
-    productConnections: productConnections.size,
-    userConnections: userConnections.size,
-    globalConnections: globalConnections.size,
+    globalConnectionCount,
+    maxGlobalConnections: MAX_GLOBAL_CONNECTIONS,
+    productChannels: productConnections.size,
+    userChannels: userConnections.size,
+    globalClients: globalConnections.size,
     redis: redisConnected ? 'connected' : 'disconnected',
     reconnectAttempts,
   });
@@ -140,6 +144,12 @@ function broadcastRedisStatus(connected: boolean) {
 app.get('/events/products/:productId', (req: Request, res: Response) => {
   const { productId } = req.params;
 
+  // Enforce global connection cap
+  if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
+    res.status(503).json({ error: 'Server at capacity' });
+    return;
+  }
+
   // Enforce per-IP connection limit
   const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
   const currentCount = connectionCountByIp.get(clientIp) || 0;
@@ -148,6 +158,7 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
     return;
   }
   connectionCountByIp.set(clientIp, currentCount + 1);
+  globalConnectionCount++;
 
   // CORS is handled by middleware — do not manually reflect origin
   res.setHeader('Content-Type', 'text/event-stream');
@@ -178,6 +189,7 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
 
   req.on('close', () => {
     clearInterval(heartbeat);
+    globalConnectionCount = Math.max(0, globalConnectionCount - 1);
     const connections = productConnections.get(productId);
     if (connections) {
       connections.delete(res);
@@ -213,6 +225,12 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
     return;
   }
 
+  // Enforce global connection cap
+  if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
+    res.status(503).json({ error: 'Server at capacity' });
+    return;
+  }
+
   // Enforce per-IP connection limit
   const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
   const currentCount = connectionCountByIp.get(clientIp) || 0;
@@ -221,6 +239,7 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
     return;
   }
   connectionCountByIp.set(clientIp, currentCount + 1);
+  globalConnectionCount++;
 
   // CORS is handled by middleware — do not manually reflect origin
   res.setHeader('Content-Type', 'text/event-stream');
@@ -249,6 +268,7 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
 
   req.on('close', () => {
     clearInterval(heartbeat);
+    globalConnectionCount = Math.max(0, globalConnectionCount - 1);
     const connections = userConnections.get(userId);
     if (connections) {
       connections.delete(res);
@@ -264,6 +284,12 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
 
 // SSE endpoint for global updates (new products, bid updates across all products)
 app.get('/events/global', (req: Request, res: Response) => {
+  // Enforce global connection cap
+  if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
+    res.status(503).json({ error: 'Server at capacity' });
+    return;
+  }
+
   // Enforce per-IP connection limit
   const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
   const currentCount = connectionCountByIp.get(clientIp) || 0;
@@ -272,6 +298,7 @@ app.get('/events/global', (req: Request, res: Response) => {
     return;
   }
   connectionCountByIp.set(clientIp, currentCount + 1);
+  globalConnectionCount++;
 
   // CORS is handled by middleware — do not manually reflect origin
   res.setHeader('Content-Type', 'text/event-stream');
@@ -297,6 +324,7 @@ app.get('/events/global', (req: Request, res: Response) => {
 
   req.on('close', () => {
     clearInterval(heartbeat);
+    globalConnectionCount = Math.max(0, globalConnectionCount - 1);
     globalConnections.delete(res);
     console.log(`[SSE] Global client disconnected. Remaining: ${globalConnections.size}`);
     // Decrement IP connection count
@@ -454,11 +482,51 @@ async function start() {
 
     watchRedisConnection();
 
+    // Dead connection sweep — prune connections where the socket died without 'close' event
+    setInterval(() => {
+      let pruned = 0;
+
+      for (const [key, clients] of productConnections) {
+        for (const res of clients) {
+          if (res.writableEnded || res.destroyed) {
+            clients.delete(res);
+            globalConnectionCount = Math.max(0, globalConnectionCount - 1);
+            pruned++;
+          }
+        }
+        if (clients.size === 0) productConnections.delete(key);
+      }
+
+      for (const [key, clients] of userConnections) {
+        for (const res of clients) {
+          if (res.writableEnded || res.destroyed) {
+            clients.delete(res);
+            globalConnectionCount = Math.max(0, globalConnectionCount - 1);
+            pruned++;
+          }
+        }
+        if (clients.size === 0) userConnections.delete(key);
+      }
+
+      for (const res of globalConnections) {
+        if (res.writableEnded || res.destroyed) {
+          globalConnections.delete(res);
+          globalConnectionCount = Math.max(0, globalConnectionCount - 1);
+          pruned++;
+        }
+      }
+
+      if (pruned > 0) {
+        console.log(`[SSE] Pruned ${pruned} dead connection(s). Global: ${globalConnectionCount}`);
+      }
+    }, 30000);
+
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`[SSE] Service listening on port ${PORT}`);
       console.log(`[SSE] CORS origin: ${CORS_ORIGIN}`);
       console.log(`[SSE] Redis: ${REDIS_URL}`);
       console.log(`[SSE] Redis status: ${redisConnected ? 'connected' : 'disconnected'}`);
+      console.log(`[SSE] Max global connections: ${MAX_GLOBAL_CONNECTIONS}`);
     });
   } catch (error) {
     console.error('[SSE] Failed to start:', error);
