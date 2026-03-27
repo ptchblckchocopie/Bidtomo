@@ -80,7 +80,20 @@ app.options('*', cors());
 
 // Security headers
 app.use(helmet({
-  contentSecurityPolicy: false, // Payload admin panel manages its own CSP
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Payload admin + webpack
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https://veent.sgp1.digitaloceanspaces.com", "https://*.digitaloceanspaces.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      connectSrc: ["'self'", "https://*.sentry.io", "https://veent.sgp1.digitaloceanspaces.com", "https://*.digitaloceanspaces.com"],
+      mediaSrc: ["'self'", "https://veent.sgp1.digitaloceanspaces.com"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+    },
+  },
   crossOriginEmbedderPolicy: false, // Allow cross-origin media loading
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow frontend to load media files
 }));

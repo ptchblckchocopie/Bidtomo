@@ -14,7 +14,11 @@
 {$DOMAIN:localhost} {
     import security_headers
 
+    # SSE routes — suppress access logs to avoid leaking JWT tokens in query strings
     handle /sse/* {
+        log {
+            output discard
+        }
         uri strip_prefix /sse
         reverse_proxy prod-sse:3002
     }
@@ -41,6 +45,9 @@
     import security_headers
 
     handle /sse/* {
+        log {
+            output discard
+        }
         uri strip_prefix /sse
         reverse_proxy staging-sse:3002
     }
@@ -69,6 +76,7 @@
     # Staging requests (Vercel Preview sends Host: staging.188-166-216-176.sslip.io)
     handle @staging_host {
         handle /sse/* {
+            log { output discard }
             uri strip_prefix /sse
             reverse_proxy staging-sse:3002
         }
@@ -92,6 +100,7 @@
 
     # Default (bare IP from Vercel Production) → production
     handle /sse/* {
+        log { output discard }
         uri strip_prefix /sse
         reverse_proxy prod-sse:3002
     }
