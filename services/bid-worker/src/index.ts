@@ -38,9 +38,12 @@ let redisQueue: Redis;
 let redisPub: Redis;
 let redisConnected = false;
 
-// PostgreSQL pool
+// PostgreSQL pool — tuned for concurrent bid processing
 const pool = new Pool({
   connectionString: DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 });
 
 interface BidJob {

@@ -137,6 +137,9 @@ export default buildConfig({
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URI || process.env.DATABASE_URL || 'postgresql://localhost:5432/marketplace',
+      max: 30,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
     },
     migrationDir: path.resolve(__dirname, '../migrations'),
     push: process.env.DB_PUSH === 'true', // Enable via env var for staging schema sync
