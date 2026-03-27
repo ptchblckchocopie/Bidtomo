@@ -396,7 +396,7 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
       [job.amount, job.productId]
     );
 
-    // Auto-extend: if bid arrives near auction end, extend the deadline
+    // Auto-extend: if bid arrives near auction end, extend the deadline (unlimited re-extensions)
     let auctionExtended = false;
     let newEndDate: string | null = null;
     const autoExtendMinutes = Number(product.autoExtendMinutes) || 0;
@@ -989,7 +989,7 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
       [productId, finalMinimum]
     );
 
-    // Auto-extend if auto-bids landed near auction end
+    // Auto-extend if auto-bids landed near auction end (unlimited re-extensions)
     let autoExtendNewEndDate: string | null = null;
     const autoExtendMin = Number(productResult.rows[0].autoExtendMinutes) || 0;
     if (autoExtendMin > 0 && placedBids.length > 0) {

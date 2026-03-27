@@ -597,8 +597,9 @@ const start = async () => {
     // Auto-extend minutes — add column for anti-snipe feature
     await prePool.query(`
       ALTER TABLE "products"
-      ADD COLUMN IF NOT EXISTS "auto_extend_minutes" numeric DEFAULT 5;
+      ADD COLUMN IF NOT EXISTS "auto_extend_minutes" numeric DEFAULT 2;
     `);
+
 
     // Void request offer expiration
     await prePool.query(`
@@ -1431,7 +1432,7 @@ const start = async () => {
             [amount, parseInt(productId, 10)]
           );
 
-          // Auto-extend if bid arrives near auction end
+          // Auto-extend if bid arrives near auction end (unlimited re-extensions)
           let fallbackExtendedEndDate: string | null = null;
           const fallbackAutoExtend = Number(locked.auto_extend_minutes) || 0;
           if (fallbackAutoExtend > 0) {

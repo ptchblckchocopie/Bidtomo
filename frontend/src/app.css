@@ -242,6 +242,15 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
+  .input-bh[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .input-bh[type="number"]::-webkit-outer-spin-button,
+  .input-bh[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 
   /* -- Divider -- */
   .divider-bh {

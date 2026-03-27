@@ -95,7 +95,7 @@ export async function runPreInitMigrations(pool: PoolType): Promise<void> {
   try {
     await pool.query(`
       ALTER TABLE "products"
-      ADD COLUMN IF NOT EXISTS "auto_extend_minutes" numeric DEFAULT 5;
+      ADD COLUMN IF NOT EXISTS "auto_extend_minutes" numeric DEFAULT 2;
     `);
   } catch (preErr: any) {
     console.error('Pre-init migration (products auto_extend_minutes) failed:', preErr.message);

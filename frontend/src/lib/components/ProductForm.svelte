@@ -26,7 +26,7 @@
   let keywords = $state<string[]>(product?.keywords?.map(k => k.keyword) || []);
   let startingPrice: number | '' = $state(product?.startingPrice || '');
   let bidInterval: number | '' = $state('');
-  let autoExtendMinutes = $state(product?.autoExtendMinutes ?? 5);
+  let autoExtendMinutes = $state(product?.autoExtendMinutes ?? 2);
   let auctionEndDate = $state('');
   let active = $state(product?.active ?? true);
   let region = $state(product?.region || '');
@@ -186,7 +186,7 @@
       keywords = product.keywords?.map(k => k.keyword) || [];
       startingPrice = product.startingPrice;
       bidInterval = product.bidInterval;
-      autoExtendMinutes = product.autoExtendMinutes ?? 5;
+      autoExtendMinutes = product.autoExtendMinutes ?? 2;
       region = product.region || '';
       city = product.city || '';
       deliveryOptions = product.delivery_options || '';
@@ -928,12 +928,20 @@
       type="number"
       bind:value={autoExtendMinutes}
       min="0"
-      max="30"
+      max="2"
       step="1"
       disabled={submitting}
       class="input-bh"
+      oninput={(e) => {
+        const input = e.currentTarget;
+        let v = parseInt(input.value, 10);
+        if (isNaN(v) || v < 0) v = 0;
+        if (v > 2) v = 2;
+        autoExtendMinutes = v;
+        input.value = String(v);
+      }}
     />
-    <p class="field-hint">If a bid arrives within this many minutes of the deadline, the auction extends. Set to 0 to disable.</p>
+    <p class="field-hint">If a bid arrives within this many minutes of the deadline, the auction extends. Set to 0 to disable. Maximum: 2 minutes.</p>
   </div>
 
   <div class="form-group">

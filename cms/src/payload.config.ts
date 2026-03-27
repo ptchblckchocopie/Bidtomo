@@ -338,6 +338,7 @@ export default buildConfig({
               data.seller = req.user.id;
             }
 
+
             return data;
           },
         ],
@@ -708,11 +709,11 @@ export default buildConfig({
         {
           name: 'autoExtendMinutes',
           type: 'number',
-          defaultValue: 5,
+          defaultValue: 2,
           min: 0,
-          max: 30,
+          max: 2,
           admin: {
-            description: 'Auto-extend auction by this many minutes when a bid arrives near the deadline (0 to disable)',
+            description: 'Auto-extend auction by this many minutes when a bid arrives near the deadline (0 to disable, max 2)',
           },
         },
         {
