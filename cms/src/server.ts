@@ -11,7 +11,7 @@ import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotificat
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
 import { getOverviewStats, getTimeSeries, getTopSearchKeywords, getTopViewedProducts, getTopSoldProducts, getEventBreakdown } from './services/analyticsQueries';
-import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress } from './services/backupService';
+import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress, getLatestBackupAgeHours } from './services/backupService';
 import { authenticateJWT } from './auth-helpers';
 import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
 import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema, analyticsTrackSchema, reportCreateSchema, autoBidSchema, autoBidCancelSchema } from './middleware/validate';
@@ -2028,7 +2028,17 @@ const start = async () => {
       pendingBidsBacklog = parseInt(result.rows[0].count, 10);
     } catch { /* table may not exist */ }
 
-    const allOk = postgres === 'connected' && isRedisConnected();
+    // Backup age (non-blocking, only if backups enabled)
+    let backupAgeHours: number | null = null;
+    let backupStale = false;
+    if (process.env.BACKUP_ENABLED === 'true') {
+      try {
+        backupAgeHours = await getLatestBackupAgeHours();
+        backupStale = backupAgeHours === null || backupAgeHours > 48;
+      } catch { /* non-critical */ }
+    }
+
+    const allOk = postgres === 'connected' && isRedisConnected() && !backupStale;
 
     res.json({
       status: allOk ? 'ok' : 'degraded',
@@ -2038,6 +2048,10 @@ const start = async () => {
       pendingExpiredAuctions,
       emailQueueDepth,
       pendingBidsBacklog,
+      ...(process.env.BACKUP_ENABLED === 'true' && {
+        backupAgeHours: backupAgeHours !== null ? Math.round(backupAgeHours * 10) / 10 : null,
+        backupStale,
+      }),
       timestamp: Date.now(),
     });
   });

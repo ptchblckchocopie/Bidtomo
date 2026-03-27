@@ -200,6 +200,32 @@ export async function cleanupOldBackups(): Promise<number> {
   }
 }
 
+/**
+ * Get the age of the latest backup in hours. Returns null if no backups found or S3 unavailable.
+ */
+export async function getLatestBackupAgeHours(): Promise<number | null> {
+  try {
+    const bucket = process.env.S3_BUCKET || 'veent';
+    const s3 = getS3Client();
+    const listResult = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: 'backups/',
+    }));
+
+    const objects = (listResult.Contents || []).filter(o => o.LastModified);
+    if (objects.length === 0) return null;
+
+    // Find the most recent backup
+    const latest = objects.reduce((a, b) =>
+      (a.LastModified!.getTime() > b.LastModified!.getTime()) ? a : b
+    );
+
+    return (Date.now() - latest.LastModified!.getTime()) / (1000 * 60 * 60);
+  } catch {
+    return null;
+  }
+}
+
 export function startBackupScheduler(): void {
   if (process.env.BACKUP_ENABLED !== 'true') {
     console.log('[BACKUP] Backup scheduler disabled (BACKUP_ENABLED != true)');
