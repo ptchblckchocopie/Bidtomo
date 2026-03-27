@@ -1173,7 +1173,6 @@ async function closeExpiredAuctions(): Promise<void> {
 }
 
 async function closeOneAuction(product: any): Promise<void> {
-    {
       const client = await pool.connect();
 
       try {
@@ -1188,7 +1187,7 @@ async function closeOneAuction(product: any): Promise<void> {
 
         if (locked.rows.length === 0) {
           await client.query('ROLLBACK');
-          continue;
+          return;
         }
 
         const p = locked.rows[0];
@@ -1196,7 +1195,7 @@ async function closeOneAuction(product: any): Promise<void> {
         // Double-check it's actually expired
         if (new Date(p.auction_end_date) > new Date()) {
           await client.query('ROLLBACK');
-          continue;
+          return;
         }
 
         // Set status to 'ended'
