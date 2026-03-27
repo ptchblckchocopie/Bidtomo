@@ -1127,16 +1127,16 @@ const start = async () => {
         unreadMap.set(row.product_id, parseInt(row.unread_count, 10));
       }
 
-      // Get product images (first image per product)
+      // Get product images (first image per product via products_rels)
       const productIds = result.rows.map((r: any) => r.product_id);
       let imageMap = new Map<number, string>();
       if (productIds.length > 0) {
         const imageResult = await pool.query(
-          `SELECT DISTINCT ON (pi.parent_id) pi.parent_id as product_id, m.url
-          FROM products_images pi
-          JOIN media m ON pi.media_id = m.id
-          WHERE pi.parent_id = ANY($1)
-          ORDER BY pi.parent_id, pi."order" ASC`,
+          `SELECT DISTINCT ON (pr.parent_id) pr.parent_id as product_id, m.url
+          FROM products_rels pr
+          JOIN media m ON pr.media_id = m.id
+          WHERE pr.parent_id = ANY($1) AND pr.path LIKE 'images.%'
+          ORDER BY pr.parent_id, pr.path ASC`,
           [productIds]
         );
         for (const row of imageResult.rows) {
