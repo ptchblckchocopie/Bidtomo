@@ -399,7 +399,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
       const result = await pool.query(
         `SELECT b.id, b.amount, b.bid_time as "bidTime", b.censor_name as "censorName",
                 b.created_at as "createdAt",
-                u.id as "bidderId", u.name as "bidderName", u.email as "bidderEmail"
+                u.id as "bidderId", u.name as "bidderName"
          FROM bids b
          JOIN bids_rels br ON b.id = br.parent_id AND br.path = 'product'
          JOIN bids_rels br2 ON b.id = br2.parent_id AND br2.path = 'bidder'
@@ -418,7 +418,6 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
         bidder: {
           id: row.bidderId,
           name: row.bidderName,
-          email: row.bidderEmail,
         },
         product: productId,
       }));

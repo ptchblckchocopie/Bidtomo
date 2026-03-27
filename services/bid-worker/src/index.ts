@@ -624,7 +624,7 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
           message: {
             id: messageId,
             message: congratsMessage,
-            sender: { id: job.sellerId, name: seller?.name, email: seller?.email },
+            sender: { id: job.sellerId, name: seller?.name },
             receiver: { id: job.bidderId },
             product: { id: job.productId },
             read: false,
@@ -1254,7 +1254,7 @@ async function closeExpiredAuctions(): Promise<void> {
                 message: {
                   id: messageId,
                   message: congratsMessage,
-                  sender: { id: sellerId, name: seller?.name, email: seller?.email },
+                  sender: { id: sellerId, name: seller?.name },
                   receiver: { id: winner.bidder_id },
                   product: { id: product.id },
                   read: false,
