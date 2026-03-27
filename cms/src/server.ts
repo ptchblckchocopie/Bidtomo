@@ -12,6 +12,7 @@ import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRes
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
 import { getOverviewStats, getTimeSeries, getTopSearchKeywords, getTopViewedProducts, getTopSoldProducts, getEventBreakdown } from './services/analyticsQueries';
 import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress, getLatestBackupAgeHours } from './services/backupService';
+import { getCachedProductDetail, getCachedProductList, invalidateProductCache } from './services/cache';
 import { authenticateJWT } from './auth-helpers';
 import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
 import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema, analyticsTrackSchema, reportCreateSchema, autoBidSchema, autoBidCancelSchema } from './middleware/validate';
@@ -646,6 +647,58 @@ const start = async () => {
     Sentry.captureException(preErr, { tags: { route: 'startup.migration' } });
   }
 
+  // ── Redis cache middleware for Payload product routes ──
+  // Intercepts GET /api/products and /api/products/:id before Payload handles them.
+  // Only caches unauthenticated/public reads. Authenticated requests bypass cache.
+  app.use('/api/products', (req, res, next) => {
+    // Only cache GET requests
+    if (req.method !== 'GET') return next();
+    // Skip cache for authenticated requests (admin edits, seller views)
+    if (req.headers.authorization) return next();
+
+    const originalJson = res.json.bind(res);
+
+    // Product detail: /api/products/:id (numeric ID)
+    const idMatch = req.path.match(/^\/(\d+)$/);
+    if (idMatch) {
+      const productId = idMatch[1];
+      getCachedProductDetail(productId, () => {
+        return new Promise((resolve) => {
+          res.json = (body: any) => {
+            resolve(body);
+            return originalJson(body);
+          };
+          next();
+        });
+      }).then((cached) => {
+        // If the response was already sent by the promise resolution, skip
+        if (res.headersSent) return;
+        originalJson(cached);
+      }).catch(() => next());
+      return;
+    }
+
+    // Product list: /api/products (with query params)
+    if (req.path === '/' || req.path === '') {
+      getCachedProductList(req.query, () => {
+        return new Promise((resolve) => {
+          res.json = (body: any) => {
+            resolve(body);
+            return originalJson(body);
+          };
+          next();
+        });
+      }).then((cached) => {
+        if (res.headersSent) return;
+        originalJson(cached);
+      }).catch(() => next());
+      return;
+    }
+
+    // All other product sub-routes (e.g. /api/products/:id/status) — no cache
+    next();
+  });
+
   await payload.init({
     secret: process.env.PAYLOAD_SECRET!,
     express: app,
@@ -656,6 +709,23 @@ const start = async () => {
   });
 
   payloadReady = true;
+
+  // Subscribe to cache invalidation events from bid-worker
+  const redisSub = getRedisClient();
+  if (redisSub) {
+    try {
+      const subClient = redisSub.duplicate();
+      subClient.subscribe('cache:invalidate');
+      subClient.on('message', (_channel: string, message: string) => {
+        try {
+          const { productId } = JSON.parse(message);
+          invalidateProductCache(productId);
+        } catch { /* ignore malformed messages */ }
+      });
+    } catch {
+      // Cache invalidation subscription failed — cache will expire via TTL
+    }
+  }
 
   // Start automated backup scheduler
   startBackupScheduler();
@@ -1078,6 +1148,7 @@ const start = async () => {
 
   // Expose product update publisher for hooks (visibility changes, etc.)
   (global as any).publishProductUpdate = publishProductUpdate;
+  (global as any).invalidateProductCache = invalidateProductCache;
 
   // Expose WebP converter for media upload hook (avoids webpack bundling sharp's native binary)
   const sharp = require('sharp');

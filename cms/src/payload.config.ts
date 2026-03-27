@@ -400,6 +400,14 @@ export default buildConfig({
           },
         ],
         afterChange: [
+          async ({ doc }) => {
+            // Invalidate product cache on any product change
+            try {
+              if (typeof (global as any).invalidateProductCache === 'function') {
+                (global as any).invalidateProductCache(doc.id);
+              }
+            } catch { /* cache invalidation is best-effort */ }
+          },
           async ({ req, doc, operation, previousDoc }) => {
             // Deactivate all auto-bids when product is sold or ended
             if (operation === 'update' && (doc.status === 'sold' || doc.status === 'ended') && previousDoc?.status === 'available') {

@@ -442,6 +442,13 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
       }
     }
 
+    // Invalidate product cache after bid
+    if (redisConnected) {
+      try {
+        await redisPub.publish('cache:invalidate', JSON.stringify({ productId: job.productId }));
+      } catch { /* best-effort */ }
+    }
+
     const bidTime = new Date().toISOString();
     log.info({ bidId, productId: job.productId, amount: job.amount }, 'Bid processed');
 
@@ -1103,6 +1110,13 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
       }
     }
 
+    // Invalidate product cache after auto-bids
+    if (placedBids.length > 0 && redisConnected) {
+      try {
+        await redisPub.publish('cache:invalidate', JSON.stringify({ productId }));
+      } catch { /* best-effort */ }
+    }
+
     if (placedBids.length > 0) {
       const lastBid = placedBids[placedBids.length - 1];
       log.info({ productId, totalBids: placedBids.length, finalAmount: lastBid.amount, winnerId: lastBid.bidderId }, 'Auto-bid resolution complete');
@@ -1253,6 +1267,11 @@ async function closeExpiredAuctions(): Promise<void> {
 
           await client.query('COMMIT');
 
+          // Invalidate product cache after auction close
+          if (redisConnected) {
+            try { await redisPub.publish('cache:invalidate', JSON.stringify({ productId: product.id })); } catch { /* best-effort */ }
+          }
+
           log.info({ productId: product.id, winnerId: winner.bidder_id, amount: winner.amount, transactionId }, 'Auction closed with winner');
 
           // Publish SSE events (outside transaction)
@@ -1359,6 +1378,9 @@ async function closeExpiredAuctions(): Promise<void> {
         } else {
           // No bids — just end the auction
           await client.query('COMMIT');
+          if (redisConnected) {
+            try { await redisPub.publish('cache:invalidate', JSON.stringify({ productId: product.id })); } catch { /* best-effort */ }
+          }
           log.info({ productId: product.id }, 'Auction closed with no bids');
 
           // Publish SSE — auction ended with no winner
