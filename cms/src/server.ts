@@ -1075,6 +1075,109 @@ const start = async () => {
     }
   });
 
+  // S3: Server-side conversation grouping — single SQL query returning latest message per product
+  app.get('/api/conversations', async (req, res) => {
+    try {
+      const user = await authenticateJWT(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const pool = (payload.db as any).pool;
+      const result = await pool.query(
+        `SELECT DISTINCT ON (br_product.products_id)
+          m.id as message_id,
+          m.message,
+          m.created_at,
+          m.read,
+          br_product.products_id as product_id,
+          br_sender.users_id as sender_id,
+          br_receiver.users_id as receiver_id,
+          p.title as product_title,
+          p.status as product_status,
+          p.current_bid as product_current_bid,
+          p.starting_price as product_starting_price,
+          sender_user.name as sender_name,
+          receiver_user.name as receiver_name
+        FROM messages m
+        JOIN messages_rels br_product ON m.id = br_product.parent_id AND br_product.path = 'product'
+        JOIN messages_rels br_sender ON m.id = br_sender.parent_id AND br_sender.path = 'sender'
+        JOIN messages_rels br_receiver ON m.id = br_receiver.parent_id AND br_receiver.path = 'receiver'
+        JOIN products p ON br_product.products_id = p.id
+        LEFT JOIN users sender_user ON br_sender.users_id = sender_user.id
+        LEFT JOIN users receiver_user ON br_receiver.users_id = receiver_user.id
+        WHERE br_sender.users_id = $1 OR br_receiver.users_id = $1
+        ORDER BY br_product.products_id, m.created_at DESC`,
+        [user.id]
+      );
+
+      // Also get unread counts per product
+      const unreadResult = await pool.query(
+        `SELECT br_product.products_id as product_id, COUNT(*) as unread_count
+        FROM messages m
+        JOIN messages_rels br_product ON m.id = br_product.parent_id AND br_product.path = 'product'
+        JOIN messages_rels br_receiver ON m.id = br_receiver.parent_id AND br_receiver.path = 'receiver'
+        WHERE br_receiver.users_id = $1 AND m.read = false
+        GROUP BY br_product.products_id`,
+        [user.id]
+      );
+
+      const unreadMap = new Map<number, number>();
+      for (const row of unreadResult.rows) {
+        unreadMap.set(row.product_id, parseInt(row.unread_count, 10));
+      }
+
+      // Get product images (first image per product)
+      const productIds = result.rows.map((r: any) => r.product_id);
+      let imageMap = new Map<number, string>();
+      if (productIds.length > 0) {
+        const imageResult = await pool.query(
+          `SELECT DISTINCT ON (pi.parent_id) pi.parent_id as product_id, m.url
+          FROM products_images pi
+          JOIN media m ON pi.media_id = m.id
+          WHERE pi.parent_id = ANY($1)
+          ORDER BY pi.parent_id, pi."order" ASC`,
+          [productIds]
+        );
+        for (const row of imageResult.rows) {
+          imageMap.set(row.product_id, row.url);
+        }
+      }
+
+      // Format response
+      const conversations = result.rows.map((row: any) => ({
+        product: {
+          id: row.product_id,
+          title: row.product_title,
+          status: row.product_status,
+          currentBid: row.product_current_bid ? Number(row.product_current_bid) : null,
+          startingPrice: row.product_starting_price ? Number(row.product_starting_price) : null,
+          image: imageMap.get(row.product_id) || null,
+        },
+        lastMessage: {
+          id: row.message_id,
+          message: row.message,
+          createdAt: row.created_at,
+          read: row.read,
+          sender: { id: row.sender_id, name: row.sender_name },
+          receiver: { id: row.receiver_id, name: row.receiver_name },
+        },
+        unreadCount: unreadMap.get(row.product_id) || 0,
+      }));
+
+      // Sort by latest message first
+      conversations.sort((a: any, b: any) =>
+        new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime()
+      );
+
+      res.json({ conversations });
+    } catch (error: any) {
+      console.error('Error fetching conversations:', error);
+      Sentry.captureException(error, { tags: { route: '/api/conversations' } });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Endpoint to get product update status (lightweight check for changes)
   app.get('/api/products/:id/status', async (req, res) => {
     try {

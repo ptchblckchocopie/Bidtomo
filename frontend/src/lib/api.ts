@@ -948,10 +948,10 @@ export async function fetchMessageById(messageId: string | number): Promise<Mess
   }
 }
 
-// Fetch all conversations (grouped by product)
+// Fetch all conversations (grouped by product) — server-side grouping via /api/conversations
 export async function fetchConversations(): Promise<{ product: Product; lastMessage: Message; unreadCount: number }[]> {
   try {
-    const response = await fetch(`${BRIDGE_URL}/api/bridge/messages?limit=1000&sort=-createdAt`, {
+    const response = await fetch(`${BRIDGE_URL}/api/bridge/conversations`, {
       headers: getAuthHeaders(),
       credentials: 'include',
     });
@@ -965,46 +965,7 @@ export async function fetchConversations(): Promise<{ product: Product; lastMess
     }
 
     const data = await response.json();
-    const messages: Message[] = data.docs || [];
-
-    // Get current user
-    const currentUser = await getCurrentUser();
-    if (!currentUser) {
-      return [];
-    }
-
-    // Filter messages to only include those where current user is involved
-    const userMessages = messages.filter(message => {
-      const senderId = typeof message.sender === 'object' ? message.sender.id : message.sender;
-      const receiverId = typeof message.receiver === 'object' ? message.receiver.id : message.receiver;
-      return senderId === currentUser.id || receiverId === currentUser.id;
-    });
-
-    // Group messages by product
-    const conversationsMap = new Map<string, { product: Product; lastMessage: Message; unreadCount: number }>();
-
-    for (const message of userMessages) {
-      const product = typeof message.product === 'object' ? message.product : null;
-      if (!product) continue;
-
-      const productId = product.id;
-
-      if (!conversationsMap.has(productId)) {
-        conversationsMap.set(productId, {
-          product,
-          lastMessage: message,
-          unreadCount: 0,
-        });
-      }
-
-      // Count unread messages (received by current user)
-      const receiverId = typeof message.receiver === 'object' ? message.receiver.id : message.receiver;
-      if (receiverId === currentUser.id && !message.read) {
-        conversationsMap.get(productId)!.unreadCount++;
-      }
-    }
-
-    return Array.from(conversationsMap.values());
+    return data.conversations || [];
   } catch (error) {
     console.error('Error fetching conversations:', error);
     return [];
