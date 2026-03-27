@@ -473,23 +473,20 @@
         buyerName = txn.buyer.name || 'Unknown Buyer';
       }
 
-      // Fetch my rating
-      myRating = await fetchMyRatingForTransaction(txn.id);
+      // Fetch my rating and other party's rating in parallel
+      const [fetchedMyRating, ratingsResponse] = await Promise.all([
+        fetchMyRatingForTransaction(txn.id),
+        fetch(
+          `/api/bridge/ratings?where[transaction][equals]=${txn.id}&depth=1`,
+          { headers: { 'Content-Type': 'application/json' }, credentials: 'include' }
+        ),
+      ]);
 
-      // Fetch the other party's rating (to show how they rated)
-      const response = await fetch(
-        `/api/bridge/ratings?where[transaction][equals]=${txn.id}&depth=1`,
-        {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        }
-      );
+      myRating = fetchedMyRating;
 
-      if (response.ok) {
-        const data = await response.json();
+      if (ratingsResponse.ok) {
+        const data = await ratingsResponse.json();
         const allRatings = data.docs || [];
-
-        // Find the rating from the other party
         const currentUserId = $authStore.user?.id;
         otherPartyRating = allRatings.find((r: Rating) => {
           const raterId = typeof r.rater === 'object' ? r.rater.id : r.rater;
@@ -712,16 +709,18 @@
       canChat = true;
       chatBlockedReason = '';
 
-      // Check chat permission
-      const permission = await checkChatPermission(product);
+      // Fetch permission check and messages in parallel (independent queries)
+      const [permission, fetchedMessages] = await Promise.all([
+        checkChatPermission(product),
+        fetchProductMessages(product.id, undefined, {
+          limit: MESSAGE_PAGE_SIZE,
+          latest: true
+        }),
+      ]);
+
       canChat = permission.allowed;
       chatBlockedReason = permission.reason || '';
-
-      // Load only the latest 10 messages
-      messages = await fetchProductMessages(product.id, undefined, {
-        limit: MESSAGE_PAGE_SIZE,
-        latest: true
-      });
+      messages = fetchedMessages;
 
       // Reset pagination state
       hasMoreMessages = messages.length === MESSAGE_PAGE_SIZE;
@@ -733,18 +732,14 @@
         lastMessageTime = new Date().toISOString();
       }
 
-      // Mark messages as read and update global unread count
-      let markedCount = 0;
-      for (const msg of messages) {
+      // Mark messages as read in parallel (fire-and-forget, don't block UI)
+      const unreadMessages = messages.filter(msg => {
         const receiverId = typeof msg.receiver === 'object' ? msg.receiver.id : msg.receiver;
-        if (receiverId === $authStore.user?.id && !msg.read) {
-          await markMessageAsRead(msg.id);
-          markedCount++;
-        }
-      }
-      // Update the store and trigger a refresh of the navbar badge
-      if (markedCount > 0) {
-        unreadCountStore.decrement(markedCount);
+        return receiverId === $authStore.user?.id && !msg.read;
+      });
+      if (unreadMessages.length > 0) {
+        Promise.all(unreadMessages.map(msg => markMessageAsRead(msg.id))).catch(() => {});
+        unreadCountStore.decrement(unreadMessages.length);
       }
 
       // Reset local conversation's unread count
@@ -756,12 +751,15 @@
         };
       }
 
-      // Load rating data for the product
-      await loadRatingData(product);
+      // Load rating data and buyer name in parallel
+      const ratingPromise = loadRatingData(product);
+      const buyerPromise = (!buyerName && product.seller?.id === $authStore.user?.id)
+        ? getBuyerFromProduct(product)
+        : Promise.resolve(null);
 
-      // If buyer name wasn't set from transaction, try to get it from messages/bids
-      if (!buyerName && product.seller?.id === $authStore.user?.id) {
-        buyerName = await getBuyerFromProduct(product);
+      const [, fetchedBuyer] = await Promise.all([ratingPromise, buyerPromise]);
+      if (fetchedBuyer && !buyerName) {
+        buyerName = fetchedBuyer;
       }
 
       // Start polling for new messages
