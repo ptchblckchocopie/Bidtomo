@@ -1,4 +1,4 @@
-import { cmsRequest, getTokenFromRequest, jsonResponse } from '$lib/server/cms';
+import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse } from '$lib/server/cms';
 import type { RequestHandler } from './$types';
 
 // GET /api/bridge/maintenance - Get current maintenance status (public)
@@ -23,7 +23,7 @@ export const POST: RequestHandler = async ({ request }) => {
   try {
     const token = getTokenFromRequest(request);
     if (!token) {
-      return jsonResponse({ error: 'Unauthorized' }, 401);
+      return errorResponse('Unauthorized', 401);
     }
 
     const body = await request.json();
@@ -36,6 +36,6 @@ export const POST: RequestHandler = async ({ request }) => {
     const data = await response.json();
     return jsonResponse(data, response.status);
   } catch (error: any) {
-    return jsonResponse({ error: error?.message || 'Failed to update maintenance' }, 500);
+    return errorResponse(error?.message || 'Failed to update maintenance');
   }
 };
