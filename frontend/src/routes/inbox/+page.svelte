@@ -107,7 +107,7 @@
         closeVoidApprovalModal();
         if (action === 'approve' && result.requiresSellerChoice) {
           // Check if current user is seller
-          const isSeller = selectedProduct?.seller?.id === $authStore.user?.id;
+          const isSeller = String(selectedProduct?.seller?.id) === String($authStore.user?.id);
           if (isSeller) {
             showSellerChoiceModal = true;
           } else {
@@ -260,7 +260,7 @@
 
   // Filter and sort conversations
   let myProductsConversations = $derived.by(() => conversations
-    .filter(conv => conv.product.seller?.id === $authStore.user?.id)
+    .filter(conv => String(conv.product.seller?.id) === String($authStore.user?.id))
     .sort((a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime()));
 
   let myPurchasesConversations = $derived.by(() => conversations
@@ -310,7 +310,7 @@
     const sender = typeof message.sender === 'object' ? message.sender : null;
     const receiver = typeof message.receiver === 'object' ? message.receiver : null;
 
-    if (sender && sender.id === $authStore.user.id) {
+    if (sender && String(sender.id) === String($authStore.user.id)) {
       return receiver;
     }
     return sender;
@@ -399,7 +399,7 @@
       return { allowed: false, reason: 'You must be logged in to chat.' };
     }
 
-    const isSeller = product.seller?.id === $authStore.user.id;
+    const isSeller = String(product.seller?.id) === String($authStore.user.id);
 
     // Sellers can always chat
     if (isSeller) {
@@ -525,7 +525,7 @@
     if (!$authStore.user) return null;
 
     // If user is the seller, find the buyer from messages or bids
-    if (product.seller?.id === $authStore.user.id) {
+    if (String(product.seller?.id) === String($authStore.user.id)) {
       // Try to get from messages
       const otherUsersInMessages = messages
         .map(m => getOtherUser(m))
@@ -563,7 +563,7 @@
         const conv = conversations.find(c => c.product.id === productId);
         if (conv) {
           // Determine which tab this conversation belongs to
-          const isMyProduct = conv.product.seller?.id === $authStore.user?.id;
+          const isMyProduct = String(conv.product.seller?.id) === String($authStore.user?.id);
           activeTab = isMyProduct ? 'products' : 'purchases';
 
           // Existing conversation found
@@ -574,7 +574,7 @@
             const product = await fetchProduct(productId);
             if (product) {
               // Determine which tab this product belongs to
-              const isMyProduct = product.seller?.id === $authStore.user?.id;
+              const isMyProduct = String(product.seller?.id) === String($authStore.user?.id);
               activeTab = isMyProduct ? 'products' : 'purchases';
 
               selectedProduct = product;
@@ -605,7 +605,7 @@
               await loadRatingData(product);
 
               // If buyer name wasn't set from transaction, try to get it from messages/bids
-              if (!buyerName && product.seller?.id === $authStore.user?.id) {
+              if (!buyerName && String(product.seller?.id) === String($authStore.user?.id)) {
                 buyerName = await getBuyerFromProduct(product);
               }
 
@@ -737,7 +737,7 @@
       // Mark messages as read in parallel (fire-and-forget, don't block UI)
       const unreadMessages = messages.filter(msg => {
         const receiverId = typeof msg.receiver === 'object' ? msg.receiver.id : msg.receiver;
-        return receiverId === $authStore.user?.id && !msg.read;
+        return String(receiverId) === String($authStore.user?.id) && !msg.read;
       });
       if (unreadMessages.length > 0) {
         Promise.all(unreadMessages.map(msg => markMessageAsRead(msg.id))).catch(() => {});
@@ -755,7 +755,7 @@
 
       // Load rating data and buyer name in parallel
       const ratingPromise = loadRatingData(selectedProduct);
-      const buyerPromise = (!buyerName && selectedProduct.seller?.id === $authStore.user?.id)
+      const buyerPromise = (!buyerName && String(selectedProduct.seller?.id) === String($authStore.user?.id))
         ? getBuyerFromProduct(selectedProduct)
         : Promise.resolve(null);
 
@@ -817,7 +817,7 @@
           let markedCount = 0;
           for (const msg of uniqueNewMessages) {
             const receiverId = typeof msg.receiver === 'object' ? msg.receiver.id : msg.receiver;
-            if (receiverId === $authStore.user?.id && !msg.read) {
+            if (String(receiverId) === String($authStore.user?.id) && !msg.read) {
               await markMessageAsRead(msg.id);
               markedCount++;
             }
@@ -986,7 +986,7 @@
       // Determine receiver - if user is seller, send to highest bidder; if buyer, send to seller
       let receiverId: string;
 
-      if (selectedProduct.seller?.id === $authStore.user?.id) {
+      if (String(selectedProduct.seller?.id) === String($authStore.user?.id)) {
         // User is seller - find highest bidder from messages
         const otherUsers = messages
           .map(m => getOtherUser(m))
@@ -1133,7 +1133,7 @@
 
                 // Mark as read if it's for current user
                 const receiverId = typeof newMessage.receiver === 'object' ? newMessage.receiver.id : newMessage.receiver;
-                if (receiverId === $authStore.user?.id && !newMessage.read) {
+                if (String(receiverId) === String($authStore.user?.id) && !newMessage.read) {
                   markMessageAsRead(newMessage.id); // Don't await - fire and forget
                   unreadCountStore.decrement(1); // Update navbar badge immediately
                 }
@@ -1274,7 +1274,7 @@
         {/if}
 
         {#each displayedConversations as conv (conv.product.id)}
-          {@const isMyProduct = conv.product.seller?.id === $authStore.user?.id}
+          {@const isMyProduct = String(conv.product.seller?.id) === String($authStore.user?.id)}
           {@const otherUserInConv = getOtherUser(conv.lastMessage)}
           <button
             class="conversation-item"
@@ -1303,7 +1303,7 @@
               <p class="last-message">
                 {#if conv.lastMessage}
                   {@const senderId = typeof conv.lastMessage.sender === 'object' ? conv.lastMessage.sender.id : conv.lastMessage.sender}
-                  {@const isMine = $authStore.user?.id === senderId}
+                  {@const isMine = String($authStore.user?.id) === String(senderId)}
                   {#if isMine}
                     <span class="sender-name">{$t('inbox.me')}:</span>
                   {:else}
@@ -1381,7 +1381,7 @@
               {/if}
 
               {#each messages as message (message.id)}
-              {@const isMine = $authStore.user?.id === (typeof message.sender === 'object' ? message.sender.id : message.sender)}
+              {@const isMine = String($authStore.user?.id) === String(typeof message.sender === 'object' ? message.sender.id : message.sender)}
               {@const sender = typeof message.sender === 'object' ? message.sender : null}
               {@const isNew = newMessageIds.has(message.id)}
 
