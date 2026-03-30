@@ -367,32 +367,30 @@ export default buildConfig({
                 throw new Error('Cannot set currentBid directly');
               }
 
-              // Prevent editing startingPrice, auctionEndDate, or status if there are already bids
-              const hasStartingPriceChange = data?.startingPrice !== undefined && data.startingPrice !== originalDoc?.startingPrice;
-              const hasEndDateChange = data?.auctionEndDate !== undefined && data.auctionEndDate !== originalDoc?.auctionEndDate;
-              const hasStatusChange = data?.status !== undefined && data.status !== originalDoc?.status;
+              // Lock all edits once bids exist (except active toggle for hide/unhide)
+              // Allowed fields after bids: only 'active' (visibility toggle)
+              const lockedFields = ['title', 'description', 'startingPrice', 'auctionEndDate', 'status',
+                'images', 'bidInterval', 'autoExtendMinutes', 'region', 'city', 'delivery_options',
+                'categories', 'keywords'] as const;
 
-              if (hasStartingPriceChange || hasEndDateChange || hasStatusChange) {
+              const hasLockedFieldChange = lockedFields.some(field => {
+                if (data?.[field] === undefined) return false;
+                const original = originalDoc?.[field];
+                // Deep compare for arrays/objects
+                return JSON.stringify(data[field]) !== JSON.stringify(original);
+              });
+
+              if (hasLockedFieldChange) {
                 const existingBids = await req.payload.find({
                   collection: 'bids',
                   where: {
-                    product: {
-                      equals: originalDoc.id,
-                    },
+                    product: { equals: originalDoc.id },
                   },
                   limit: 1,
                 });
 
                 if (existingBids.docs.length > 0) {
-                  if (hasStartingPriceChange) {
-                    throw new Error('Cannot change starting price after bids have been placed');
-                  }
-                  if (hasEndDateChange) {
-                    throw new Error('Cannot change auction end date after bids have been placed');
-                  }
-                  if (hasStatusChange) {
-                    throw new Error('Cannot change product status after bids have been placed');
-                  }
+                  throw new Error('Cannot edit listing after bids have been placed. Only visibility (hide/show) can be changed.');
                 }
               }
             }

@@ -437,9 +437,11 @@
                   </a>
 
                   <div class="product-actions">
-                    <button class="btn-edit" onclick={() => openEditModal(product)}>
-                      ✏️ {$t('dashboard.edit')}
-                    </button>
+                    {#if !product.currentBid || product.currentBid <= 0}
+                      <button class="btn-edit" onclick={() => openEditModal(product)}>
+                        ✏️ {$t('dashboard.edit')}
+                      </button>
+                    {/if}
                     {#if data.user?.role === 'admin'}
                       <button class="btn-hide" onclick={() => openHideModal(product)}>
                         🙈 {$t('dashboard.hide')}
@@ -505,9 +507,11 @@
                   </a>
 
                   <div class="product-actions">
-                    <button class="btn-edit" onclick={() => openEditModal(product)}>
-                      ✏️ {$t('dashboard.edit')}
-                    </button>
+                    {#if !product.currentBid || product.currentBid <= 0}
+                      <button class="btn-edit" onclick={() => openEditModal(product)}>
+                        ✏️ {$t('dashboard.edit')}
+                      </button>
+                    {/if}
                     {#if data.user?.role === 'admin'}
                       <button class="btn-unhide" onclick={() => openHideModal(product)}>
                         👁️ {$t('dashboard.unhide')}
