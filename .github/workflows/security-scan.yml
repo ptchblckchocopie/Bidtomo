@@ -1,10 +1,9 @@
 name: Security Scan
 
 on:
-  push:
-    branches: [main, staging]
   pull_request:
     branches: [main, staging]
+  workflow_dispatch:  # manual trigger from Actions tab
 
 jobs:
   trivy-scan:
@@ -21,7 +20,12 @@ jobs:
 
       - name: Build ${{ matrix.service.name }} image
         run: |
-          docker build -t bidtomo-${{ matrix.service.name }}:scan ${{ matrix.service.context }}
+          docker build \
+            --build-arg PAYLOAD_SECRET=ci-scan-dummy \
+            --build-arg DATABASE_URL=postgresql://localhost:5432/dummy \
+            --build-arg SERVER_URL=http://localhost:3001 \
+            -t bidtomo-${{ matrix.service.name }}:scan \
+            ${{ matrix.service.context }}
 
       - name: Scan ${{ matrix.service.name }} with Trivy
         uses: aquasecurity/trivy-action@0.28.0
