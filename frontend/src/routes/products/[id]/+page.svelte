@@ -1343,7 +1343,7 @@
             <div class="seller-header">
               <div class="seller-avatar">
                 {#if data.product.seller?.profilePicture && typeof data.product.seller.profilePicture === 'object' && data.product.seller.profilePicture.url}
-                  <img src={data.product.seller.profilePicture.url} alt={data.product.seller.name} class="seller-avatar-img" />
+                  <img src={data.product.seller.profilePicture.url} alt={data.product.seller.name} class="seller-avatar-img" loading="lazy" decoding="async" />
                 {:else}
                   {data.product.seller?.name?.charAt(0)?.toUpperCase() || '?'}
                 {/if}

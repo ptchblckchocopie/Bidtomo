@@ -13,10 +13,11 @@ if (process.env.NODE_ENV === 'production') {
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/marketplace';
-const QUEUE_KEY = 'bids:pending';
-const FAILED_QUEUE_KEY = 'bids:failed';
-const PROCESSING_KEY = 'bids:processing';
-const EMAIL_QUEUE_KEY = 'email:queue';
+const REDIS_PREFIX = process.env.REDIS_PREFIX || '';
+const QUEUE_KEY = `${REDIS_PREFIX}bids:pending`;
+const FAILED_QUEUE_KEY = `${REDIS_PREFIX}bids:failed`;
+const PROCESSING_KEY = `${REDIS_PREFIX}bids:processing`;
+const EMAIL_QUEUE_KEY = `${REDIS_PREFIX}email:queue`;
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 
@@ -323,7 +324,7 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
     );
 
     if (productResult.rows.length === 0) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       return { success: false, error: 'Product not found' };
     }
 
@@ -331,24 +332,24 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
 
     // Validate product is available for bidding
     if (product.status !== 'available') {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       return { success: false, error: `Product is ${product.status}` };
     }
 
     if (!product.active) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       return { success: false, error: 'Product is not active' };
     }
 
     // Check auction end date
     if (new Date(product.auctionEndDate) <= new Date()) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       return { success: false, error: 'Auction has ended' };
     }
 
     // Validate bid amount is a valid number
     if (typeof job.amount !== 'number' || isNaN(job.amount) || job.amount <= 0) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       return { success: false, error: 'Invalid bid amount' };
     }
 
@@ -358,7 +359,7 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
       [job.productId]
     );
     if (sellerCheck.rows.length > 0 && sellerCheck.rows[0].users_id === job.bidderId) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       return { success: false, error: 'You cannot bid on your own product' };
     }
 
@@ -371,7 +372,7 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
       : startingPrice;
 
     if (job.amount < minimumBid) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       return { success: false, error: `Bid must be at least ${minimumBid}` };
     }
 
@@ -460,7 +461,7 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
 
     return { success: true, bidId, bidderName, bidTime };
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     log.error({ err: error, productId: job.productId, bidderId: job.bidderId, amount: job.amount }, 'Error processing bid');
     Sentry.captureException(error, { tags: { route: 'worker.processBid' }, extra: { productId: job.productId, bidderId: job.bidderId, amount: job.amount } });
     return { success: false, error: String(error) };
@@ -517,7 +518,7 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
     );
 
     if (productResult.rows.length === 0) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       return { success: false, error: 'Product not found' };
     }
 
@@ -543,13 +544,13 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
       [job.productId]
     );
     if (sellerCheck.rows.length === 0 || sellerCheck.rows[0].users_id !== job.sellerId) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       return { success: false, error: 'Seller does not own this product' };
     }
 
     // Validate product is still available
     if (product.status !== 'available') {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       return { success: false, error: `Product is already ${product.status}` };
     }
 
@@ -727,7 +728,7 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
 
     return { success: true };
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     log.error({ err: error, productId: job.productId, sellerId: job.sellerId, bidderId: job.bidderId }, 'Error processing accept bid');
     Sentry.captureException(error, { tags: { route: 'worker.processAcceptBid' }, extra: { productId: job.productId, sellerId: job.sellerId, bidderId: job.bidderId } });
     return { success: false, error: String(error) };
@@ -812,7 +813,7 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
     );
 
     if (productResult.rows.length === 0) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       return;
     }
 
@@ -820,7 +821,7 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
 
     // Don't process auto-bids if auction is no longer available
     if (product.status !== 'available' || !product.active || new Date(product.auctionEndDate) <= new Date()) {
-      await client.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       return;
     }
 
@@ -1147,7 +1148,7 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
 
 let schedulerRunning = false;
 let auctionCloseInterval: ReturnType<typeof setInterval> | null = null;
-const AUCTION_LOCK_KEY = 'auction:close:lock';
+const AUCTION_LOCK_KEY = `${REDIS_PREFIX}auction:close:lock`;
 const AUCTION_LOCK_TTL = 30; // seconds — must be longer than max processing time
 const WORKER_ID = `worker-${process.pid}-${Date.now()}`;
 let processingBid = false; // S9: track if a bid is being processed
@@ -1216,7 +1217,7 @@ async function closeOneAuction(product: any): Promise<void> {
         );
 
         if (locked.rows.length === 0) {
-          await client.query('ROLLBACK');
+          await client.query('ROLLBACK').catch(() => {});
           return;
         }
 
@@ -1224,7 +1225,7 @@ async function closeOneAuction(product: any): Promise<void> {
 
         // Double-check it's actually expired
         if (new Date(p.auction_end_date) > new Date()) {
-          await client.query('ROLLBACK');
+          await client.query('ROLLBACK').catch(() => {});
           return;
         }
 
@@ -1912,13 +1913,13 @@ async function runWorker() {
         }
 
         // Save to database in case of crash (fire-and-forget — don't block hot path)
-        savePendingBidToDb(jobToProcess);
+        savePendingBidToDb(jobToProcess).catch(err => log.error({ err, jobId: jobToProcess.jobId }, 'Failed to save pending bid'));
 
         const bidResult = await processBid(jobToProcess);
 
         if (bidResult.success) {
           // Remove from pending bids (fire-and-forget)
-          removePendingBidFromDb(jobToProcess.jobId!);
+          removePendingBidFromDb(jobToProcess.jobId!).catch(err => log.error({ err, jobId: jobToProcess.jobId }, 'Failed to remove pending bid'));
 
           // Publish result to SSE with full bid data (fire-and-forget)
           publishBidResult(jobToProcess.productId, {
@@ -1926,7 +1927,7 @@ async function runWorker() {
             amount: jobToProcess.amount,
             bidderId: jobToProcess.bidderId,
             censorName: jobToProcess.censorName,
-          });
+          }).catch(err => log.error({ err, productId: jobToProcess.productId }, 'Failed to publish bid result'));
 
           // Check for active auto-bids that should counter-bid (non-blocking)
           try {

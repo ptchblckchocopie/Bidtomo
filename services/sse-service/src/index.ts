@@ -77,6 +77,33 @@ const MAX_CONNECTIONS_PER_IP = 20;
 const MAX_GLOBAL_CONNECTIONS = 10000;
 let globalConnectionCount = 0;
 
+// Rate limiting for failed auth attempts (per IP)
+const authFailures = new Map<string, { count: number; resetAt: number }>();
+const AUTH_FAIL_MAX = 10;         // max failures before blocking
+const AUTH_FAIL_WINDOW = 60_000;  // 1 minute window
+
+function checkAuthRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = authFailures.get(ip);
+  if (!record || now > record.resetAt) {
+    return true; // no record or window expired — allow
+  }
+  return record.count < AUTH_FAIL_MAX;
+}
+
+function recordAuthFailure(ip: string): void {
+  const now = Date.now();
+  const record = authFailures.get(ip);
+  if (!record || now > record.resetAt) {
+    authFailures.set(ip, { count: 1, resetAt: now + AUTH_FAIL_WINDOW });
+  } else {
+    record.count++;
+  }
+}
+
+// Connection lifetime limits
+const MAX_CONNECTION_AGE_MS = 60 * 60 * 1000; // 1 hour max per connection
+
 app.use(cors({
   origin: (origin, callback) => {
     // Reject requests with no origin in production (browser requests always have one)
@@ -108,6 +135,17 @@ app.use(cors({
   },
   credentials: true,
 }));
+
+// Security headers
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
 
 // Health check endpoint
 // Lightweight ping for uptime monitors
@@ -155,7 +193,13 @@ function broadcastRedisStatus(connected: boolean) {
 
 // SSE endpoint for product updates (bids)
 app.get('/events/products/:productId', (req: Request, res: Response) => {
-  const { productId } = req.params;
+  const productId = req.params.productId;
+
+  // Validate productId is a positive integer
+  if (!/^\d+$/.test(productId) || parseInt(productId, 10) <= 0) {
+    res.status(400).json({ error: 'Invalid product ID' });
+    return;
+  }
 
   // Enforce global connection cap
   if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
@@ -200,8 +244,14 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
     try { res.write(`:heartbeat ${Date.now()}\n\n`); } catch { clearInterval(heartbeat); }
   }, 15000);
 
+  // Max connection lifetime — force reconnect after 1 hour
+  const maxLifetime = setTimeout(() => {
+    try { res.end(); } catch { /* already closed */ }
+  }, MAX_CONNECTION_AGE_MS);
+
   req.on('close', () => {
     clearInterval(heartbeat);
+    clearTimeout(maxLifetime);
     globalConnectionCount = Math.max(0, globalConnectionCount - 1);
     const connections = productConnections.get(productId);
     if (connections) {
@@ -218,11 +268,26 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
 
 // SSE endpoint for user updates (messages) — requires token auth
 app.get('/events/users/:userId', (req: Request, res: Response) => {
-  const { userId } = req.params;
+  const userId = req.params.userId;
   const token = req.query.token as string;
+
+  // Validate userId is a positive integer
+  if (!/^\d+$/.test(userId) || parseInt(userId, 10) <= 0) {
+    res.status(400).json({ error: 'Invalid user ID' });
+    return;
+  }
+
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+
+  // Rate limit failed auth attempts per IP
+  if (!checkAuthRateLimit(clientIp)) {
+    res.status(429).json({ error: 'Too many authentication attempts' });
+    return;
+  }
 
   // Validate JWT token — user can only subscribe to their own events
   if (!token || !JWT_SECRET) {
+    recordAuthFailure(clientIp);
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
@@ -230,10 +295,12 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     if (String(decoded.id) !== String(userId)) {
+      recordAuthFailure(clientIp);
       res.status(403).json({ error: 'Cannot subscribe to another user\'s events' });
       return;
     }
   } catch {
+    recordAuthFailure(clientIp);
     res.status(401).json({ error: 'Invalid or expired token' });
     return;
   }
@@ -245,7 +312,6 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
   }
 
   // Enforce per-IP connection limit
-  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
   const currentCount = connectionCountByIp.get(clientIp) || 0;
   if (currentCount >= MAX_CONNECTIONS_PER_IP) {
     res.status(429).json({ error: 'Too many SSE connections' });
@@ -279,8 +345,14 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
     try { res.write(`:heartbeat ${Date.now()}\n\n`); } catch { clearInterval(heartbeat); }
   }, 15000);
 
+  // Max connection lifetime — force reconnect after 1 hour
+  const maxLifetime = setTimeout(() => {
+    try { res.end(); } catch { /* already closed */ }
+  }, MAX_CONNECTION_AGE_MS);
+
   req.on('close', () => {
     clearInterval(heartbeat);
+    clearTimeout(maxLifetime);
     globalConnectionCount = Math.max(0, globalConnectionCount - 1);
     const connections = userConnections.get(userId);
     if (connections) {
@@ -531,6 +603,12 @@ async function start() {
 
       if (pruned > 0) {
         console.log(`[SSE] Pruned ${pruned} dead connection(s). Global: ${globalConnectionCount}`);
+      }
+
+      // Clean up expired auth failure records
+      const now = Date.now();
+      for (const [ip, record] of authFailures) {
+        if (now > record.resetAt) authFailures.delete(ip);
       }
     }, 30000);
 

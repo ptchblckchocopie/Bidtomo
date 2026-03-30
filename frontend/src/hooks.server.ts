@@ -94,6 +94,27 @@ const ogHandler: Handle = async ({ event, resolve }) => {
   <meta name="twitter:description" content="${escapeHtml(description)}" />
   ${image ? `<meta name="twitter:image" content="${escapeHtml(image)}" />` : ''}
   <link rel="canonical" href="${url}" />
+  <script type="application/ld+json">
+  ${JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: title,
+    description: product.description || '',
+    url,
+    ...(image ? { image } : {}),
+    offers: {
+      '@type': 'Offer',
+      price: String(price),
+      priceCurrency: currency,
+      availability: product.status === 'available' ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
+      itemCondition: 'https://schema.org/UsedCondition',
+    },
+    brand: {
+      '@type': 'Organization',
+      name: 'BidMo.to',
+    },
+  })}
+  </script>
 </head>
 <body>
   <h1>${escapeHtml(title)}</h1>

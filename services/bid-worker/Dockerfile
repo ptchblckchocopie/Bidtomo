@@ -3,7 +3,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY tsconfig.json ./
 COPY src ./src
@@ -14,12 +14,13 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
 ARG GIT_SHA=unknown
 ENV GIT_SHA=${GIT_SHA}
 
+RUN chown -R node:node /app
 USER node
 CMD ["npm", "start"]

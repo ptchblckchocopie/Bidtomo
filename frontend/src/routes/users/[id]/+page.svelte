@@ -338,7 +338,7 @@
                     {#if product}
                       <a href="/products/{product.id}" class="review-product-image">
                         {#if productImage}
-                          <img src={productImage} alt={product.title} />
+                          <img src={productImage} alt={product.title} loading="lazy" decoding="async" />
                         {:else}
                           <div class="no-image-thumb">📦</div>
                         {/if}
@@ -416,7 +416,7 @@
                     {#if product}
                       <a href="/products/{product.id}" class="review-product-image">
                         {#if productImage}
-                          <img src={productImage} alt={product.title} />
+                          <img src={productImage} alt={product.title} loading="lazy" decoding="async" />
                         {:else}
                           <div class="no-image-thumb">📦</div>
                         {/if}

@@ -656,7 +656,7 @@
             <a href="/users/{user.id}" class="user-card">
               <div class="user-card-avatar">
                 {#if user.profilePicture && typeof user.profilePicture === 'object' && user.profilePicture.url}
-                  <img src={user.profilePicture.url} alt={user.name} />
+                  <img src={user.profilePicture.url} alt={user.name} loading="lazy" decoding="async" />
                 {:else}
                   <span class="user-card-initial">{user.name?.charAt(0)?.toUpperCase() || '?'}</span>
                 {/if}

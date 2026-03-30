@@ -1,19 +1,21 @@
-# Frontend Dockerfile for SvelteKit
-FROM node:18-alpine
+# Frontend Dockerfile (local dev + optional production build)
+FROM node:20-alpine
 
-# Set working directory
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies (deterministic)
+RUN npm ci
 
 # Copy source code
 COPY . .
 
-# Expose port
+# Set ownership for non-root user
+RUN chown -R node:node /app
+
+USER node
 EXPOSE 5173
 
 # Start the application in development mode

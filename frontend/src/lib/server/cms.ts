@@ -30,6 +30,7 @@ export async function cmsRequest(
   const fetchOptions: RequestInit = {
     method,
     headers: requestHeaders,
+    keepalive: true,
   };
 
   if (body && method !== 'GET') {
@@ -72,8 +73,37 @@ export function jsonResponse(data: any, status = 200): Response {
   });
 }
 
+// Known safe error messages that can be shown to clients
+const SAFE_ERROR_PATTERNS = [
+  'Unauthorized', 'Forbidden', 'Not found', 'not found',
+  'Invalid', 'invalid', 'required', 'Required',
+  'already exists', 'already registered', 'already reported',
+  'too many', 'Too many', 'limit exceeded',
+  'expired', 'Expired',
+  'Failed to', 'failed to',
+  'must be', 'Must be', 'cannot', 'Cannot',
+  'password', 'Password', 'email', 'Email',
+  'CSRF',
+];
+
+function isSafeMessage(msg: string): boolean {
+  return SAFE_ERROR_PATTERNS.some(pattern => msg.includes(pattern));
+}
+
+const GENERIC_ERRORS: Record<number, string> = {
+  400: 'Invalid request',
+  401: 'Authentication required',
+  403: 'Access denied',
+  404: 'Not found',
+  409: 'Conflict',
+  429: 'Too many requests',
+  500: 'Something went wrong',
+};
+
 export function errorResponse(message: string, status = 500): Response {
-  return jsonResponse({ error: message }, status);
+  // Only expose known-safe messages to the client; hide internal details
+  const clientMessage = isSafeMessage(message) ? message : (GENERIC_ERRORS[status] || 'Something went wrong');
+  return jsonResponse({ error: clientMessage }, status);
 }
 
 /**

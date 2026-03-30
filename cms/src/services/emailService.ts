@@ -9,8 +9,9 @@ function escHtml(s: string | number | undefined | null): string {
 }
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const EMAIL_QUEUE_KEY = 'email:queue';
-const EMAIL_PROCESSING_KEY = 'email:processing';
+const REDIS_PREFIX = process.env.REDIS_PREFIX || '';
+const EMAIL_QUEUE_KEY = `${REDIS_PREFIX}email:queue`;
+const EMAIL_PROCESSING_KEY = `${REDIS_PREFIX}email:processing`;
 const RATE_LIMIT = 2; // Max 2 emails per second
 const RATE_WINDOW = 1000; // 1 second in milliseconds
 

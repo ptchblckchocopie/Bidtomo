@@ -1,0 +1,33 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  trivy-scan:
+    name: Container image scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - { name: cms, context: ./cms }
+          - { name: sse-service, context: ./services/sse-service }
+          - { name: bid-worker, context: ./services/bid-worker }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build ${{ matrix.service.name }} image
+        run: |
+          docker build -t bidtomo-${{ matrix.service.name }}:scan ${{ matrix.service.context }}
+
+      - name: Scan ${{ matrix.service.name }} with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: bidtomo-${{ matrix.service.name }}:scan
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true

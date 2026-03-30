@@ -2251,7 +2251,7 @@ const start = async () => {
       if (isRedisConnected()) {
         const redisClient = getRedisClient();
         if (redisClient) {
-          emailQueueDepth = await redisClient.llen('email:queue');
+          emailQueueDepth = await redisClient.llen(`${process.env.REDIS_PREFIX || ''}email:queue`);
         }
       }
     } catch { /* non-critical */ }

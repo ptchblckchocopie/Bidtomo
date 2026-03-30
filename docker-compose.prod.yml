@@ -5,6 +5,11 @@ services:
     image: caddy:2-alpine
     container_name: prod-caddy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
     ports:
       - "80:80"
       - "443:443"
@@ -34,6 +39,11 @@ services:
     image: postgres:15-alpine
     container_name: prod-postgres
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-marketplace}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -53,6 +63,11 @@ services:
     image: redis:7-alpine
     container_name: prod-redis
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --appendfsync everysec --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
@@ -66,6 +81,11 @@ services:
 
   # PayloadCMS Backend
   cms:
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
     build:
       context: ./cms
       dockerfile: Dockerfile
@@ -113,6 +133,11 @@ services:
 
   # SSE Service for real-time updates
   sse-service:
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
     build:
       context: ./services/sse-service
       dockerfile: Dockerfile
@@ -143,6 +168,11 @@ services:
 
   # Bid Worker — no port, processes Redis queue
   bid-worker:
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
     build:
       context: ./services/bid-worker
       dockerfile: Dockerfile

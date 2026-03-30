@@ -46,7 +46,7 @@ export function createHealthRouter(payload?: Payload): Router {
       if (isRedisConnected()) {
         const redis = getRedisClient();
         if (redis) {
-          emailQueueDepth = await redis.llen('email:queue');
+          emailQueueDepth = await redis.llen(`${process.env.REDIS_PREFIX || ''}email:queue`);
         }
       }
     } catch { /* non-critical */ }

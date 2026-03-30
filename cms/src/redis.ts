@@ -3,7 +3,8 @@ import crypto from 'crypto';
 import * as Sentry from '@sentry/node';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const BID_QUEUE_KEY = 'bids:pending';
+export const REDIS_PREFIX = process.env.REDIS_PREFIX || '';
+const BID_QUEUE_KEY = `${REDIS_PREFIX}bids:pending`;
 
 let redis: Redis | null = null;
 let redisConnected = false;
