@@ -3874,12 +3874,11 @@
     border-color: var(--color-red);
   }
 
-  /* Top ranked bid styling — Swiss red accent */
+  /* Top ranked bid styling — subtle emerald accent */
   .bid-history-item.rank-1 {
-    background: var(--color-red);
-    border: 1px solid var(--color-border);
+    background: var(--color-muted);
+    border: 2px solid var(--color-emerald, #10B981);
     position: relative;
-    color: white;
   }
 
   .bid-history-item.rank-1:hover {
@@ -3894,7 +3893,7 @@
   }
 
   .bid-history-item.rank-1 .bid-rank {
-    color: white;
+    color: var(--color-emerald, #10B981);
     font-size: calc(1.2rem * var(--scale));
   }
 
@@ -3938,7 +3937,7 @@
     position: absolute;
     top: -0.75rem;
     right: 1rem;
-    background: var(--color-red);
+    background: var(--color-emerald, #10B981);
     color: white;
     padding: 0.375rem 0.875rem;
     font-size: 0.75rem;
@@ -4931,15 +4930,16 @@
 
   @keyframes newBidHighlight {
     0% {
-      background: var(--color-red);
-      opacity: 0;
+      background: rgba(16, 185, 129, 0.3);
+      transform: translateX(-4px);
     }
-    20% {
-      opacity: 1;
+    40% {
+      background: rgba(16, 185, 129, 0.15);
+      transform: translateX(0);
     }
     100% {
-      background: var(--color-surface);
-      opacity: 1;
+      background: var(--color-muted);
+      transform: translateX(0);
     }
   }
 
