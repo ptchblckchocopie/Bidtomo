@@ -91,11 +91,9 @@ export async function invalidateProductCache(productId?: string | number): Promi
   try {
     const pipeline = redis.pipeline();
 
-    // Invalidate specific product detail (both public and admin variants)
+    // Invalidate specific product detail
     if (productId) {
       pipeline.del(`${KEY_PREFIX}products:detail:${productId}`);
-      pipeline.del(`${KEY_PREFIX}products:detail:public:${productId}`);
-      pipeline.del(`${KEY_PREFIX}products:detail:admin:${productId}`);
     }
 
     // Invalidate all list caches using SCAN (non-blocking, unlike KEYS)

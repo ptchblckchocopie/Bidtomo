@@ -678,24 +678,23 @@ const start = async () => {
   // ── Redis cache middleware for Payload product routes ──
   // Read-through cache: checks Redis first, falls through to Payload on miss.
   // Caches both authenticated and unauthenticated GET requests.
-  // Admin requests use a separate cache prefix (admins see hidden products).
+  // Cache unauthenticated GET /api/products requests only.
+  // Authenticated requests skip cache and hit Payload directly (which enforces access control).
+  // This middleware runs BEFORE payload.init(), so req.user is not available.
   app.use('/api/products', async (req, res, next) => {
-    if (req.method !== 'GET') return next();
+    if (req.method !== 'GET' || req.headers.authorization) return next();
 
     const redis = getRedisClient();
     if (!redis || !isRedisConnected()) return next();
 
-    // Determine cache key — include auth context to prevent data leakage
-    const isAdmin = (req as any).user?.role === 'admin';
-    const authPrefix = isAdmin ? 'admin' : 'public';
     let cacheKey: string | null = null;
     const idMatch = req.path.match(/^\/(\d+)$/);
 
     if (idMatch) {
-      cacheKey = `cache:products:detail:${authPrefix}:${idMatch[1]}`;
+      cacheKey = `cache:products:detail:${idMatch[1]}`;
     } else if (req.path === '/' || req.path === '') {
       const hash = crypto.createHash('md5').update(JSON.stringify(req.query)).digest('hex').slice(0, 12);
-      cacheKey = `cache:products:list:${authPrefix}:${hash}`;
+      cacheKey = `cache:products:list:${hash}`;
     }
 
     if (!cacheKey) return next();

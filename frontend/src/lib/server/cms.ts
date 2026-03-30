@@ -80,8 +80,10 @@ const SAFE_PREFIXES = [
   'already exists', 'already registered', 'already reported',
   'too many', 'limit exceeded', 'expired', 'failed to',
   'must be', 'cannot', 'csrf', 'password must', 'email already',
+  'email is', 'name is', 'title is', 'description is', 'price is',
   'you must', 'you cannot', 'you are not', 'bid must', 'auction',
-  'product', 'no active', 'this product',
+  'product', 'no active', 'this product', 'the following',
+  'please ', 'missing ', 'duplicate', 'value is',
 ];
 
 function isSafeMessage(msg: string): boolean {
