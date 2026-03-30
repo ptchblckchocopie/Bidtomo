@@ -437,11 +437,6 @@
                   </a>
 
                   <div class="product-actions">
-                    {#if !product.currentBid || product.currentBid <= 0}
-                      <button class="btn-edit" onclick={() => openEditModal(product)}>
-                        ✏️ {$t('dashboard.edit')}
-                      </button>
-                    {/if}
                     {#if data.user?.role === 'admin'}
                       <button class="btn-hide" onclick={() => openHideModal(product)}>
                         🙈 {$t('dashboard.hide')}
@@ -507,11 +502,6 @@
                   </a>
 
                   <div class="product-actions">
-                    {#if !product.currentBid || product.currentBid <= 0}
-                      <button class="btn-edit" onclick={() => openEditModal(product)}>
-                        ✏️ {$t('dashboard.edit')}
-                      </button>
-                    {/if}
                     {#if data.user?.role === 'admin'}
                       <button class="btn-unhide" onclick={() => openHideModal(product)}>
                         👁️ {$t('dashboard.unhide')}
@@ -656,28 +646,6 @@
     {/if}
   </div>
 </div>
-
-<!-- Edit Product Modal -->
-{#if showEditModal && editingProduct}
-  <div class="modal-overlay" onkeydown={(e) => e.key === 'Escape' && closeEditModal()} role="button" tabindex="-1">
-    <div class="modal-content" onkeydown={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
-      <button class="modal-close" onclick={closeEditModal}>&times;</button>
-
-      <div class="modal-header">
-        <h2>{$t('sell.editTitle')}</h2>
-      </div>
-
-      <div class="modal-body">
-        <ProductForm
-          mode="edit"
-          product={editingProduct}
-          onSuccess={handleEditSuccess}
-          onCancel={closeEditModal}
-        />
-      </div>
-    </div>
-  </div>
-{/if}
 
 <!-- Product View Modal -->
 {#if showViewModal && viewingProduct}

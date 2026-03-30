@@ -95,16 +95,25 @@
             <div class="pf-row"><span class="pf-label">Categories:</span> <span>${selectedCategories.join(', ')}</span></div>
             <div class="pf-row"><span class="pf-label">Images:</span> <span>${mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length} photo(s)</span></div>
           </div>
+          <label class="pf-terms" id="pf-terms-label">
+            <input type="checkbox" id="pf-terms-check" />
+            <span>I confirm that all details are correct and understand that <strong>listings cannot be edited once published</strong>. By creating this listing, I agree to the platform's terms of service.</span>
+          </label>
           <div class="pf-modal-actions">
-            <button class="btn-bh pf-confirm-btn" id="pf-confirm-submit">${mode === 'edit' ? 'Update Listing' : 'Create Listing'}</button>
+            <button class="btn-bh pf-confirm-btn" id="pf-confirm-submit" disabled>Create Listing</button>
             <button class="btn-bh-outline pf-cancel-btn" id="pf-confirm-cancel">Go Back & Edit</button>
           </div>
         </div>
       </div>
     `;
     // Attach event listeners
-    portal.querySelector('#pf-confirm-submit')?.addEventListener('click', confirmAndSubmit);
+    const submitBtn = portal.querySelector('#pf-confirm-submit') as HTMLButtonElement;
+    const termsCheck = portal.querySelector('#pf-terms-check') as HTMLInputElement;
+    submitBtn?.addEventListener('click', confirmAndSubmit);
     portal.querySelector('#pf-confirm-cancel')?.addEventListener('click', () => { showConfirmModal = false; });
+    termsCheck?.addEventListener('change', () => {
+      if (submitBtn) submitBtn.disabled = !termsCheck.checked;
+    });
   }
 
   function renderLoaderOverlay() {
@@ -543,66 +552,7 @@
     submitting = true;
 
     try {
-      if (mode === 'edit' && product) {
-        loadingMessage = 'Preparing your changes...';
-
-        if (imagesToDelete.length > 0) {
-          loadingMessage = `Removing ${imagesToDelete.length} image${imagesToDelete.length > 1 ? 's' : ''}...`;
-          for (const mediaId of imagesToDelete) {
-            await deleteMedia(mediaId);
-          }
-        }
-
-        const uploadedImageIds: string[] = [];
-        if (imageFiles.length > 0) {
-          for (let i = 0; i < imageFiles.length; i++) {
-            loadingMessage = `Uploading image ${i + 1} of ${imageFiles.length}...`;
-            const imageId = await uploadMedia(imageFiles[i]);
-            if (imageId) {
-              uploadedImageIds.push(imageId);
-            }
-          }
-        }
-
-        const allImageIds = [
-          ...existingImages.map(img => img.image.id),
-          ...uploadedImageIds
-        ];
-
-        loadingMessage = 'Updating product details...';
-
-        const updateData: any = {
-          title,
-          description,
-          keywords: keywords.map(k => ({ keyword: k })),
-          bidInterval: Number(bidInterval),
-          autoExtendMinutes,
-          auctionEndDate: new Date(auctionEndDate).toISOString(),
-          active,
-          images: allImageIds.map(id => ({ image: id })),
-          region,
-          city,
-          delivery_options: deliveryOptions || undefined,
-          categories: selectedCategories.length > 0 ? selectedCategories : undefined
-        };
-
-        if (!hasBids) {
-          updateData.startingPrice = Number(startingPrice);
-        }
-
-        const result = await updateProduct(product.id, updateData);
-
-        if (result) {
-          loadingMessage = 'Success! Refreshing...';
-          success = true;
-          showToastNotification('Product updated successfully!', 'success');
-          if (onSuccess) {
-            onSuccess(result);
-          }
-        } else {
-          showToastNotification('Failed to update product. Please try again.', 'error');
-        }
-      } else {
+      {
         const uploadedImageIds: string[] = [];
 
         for (let i = 0; i < imageFiles.length; i++) {
@@ -1386,6 +1336,17 @@
   }
   :global(.pf-row span:last-child) { text-align: right; font-weight: 600; }
   :global(.pf-label) { color: var(--color-muted-fg, #888); flex-shrink: 0; }
+  :global(.pf-terms) {
+    display: flex; gap: 0.625rem; align-items: flex-start; padding: 0.75rem;
+    background: var(--color-muted, #1a1a2e); border: 1px solid var(--color-border, #333);
+    border-radius: 6px; cursor: pointer; font-size: 0.8rem; line-height: 1.4;
+    color: var(--color-muted-fg, #888); margin-bottom: 0.5rem;
+  }
+  :global(.pf-terms input[type="checkbox"]) {
+    margin-top: 2px; flex-shrink: 0; width: 16px; height: 16px; accent-color: #10B981; cursor: pointer;
+  }
+  :global(.pf-terms strong) { color: var(--color-fg, #fff); }
+  :global(.pf-confirm-btn:disabled) { opacity: 0.4; cursor: not-allowed; }
   :global(.pf-modal-actions) { display: flex; flex-direction: column; gap: 0.75rem; }
 
   :global(.pf-loader-content) {
