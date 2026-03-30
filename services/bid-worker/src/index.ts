@@ -5,6 +5,12 @@ import { Pool } from 'pg';
 import crypto from 'crypto';
 import log from './logger';
 
+// Warn if using default connection strings in production
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.REDIS_URL) console.warn('WARNING: REDIS_URL not set in production — using localhost default.');
+  if (!process.env.DATABASE_URL) console.warn('WARNING: DATABASE_URL not set in production — using localhost default.');
+}
+
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/marketplace';
 const QUEUE_KEY = 'bids:pending';
@@ -922,6 +928,11 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
     }
 
     // Batch-insert all bids in one query (instead of 3 queries per bid)
+    // Safety cap: prevent oversized SQL from unbounded loops
+    if (pendingBids.length > 100) {
+      log.warn({ count: pendingBids.length, productId }, 'Auto-bid batch exceeds 100, truncating');
+      pendingBids.length = 100;
+    }
     if (pendingBids.length > 0) {
       // Insert all bids at once
       const bidValues = pendingBids.map((_, i) => `($${i * 2 + 1}, NOW(), $${i * 2 + 2}, NOW(), NOW())`).join(', ');

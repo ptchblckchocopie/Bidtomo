@@ -19,6 +19,23 @@ import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRe
 
 dotenv.config();
 
+// Validate critical env vars at startup
+const REQUIRED_ENV = ['PAYLOAD_SECRET'] as const;
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) {
+    console.error(`FATAL: Required environment variable ${key} is not set. Exiting.`);
+    process.exit(1);
+  }
+}
+if (process.env.NODE_ENV === 'production') {
+  const PROD_REQUIRED = ['DATABASE_URI', 'REDIS_URL', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'] as const;
+  for (const key of PROD_REQUIRED) {
+    if (!process.env[key]) {
+      console.warn(`WARNING: ${key} not set in production — using default (likely wrong).`);
+    }
+  }
+}
+
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy (Railway/reverse proxy) — required for express-rate-limit
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -2196,6 +2213,17 @@ const start = async () => {
   });
 
   // Health check endpoint for Redis status
+  // Lightweight ping for external uptime monitors (UptimeRobot, Better Uptime, etc.)
+  app.get('/api/ping', async (req, res) => {
+    try {
+      const pool = (payload.db as any).pool;
+      await pool.query('SELECT 1');
+      res.status(200).json({ status: 'ok', redis: isRedisConnected(), ts: Date.now() });
+    } catch {
+      res.status(503).json({ status: 'down', ts: Date.now() });
+    }
+  });
+
   app.get('/api/health', async (req, res) => {
     const esAvailable = await isElasticAvailable();
     const pool = (payload.db as any).pool;
@@ -2247,6 +2275,20 @@ const start = async () => {
       } catch { /* non-critical */ }
     }
 
+    // Database pool stats
+    let dbPool = { total: 0, idle: 0, waiting: 0 };
+    try {
+      dbPool = { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount };
+    } catch { /* non-critical */ }
+
+    // Memory usage
+    const mem = process.memoryUsage();
+    const memoryMB = {
+      rss: Math.round(mem.rss / 1048576),
+      heapUsed: Math.round(mem.heapUsed / 1048576),
+      heapTotal: Math.round(mem.heapTotal / 1048576),
+    };
+
     const allOk = postgres === 'connected' && isRedisConnected() && !backupStale;
 
     res.json({
@@ -2254,6 +2296,9 @@ const start = async () => {
       postgres,
       redis: isRedisConnected() ? 'connected' : 'disconnected',
       elasticsearch: esAvailable ? 'connected' : 'disconnected',
+      dbPool,
+      memoryMB,
+      uptimeSeconds: Math.round(process.uptime()),
       pendingExpiredAuctions,
       emailQueueDepth,
       pendingBidsBacklog,

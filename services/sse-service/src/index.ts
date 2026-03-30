@@ -6,15 +6,19 @@ import Redis from 'ioredis';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
+// Validate critical env vars at startup
+if (!process.env.PAYLOAD_SECRET) {
+  console.error('FATAL: PAYLOAD_SECRET is not set. SSE service cannot verify JWT tokens. Exiting.');
+  process.exit(1);
+}
+
 const app = express();
 const PORT = parseInt(process.env.PORT || process.env.SSE_PORT || '3002', 10);
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const CORS_ORIGIN = process.env.SSE_CORS_ORIGIN || 'http://localhost:5173';
 
-// Payload v2 hashes the secret with SHA-256 before signing JWTs:
-//   crypto.createHash('sha256').update(secret).digest('hex').slice(0, 32)
-// Must match the same derivation to verify tokens correctly.
-const JWT_SECRET = crypto.createHash('sha256').update(process.env.PAYLOAD_SECRET || '').digest('hex').slice(0, 32);
+// Payload v2 hashes the secret with SHA-256 before signing JWTs
+const JWT_SECRET = crypto.createHash('sha256').update(process.env.PAYLOAD_SECRET).digest('hex').slice(0, 32);
 
 // Connection managers
 const productConnections = new Map<string, Set<Response>>();
@@ -106,7 +110,13 @@ app.use(cors({
 }));
 
 // Health check endpoint
+// Lightweight ping for uptime monitors
+app.get('/ping', (_req, res) => {
+  res.status(redisConnected ? 200 : 503).json({ status: redisConnected ? 'ok' : 'down', ts: Date.now() });
+});
+
 app.get('/health', (req, res) => {
+  const mem = process.memoryUsage();
   res.json({
     status: redisConnected ? 'ok' : 'degraded',
     globalConnectionCount,
@@ -116,6 +126,9 @@ app.get('/health', (req, res) => {
     globalClients: globalConnections.size,
     redis: redisConnected ? 'connected' : 'disconnected',
     reconnectAttempts,
+    memoryMB: { rss: Math.round(mem.rss / 1048576), heapUsed: Math.round(mem.heapUsed / 1048576) },
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: Date.now(),
   });
 });
 
