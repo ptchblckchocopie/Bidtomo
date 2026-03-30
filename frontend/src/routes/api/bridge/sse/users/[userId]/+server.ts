@@ -18,9 +18,16 @@ export const GET: RequestHandler = async ({ params, cookies }) => {
   const upstreamUrl = `${SSE_URL}/events/users/${userId}?token=${encodeURIComponent(token)}`;
 
   try {
+    // Timeout on initial connection (not the stream itself)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+
     const upstream = await fetch(upstreamUrl, {
       headers: { Accept: 'text/event-stream' },
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     if (!upstream.ok) {
       return new Response(JSON.stringify({ error: 'SSE connection failed' }), {

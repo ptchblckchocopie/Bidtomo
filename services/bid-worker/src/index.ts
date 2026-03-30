@@ -1908,7 +1908,7 @@ async function runWorker() {
             error: preCheck.error,
             amount: jobToProcess.amount,
             bidderId: jobToProcess.bidderId,
-          });
+          }).catch(err => log.error({ err, productId: jobToProcess.productId }, 'Failed to publish fast-reject'));
           continue;
         }
 

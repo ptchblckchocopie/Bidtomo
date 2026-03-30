@@ -73,21 +73,22 @@ export function jsonResponse(data: any, status = 200): Response {
   });
 }
 
-// Known safe error messages that can be shown to clients
-const SAFE_ERROR_PATTERNS = [
-  'Unauthorized', 'Forbidden', 'Not found', 'not found',
-  'Invalid', 'invalid', 'required', 'Required',
+// Safe error prefixes — message must START with one of these to be shown to clients.
+// This prevents leaking internal details that happen to contain a safe word.
+const SAFE_PREFIXES = [
+  'unauthorized', 'forbidden', 'not found', 'invalid', 'required',
   'already exists', 'already registered', 'already reported',
-  'too many', 'Too many', 'limit exceeded',
-  'expired', 'Expired',
-  'Failed to', 'failed to',
-  'must be', 'Must be', 'cannot', 'Cannot',
-  'password', 'Password', 'email', 'Email',
-  'CSRF',
+  'too many', 'limit exceeded', 'expired', 'failed to',
+  'must be', 'cannot', 'csrf', 'password must', 'email already',
+  'you must', 'you cannot', 'you are not', 'bid must', 'auction',
+  'product', 'no active', 'this product',
 ];
 
 function isSafeMessage(msg: string): boolean {
-  return SAFE_ERROR_PATTERNS.some(pattern => msg.includes(pattern));
+  // Reject long messages — likely stack traces or internal errors
+  if (msg.length > 150) return false;
+  const lower = msg.toLowerCase();
+  return SAFE_PREFIXES.some(prefix => lower.startsWith(prefix));
 }
 
 const GENERIC_ERRORS: Record<number, string> = {
