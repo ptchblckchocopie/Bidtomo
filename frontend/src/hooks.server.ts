@@ -164,7 +164,8 @@ const cspHandler: Handle = async ({ event, resolve }) => {
   const csp = [
     "default-src 'self'",
     // Sentry SDK uses eval() for stack traces in dev; unsafe-inline needed for Svelte event handlers
-    `script-src 'self' 'unsafe-inline' https://o4510938072219648.ingest.us.sentry.io`,
+    `script-src 'self' 'unsafe-inline' blob: https://o4510938072219648.ingest.us.sentry.io`,
+    `worker-src 'self' blob:`,
     // unsafe-inline required for Svelte scoped styles + Google Fonts
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
     `font-src 'self' https://fonts.gstatic.com`,
