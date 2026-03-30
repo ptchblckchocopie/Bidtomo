@@ -2209,6 +2209,7 @@
   .error {
     text-align: center;
     padding: 4rem 2rem;
+    min-height: 40vh;
   }
 
   .error a {
