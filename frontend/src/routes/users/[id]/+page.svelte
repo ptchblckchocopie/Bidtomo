@@ -22,14 +22,27 @@
     });
   }
 
-  // Get product image URL
+  // Get product image URL — handles both populated (object with .url) and unpopulated (ID) cases
   function getProductImage(product: any): string | null {
-    if (product.images && product.images.length > 0) {
-      const firstImage = product.images[0]?.image;
-      if (typeof firstImage === 'object' && firstImage?.url) {
-        return firstImage.url;
-      }
+    if (!product.images || product.images.length === 0) return null;
+
+    const entry = product.images[0];
+
+    // Populated: { image: { url: '...' } }
+    if (typeof entry?.image === 'object' && entry.image?.url) {
+      return entry.image.url;
     }
+
+    // Flat structure: { url: '...' } (some queries return images directly)
+    if (typeof entry === 'object' && entry?.url) {
+      return entry.url;
+    }
+
+    // Image might be at entry.image as a string URL
+    if (typeof entry?.image === 'string' && entry.image.startsWith('http')) {
+      return entry.image;
+    }
+
     return null;
   }
 

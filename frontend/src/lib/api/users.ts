@@ -72,6 +72,7 @@ export async function fetchUserProducts(
     }
 
     queryParams.append('sort', '-createdAt');
+    queryParams.append('depth', '1');
 
     const response = await fetch(
       `${BRIDGE_URL}/api/bridge/users/${userId}/products?${queryParams.toString()}`,
