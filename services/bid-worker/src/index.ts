@@ -1789,8 +1789,8 @@ async function runWorker() {
         continue;
       }
 
-      // Blocking pop - wait for new jobs (timeout 1 second for fast responsiveness)
-      const result = await redisQueue.blpop(QUEUE_KEY, 1);
+      // Blocking pop - wait for new jobs (100ms timeout for near-instant bid processing)
+      const result = await redisQueue.blpop(QUEUE_KEY, 0.1);
 
       if (!result) continue;
 
