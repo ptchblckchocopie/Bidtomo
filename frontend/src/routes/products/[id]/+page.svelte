@@ -1785,9 +1785,6 @@
                   class:new-bid={newBidIds.has(bid.id)}
                   style="--rank: {index + 1}; --delay: {index * 0.05}s"
                 >
-                  {#if newBidIds.has(bid.id)}
-                    <div class="new-bid-indicator">{$t('product.new')}</div>
-                  {/if}
                   <div class="bid-rank">#{index + 1}</div>
                   <div class="bid-info">
                     <div class="bid-amount">{formatPrice(bid.amount, sellerCurrency)}</div>
@@ -1796,11 +1793,14 @@
                       <span class="bid-time">{formatDate(bid.bidTime)}</span>
                     </div>
                   </div>
-                  {#if index === 0}
-                    <div class="highest-badge">
-                      👑 {$t('product.highestBid')}
-                    </div>
-                  {/if}
+                  <div class="bid-badges">
+                    {#if index === 0}
+                      <div class="highest-badge">👑 {$t('product.highestBid')}</div>
+                    {/if}
+                    {#if newBidIds.has(bid.id)}
+                      <div class="new-bid-indicator">{$t('product.new')}</div>
+                    {/if}
+                  </div>
                 </div>
               {/each}
             </div>
@@ -3933,18 +3933,23 @@
     color: white;
   }
 
+  .bid-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    align-items: flex-end;
+    flex-shrink: 0;
+  }
+
   .highest-badge {
-    position: absolute;
-    top: -0.75rem;
-    right: 1rem;
     background: var(--color-emerald, #10B981);
     color: white;
-    padding: 0.375rem 0.875rem;
-    font-size: 0.75rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 0.5px;
-    border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
+    white-space: nowrap;
   }
 
   /* Modal Styles */
@@ -4914,18 +4919,14 @@
   }
 
   .new-bid-indicator {
-    position: absolute;
-    top: 8px;
-    right: 8px;
     background: var(--color-blue);
     color: white;
-    padding: 0.25rem 0.625rem;
-    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.6rem;
     font-weight: 800;
     letter-spacing: 0.05em;
-    border: 1px solid var(--color-border);
-    z-index: 10;
     border-radius: var(--radius-sm);
+    white-space: nowrap;
   }
 
   @keyframes newBidHighlight {
