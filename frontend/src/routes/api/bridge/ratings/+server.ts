@@ -1,16 +1,11 @@
-import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse } from '$lib/server/cms';
+import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse, sanitizeQueryParams } from '$lib/server/cms';
 import type { RequestHandler } from './$types';
 
 // GET /api/bridge/ratings - List ratings
 export const GET: RequestHandler = async ({ url, request }) => {
   try {
     const token = getTokenFromRequest(request);
-    const params = new URLSearchParams();
-
-    // Forward query parameters
-    url.searchParams.forEach((value, key) => {
-      params.append(key, value);
-    });
+    const params = sanitizeQueryParams(url.searchParams);
 
     const response = await cmsRequest(`/api/ratings?${params.toString()}`, {
       token: token || undefined,

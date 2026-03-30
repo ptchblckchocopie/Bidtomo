@@ -357,15 +357,9 @@
     }
 
     try {
-      const token = localStorage.getItem('auth_token');
-      const headers: HeadersInit = {};
-      if (token) {
-        headers['Authorization'] = `JWT ${token}`;
-      }
       const response = await fetch(
         `/api/bridge/bids?where[bidder][equals]=${$authStore.user.id}&limit=1000`,
         {
-          headers,
           credentials: 'include',
         }
       );
@@ -542,54 +536,6 @@
   </div>
 </div>
 
-<!-- Welcome Hero Section -->
-<div class="-mx-4 sm:-mx-6 lg:-mx-8 mb-8">
-  <section class="bg-bh-red border-b-2 border-black text-white px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16 text-center">
-    <div class="max-w-4xl mx-auto">
-      <div class="mb-6">
-        <img src="/bidmo.to.png" alt="BidMo.to" class="h-20 sm:h-28 lg:h-36 w-auto mx-auto" />
-      </div>
-
-      <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold mb-3 uppercase tracking-widest">
-        {$t('hero.welcomeTo')} <span class="text-white">BidMo.to</span>
-      </h1>
-
-      <p class="text-base sm:text-lg lg:text-xl mb-3 opacity-95">
-        {$t('hero.tagline')}
-      </p>
-
-      <p class="text-sm sm:text-base mb-6 opacity-90 max-w-2xl mx-auto">
-        {$t('hero.subtitle')}
-      </p>
-
-      <div class="flex flex-wrap gap-4 sm:gap-8 justify-center text-sm sm:text-base">
-        <div class="flex items-center gap-2">
-          <span class="text-xl">🔍</span>
-          <span>{$t('hero.browseAuctions')}</span>
-        </div>
-        {#if $authStore.isAuthenticated}
-          <div class="flex items-center gap-2">
-            <span class="text-xl">🔨</span>
-            <a href="/sell" class="hover:text-black transition-colors duration-150 ease-out">{$t('hero.listAnItem')}</a>
-          </div>
-        {/if}
-        <div class="flex items-center gap-2">
-          <span class="text-xl font-bold">{$t('hero.free')}</span>
-          <span>{$t('hero.toJoin')}</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-xl font-bold">{$t('hero.safe')}</span>
-          <span>{$t('hero.noPaymentIntegration')}</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-xl font-bold">{$t('hero.beta')}</span>
-          <span>{$t('hero.helpUsGrow')}</span>
-        </div>
-      </div>
-    </div>
-  </section>
-</div>
-
 <div class="products-page">
   <div class="page-header">
     <h2>{$t('products.browseProducts')}</h2>
@@ -710,7 +656,7 @@
             <a href="/users/{user.id}" class="user-card">
               <div class="user-card-avatar">
                 {#if user.profilePicture && typeof user.profilePicture === 'object' && user.profilePicture.url}
-                  <img src={user.profilePicture.url} alt={user.name} />
+                  <img src={user.profilePicture.url} alt={user.name} loading="lazy" decoding="async" />
                 {:else}
                   <span class="user-card-initial">{user.name?.charAt(0)?.toUpperCase() || '?'}</span>
                 {/if}
@@ -1616,8 +1562,9 @@
 
   .auction-info {
     display: flex;
-    justify-content: space-between;
+    flex-wrap: wrap;
     align-items: center;
+    gap: 0.5rem;
     padding-top: 1rem;
     border-top: 1px solid var(--color-border);
   }

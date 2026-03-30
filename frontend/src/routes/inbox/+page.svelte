@@ -11,6 +11,7 @@
   import { getUserSSE, disconnectUserSSE, getProductSSE, disconnectProductSSE, type SSEEvent, type MessageEvent as SSEMessageEvent, type TypingEvent } from '$lib/sse';
   import { trackConversationOpened } from '$lib/analytics';
   import { t } from '$lib/stores/locale';
+  import { addToast } from '$lib/stores/toast';
 
   function handleBackToList() {
     selectedProduct = null;
@@ -59,7 +60,7 @@
       if (result.success) {
         closeVoidModal();
         // Show success message or update UI
-        alert('Void request submitted successfully. Waiting for the other party to respond.');
+        addToast('Void request submitted. Waiting for the other party to respond.', 'success');
       } else {
         voidError = result.error || 'Failed to create void request';
       }
@@ -110,10 +111,10 @@
           if (isSeller) {
             showSellerChoiceModal = true;
           } else {
-            alert('Void request approved. The seller will decide what to do next.');
+            addToast('Void request approved. The seller will decide what to do next.', 'success');
           }
         } else {
-          alert(action === 'approve' ? 'Void request approved' : 'Void request rejected');
+          addToast(action === 'approve' ? 'Void request approved' : 'Void request rejected', action === 'approve' ? 'success' : 'info');
         }
       } else {
         voidError = result.error || 'Failed to respond to void request';
@@ -142,9 +143,9 @@
       if (result.success) {
         closeSellerChoiceModal();
         if (choice === 'restart_bidding') {
-          alert(`Auction restarted! ${result.notifiedBidders || 0} bidders have been notified.`);
+          addToast(`Auction restarted! ${result.notifiedBidders || 0} bidders notified.`, 'success');
         } else {
-          alert(`Offer sent to the second highest bidder.`);
+          addToast('Offer sent to the second highest bidder.', 'success');
         }
         // Refresh the page to update product status
         window.location.reload();
@@ -185,10 +186,10 @@
       if (result.success) {
         closeSecondBidderOfferModal();
         if (action === 'accept') {
-          alert('Congratulations! You have secured the item. Check your inbox for next steps.');
+          addToast('Congratulations! You have secured the item.', 'success', 6000);
           window.location.reload();
         } else {
-          alert('You have declined the offer.');
+          addToast('You have declined the offer.', 'info');
         }
       } else {
         voidError = result.error || 'Failed to respond to offer';
@@ -472,23 +473,20 @@
         buyerName = txn.buyer.name || 'Unknown Buyer';
       }
 
-      // Fetch my rating
-      myRating = await fetchMyRatingForTransaction(txn.id);
+      // Fetch my rating and other party's rating in parallel
+      const [fetchedMyRating, ratingsResponse] = await Promise.all([
+        fetchMyRatingForTransaction(txn.id),
+        fetch(
+          `/api/bridge/ratings?where[transaction][equals]=${txn.id}&depth=1`,
+          { headers: { 'Content-Type': 'application/json' }, credentials: 'include' }
+        ),
+      ]);
 
-      // Fetch the other party's rating (to show how they rated)
-      const response = await fetch(
-        `/api/bridge/ratings?where[transaction][equals]=${txn.id}&depth=1`,
-        {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        }
-      );
+      myRating = fetchedMyRating;
 
-      if (response.ok) {
-        const data = await response.json();
+      if (ratingsResponse.ok) {
+        const data = await ratingsResponse.json();
         const allRatings = data.docs || [];
-
-        // Find the rating from the other party
         const currentUserId = $authStore.user?.id;
         otherPartyRating = allRatings.find((r: Rating) => {
           const raterId = typeof r.rater === 'object' ? r.rater.id : r.rater;
@@ -705,22 +703,26 @@
     trackConversationOpened(product.id);
 
     try {
-      selectedProduct = product;
+      // Fetch full product data (conversations endpoint returns lightweight version)
+      const fullProduct = await fetchProduct(String(product.id));
+      selectedProduct = fullProduct || product;
 
       // Reset chat permission state
       canChat = true;
       chatBlockedReason = '';
 
-      // Check chat permission
-      const permission = await checkChatPermission(product);
+      // Fetch permission check and messages in parallel (independent queries)
+      const [permission, fetchedMessages] = await Promise.all([
+        checkChatPermission(selectedProduct),
+        fetchProductMessages(selectedProduct.id, undefined, {
+          limit: MESSAGE_PAGE_SIZE,
+          latest: true
+        }),
+      ]);
+
       canChat = permission.allowed;
       chatBlockedReason = permission.reason || '';
-
-      // Load only the latest 10 messages
-      messages = await fetchProductMessages(product.id, undefined, {
-        limit: MESSAGE_PAGE_SIZE,
-        latest: true
-      });
+      messages = fetchedMessages;
 
       // Reset pagination state
       hasMoreMessages = messages.length === MESSAGE_PAGE_SIZE;
@@ -732,18 +734,14 @@
         lastMessageTime = new Date().toISOString();
       }
 
-      // Mark messages as read and update global unread count
-      let markedCount = 0;
-      for (const msg of messages) {
+      // Mark messages as read in parallel (fire-and-forget, don't block UI)
+      const unreadMessages = messages.filter(msg => {
         const receiverId = typeof msg.receiver === 'object' ? msg.receiver.id : msg.receiver;
-        if (receiverId === $authStore.user?.id && !msg.read) {
-          await markMessageAsRead(msg.id);
-          markedCount++;
-        }
-      }
-      // Update the store and trigger a refresh of the navbar badge
-      if (markedCount > 0) {
-        unreadCountStore.decrement(markedCount);
+        return receiverId === $authStore.user?.id && !msg.read;
+      });
+      if (unreadMessages.length > 0) {
+        Promise.all(unreadMessages.map(msg => markMessageAsRead(msg.id))).catch(() => {});
+        unreadCountStore.decrement(unreadMessages.length);
       }
 
       // Reset local conversation's unread count
@@ -755,12 +753,15 @@
         };
       }
 
-      // Load rating data for the product
-      await loadRatingData(product);
+      // Load rating data and buyer name in parallel
+      const ratingPromise = loadRatingData(selectedProduct);
+      const buyerPromise = (!buyerName && selectedProduct.seller?.id === $authStore.user?.id)
+        ? getBuyerFromProduct(selectedProduct)
+        : Promise.resolve(null);
 
-      // If buyer name wasn't set from transaction, try to get it from messages/bids
-      if (!buyerName && product.seller?.id === $authStore.user?.id) {
-        buyerName = await getBuyerFromProduct(product);
+      const [, fetchedBuyer] = await Promise.all([ratingPromise, buyerPromise]);
+      if (fetchedBuyer && !buyerName) {
+        buyerName = fetchedBuyer;
       }
 
       // Start polling for new messages
@@ -845,13 +846,14 @@
   }
 
   // Update a specific conversation without reloading the entire list
-  function updateConversationInPlace(productId: string, latestMessage: Message) {
-    const convIndex = conversations.findIndex(c => c.product.id === productId);
+  function updateConversationInPlace(productId: string, latestMessage: Message, incrementUnread = false) {
+    const convIndex = conversations.findIndex(c => String(c.product.id) === String(productId));
     if (convIndex !== -1) {
-      // Update the conversation's last message
+      // Update the conversation's last message and optionally bump unread count
       conversations[convIndex] = {
         ...conversations[convIndex],
         lastMessage: latestMessage,
+        ...(incrementUnread ? { unreadCount: conversations[convIndex].unreadCount + 1 } : {}),
       };
 
       // Re-sort conversations by moving the updated one to the top
@@ -1029,6 +1031,9 @@
         }
         iAmTyping = false;
 
+        // Bubble this conversation to the top of the sidebar
+        updateConversationInPlace(selectedProduct.id, message);
+
         // Always scroll to bottom when user sends message
         shouldAutoScroll = true;
         setTimeout(scrollToBottom, 100);
@@ -1146,7 +1151,19 @@
             }
           }
 
-          // Update conversations list in background (without re-selecting) - debounced
+          // Immediately bubble the conversation to the top of the sidebar
+          // Build a lightweight message object from SSE event data for instant re-ordering
+          const sseMessage: Message | null = msgEvent.message
+            ? (msgEvent.message as unknown as Message)
+            : null;
+
+          if (sseMessage) {
+            // Increment unread count if this message is for a different conversation
+            const isOtherConversation = !selectedProduct || String(msgEvent.productId) !== String(selectedProduct.id);
+            updateConversationInPlace(String(msgEvent.productId), sseMessage, isOtherConversation);
+          }
+
+          // Also refresh full conversation data in background (for unread counts, etc.) - debounced
           if (conversationUpdateDebounce) {
             clearTimeout(conversationUpdateDebounce);
           }
@@ -1268,7 +1285,7 @@
           >
             <div class="conversation-image">
               {#if conv.product.images && conv.product.images.length > 0 && conv.product.images[0].image}
-                <img src={conv.product.images[0].image.url} alt={conv.product.title} />
+                <img src={conv.product.images[0].image.url} alt={conv.product.title} loading="lazy" />
               {:else}
                 <div class="no-image">📦</div>
               {/if}

@@ -400,7 +400,7 @@
                         {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
                         {#if validImages.length > 0}
                           {@const firstImage = validImages[0]}
-                          <img src={firstImage.image.url} alt={product.title} />
+                          <img src={firstImage.image.url} alt={product.title} loading="lazy" />
                         {:else}
                           <div class="placeholder-image">
                             <span class="placeholder-icon">📦</span>
@@ -437,9 +437,6 @@
                   </a>
 
                   <div class="product-actions">
-                    <button class="btn-edit" onclick={() => openEditModal(product)}>
-                      ✏️ {$t('dashboard.edit')}
-                    </button>
                     {#if data.user?.role === 'admin'}
                       <button class="btn-hide" onclick={() => openHideModal(product)}>
                         🙈 {$t('dashboard.hide')}
@@ -470,7 +467,7 @@
                         {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
                         {#if validImages.length > 0}
                           {@const firstImage = validImages[0]}
-                          <img src={firstImage.image.url} alt={product.title} />
+                          <img src={firstImage.image.url} alt={product.title} loading="lazy" />
                         {:else}
                           <div class="placeholder-image">
                             <span class="placeholder-icon">📦</span>
@@ -505,9 +502,6 @@
                   </a>
 
                   <div class="product-actions">
-                    <button class="btn-edit" onclick={() => openEditModal(product)}>
-                      ✏️ {$t('dashboard.edit')}
-                    </button>
                     {#if data.user?.role === 'admin'}
                       <button class="btn-unhide" onclick={() => openHideModal(product)}>
                         👁️ {$t('dashboard.unhide')}
@@ -538,7 +532,7 @@
                         {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
                         {#if validImages.length > 0}
                           {@const firstImage = validImages[0]}
-                          <img src={firstImage.image.url} alt={product.title} />
+                          <img src={firstImage.image.url} alt={product.title} loading="lazy" />
                         {:else}
                           <div class="placeholder-image">
                             <span class="placeholder-icon">📦</span>
@@ -601,7 +595,7 @@
                       {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
                       {#if validImages.length > 0}
                         {@const firstImage = validImages[0]}
-                        <img src={firstImage.image.url} alt={product.title} />
+                        <img src={firstImage.image.url} alt={product.title} loading="lazy" />
                       {:else}
                         <div class="placeholder-image">
                           <span class="placeholder-icon">📦</span>
@@ -652,28 +646,6 @@
     {/if}
   </div>
 </div>
-
-<!-- Edit Product Modal -->
-{#if showEditModal && editingProduct}
-  <div class="modal-overlay" onkeydown={(e) => e.key === 'Escape' && closeEditModal()} role="button" tabindex="-1">
-    <div class="modal-content" onkeydown={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
-      <button class="modal-close" onclick={closeEditModal}>&times;</button>
-
-      <div class="modal-header">
-        <h2>{$t('sell.editTitle')}</h2>
-      </div>
-
-      <div class="modal-body">
-        <ProductForm
-          mode="edit"
-          product={editingProduct}
-          onSuccess={handleEditSuccess}
-          onCancel={closeEditModal}
-        />
-      </div>
-    </div>
-  </div>
-{/if}
 
 <!-- Product View Modal -->
 {#if showViewModal && viewingProduct}

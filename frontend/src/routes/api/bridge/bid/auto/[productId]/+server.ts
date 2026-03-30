@@ -2,9 +2,9 @@ import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse } from '$l
 import type { RequestHandler } from './$types';
 
 // GET /api/bridge/bid/auto/:productId - Get user's auto-bid for a product
-export const GET: RequestHandler = async ({ request, params }) => {
+export const GET: RequestHandler = async ({ request, params, cookies }) => {
   try {
-    const token = getTokenFromRequest(request);
+    const token = getTokenFromRequest(request, cookies);
     if (!token) {
       return errorResponse('Unauthorized', 401);
     }

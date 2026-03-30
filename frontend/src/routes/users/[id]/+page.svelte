@@ -22,14 +22,27 @@
     });
   }
 
-  // Get product image URL
+  // Get product image URL — handles both populated (object with .url) and unpopulated (ID) cases
   function getProductImage(product: any): string | null {
-    if (product.images && product.images.length > 0) {
-      const firstImage = product.images[0]?.image;
-      if (typeof firstImage === 'object' && firstImage?.url) {
-        return firstImage.url;
-      }
+    if (!product.images || product.images.length === 0) return null;
+
+    const entry = product.images[0];
+
+    // Populated: { image: { url: '...' } }
+    if (typeof entry?.image === 'object' && entry.image?.url) {
+      return entry.image.url;
     }
+
+    // Flat structure: { url: '...' } (some queries return images directly)
+    if (typeof entry === 'object' && entry?.url) {
+      return entry.url;
+    }
+
+    // Image might be at entry.image as a string URL
+    if (typeof entry?.image === 'string' && entry.image.startsWith('http')) {
+      return entry.image;
+    }
+
     return null;
   }
 
@@ -106,7 +119,13 @@
 </script>
 
 <svelte:head>
-  <title>{data.user.name} - User Profile</title>
+  <title>{data.user.name} - BidMo.to</title>
+  <meta name="description" content="{data.user.name}'s profile on BidMo.to — view their listings and ratings.">
+  <meta property="og:title" content="{data.user.name} - BidMo.to">
+  <meta property="og:description" content="View {data.user.name}'s auction listings and seller ratings on BidMo.to.">
+  {#if data.user.profilePicture?.url}
+    <meta property="og:image" content={data.user.profilePicture.url}>
+  {/if}
 </svelte:head>
 
 <div class="profile-page">
@@ -255,7 +274,7 @@
                 <a href="/products/{product.id}" class="product-card">
                   <div class="product-image">
                     {#if getProductImage(product)}
-                      <img src={getProductImage(product)} alt={product.title} />
+                      <img src={getProductImage(product)} alt={product.title} loading="lazy" />
                     {:else}
                       <div class="no-image">No Image</div>
                     {/if}
@@ -288,7 +307,7 @@
                 <a href="/products/{product.id}" class="product-card sold">
                   <div class="product-image">
                     {#if getProductImage(product)}
-                      <img src={getProductImage(product)} alt={product.title} />
+                      <img src={getProductImage(product)} alt={product.title} loading="lazy" />
                     {:else}
                       <div class="no-image">No Image</div>
                     {/if}
@@ -332,7 +351,7 @@
                     {#if product}
                       <a href="/products/{product.id}" class="review-product-image">
                         {#if productImage}
-                          <img src={productImage} alt={product.title} />
+                          <img src={productImage} alt={product.title} loading="lazy" decoding="async" />
                         {:else}
                           <div class="no-image-thumb">📦</div>
                         {/if}
@@ -410,7 +429,7 @@
                     {#if product}
                       <a href="/products/{product.id}" class="review-product-image">
                         {#if productImage}
-                          <img src={productImage} alt={product.title} />
+                          <img src={productImage} alt={product.title} loading="lazy" decoding="async" />
                         {:else}
                           <div class="no-image-thumb">📦</div>
                         {/if}

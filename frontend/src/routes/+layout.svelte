@@ -11,8 +11,10 @@
   import { t } from '$lib/stores/locale';
   import ClickSpark from '$lib/components/ClickSpark.svelte';
   import PageTransition from '$lib/components/PageTransition.svelte';
+  import MaintenanceOverlay from '$lib/components/MaintenanceOverlay.svelte';
   import { backgroundStore, type BackgroundType } from '$lib/stores/background';
   import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
+  import ToastContainer from '$lib/components/ToastContainer.svelte';
   import type { Snippet } from 'svelte';
 
   let { children: pageContent }: { children: Snippet } = $props();
@@ -107,7 +109,20 @@
   });
 </script>
 
+<svelte:head>
+  <meta name="description" content="BidMo.to is the Filipino auction marketplace for unique items. Buy and sell through real-time bidding.">
+  <meta property="og:site_name" content="BidMo.to">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_PH">
+  <meta property="og:image" content="https://www.bidmo.to/bidmo.to.png">
+  <meta name="twitter:card" content="summary">
+  <link rel="canonical" href="https://www.bidmo.to">
+</svelte:head>
+
 <svelte:window onclick={handleClickOutside} />
+
+<MaintenanceOverlay>
+{#snippet children()}
 
 {#if showDecorations}
   {#if $backgroundStore === 'horizontal_wave'}
@@ -143,8 +158,7 @@
       <div class="nav-layout">
         <!-- Logo — left -->
         <a href="/" class="nav-logo group" onclick={closeMobileMenu}>
-          <img src="/bidmo.to.png" alt="BidMo.to" class="h-7 w-auto transition-transform duration-300 group-hover:scale-110" />
-          <span class="hidden sm:inline font-display text-base font-bold tracking-tight text-[var(--color-fg)] transition-all duration-300 group-hover:text-shimmer">BidMo.to</span>
+          <video src="/logo.mp4" autoplay loop muted playsinline class="h-9 w-auto transition-transform duration-300 group-hover:scale-110"></video>
         </a>
 
         <!-- Center navigation — desktop only -->
@@ -474,6 +488,10 @@
 </div>
 </ClickSpark>
 
+{/snippet}
+</MaintenanceOverlay>
+
+<ToastContainer />
 
 <style>
   /* Nav layout — 3-column: logo | center links | actions */

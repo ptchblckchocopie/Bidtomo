@@ -386,5 +386,62 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
     }
   });
 
+  // GET /api/product-bids/:productId — fetch bids for a product using correct SQL join
+  // (Payload v2 relationship WHERE is broken — returns all bids regardless of product filter)
+  router.get('/api/product-bids/:productId', async (req, res) => {
+    try {
+      const productId = parseInt(req.params.productId, 10);
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: 'Invalid product ID' });
+      }
+
+      const pool = (payload.db as any).pool;
+      const result = await pool.query(
+        `SELECT b.id, b.amount, b.bid_time as "bidTime", b.censor_name as "censorName",
+                b.created_at as "createdAt",
+                u.id as "bidderId", u.name as "bidderName"
+         FROM bids b
+         JOIN bids_rels br ON b.id = br.parent_id AND br.path = 'product'
+         JOIN bids_rels br2 ON b.id = br2.parent_id AND br2.path = 'bidder'
+         JOIN users u ON br2.users_id = u.id
+         WHERE br.products_id = $1
+         ORDER BY b.amount DESC`,
+        [productId]
+      );
+
+      const docs = result.rows.map((row: any) => ({
+        id: row.id,
+        amount: parseFloat(row.amount),
+        bidTime: row.bidTime,
+        censorName: row.censorName,
+        createdAt: row.createdAt,
+        bidder: {
+          id: row.bidderId,
+          name: row.bidderName,
+        },
+        product: productId,
+      }));
+
+      res.json({
+        docs,
+        totalDocs: docs.length,
+        limit: docs.length,
+        totalPages: 1,
+        page: 1,
+        pagingCounter: 1,
+        hasPrevPage: false,
+        hasNextPage: false,
+        prevPage: null,
+        nextPage: null,
+      });
+    } catch (error: any) {
+      Sentry.withScope(scope => {
+        scope.setTag('route', '/api/product-bids');
+        Sentry.captureException(error);
+      });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
+  });
+
   return router;
 }

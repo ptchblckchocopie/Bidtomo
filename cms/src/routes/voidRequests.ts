@@ -409,6 +409,18 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
           },
         });
 
+        // Set 48-hour expiration on the offer (raw SQL — column added by migration)
+        try {
+          const pool = (payload.db as any).pool;
+          await pool.query(
+            `UPDATE void_requests SET offer_expires_at = NOW() + interval '48 hours' WHERE id = $1`,
+            [voidRequestId]
+          );
+        } catch (expiryErr) {
+          // Non-critical — offer still works, just won't auto-expire
+          console.error('Failed to set offer_expires_at:', expiryErr);
+        }
+
         publishMessageNotification(secondBidderId, {
           type: 'second_bidder_offer',
           messageId: voidRequestId,

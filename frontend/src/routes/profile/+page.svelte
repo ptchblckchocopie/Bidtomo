@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { authStore, getAuthToken } from '$lib/stores/auth';
+  import { authStore } from '$lib/stores/auth';
   import { t } from '$lib/stores/locale';
   import { getUserLimits, getCurrentUser, type UserLimits } from '$lib/api';
 
@@ -98,13 +98,9 @@
     saving = true;
 
     try {
-      const token = getAuthToken();
-      const patchHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) patchHeaders['Authorization'] = `JWT ${token}`;
-
       const response = await fetch('/api/bridge/users/me', {
         method: 'PATCH',
-        headers: patchHeaders,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           name: editName.trim(),
@@ -182,18 +178,12 @@
     uploadingPicture = true;
 
     try {
-      const token = getAuthToken();
-
       // Step 1: Upload image to /api/bridge/media
       const formData = new FormData();
       formData.append('file', file);
 
-      const uploadHeaders: Record<string, string> = {};
-      if (token) uploadHeaders['Authorization'] = `JWT ${token}`;
-
       const uploadResponse = await fetch('/api/bridge/media', {
         method: 'POST',
-        headers: uploadHeaders,
         credentials: 'include',
         body: formData,
       });
@@ -211,12 +201,9 @@
       }
 
       // Step 2: Set as profile picture (CMS handles old image deletion)
-      const setHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) setHeaders['Authorization'] = `JWT ${token}`;
-
       const setResponse = await fetch('/api/bridge/users/profile-picture', {
         method: 'POST',
-        headers: setHeaders,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ mediaId }),
       });
@@ -254,14 +241,8 @@
     uploadingPicture = true;
 
     try {
-      const token = getAuthToken();
-
-      const deleteHeaders: Record<string, string> = {};
-      if (token) deleteHeaders['Authorization'] = `JWT ${token}`;
-
       const response = await fetch('/api/bridge/users/profile-picture', {
         method: 'DELETE',
-        headers: deleteHeaders,
         credentials: 'include',
       });
 

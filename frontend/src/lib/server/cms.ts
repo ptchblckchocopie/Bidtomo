@@ -30,6 +30,7 @@ export async function cmsRequest(
   const fetchOptions: RequestInit = {
     method,
     headers: requestHeaders,
+    keepalive: true,
   };
 
   if (body && method !== 'GET') {
@@ -72,8 +73,85 @@ export function jsonResponse(data: any, status = 200): Response {
   });
 }
 
+// Safe error prefixes — message must START with one of these to be shown to clients.
+// This prevents leaking internal details that happen to contain a safe word.
+const SAFE_PREFIXES = [
+  'unauthorized', 'forbidden', 'not found', 'invalid', 'required',
+  'already exists', 'already registered', 'already reported',
+  'too many', 'limit exceeded', 'expired', 'failed to',
+  'must be', 'cannot', 'csrf', 'password must', 'email already',
+  'you must', 'you cannot', 'you are not', 'bid must', 'auction',
+  'product', 'no active', 'this product',
+];
+
+function isSafeMessage(msg: string): boolean {
+  // Reject long messages — likely stack traces or internal errors
+  if (msg.length > 150) return false;
+  const lower = msg.toLowerCase();
+  return SAFE_PREFIXES.some(prefix => lower.startsWith(prefix));
+}
+
+const GENERIC_ERRORS: Record<number, string> = {
+  400: 'Invalid request',
+  401: 'Authentication required',
+  403: 'Access denied',
+  404: 'Not found',
+  409: 'Conflict',
+  429: 'Too many requests',
+  500: 'Something went wrong',
+};
+
 export function errorResponse(message: string, status = 500): Response {
-  return jsonResponse({ error: message }, status);
+  // Only expose known-safe messages to the client; hide internal details
+  const clientMessage = isSafeMessage(message) ? message : (GENERIC_ERRORS[status] || 'Something went wrong');
+  return jsonResponse({ error: clientMessage }, status);
+}
+
+/**
+ * Sanitize query params before forwarding to CMS.
+ * Blocks where[] queries targeting sensitive/PII fields and caps depth
+ * to prevent data exfiltration via the bridge proxy.
+ * Allows legitimate where[] filters (product, status, seller, etc.).
+ *
+ * @param incoming - raw URLSearchParams from the browser request
+ * @param opts.maxDepth - maximum allowed depth (default 2)
+ */
+export function sanitizeQueryParams(
+  incoming: URLSearchParams,
+  opts: { maxDepth?: number } = {}
+): URLSearchParams {
+  const { maxDepth = 2 } = opts;
+  const safe = new URLSearchParams();
+
+  // Block where[] targeting PII or auth fields
+  const blockedFields = /\b(email|password|hash|salt|phonenumber|countrycode|token|secret|resetpassword)\b/i;
+
+  incoming.forEach((value, key) => {
+    const keyLower = key.toLowerCase();
+
+    // Block where queries on sensitive fields
+    if (keyLower.startsWith('where[') || keyLower === 'where') {
+      if (blockedFields.test(keyLower)) return;
+    }
+
+    // Cap depth
+    if (keyLower === 'depth') {
+      const d = parseInt(value, 10);
+      safe.set('depth', String(Math.min(isNaN(d) ? 1 : d, maxDepth)));
+      return;
+    }
+
+    // Block limit above 1000 to prevent data dumps
+    if (keyLower === 'limit') {
+      const l = parseInt(value, 10);
+      safe.set('limit', String(Math.min(isNaN(l) ? 10 : l, 1000)));
+      return;
+    }
+
+    safe.append(key, value);
+  });
+
+  return safe;
 }
 
 export { CMS_URL };

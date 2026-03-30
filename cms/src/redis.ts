@@ -3,7 +3,8 @@ import crypto from 'crypto';
 import * as Sentry from '@sentry/node';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const BID_QUEUE_KEY = 'bids:pending';
+export const REDIS_PREFIX = process.env.REDIS_PREFIX || '';
+const BID_QUEUE_KEY = `${REDIS_PREFIX}bids:pending`;
 
 let redis: Redis | null = null;
 let redisConnected = false;
@@ -50,6 +51,10 @@ function getRedis(): Redis {
 }
 
 // Check if Redis is connected
+export function getRedisClient(): Redis | null {
+  return redis;
+}
+
 export function isRedisConnected(): boolean {
   return redisConnected;
 }
@@ -286,6 +291,40 @@ export async function publishGlobalEvent(
     return true;
   } catch (error) {
     console.error('[CMS] Failed to publish global event:', error);
+    return false;
+  }
+}
+
+// ── Maintenance Mode ──
+
+const MAINTENANCE_KEY = 'maintenance:status';
+
+export interface MaintenanceStatus {
+  enabled: boolean;
+  scheduledAt: number | null; // Unix timestamp (ms)
+  message: string;
+}
+
+export async function getMaintenanceStatus(): Promise<MaintenanceStatus> {
+  try {
+    const client = getRedis();
+    if (!redisConnected) return { enabled: false, scheduledAt: null, message: '' };
+    const raw = await client.get(MAINTENANCE_KEY);
+    if (!raw) return { enabled: false, scheduledAt: null, message: '' };
+    return JSON.parse(raw);
+  } catch {
+    return { enabled: false, scheduledAt: null, message: '' };
+  }
+}
+
+export async function setMaintenanceStatus(status: MaintenanceStatus): Promise<boolean> {
+  try {
+    const client = getRedis();
+    if (!redisConnected) return false;
+    await client.set(MAINTENANCE_KEY, JSON.stringify(status));
+    return true;
+  } catch (error) {
+    console.error('[CMS] Failed to set maintenance status:', error);
     return false;
   }
 }

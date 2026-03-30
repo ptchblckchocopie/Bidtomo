@@ -223,7 +223,7 @@
               <!-- Thumbnail -->
               <div class="w-10 h-10 flex-shrink-0 border border-bh-border bg-bh-muted overflow-hidden">
                 {#if thumb}
-                  <img src={thumb} alt="" class="w-full h-full object-cover" />
+                  <img src={thumb} alt="" class="w-full h-full object-cover" loading="lazy" decoding="async" />
                 {:else}
                   <div class="w-full h-full flex items-center justify-center text-bh-fg/30 text-[10px]">N/A</div>
                 {/if}

@@ -56,6 +56,11 @@ export default buildConfig({
     ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
     ...(process.env.SERVER_URL ? [process.env.SERVER_URL] : []),
   ],
+  upload: {
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5 MB max
+    },
+  },
   admin: {
     user: 'users',
     bundler: webpackBundler(),
@@ -115,6 +120,15 @@ export default buildConfig({
           mockModulePath,
         ),
       ];
+      // Suppress benign webpack 5 CJS-ESM interop warnings
+      // (webpack can't statically analyze conditional CJS exports, but they work at runtime)
+      config.ignoreWarnings = [
+        ...(config.ignoreWarnings || []),
+        { message: /export .* was not found in 'react'/ },
+        { message: /export .* was not found in 'react-dom'/ },
+        { message: /export .* was not found in 'react-is'/ },
+        { message: /export .* was not found in 'scheduler'/ },
+      ];
       return config;
     },
   },
@@ -123,6 +137,9 @@ export default buildConfig({
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URI || process.env.DATABASE_URL || 'postgresql://localhost:5432/marketplace',
+      max: 30,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
     },
     migrationDir: path.resolve(__dirname, '../migrations'),
     push: process.env.DB_PUSH === 'true', // Enable via env var for staging schema sync
@@ -162,13 +179,32 @@ export default buildConfig({
         delete: ({ req }) => req.user?.role === 'admin',
       },
       hooks: {
+        beforeValidate: [
+          ({ data, operation }: any) => {
+            if ((operation === 'create' || operation === 'update') && data?.password) {
+              const pw = data.password;
+              if (pw.length < 8 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw)) {
+                throw new Error('Password must be at least 8 characters with uppercase, lowercase, and a number');
+              }
+            }
+            return data;
+          },
+        ],
         beforeChange: [
-          ({ req, data, operation, originalDoc }: any) => {
+          async ({ req, data, operation, originalDoc }: any) => {
             // Prevent role escalation: only admins can set/change the role field
+            // Exception: Payload's first-register creates the initial admin user
             if (req.user?.role !== 'admin') {
               if (operation === 'create') {
-                // Force default role on registration — ignore any client-supplied role
-                data.role = 'buyer';
+                // Check if this is the first user (Payload first-register flow)
+                const { totalDocs } = await req.payload.find({ collection: 'users', limit: 0, overrideAccess: true });
+                if (totalDocs === 0) {
+                  // First user — let Payload set admin role
+                  data.role = 'admin';
+                } else {
+                  // Force default role on registration — ignore any client-supplied role
+                  data.role = 'buyer';
+                }
               } else if (operation === 'update') {
                 // Preserve existing role — using `delete` would cause "required" validation
                 // failure on partial updates (e.g. profile picture)
@@ -305,6 +341,7 @@ export default buildConfig({
               data.seller = req.user.id;
             }
 
+
             return data;
           },
         ],
@@ -330,32 +367,30 @@ export default buildConfig({
                 throw new Error('Cannot set currentBid directly');
               }
 
-              // Prevent editing startingPrice, auctionEndDate, or status if there are already bids
-              const hasStartingPriceChange = data?.startingPrice !== undefined && data.startingPrice !== originalDoc?.startingPrice;
-              const hasEndDateChange = data?.auctionEndDate !== undefined && data.auctionEndDate !== originalDoc?.auctionEndDate;
-              const hasStatusChange = data?.status !== undefined && data.status !== originalDoc?.status;
+              // Lock all edits once bids exist (except active toggle for hide/unhide)
+              // Allowed fields after bids: only 'active' (visibility toggle)
+              const lockedFields = ['title', 'description', 'startingPrice', 'auctionEndDate', 'status',
+                'images', 'bidInterval', 'autoExtendMinutes', 'region', 'city', 'delivery_options',
+                'categories', 'keywords'] as const;
 
-              if (hasStartingPriceChange || hasEndDateChange || hasStatusChange) {
+              const hasLockedFieldChange = lockedFields.some(field => {
+                if (data?.[field] === undefined) return false;
+                const original = originalDoc?.[field];
+                // Deep compare for arrays/objects
+                return JSON.stringify(data[field]) !== JSON.stringify(original);
+              });
+
+              if (hasLockedFieldChange) {
                 const existingBids = await req.payload.find({
                   collection: 'bids',
                   where: {
-                    product: {
-                      equals: originalDoc.id,
-                    },
+                    product: { equals: originalDoc.id },
                   },
                   limit: 1,
                 });
 
                 if (existingBids.docs.length > 0) {
-                  if (hasStartingPriceChange) {
-                    throw new Error('Cannot change starting price after bids have been placed');
-                  }
-                  if (hasEndDateChange) {
-                    throw new Error('Cannot change auction end date after bids have been placed');
-                  }
-                  if (hasStatusChange) {
-                    throw new Error('Cannot change product status after bids have been placed');
-                  }
+                  throw new Error('Cannot edit listing after bids have been placed. Only visibility (hide/show) can be changed.');
                 }
               }
             }
@@ -363,7 +398,28 @@ export default buildConfig({
           },
         ],
         afterChange: [
+          async ({ doc }) => {
+            // Invalidate product cache on any product change
+            try {
+              if (typeof (global as any).invalidateProductCache === 'function') {
+                (global as any).invalidateProductCache(doc.id);
+              }
+            } catch { /* cache invalidation is best-effort */ }
+          },
           async ({ req, doc, operation, previousDoc }) => {
+            // Deactivate all auto-bids when product is sold or ended
+            if (operation === 'update' && (doc.status === 'sold' || doc.status === 'ended') && previousDoc?.status === 'available') {
+              try {
+                const pool = (req.payload.db as any).pool;
+                await pool.query(
+                  `UPDATE auto_bids SET active = FALSE, updated_at = NOW() WHERE product_id = $1 AND active = TRUE`,
+                  [doc.id]
+                );
+              } catch (err) {
+                console.error('Error deactivating auto-bids on product status change:', err);
+              }
+            }
+
             // Create automatic conversation when product is sold
             if (operation === 'update' && doc.status === 'sold' && previousDoc?.status !== 'sold') {
               // Run in background without blocking the response
@@ -657,6 +713,16 @@ export default buildConfig({
               displayFormat: 'PPpp', // Shows date and time in user's locale
             },
             description: 'Auction end date and time (24 hours from now by default)',
+          },
+        },
+        {
+          name: 'autoExtendMinutes',
+          type: 'number',
+          defaultValue: 2,
+          min: 0,
+          max: 2,
+          admin: {
+            description: 'Auto-extend auction by this many minutes when a bid arrives near the deadline (0 to disable, max 2)',
           },
         },
         {

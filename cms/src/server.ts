@@ -7,16 +7,35 @@ import cors from 'cors';
 import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
-import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected } from './redis';
+import crypto from 'crypto';
+import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected, getRedisClient, getMaintenanceStatus, setMaintenanceStatus } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
 import { getOverviewStats, getTimeSeries, getTopSearchKeywords, getTopViewedProducts, getTopSoldProducts, getEventBreakdown } from './services/analyticsQueries';
-import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress } from './services/backupService';
+import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress, getLatestBackupAgeHours } from './services/backupService';
+import { invalidateProductCache, getCachedAnalytics, getCachedUserProfile, getCachedUserProducts, invalidateUserCache } from './services/cache';
 import { authenticateJWT } from './auth-helpers';
 import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
 import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema, analyticsTrackSchema, reportCreateSchema, autoBidSchema, autoBidCancelSchema } from './middleware/validate';
 
 dotenv.config();
+
+// Validate critical env vars at startup
+const REQUIRED_ENV = ['PAYLOAD_SECRET'] as const;
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) {
+    console.error(`FATAL: Required environment variable ${key} is not set. Exiting.`);
+    process.exit(1);
+  }
+}
+if (process.env.NODE_ENV === 'production') {
+  const PROD_REQUIRED = ['DATABASE_URI', 'REDIS_URL', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'] as const;
+  for (const key of PROD_REQUIRED) {
+    if (!process.env[key]) {
+      console.warn(`WARNING: ${key} not set in production — using default (likely wrong).`);
+    }
+  }
+}
 
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy (Railway/reverse proxy) — required for express-rate-limit
@@ -80,10 +99,33 @@ app.options('*', cors());
 
 // Security headers
 app.use(helmet({
-  contentSecurityPolicy: false, // Payload admin panel manages its own CSP
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Payload admin + webpack
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https://veent.sgp1.digitaloceanspaces.com", "https://*.digitaloceanspaces.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      connectSrc: ["'self'", "https://*.sentry.io", "https://veent.sgp1.digitaloceanspaces.com", "https://*.digitaloceanspaces.com"],
+      mediaSrc: ["'self'", "https://veent.sgp1.digitaloceanspaces.com"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+    },
+  },
   crossOriginEmbedderPolicy: false, // Allow cross-origin media loading
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow frontend to load media files
 }));
+
+// Request timeout — prevent slow queries from holding connections forever
+app.use((req, res, next) => {
+  res.setTimeout(30000, () => {
+    if (!res.headersSent) {
+      res.status(408).json({ error: 'Request timeout' });
+    }
+  });
+  next();
+});
 
 // Parse JSON body with explicit size limit
 app.use(express.json({ limit: '1mb' }));
@@ -120,6 +162,10 @@ app.use('/api/users', (req, res, next) => {
   if (req.method === 'POST' && req.path === '/') return registrationLimiter(req, res, next);
   next();
 });
+app.use('/api/messages', (req, res, next) => {
+  if (req.method === 'POST') return messageLimiter(req, res, next);
+  next();
+});
 
 const analyticsLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -141,6 +187,14 @@ const analyticsDashboardLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
   message: { error: 'Too many analytics dashboard requests.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const messageLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20, // 20 messages per minute per IP
+  message: { error: 'Too many messages. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -582,11 +636,124 @@ const start = async () => {
       CREATE INDEX IF NOT EXISTS "ratings_rels_path_idx" ON "ratings_rels" USING btree ("path");
     `);
 
+    // Auto-extend minutes — add column for anti-snipe feature
+    await prePool.query(`
+      ALTER TABLE "products"
+      ADD COLUMN IF NOT EXISTS "auto_extend_minutes" numeric DEFAULT 2;
+    `);
+
+
+    // Void request offer expiration
+    await prePool.query(`
+      ALTER TABLE "void_requests"
+      ADD COLUMN IF NOT EXISTS "offer_expires_at" timestamp(3) with time zone;
+    `);
+
+    // Performance indexes
+    await prePool.query(`
+      CREATE INDEX IF NOT EXISTS idx_products_status_active ON products(status, active);
+      CREATE INDEX IF NOT EXISTS idx_products_auction_end ON products(auction_end_date) WHERE status = 'available';
+      CREATE INDEX IF NOT EXISTS idx_bids_amount_desc ON bids(amount DESC);
+      CREATE INDEX IF NOT EXISTS idx_auto_bids_active_product ON auto_bids(product_id) WHERE active = true;
+      CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_void_requests_status ON void_requests(status, created_at);
+
+      -- Relation table indexes for JOIN performance
+      CREATE INDEX IF NOT EXISTS idx_bids_rels_parent_path ON bids_rels(parent_id, path);
+      CREATE INDEX IF NOT EXISTS idx_bids_rels_products ON bids_rels(products_id) WHERE products_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_bids_rels_users ON bids_rels(users_id) WHERE users_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_messages_rels_parent_path ON messages_rels(parent_id, path);
+      CREATE INDEX IF NOT EXISTS idx_messages_rels_users ON messages_rels(users_id) WHERE users_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_messages_rels_products ON messages_rels(products_id) WHERE products_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_products_rels_parent_path ON products_rels(parent_id, path);
+      CREATE INDEX IF NOT EXISTS idx_products_rels_media ON products_rels(parent_id, media_id) WHERE media_id IS NOT NULL;
+    `);
+
     await prePool.end();
   } catch (preErr: any) {
-    console.error('Pre-init migration (ratings) failed:', preErr.message);
-    Sentry.captureException(preErr, { tags: { route: 'startup.migration.ratings' } });
+    console.error('Pre-init migration failed:', preErr.message);
+    Sentry.captureException(preErr, { tags: { route: 'startup.migration' } });
   }
+
+  // ── Redis cache middleware for Payload product routes ──
+  // Read-through cache: checks Redis first, falls through to Payload on miss.
+  // Caches both authenticated and unauthenticated GET requests.
+  // Admin requests use a separate cache prefix (admins see hidden products).
+  app.use('/api/products', async (req, res, next) => {
+    if (req.method !== 'GET') return next();
+
+    const redis = getRedisClient();
+    if (!redis || !isRedisConnected()) return next();
+
+    // Determine cache key — include auth context to prevent data leakage
+    const isAdmin = (req as any).user?.role === 'admin';
+    const authPrefix = isAdmin ? 'admin' : 'public';
+    let cacheKey: string | null = null;
+    const idMatch = req.path.match(/^\/(\d+)$/);
+
+    if (idMatch) {
+      cacheKey = `cache:products:detail:${authPrefix}:${idMatch[1]}`;
+    } else if (req.path === '/' || req.path === '') {
+      const hash = crypto.createHash('md5').update(JSON.stringify(req.query)).digest('hex').slice(0, 12);
+      cacheKey = `cache:products:list:${authPrefix}:${hash}`;
+    }
+
+    if (!cacheKey) return next();
+
+    // Check cache — serve immediately on hit
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        res.setHeader('X-Cache', 'HIT');
+        return res.json(JSON.parse(cached));
+      }
+    } catch { /* cache read failed, fall through */ }
+
+    // Cache miss — intercept response to cache it
+    res.setHeader('X-Cache', 'MISS');
+    const originalJson = res.json.bind(res);
+    const ttl = idMatch ? 5 : 10;
+    res.json = (body: any) => {
+      if (res.statusCode >= 200 && res.statusCode < 300 && cacheKey) {
+        redis.setex(cacheKey, ttl, JSON.stringify(body)).catch(() => {});
+      }
+      return originalJson(body);
+    };
+    next();
+  });
+
+  // ── Redis cache middleware for user profile routes ──
+  // Caches GET /api/users/:id for 30s (public profile data)
+  app.use('/api/users', async (req, res, next) => {
+    if (req.method !== 'GET') return next();
+
+    const redis = getRedisClient();
+    if (!redis || !isRedisConnected()) return next();
+
+    // Only cache individual user lookups (not /api/users list or /api/users/me)
+    const idMatch = req.path.match(/^\/(\d+)$/);
+    if (!idMatch) return next();
+
+    const cacheKey = `cache:users:profile:${idMatch[1]}`;
+
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        res.setHeader('X-Cache', 'HIT');
+        return res.json(JSON.parse(cached));
+      }
+    } catch { /* fall through */ }
+
+    res.setHeader('X-Cache', 'MISS');
+    const originalJson = res.json.bind(res);
+    res.json = (body: any) => {
+      if (res.statusCode >= 200 && res.statusCode < 300 && cacheKey) {
+        redis.setex(cacheKey, 30, JSON.stringify(body)).catch(() => {});
+      }
+      return originalJson(body);
+    };
+    next();
+  });
 
   await payload.init({
     secret: process.env.PAYLOAD_SECRET!,
@@ -598,6 +765,23 @@ const start = async () => {
   });
 
   payloadReady = true;
+
+  // Subscribe to cache invalidation events from bid-worker
+  const redisSub = getRedisClient();
+  if (redisSub) {
+    try {
+      const subClient = redisSub.duplicate();
+      subClient.subscribe('cache:invalidate');
+      subClient.on('message', (_channel: string, message: string) => {
+        try {
+          const { productId } = JSON.parse(message);
+          invalidateProductCache(productId);
+        } catch { /* ignore malformed messages */ }
+      });
+    } catch {
+      // Cache invalidation subscription failed — cache will expire via TTL
+    }
+  }
 
   // Start automated backup scheduler
   startBackupScheduler();
@@ -952,6 +1136,116 @@ const start = async () => {
     }
   });
 
+  // S3: Server-side conversation grouping — single SQL query returning latest message per product
+  app.get('/api/conversations', async (req, res) => {
+    try {
+      const user = await authenticateJWT(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const pool = (payload.db as any).pool;
+      const result = await pool.query(
+        `SELECT DISTINCT ON (br_product.products_id)
+          m.id as message_id,
+          m.message,
+          m.created_at,
+          m.read,
+          br_product.products_id as product_id,
+          br_sender.users_id as sender_id,
+          br_receiver.users_id as receiver_id,
+          p.title as product_title,
+          p.status as product_status,
+          p.current_bid as product_current_bid,
+          p.starting_price as product_starting_price,
+          sender_user.name as sender_name,
+          receiver_user.name as receiver_name,
+          seller_rel.users_id as seller_id,
+          seller_user.name as seller_name
+        FROM messages m
+        JOIN messages_rels br_product ON m.id = br_product.parent_id AND br_product.path = 'product'
+        JOIN messages_rels br_sender ON m.id = br_sender.parent_id AND br_sender.path = 'sender'
+        JOIN messages_rels br_receiver ON m.id = br_receiver.parent_id AND br_receiver.path = 'receiver'
+        JOIN products p ON br_product.products_id = p.id
+        LEFT JOIN users sender_user ON br_sender.users_id = sender_user.id
+        LEFT JOIN users receiver_user ON br_receiver.users_id = receiver_user.id
+        LEFT JOIN products_rels seller_rel ON p.id = seller_rel.parent_id AND seller_rel.path = 'seller'
+        LEFT JOIN users seller_user ON seller_rel.users_id = seller_user.id
+        WHERE br_sender.users_id = $1 OR br_receiver.users_id = $1
+        ORDER BY br_product.products_id, m.created_at DESC`,
+        [user.id]
+      );
+
+      // Also get unread counts per product
+      const unreadResult = await pool.query(
+        `SELECT br_product.products_id as product_id, COUNT(*) as unread_count
+        FROM messages m
+        JOIN messages_rels br_product ON m.id = br_product.parent_id AND br_product.path = 'product'
+        JOIN messages_rels br_receiver ON m.id = br_receiver.parent_id AND br_receiver.path = 'receiver'
+        WHERE br_receiver.users_id = $1 AND m.read = false
+        GROUP BY br_product.products_id`,
+        [user.id]
+      );
+
+      const unreadMap = new Map<number, number>();
+      for (const row of unreadResult.rows) {
+        unreadMap.set(row.product_id, parseInt(row.unread_count, 10));
+      }
+
+      // Get product images (first image per product via products_rels)
+      const productIds = result.rows.map((r: any) => r.product_id);
+      let imageMap = new Map<number, string>();
+      if (productIds.length > 0) {
+        const imageResult = await pool.query(
+          `SELECT DISTINCT ON (pr.parent_id) pr.parent_id as product_id, m.url
+          FROM products_rels pr
+          JOIN media m ON pr.media_id = m.id
+          WHERE pr.parent_id = ANY($1) AND pr.path LIKE 'images.%'
+          ORDER BY pr.parent_id, pr.path ASC`,
+          [productIds]
+        );
+        for (const row of imageResult.rows) {
+          imageMap.set(row.product_id, row.url);
+        }
+      }
+
+      // Format response
+      const conversations = result.rows.map((row: any) => {
+        const imageUrl = imageMap.get(row.product_id) || null;
+        return {
+        product: {
+          id: row.product_id,
+          title: row.product_title,
+          status: row.product_status,
+          currentBid: row.product_current_bid ? Number(row.product_current_bid) : null,
+          startingPrice: row.product_starting_price ? Number(row.product_starting_price) : null,
+          seller: row.seller_id ? { id: row.seller_id, name: row.seller_name } : null,
+          images: imageUrl ? [{ image: { url: imageUrl } }] : [],
+        },
+        lastMessage: {
+          id: row.message_id,
+          message: row.message,
+          createdAt: row.created_at,
+          read: row.read,
+          sender: { id: row.sender_id, name: row.sender_name },
+          receiver: { id: row.receiver_id, name: row.receiver_name },
+        },
+        unreadCount: unreadMap.get(row.product_id) || 0,
+      }; });
+
+      // Sort by latest message first
+      conversations.sort((a: any, b: any) =>
+        new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime()
+      );
+
+      res.json({ conversations });
+    } catch (error: any) {
+      console.error('Error fetching conversations:', error);
+      Sentry.captureException(error, { tags: { route: '/api/conversations' } });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Endpoint to get product update status (lightweight check for changes)
   app.get('/api/products/:id/status', async (req, res) => {
     try {
@@ -1020,6 +1314,7 @@ const start = async () => {
 
   // Expose product update publisher for hooks (visibility changes, etc.)
   (global as any).publishProductUpdate = publishProductUpdate;
+  (global as any).invalidateProductCache = invalidateProductCache;
 
   // Expose WebP converter for media upload hook (avoids webpack bundling sharp's native binary)
   const sharp = require('sharp');
@@ -1177,29 +1472,78 @@ const start = async () => {
       const to = (req.query.to as string) || now.toISOString();
       const range = { from, to };
 
-      const pool = (payload.db as any).pool;
-
-      const [overview, timeSeries, topSearchKeywords, topViewedProducts, topSoldProducts, eventBreakdown] = await Promise.all([
-        getOverviewStats(pool, range),
-        getTimeSeries(pool, range),
-        getTopSearchKeywords(pool, range),
-        getTopViewedProducts(pool, range),
-        getTopSoldProducts(pool, range),
-        getEventBreakdown(pool, range),
-      ]);
-
-      res.json({
-        period: { from, to },
-        overview,
-        timeSeries,
-        topSearchKeywords,
-        topViewedProducts,
-        topSoldProducts,
-        eventBreakdown,
+      // Cache analytics for 60s — 6 heavy queries, data changes slowly
+      const cacheHash = crypto.createHash('md5').update(`${from}:${to}`).digest('hex').slice(0, 12);
+      const result = await getCachedAnalytics(cacheHash, async () => {
+        const pool = (payload.db as any).pool;
+        const [overview, timeSeries, topSearchKeywords, topViewedProducts, topSoldProducts, eventBreakdown] = await Promise.all([
+          getOverviewStats(pool, range),
+          getTimeSeries(pool, range),
+          getTopSearchKeywords(pool, range),
+          getTopViewedProducts(pool, range),
+          getTopSoldProducts(pool, range),
+          getEventBreakdown(pool, range),
+        ]);
+        return { period: { from, to }, overview, timeSeries, topSearchKeywords, topViewedProducts, topSoldProducts, eventBreakdown };
       });
+
+      res.json(result);
     } catch (error: any) {
       console.error('Error fetching analytics dashboard:', error);
       Sentry.captureException(error, { tags: { route: '/api/analytics/dashboard' } });
+      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+    }
+  });
+
+  // Fetch bids for a product using correct SQL join
+  // (Payload v2 relationship WHERE is broken — returns all bids regardless of product filter)
+  app.get('/api/product-bids/:productId', async (req, res) => {
+    try {
+      const productId = parseInt(req.params.productId, 10);
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: 'Invalid product ID' });
+      }
+
+      const pool = (payload.db as any).pool;
+      const result = await pool.query(
+        `SELECT b.id, b.amount, b.bid_time as "bidTime", b.censor_name as "censorName",
+                b.created_at as "createdAt",
+                u.id as "bidderId", u.name as "bidderName", u.censor_name as "bidderCensorName"
+         FROM bids b
+         JOIN bids_rels br ON b.id = br.parent_id AND br.path = 'product'
+         JOIN bids_rels br2 ON b.id = br2.parent_id AND br2.path = 'bidder'
+         JOIN users u ON br2.users_id = u.id
+         WHERE br.products_id = $1
+         ORDER BY b.amount DESC`,
+        [productId]
+      );
+
+      const docs = result.rows.map((row: any) => ({
+        id: row.id,
+        amount: parseFloat(row.amount),
+        bidTime: row.bidTime,
+        censorName: row.censorName,
+        createdAt: row.createdAt,
+        bidder: {
+          id: row.bidderId,
+          name: row.bidderName,
+        },
+        product: productId,
+      }));
+
+      res.json({
+        docs,
+        totalDocs: docs.length,
+        limit: docs.length,
+        totalPages: 1,
+        page: 1,
+      });
+    } catch (error: any) {
+      console.error('Error fetching product bids:', error);
+      Sentry.withScope(scope => {
+        scope.setTag('route', '/api/product-bids');
+        Sentry.captureException(error);
+      });
       res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
     }
   });
@@ -1281,7 +1625,7 @@ const start = async () => {
 
           // Lock the product row — prevents concurrent bids from both passing validation
           const lockedResult = await client.query(
-            `SELECT id, current_bid, starting_price, bid_interval, status, active, auction_end_date
+            `SELECT id, current_bid, starting_price, bid_interval, status, active, auction_end_date, auto_extend_minutes
              FROM products WHERE id = $1 FOR UPDATE`,
             [parseInt(productId, 10)]
           );
@@ -1354,6 +1698,23 @@ const start = async () => {
             [amount, parseInt(productId, 10)]
           );
 
+          // Auto-extend if bid arrives near auction end (unlimited re-extensions)
+          let fallbackExtendedEndDate: string | null = null;
+          const fallbackAutoExtend = Number(locked.auto_extend_minutes) || 0;
+          if (fallbackAutoExtend > 0) {
+            const endTime = new Date(locked.auction_end_date).getTime();
+            const now = Date.now();
+            const thresholdMs = fallbackAutoExtend * 60 * 1000;
+            if (endTime - now < thresholdMs && endTime > now) {
+              const extended = new Date(now + thresholdMs);
+              await client.query(
+                `UPDATE products SET auction_end_date = $1, updated_at = NOW() WHERE id = $2`,
+                [extended.toISOString(), parseInt(productId, 10)]
+              );
+              fallbackExtendedEndDate = extended.toISOString();
+            }
+          }
+
           // Get bidder name for SSE event
           const bidderResult = await client.query(
             `SELECT name FROM users WHERE id = $1`,
@@ -1376,6 +1737,15 @@ const start = async () => {
             censorName: censorName || false,
             bidTime,
           });
+
+          // Publish auction extension if applicable
+          if (fallbackExtendedEndDate) {
+            publishProductUpdate(parseInt(productId, 10), {
+              type: 'auction_extended',
+              newEndDate: fallbackExtendedEndDate,
+              autoExtendMinutes: fallbackAutoExtend,
+            });
+          }
 
           return res.json({
             success: true,
@@ -1873,14 +2243,159 @@ const start = async () => {
   });
 
   // Health check endpoint for Redis status
+  // Lightweight ping for external uptime monitors (UptimeRobot, Better Uptime, etc.)
+  app.get('/api/ping', async (req, res) => {
+    try {
+      const pool = (payload.db as any).pool;
+      await pool.query('SELECT 1');
+      res.status(200).json({ status: 'ok', redis: isRedisConnected(), ts: Date.now() });
+    } catch {
+      res.status(503).json({ status: 'down', ts: Date.now() });
+    }
+  });
+
   app.get('/api/health', async (req, res) => {
     const esAvailable = await isElasticAvailable();
+    const pool = (payload.db as any).pool;
+
+    // Postgres connectivity
+    let postgres = 'disconnected';
+    try {
+      await pool.query('SELECT 1');
+      postgres = 'connected';
+    } catch { /* non-critical */ }
+
+    // Pending expired auctions
+    let pendingExpiredAuctions = 0;
+    try {
+      const result = await pool.query(
+        `SELECT COUNT(*) as count FROM products
+         WHERE status = 'available' AND active = true AND auction_end_date < NOW()`
+      );
+      pendingExpiredAuctions = parseInt(result.rows[0].count, 10);
+    } catch { /* non-critical */ }
+
+    // Email queue depth (via Redis)
+    let emailQueueDepth = 0;
+    try {
+      if (isRedisConnected()) {
+        const redisClient = getRedisClient();
+        if (redisClient) {
+          emailQueueDepth = await redisClient.llen(`${process.env.REDIS_PREFIX || ''}email:queue`);
+        }
+      }
+    } catch { /* non-critical */ }
+
+    // Pending bids backlog
+    let pendingBidsBacklog = 0;
+    try {
+      const result = await pool.query(
+        `SELECT COUNT(*) as count FROM pending_bids`
+      );
+      pendingBidsBacklog = parseInt(result.rows[0].count, 10);
+    } catch { /* table may not exist */ }
+
+    // Backup age (non-blocking, only if backups enabled)
+    let backupAgeHours: number | null = null;
+    let backupStale = false;
+    if (process.env.BACKUP_ENABLED === 'true') {
+      try {
+        backupAgeHours = await getLatestBackupAgeHours();
+        backupStale = backupAgeHours === null || backupAgeHours > 48;
+      } catch { /* non-critical */ }
+    }
+
+    // Database pool stats
+    let dbPool = { total: 0, idle: 0, waiting: 0 };
+    try {
+      dbPool = { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount };
+    } catch { /* non-critical */ }
+
+    // Memory usage
+    const mem = process.memoryUsage();
+    const memoryMB = {
+      rss: Math.round(mem.rss / 1048576),
+      heapUsed: Math.round(mem.heapUsed / 1048576),
+      heapTotal: Math.round(mem.heapTotal / 1048576),
+    };
+
+    const allOk = postgres === 'connected' && isRedisConnected() && !backupStale;
+
     res.json({
-      status: 'ok',
+      status: allOk ? 'ok' : 'degraded',
+      postgres,
       redis: isRedisConnected() ? 'connected' : 'disconnected',
       elasticsearch: esAvailable ? 'connected' : 'disconnected',
+      dbPool,
+      memoryMB,
+      uptimeSeconds: Math.round(process.uptime()),
+      pendingExpiredAuctions,
+      emailQueueDepth,
+      pendingBidsBacklog,
+      ...(process.env.BACKUP_ENABLED === 'true' && {
+        backupAgeHours: backupAgeHours !== null ? Math.round(backupAgeHours * 10) / 10 : null,
+        backupStale,
+      }),
       timestamp: Date.now(),
     });
+  });
+
+  // ── Maintenance Mode Endpoints ──
+
+  // GET /api/maintenance — public, returns current maintenance status
+  app.get('/api/maintenance', async (req, res) => {
+    try {
+      const status = await getMaintenanceStatus();
+      res.json(status);
+    } catch {
+      res.json({ enabled: false, scheduledAt: null, message: '' });
+    }
+  });
+
+  // POST /api/maintenance — admin-only, toggle maintenance mode
+  app.post('/api/maintenance', requireAuth, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const user = await payload.findByID({ collection: 'users', id: userId });
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { enabled, message, scheduledAt } = req.body;
+
+      const status = {
+        enabled: Boolean(enabled),
+        scheduledAt: scheduledAt ? Number(scheduledAt) : null,
+        message: message || '',
+      };
+
+      const saved = await setMaintenanceStatus(status);
+      if (!saved) {
+        return res.status(500).json({ error: 'Failed to save maintenance status' });
+      }
+
+      // Broadcast to all connected clients via SSE
+      if (status.scheduledAt && !status.enabled) {
+        // Scheduled maintenance — notify clients to show countdown
+        await publishGlobalEvent({
+          type: 'maintenance_scheduled',
+          scheduledAt: status.scheduledAt,
+          message: status.message,
+        });
+      } else {
+        // Immediate toggle
+        await publishGlobalEvent({
+          type: 'maintenance_toggle',
+          enabled: status.enabled,
+          message: status.message,
+        });
+      }
+
+      res.json({ success: true, ...status });
+    } catch (error: any) {
+      console.error('[Maintenance] Error:', error);
+      res.status(500).json({ error: 'Failed to update maintenance status' });
+    }
   });
 
   // Elasticsearch: search products (path avoids Payload's /api/products/:id route)

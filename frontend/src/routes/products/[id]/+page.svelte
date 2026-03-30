@@ -670,6 +670,34 @@
               acceptSuccess = false;
             }, 3000);
           }
+        } else if (event.type === 'auction_closed') {
+          // Auction ended by scheduler
+          if (data.product) {
+            data.product.status = 'ended';
+            data = { ...data };
+
+            // Stop countdown
+            if (countdownInterval) {
+              clearInterval(countdownInterval);
+              countdownInterval = null;
+            }
+            hasAuctionEnded = true;
+            timeRemaining = 'Ended';
+          }
+        } else if (event.type === 'auction_extended') {
+          // Auction deadline extended (anti-snipe)
+          if (data.product && (event as any).newEndDate) {
+            data.product.auctionEndDate = (event as any).newEndDate;
+            hasAuctionEnded = false;
+
+            // Restart countdown with new end date
+            updateCountdown();
+            if (!countdownInterval) {
+              countdownInterval = setInterval(updateCountdown, 1000);
+            }
+
+            data = { ...data };
+          }
         } else if (event.type === 'product_visibility') {
           const visEvent = event as ProductVisibilityEvent;
           if (data.product) {
@@ -686,7 +714,7 @@
     // Fallback polling every 10 seconds (reduced frequency since we have SSE)
     pollingInterval = setInterval(() => {
       checkForUpdates();
-    }, 10000);
+    }, 5000);
 
     // Initial check
     checkForUpdates();
@@ -709,7 +737,7 @@
           checkForUpdates(); // Immediate update when returning
           pollingInterval = setInterval(() => {
             checkForUpdates();
-          }, 10000); // Use same 10 second interval as initial
+          }, 5000); // Use same 10 second interval as initial
         }
         if (!countdownInterval && data.product?.auctionEndDate) {
           updateCountdown(); // Immediate update
@@ -1098,20 +1126,10 @@
     acceptSuccess = false;
 
     try {
-      // Queue accept bid through Redis to prevent race conditions
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        acceptError = 'You must be logged in to accept a bid.';
-        accepting = false;
-        return;
-      }
-
       const response = await fetch('/api/bridge/bid/accept', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `JWT ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           productId: data.product.id
         })
@@ -1159,6 +1177,28 @@
   {#if data.product?.images && data.product.images.length > 0 && data.product.images[0].image}
     <meta property="twitter:image" content={data.product.images[0].image.url} />
   {/if}
+
+  <!-- JSON-LD Structured Data -->
+  {#if data.product}
+    {@const sellerName = typeof data.product.seller === 'object' ? data.product.seller?.name : ''}
+    {@const currency = typeof data.product.seller === 'object' ? (data.product.seller?.currency || 'PHP') : 'PHP'}
+    {@const price = data.product.currentBid || data.product.startingPrice || 0}
+    {@const imageUrl = data.product.images?.[0]?.image?.url || ''}
+    {@html `<script type="application/ld+json">${JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": data.product.title,
+      "description": data.product.description?.substring(0, 300),
+      "image": imageUrl,
+      "offers": {
+        "@type": "Offer",
+        "price": price,
+        "priceCurrency": currency,
+        "availability": data.product.status === 'available' ? "https://schema.org/InStock" : "https://schema.org/SoldOut",
+        "seller": { "@type": "Person", "name": sellerName }
+      }
+    })}</script>`}
+  {/if}
 </svelte:head>
 
 {#if !data.product}
@@ -1198,12 +1238,6 @@
 
         {#if isOwner || $authStore.user?.role === 'admin' || ($authStore.isAuthenticated && !isOwner)}
           <div class="product-actions">
-            {#if isOwner}
-              <button class="action-btn action-edit" onclick={openEditModal}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                {$t('product.edit')}
-              </button>
-            {/if}
             {#if $authStore.user?.role === 'admin'}
               <button
                 class="action-btn {data.product.active ? 'action-hide' : 'action-show'}"
@@ -1303,7 +1337,7 @@
             <div class="seller-header">
               <div class="seller-avatar">
                 {#if data.product.seller?.profilePicture && typeof data.product.seller.profilePicture === 'object' && data.product.seller.profilePicture.url}
-                  <img src={data.product.seller.profilePicture.url} alt={data.product.seller.name} class="seller-avatar-img" />
+                  <img src={data.product.seller.profilePicture.url} alt={data.product.seller.name} class="seller-avatar-img" loading="lazy" decoding="async" />
                 {:else}
                   {data.product.seller?.name?.charAt(0)?.toUpperCase() || '?'}
                 {/if}
@@ -1745,9 +1779,6 @@
                   class:new-bid={newBidIds.has(bid.id)}
                   style="--rank: {index + 1}; --delay: {index * 0.05}s"
                 >
-                  {#if newBidIds.has(bid.id)}
-                    <div class="new-bid-indicator">{$t('product.new')}</div>
-                  {/if}
                   <div class="bid-rank">#{index + 1}</div>
                   <div class="bid-info">
                     <div class="bid-amount">{formatPrice(bid.amount, sellerCurrency)}</div>
@@ -1756,11 +1787,14 @@
                       <span class="bid-time">{formatDate(bid.bidTime)}</span>
                     </div>
                   </div>
-                  {#if index === 0}
-                    <div class="highest-badge">
-                      👑 {$t('product.highestBid')}
-                    </div>
-                  {/if}
+                  <div class="bid-badges">
+                    {#if index === 0}
+                      <div class="highest-badge">👑 {$t('product.highestBid')}</div>
+                    {/if}
+                    {#if newBidIds.has(bid.id)}
+                      <div class="new-bid-indicator">{$t('product.new')}</div>
+                    {/if}
+                  </div>
                 </div>
               {/each}
             </div>
@@ -2068,28 +2102,6 @@
   </div>
 {/if}
 
-<!-- Edit Product Modal -->
-{#if showEditModal}
-  <div class="modal-overlay">
-    <div class="modal-content edit-modal">
-      <button class="modal-close" onclick={closeEditModal}>&times;</button>
-
-      <div class="modal-header">
-        <h2>{$t('sell.editTitle')}</h2>
-      </div>
-
-      <div class="modal-body">
-        <ProductForm
-          mode="edit"
-          product={data.product}
-          onSuccess={handleEditSuccess}
-          onCancel={closeEditModal}
-        />
-      </div>
-    </div>
-  </div>
-{/if}
-
 <!-- Admin Hide/Unhide Confirmation Modal -->
 {#if adminModalOpen}
   <div class="admin-modal-overlay" onclick={closeAdminModal}>
@@ -2268,6 +2280,12 @@
   .action-edit:hover {
     border-color: var(--color-blue);
     color: var(--color-blue);
+  }
+
+  .action-locked {
+    opacity: 0.5;
+    cursor: not-allowed;
+    font-size: 0.75rem;
   }
 
   .action-hide:hover {
@@ -3838,12 +3856,11 @@
     border-color: var(--color-red);
   }
 
-  /* Top ranked bid styling — Swiss red accent */
+  /* Top ranked bid styling — subtle emerald accent */
   .bid-history-item.rank-1 {
-    background: var(--color-red);
-    border: 1px solid var(--color-border);
+    background: var(--color-muted);
+    border: 2px solid var(--color-emerald, #10B981);
     position: relative;
-    color: white;
   }
 
   .bid-history-item.rank-1:hover {
@@ -3858,7 +3875,7 @@
   }
 
   .bid-history-item.rank-1 .bid-rank {
-    color: white;
+    color: var(--color-emerald, #10B981);
     font-size: calc(1.2rem * var(--scale));
   }
 
@@ -3898,18 +3915,23 @@
     color: white;
   }
 
+  .bid-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    align-items: flex-end;
+    flex-shrink: 0;
+  }
+
   .highest-badge {
-    position: absolute;
-    top: -0.75rem;
-    right: 1rem;
-    background: var(--color-red);
+    background: var(--color-emerald, #10B981);
     color: white;
-    padding: 0.375rem 0.875rem;
-    font-size: 0.75rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 0.5px;
-    border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
+    white-space: nowrap;
   }
 
   /* Modal Styles */
@@ -4879,31 +4901,28 @@
   }
 
   .new-bid-indicator {
-    position: absolute;
-    top: 8px;
-    right: 8px;
     background: var(--color-blue);
     color: white;
-    padding: 0.25rem 0.625rem;
-    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.6rem;
     font-weight: 800;
     letter-spacing: 0.05em;
-    border: 1px solid var(--color-border);
-    z-index: 10;
     border-radius: var(--radius-sm);
+    white-space: nowrap;
   }
 
   @keyframes newBidHighlight {
     0% {
-      background: var(--color-red);
-      opacity: 0;
+      background: rgba(16, 185, 129, 0.3);
+      transform: translateX(-4px);
     }
-    20% {
-      opacity: 1;
+    40% {
+      background: rgba(16, 185, 129, 0.15);
+      transform: translateX(0);
     }
     100% {
-      background: var(--color-surface);
-      opacity: 1;
+      background: var(--color-muted);
+      transform: translateX(0);
     }
   }
 

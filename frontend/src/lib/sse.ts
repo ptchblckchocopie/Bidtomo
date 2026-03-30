@@ -1,7 +1,7 @@
 import { writable, type Writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import { env } from '$env/dynamic/public';
-import { getAuthToken } from './stores/auth';
+import { isAuthenticated } from './stores/auth';
 
 // Dynamically determine SSE URL based on current hostname
 function getSseUrl(): string {
@@ -125,7 +125,24 @@ export interface ProductVisibilityEvent {
   timestamp: number;
 }
 
-export type SSEEvent = BidEvent | MessageEvent | RedisStatusEvent | ConnectedEvent | AcceptedEvent | TypingEvent | NewProductEvent | BidUpdateEvent | ProductVisibilityEvent;
+export interface AuctionClosedEvent {
+  type: 'auction_closed';
+  status: 'ended';
+  winnerId: number | null;
+  winnerName?: string;
+  amount: number | null;
+  transactionId?: number;
+  timestamp: number;
+}
+
+export interface AuctionExtendedEvent {
+  type: 'auction_extended';
+  newEndDate: string;
+  autoExtendMinutes: number;
+  timestamp: number;
+}
+
+export type SSEEvent = BidEvent | MessageEvent | RedisStatusEvent | ConnectedEvent | AcceptedEvent | TypingEvent | NewProductEvent | BidUpdateEvent | ProductVisibilityEvent | AuctionClosedEvent | AuctionExtendedEvent;
 
 // Product SSE client
 class ProductSSEClient {
@@ -309,14 +326,13 @@ class UserSSEClient {
     this.state.set('connecting');
 
     try {
-      const token = getAuthToken();
-      if (!token) {
+      if (!isAuthenticated()) {
         this.state.set('disconnected');
         return;
       }
-      const tokenParam = `?token=${encodeURIComponent(token)}`;
       const connectTime = Date.now();
-      this.eventSource = new EventSource(`${SSE_URL}/events/users/${this.userId}${tokenParam}`);
+      // Use bridge route — httpOnly cookie sent automatically (same-origin)
+      this.eventSource = new EventSource(`/api/bridge/sse/users/${this.userId}`);
 
       this.eventSource.onopen = () => {
         this.state.set('connected');
@@ -554,16 +570,12 @@ export async function queueBid(
   amount: number,
   censorName: boolean = false
 ): Promise<{ success: boolean; jobId?: string; bidId?: number; error?: string; fallback?: boolean }> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-
   try {
-    // Use bridge endpoint instead of direct CMS access
+    // Use bridge endpoint — auth via httpOnly cookie (credentials: 'include')
     const response = await fetch('/api/bridge/bid/queue', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `JWT ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         productId: typeof productId === 'string' ? parseInt(productId, 10) : productId,
         amount,
@@ -589,15 +601,11 @@ export async function setAutoBid(
   maxAmount: number,
   censorName: boolean = false
 ): Promise<{ success: boolean; autoBid?: { productId: number; maxAmount: number; active: boolean }; error?: string }> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-
   try {
     const response = await fetch('/api/bridge/bid/auto', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `JWT ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         productId: typeof productId === 'string' ? parseInt(productId, 10) : productId,
         maxAmount,
@@ -619,15 +627,11 @@ export async function setAutoBid(
 export async function cancelAutoBid(
   productId: string | number
 ): Promise<{ success: boolean; error?: string }> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-
   try {
     const response = await fetch('/api/bridge/bid/auto', {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `JWT ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         productId: typeof productId === 'string' ? parseInt(productId, 10) : productId,
       }),
@@ -647,13 +651,9 @@ export async function cancelAutoBid(
 export async function getAutoBid(
   productId: string | number
 ): Promise<{ autoBid: { maxAmount: number; active: boolean; createdAt: string } | null }> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-
   try {
     const response = await fetch(`/api/bridge/bid/auto/${productId}`, {
-      headers: {
-        ...(token ? { Authorization: `JWT ${token}` } : {}),
-      },
+      credentials: 'include',
     });
 
     if (!response.ok) {

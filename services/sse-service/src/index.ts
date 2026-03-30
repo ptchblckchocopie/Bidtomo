@@ -6,15 +6,19 @@ import Redis from 'ioredis';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
+// Validate critical env vars at startup
+if (!process.env.PAYLOAD_SECRET) {
+  console.error('FATAL: PAYLOAD_SECRET is not set. SSE service cannot verify JWT tokens. Exiting.');
+  process.exit(1);
+}
+
 const app = express();
 const PORT = parseInt(process.env.PORT || process.env.SSE_PORT || '3002', 10);
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const CORS_ORIGIN = process.env.SSE_CORS_ORIGIN || 'http://localhost:5173';
 
-// Payload v2 hashes the secret with SHA-256 before signing JWTs:
-//   crypto.createHash('sha256').update(secret).digest('hex').slice(0, 32)
-// Must match the same derivation to verify tokens correctly.
-const JWT_SECRET = crypto.createHash('sha256').update(process.env.PAYLOAD_SECRET || '').digest('hex').slice(0, 32);
+// Payload v2 hashes the secret with SHA-256 before signing JWTs
+const JWT_SECRET = crypto.createHash('sha256').update(process.env.PAYLOAD_SECRET).digest('hex').slice(0, 32);
 
 // Connection managers
 const productConnections = new Map<string, Set<Response>>();
@@ -67,9 +71,38 @@ const ALLOWED_ORIGINS = (process.env.SSE_CORS_ORIGIN || '')
   .map(o => o.trim())
   .filter(Boolean);
 
-// Per-IP SSE connection limit to prevent DoS
+// SSE connection limits
 const connectionCountByIp = new Map<string, number>();
 const MAX_CONNECTIONS_PER_IP = 20;
+const MAX_GLOBAL_CONNECTIONS = 10000;
+let globalConnectionCount = 0;
+
+// Rate limiting for failed auth attempts (per IP)
+const authFailures = new Map<string, { count: number; resetAt: number }>();
+const AUTH_FAIL_MAX = 10;         // max failures before blocking
+const AUTH_FAIL_WINDOW = 60_000;  // 1 minute window
+
+function checkAuthRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = authFailures.get(ip);
+  if (!record || now > record.resetAt) {
+    return true; // no record or window expired — allow
+  }
+  return record.count < AUTH_FAIL_MAX;
+}
+
+function recordAuthFailure(ip: string): void {
+  const now = Date.now();
+  const record = authFailures.get(ip);
+  if (!record || now > record.resetAt) {
+    authFailures.set(ip, { count: 1, resetAt: now + AUTH_FAIL_WINDOW });
+  } else {
+    record.count++;
+  }
+}
+
+// Connection lifetime limits
+const MAX_CONNECTION_AGE_MS = 60 * 60 * 1000; // 1 hour max per connection
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -103,15 +136,37 @@ app.use(cors({
   credentials: true,
 }));
 
+// Security headers
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
 // Health check endpoint
+// Lightweight ping for uptime monitors
+app.get('/ping', (_req, res) => {
+  res.status(redisConnected ? 200 : 503).json({ status: redisConnected ? 'ok' : 'down', ts: Date.now() });
+});
+
 app.get('/health', (req, res) => {
+  const mem = process.memoryUsage();
   res.json({
     status: redisConnected ? 'ok' : 'degraded',
-    productConnections: productConnections.size,
-    userConnections: userConnections.size,
-    globalConnections: globalConnections.size,
+    globalConnectionCount,
+    maxGlobalConnections: MAX_GLOBAL_CONNECTIONS,
+    productChannels: productConnections.size,
+    userChannels: userConnections.size,
+    globalClients: globalConnections.size,
     redis: redisConnected ? 'connected' : 'disconnected',
     reconnectAttempts,
+    memoryMB: { rss: Math.round(mem.rss / 1048576), heapUsed: Math.round(mem.heapUsed / 1048576) },
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: Date.now(),
   });
 });
 
@@ -138,7 +193,19 @@ function broadcastRedisStatus(connected: boolean) {
 
 // SSE endpoint for product updates (bids)
 app.get('/events/products/:productId', (req: Request, res: Response) => {
-  const { productId } = req.params;
+  const productId = req.params.productId;
+
+  // Validate productId is a positive integer
+  if (!/^\d+$/.test(productId) || parseInt(productId, 10) <= 0) {
+    res.status(400).json({ error: 'Invalid product ID' });
+    return;
+  }
+
+  // Enforce global connection cap
+  if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
+    res.status(503).json({ error: 'Server at capacity' });
+    return;
+  }
 
   // Enforce per-IP connection limit
   const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
@@ -148,6 +215,7 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
     return;
   }
   connectionCountByIp.set(clientIp, currentCount + 1);
+  globalConnectionCount++;
 
   // CORS is handled by middleware — do not manually reflect origin
   res.setHeader('Content-Type', 'text/event-stream');
@@ -176,8 +244,15 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
     try { res.write(`:heartbeat ${Date.now()}\n\n`); } catch { clearInterval(heartbeat); }
   }, 15000);
 
+  // Max connection lifetime — force reconnect after 1 hour
+  const maxLifetime = setTimeout(() => {
+    try { res.end(); } catch { /* already closed */ }
+  }, MAX_CONNECTION_AGE_MS);
+
   req.on('close', () => {
     clearInterval(heartbeat);
+    clearTimeout(maxLifetime);
+    globalConnectionCount = Math.max(0, globalConnectionCount - 1);
     const connections = productConnections.get(productId);
     if (connections) {
       connections.delete(res);
@@ -193,11 +268,26 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
 
 // SSE endpoint for user updates (messages) — requires token auth
 app.get('/events/users/:userId', (req: Request, res: Response) => {
-  const { userId } = req.params;
+  const userId = req.params.userId;
   const token = req.query.token as string;
+
+  // Validate userId is a positive integer
+  if (!/^\d+$/.test(userId) || parseInt(userId, 10) <= 0) {
+    res.status(400).json({ error: 'Invalid user ID' });
+    return;
+  }
+
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+
+  // Rate limit failed auth attempts per IP
+  if (!checkAuthRateLimit(clientIp)) {
+    res.status(429).json({ error: 'Too many authentication attempts' });
+    return;
+  }
 
   // Validate JWT token — user can only subscribe to their own events
   if (!token || !JWT_SECRET) {
+    recordAuthFailure(clientIp);
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
@@ -205,22 +295,30 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     if (String(decoded.id) !== String(userId)) {
+      recordAuthFailure(clientIp);
       res.status(403).json({ error: 'Cannot subscribe to another user\'s events' });
       return;
     }
   } catch {
+    recordAuthFailure(clientIp);
     res.status(401).json({ error: 'Invalid or expired token' });
     return;
   }
 
+  // Enforce global connection cap
+  if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
+    res.status(503).json({ error: 'Server at capacity' });
+    return;
+  }
+
   // Enforce per-IP connection limit
-  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
   const currentCount = connectionCountByIp.get(clientIp) || 0;
   if (currentCount >= MAX_CONNECTIONS_PER_IP) {
     res.status(429).json({ error: 'Too many SSE connections' });
     return;
   }
   connectionCountByIp.set(clientIp, currentCount + 1);
+  globalConnectionCount++;
 
   // CORS is handled by middleware — do not manually reflect origin
   res.setHeader('Content-Type', 'text/event-stream');
@@ -247,8 +345,15 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
     try { res.write(`:heartbeat ${Date.now()}\n\n`); } catch { clearInterval(heartbeat); }
   }, 15000);
 
+  // Max connection lifetime — force reconnect after 1 hour
+  const maxLifetime = setTimeout(() => {
+    try { res.end(); } catch { /* already closed */ }
+  }, MAX_CONNECTION_AGE_MS);
+
   req.on('close', () => {
     clearInterval(heartbeat);
+    clearTimeout(maxLifetime);
+    globalConnectionCount = Math.max(0, globalConnectionCount - 1);
     const connections = userConnections.get(userId);
     if (connections) {
       connections.delete(res);
@@ -264,6 +369,12 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
 
 // SSE endpoint for global updates (new products, bid updates across all products)
 app.get('/events/global', (req: Request, res: Response) => {
+  // Enforce global connection cap
+  if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
+    res.status(503).json({ error: 'Server at capacity' });
+    return;
+  }
+
   // Enforce per-IP connection limit
   const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
   const currentCount = connectionCountByIp.get(clientIp) || 0;
@@ -272,6 +383,7 @@ app.get('/events/global', (req: Request, res: Response) => {
     return;
   }
   connectionCountByIp.set(clientIp, currentCount + 1);
+  globalConnectionCount++;
 
   // CORS is handled by middleware — do not manually reflect origin
   res.setHeader('Content-Type', 'text/event-stream');
@@ -297,6 +409,7 @@ app.get('/events/global', (req: Request, res: Response) => {
 
   req.on('close', () => {
     clearInterval(heartbeat);
+    globalConnectionCount = Math.max(0, globalConnectionCount - 1);
     globalConnections.delete(res);
     console.log(`[SSE] Global client disconnected. Remaining: ${globalConnections.size}`);
     // Decrement IP connection count
@@ -454,11 +567,57 @@ async function start() {
 
     watchRedisConnection();
 
+    // Dead connection sweep — prune connections where the socket died without 'close' event
+    setInterval(() => {
+      let pruned = 0;
+
+      for (const [key, clients] of productConnections) {
+        for (const res of clients) {
+          if (res.writableEnded || res.destroyed) {
+            clients.delete(res);
+            globalConnectionCount = Math.max(0, globalConnectionCount - 1);
+            pruned++;
+          }
+        }
+        if (clients.size === 0) productConnections.delete(key);
+      }
+
+      for (const [key, clients] of userConnections) {
+        for (const res of clients) {
+          if (res.writableEnded || res.destroyed) {
+            clients.delete(res);
+            globalConnectionCount = Math.max(0, globalConnectionCount - 1);
+            pruned++;
+          }
+        }
+        if (clients.size === 0) userConnections.delete(key);
+      }
+
+      for (const res of globalConnections) {
+        if (res.writableEnded || res.destroyed) {
+          globalConnections.delete(res);
+          globalConnectionCount = Math.max(0, globalConnectionCount - 1);
+          pruned++;
+        }
+      }
+
+      if (pruned > 0) {
+        console.log(`[SSE] Pruned ${pruned} dead connection(s). Global: ${globalConnectionCount}`);
+      }
+
+      // Clean up expired auth failure records
+      const now = Date.now();
+      for (const [ip, record] of authFailures) {
+        if (now > record.resetAt) authFailures.delete(ip);
+      }
+    }, 30000);
+
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`[SSE] Service listening on port ${PORT}`);
       console.log(`[SSE] CORS origin: ${CORS_ORIGIN}`);
       console.log(`[SSE] Redis: ${REDIS_URL}`);
       console.log(`[SSE] Redis status: ${redisConnected ? 'connected' : 'disconnected'}`);
+      console.log(`[SSE] Max global connections: ${MAX_GLOBAL_CONNECTIONS}`);
     });
   } catch (error) {
     console.error('[SSE] Failed to start:', error);

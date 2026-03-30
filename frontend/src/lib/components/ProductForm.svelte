@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { createProduct, updateProduct, uploadMedia, deleteMedia } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import KeywordInput from './KeywordInput.svelte';
@@ -24,8 +24,9 @@
   let title = $state(product?.title || '');
   let description = $state(product?.description || '');
   let keywords = $state<string[]>(product?.keywords?.map(k => k.keyword) || []);
-  let startingPrice = $state(product?.startingPrice || 0);
-  let bidInterval = $state(0);
+  let startingPrice: number | '' = $state(product?.startingPrice || '');
+  let bidInterval: number | '' = $state('');
+  let autoExtendMinutes = $state(product?.autoExtendMinutes ?? 2);
   let auctionEndDate = $state('');
   let active = $state(product?.active ?? true);
   let region = $state(product?.region || '');
@@ -44,9 +45,115 @@
   let success = $state(false);
   let hasBids = $state(false);
   let loadingMessage = $state('');
+  let showConfirmModal = $state(false);
   let showToast = $state(false);
   let toastMessage = $state('');
   let toastType: 'success' | 'error' = $state('success');
+
+  // Portal containers for overlays (appended to document.body to avoid transform containment)
+  let confirmPortal: HTMLDivElement | null = null;
+  let loaderPortal: HTMLDivElement | null = null;
+
+  function ensureConfirmPortal() {
+    if (!confirmPortal) {
+      confirmPortal = document.createElement('div');
+      confirmPortal.id = 'pf-confirm-portal';
+      document.body.appendChild(confirmPortal);
+    }
+    return confirmPortal;
+  }
+
+  function ensureLoaderPortal() {
+    if (!loaderPortal) {
+      loaderPortal = document.createElement('div');
+      loaderPortal.id = 'pf-loader-portal';
+      document.body.appendChild(loaderPortal);
+    }
+    return loaderPortal;
+  }
+
+  function renderConfirmModal() {
+    const portal = ensureConfirmPortal();
+    if (!showConfirmModal) {
+      portal.innerHTML = '';
+      return;
+    }
+    const currency = userCurrency === 'PHP' ? '₱' : userCurrency;
+    portal.innerHTML = `
+      <div class="pf-overlay" id="pf-confirm-overlay">
+        <div class="pf-modal">
+          <h3 class="pf-modal-title">CONFIRM YOUR LISTING</h3>
+          <p class="pf-modal-subtitle">Please review your listing details:</p>
+          <div class="pf-modal-details">
+            <div class="pf-row"><span class="pf-label">Title:</span> <span>${title}</span></div>
+            <div class="pf-row"><span class="pf-label">Starting Price:</span> <span>${currency} ${Number(startingPrice).toLocaleString()}</span></div>
+            <div class="pf-row"><span class="pf-label">Bid Increment:</span> <span>${currency} ${Number(bidInterval).toLocaleString()}</span></div>
+            <div class="pf-row"><span class="pf-label">Anti-Snipe:</span> <span>${autoExtendMinutes > 0 ? autoExtendMinutes + ' min' : 'Disabled'}</span></div>
+            <div class="pf-row"><span class="pf-label">End Date:</span> <span>${new Date(auctionEndDate).toLocaleString()}</span></div>
+            <div class="pf-row"><span class="pf-label">Location:</span> <span>${city}, ${region}</span></div>
+            <div class="pf-row"><span class="pf-label">Delivery:</span> <span>${deliveryOptions === 'both' ? 'Delivery & Meetup' : deliveryOptions}</span></div>
+            <div class="pf-row"><span class="pf-label">Categories:</span> <span>${selectedCategories.join(', ')}</span></div>
+            <div class="pf-row"><span class="pf-label">Images:</span> <span>${mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length} photo(s)</span></div>
+          </div>
+          <label class="pf-terms" id="pf-terms-label">
+            <input type="checkbox" id="pf-terms-check" />
+            <span>I confirm that all details are correct and understand that <strong>listings cannot be edited once published</strong>. By creating this listing, I agree to the platform's terms of service.</span>
+          </label>
+          <div class="pf-modal-actions">
+            <button class="btn-bh pf-confirm-btn" id="pf-confirm-submit" disabled>Create Listing</button>
+            <button class="btn-bh-outline pf-cancel-btn" id="pf-confirm-cancel">Go Back & Edit</button>
+          </div>
+        </div>
+      </div>
+    `;
+    // Attach event listeners
+    const submitBtn = portal.querySelector('#pf-confirm-submit') as HTMLButtonElement;
+    const termsCheck = portal.querySelector('#pf-terms-check') as HTMLInputElement;
+    submitBtn?.addEventListener('click', confirmAndSubmit);
+    portal.querySelector('#pf-confirm-cancel')?.addEventListener('click', () => { showConfirmModal = false; });
+    termsCheck?.addEventListener('change', () => {
+      if (submitBtn) submitBtn.disabled = !termsCheck.checked;
+    });
+  }
+
+  function renderLoaderOverlay() {
+    const portal = ensureLoaderPortal();
+    if (!submitting) {
+      portal.innerHTML = '';
+      return;
+    }
+    portal.innerHTML = `
+      <div class="pf-overlay" id="pf-loader-overlay">
+        <div class="pf-loader-content">
+          <div class="pf-spinner"></div>
+          <p class="pf-loader-msg">${loadingMessage}</p>
+          <p class="pf-loader-hint">Please wait, do not close this window...</p>
+        </div>
+      </div>
+    `;
+  }
+
+  $effect(() => {
+    const _show = showConfirmModal;
+    const _t = title; const _sp = startingPrice; const _bi = bidInterval;
+    const _ae = autoExtendMinutes; const _ed = auctionEndDate;
+    const _c = city; const _r = region; const _d = deliveryOptions;
+    const _sc = selectedCategories; const _ei = existingImages; const _if = imageFiles;
+    renderConfirmModal();
+  });
+
+  $effect(() => {
+    // Track reactive deps explicitly by reading them
+    const _s = submitting;
+    const _m = loadingMessage;
+    renderLoaderOverlay();
+  });
+
+  onDestroy(() => {
+    confirmPortal?.remove();
+    loaderPortal?.remove();
+    document.getElementById('pf-toast')?.remove();
+  });
 
   // Duration controls
   let customDays = $state(0);
@@ -69,8 +176,8 @@
 
   // Initialize form on mount
   onMount(() => {
-    if (bidInterval === 0 || !bidInterval) {
-      bidInterval = product?.bidInterval || (userCurrency === 'PHP' ? 50 : 1);
+    if (!bidInterval && mode === 'edit' && product?.bidInterval) {
+      bidInterval = product.bidInterval;
     }
 
     // Pre-fill region/city from last listing (create mode only)
@@ -88,6 +195,7 @@
       keywords = product.keywords?.map(k => k.keyword) || [];
       startingPrice = product.startingPrice;
       bidInterval = product.bidInterval;
+      autoExtendMinutes = product.autoExtendMinutes ?? 2;
       region = product.region || '';
       city = product.city || '';
       deliveryOptions = product.delivery_options || '';
@@ -158,7 +266,7 @@
     }
 
     const minDate = new Date(now);
-    minDate.setHours(minDate.getHours() + 1);
+    minDate.setMinutes(minDate.getMinutes() + 1);
     return formatDateToLocalInput(minDate);
   }
 
@@ -331,12 +439,20 @@
   }
 
   function showToastNotification(message: string, type: 'success' | 'error' = 'success') {
-    toastMessage = message;
-    toastType = type;
-    showToast = true;
-    setTimeout(() => {
-      showToast = false;
-    }, 4000);
+    // Remove any existing toast
+    document.getElementById('pf-toast')?.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'pf-toast';
+    toast.className = `pf-toast pf-toast-${type}`;
+    toast.innerHTML = `
+      <div class="pf-toast-icon">${type === 'success' ? '✓' : '✕'}</div>
+      <div class="pf-toast-msg">${message}</div>
+    `;
+    document.body.appendChild(toast);
+
+    setTimeout(() => toast.classList.add('pf-toast-out'), 3700);
+    setTimeout(() => toast.remove(), 4000);
   }
 
   async function handleSubmit(e: Event) {
@@ -346,21 +462,69 @@
     success = false;
     submitting = true;
 
-    if (!title || !description || startingPrice <= 0 || !auctionEndDate) {
-      showToastNotification('Please fill in all required fields', 'error');
-      submitting = false;
-      return;
-    }
+    // Field name → DOM element ID for scroll targeting
+    const fieldIds: Record<string, string> = {
+      'Title': 'title',
+      'Description': 'description',
+      'Starting Price': 'startingPrice',
+      'Auction End Date': 'auctionEndDate',
+      'Region': 'region',
+      'City': 'city',
+      'Delivery Options': 'deliveryOptions',
+      'Bid Increment': 'bidInterval',
+      'Categories': 'categories-section',
+      'Product Image': 'image-upload-section',
+    };
 
-    if (startingPrice < 100) {
-      showToastNotification('Starting price must be at least 100', 'error');
-      submitting = false;
-      return;
-    }
+    // Validate all required fields
+    const missingFields: string[] = [];
+    if (!title) missingFields.push('Title');
+    if (!description) missingFields.push('Description');
+    if (!startingPrice || Number(startingPrice) <= 0) missingFields.push('Starting Price');
+    if (!auctionEndDate) missingFields.push('Auction End Date');
+    if (!region) missingFields.push('Region');
+    if (!city) missingFields.push('City');
+    if (!deliveryOptions) missingFields.push('Delivery Options');
+    if (!bidInterval || Number(bidInterval) <= 0) missingFields.push('Bid Increment');
+    if (selectedCategories.length === 0) missingFields.push('Categories');
 
     const totalImages = mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length;
-    if (totalImages === 0) {
-      showToastNotification('Please upload at least one product image', 'error');
+    if (totalImages === 0) missingFields.push('Product Image');
+
+    if (missingFields.length > 0) {
+      // Scroll to first missing field, then show toast after scroll settles
+      const firstFieldId = fieldIds[missingFields[0]];
+      if (firstFieldId) {
+        const el = document.getElementById(firstFieldId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => {
+            el.classList.add('field-shake');
+            el.addEventListener('animationend', () => el.classList.remove('field-shake'), { once: true });
+            showToastNotification(`Please fill in: ${missingFields.join(', ')}`, 'error');
+          }, 400);
+        } else {
+          showToastNotification(`Please fill in: ${missingFields.join(', ')}`, 'error');
+        }
+      } else {
+        showToastNotification(`Please fill in: ${missingFields.join(', ')}`, 'error');
+      }
+      submitting = false;
+      return;
+    }
+
+    if (Number(startingPrice) < 100) {
+      const el = document.getElementById('startingPrice');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          el.classList.add('field-shake');
+          el.addEventListener('animationend', () => el.classList.remove('field-shake'), { once: true });
+          showToastNotification('Starting price must be at least 100', 'error');
+        }, 400);
+      } else {
+        showToastNotification('Starting price must be at least 100', 'error');
+      }
       submitting = false;
       return;
     }
@@ -378,66 +542,17 @@
       }
     }
 
+    // Show confirmation dialog before proceeding
+    submitting = false;
+    showConfirmModal = true;
+  }
+
+  async function confirmAndSubmit() {
+    showConfirmModal = false;
+    submitting = true;
+
     try {
-      if (mode === 'edit' && product) {
-        loadingMessage = 'Preparing your changes...';
-
-        if (imagesToDelete.length > 0) {
-          loadingMessage = `Removing ${imagesToDelete.length} image${imagesToDelete.length > 1 ? 's' : ''}...`;
-          for (const mediaId of imagesToDelete) {
-            await deleteMedia(mediaId);
-          }
-        }
-
-        const uploadedImageIds: string[] = [];
-        if (imageFiles.length > 0) {
-          for (let i = 0; i < imageFiles.length; i++) {
-            loadingMessage = `Uploading image ${i + 1} of ${imageFiles.length}...`;
-            const imageId = await uploadMedia(imageFiles[i]);
-            if (imageId) {
-              uploadedImageIds.push(imageId);
-            }
-          }
-        }
-
-        const allImageIds = [
-          ...existingImages.map(img => img.image.id),
-          ...uploadedImageIds
-        ];
-
-        loadingMessage = 'Updating product details...';
-
-        const updateData: any = {
-          title,
-          description,
-          keywords: keywords.map(k => ({ keyword: k })),
-          bidInterval,
-          auctionEndDate: new Date(auctionEndDate).toISOString(),
-          active,
-          images: allImageIds.map(id => ({ image: id })),
-          region,
-          city,
-          delivery_options: deliveryOptions || undefined,
-          categories: selectedCategories.length > 0 ? selectedCategories : undefined
-        };
-
-        if (!hasBids) {
-          updateData.startingPrice = startingPrice;
-        }
-
-        const result = await updateProduct(product.id, updateData);
-
-        if (result) {
-          loadingMessage = 'Success! Refreshing...';
-          success = true;
-          showToastNotification('Product updated successfully!', 'success');
-          if (onSuccess) {
-            onSuccess(result);
-          }
-        } else {
-          showToastNotification('Failed to update product. Please try again.', 'error');
-        }
-      } else {
+      {
         const uploadedImageIds: string[] = [];
 
         for (let i = 0; i < imageFiles.length; i++) {
@@ -460,8 +575,9 @@
           title,
           description,
           keywords: keywords.map(k => ({ keyword: k })),
-          startingPrice,
-          bidInterval,
+          startingPrice: Number(startingPrice),
+          bidInterval: Number(bidInterval),
+          autoExtendMinutes,
           auctionEndDate: new Date(auctionEndDate).toISOString(),
           images: uploadedImageIds.map(imageId => ({ image: imageId })),
           region,
@@ -523,7 +639,7 @@
   }
 </script>
 
-<form onsubmit={handleSubmit} class="product-form">
+<form onsubmit={handleSubmit} class="product-form" novalidate>
   <div class="form-group">
     <label for="title">Product Title *</label>
     <input
@@ -609,7 +725,7 @@
     <p class="field-hint">How will the buyer receive the product?</p>
   </div>
 
-  <div class="form-group">
+  <div class="form-group" id="categories-section">
     <label>Product Categories</label>
     <div class="categories-grid">
       {#each categories as category}
@@ -634,7 +750,7 @@
     <p class="field-hint">Select one or more categories that describe your product</p>
   </div>
 
-  <div class="form-group">
+  <div class="form-group" id="image-upload-section">
     <label for="images">Product Images * (1-5 images)</label>
     <div class="image-upload-container">
       {#if (mode === 'edit' ? existingImages.length + imageFiles.length : imageFiles.length) < 5}
@@ -756,6 +872,29 @@
   </div>
 
   <div class="form-group">
+    <label for="autoExtendMinutes">Anti-Snipe Extension (minutes)</label>
+    <input
+      id="autoExtendMinutes"
+      type="number"
+      bind:value={autoExtendMinutes}
+      min="0"
+      max="2"
+      step="1"
+      disabled={submitting}
+      class="input-bh"
+      oninput={(e) => {
+        const input = e.currentTarget;
+        let v = parseInt(input.value, 10);
+        if (isNaN(v) || v < 0) v = 0;
+        if (v > 2) v = 2;
+        autoExtendMinutes = v;
+        input.value = String(v);
+      }}
+    />
+    <p class="field-hint">If a bid arrives within this many minutes of the deadline, the auction extends. Set to 0 to disable. Maximum: 2 minutes.</p>
+  </div>
+
+  <div class="form-group">
     <label for="auctionEndDate">Auction End Date *</label>
 
     <div class="duration-section">
@@ -836,30 +975,8 @@
   </div>
 </form>
 
-<!-- Fullscreen Loading Overlay -->
-{#if submitting}
-  <div class="fullscreen-loader">
-    <div class="loader-content">
-      <div class="spinner"></div>
-      <p class="loader-message">{loadingMessage}</p>
-      <p class="loader-hint">Please wait, do not close this window...</p>
-    </div>
-  </div>
-{/if}
+<!-- Confirm modal and loader are rendered as portals on document.body (see $effect above) -->
 
-<!-- Toast Notification -->
-{#if showToast}
-  <div class="toast {toastType}" class:show={showToast}>
-    <div class="toast-icon">
-      {#if toastType === 'success'}
-        &#10003;
-      {:else}
-        ✕
-      {/if}
-    </div>
-    <div class="toast-message">{toastMessage}</div>
-  </div>
-{/if}
 
 <style>
   .product-form {
@@ -1178,46 +1295,75 @@
     }
   }
 
-  /* Fullscreen Loader */
-  .fullscreen-loader {
+  /* Confirmation Modal */
+  /* Overlay, modal, and loader — rendered on document.body via portal */
+  :global(.pf-overlay) {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background: rgba(0, 0, 0, 0.9);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 9999;
-    animation: fadeIn 0.3s ease-in;
+    padding: 1rem;
   }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  .loader-content {
-    text-align: center;
-    color: white;
-    max-width: 400px;
+  :global(.pf-modal) {
+    background: var(--color-bg, #111);
+    border: 2px solid var(--color-border, #333);
     padding: 2rem;
+    max-width: 500px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
   }
+  :global(.pf-modal-title) {
+    font-size: 1.25rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    margin-bottom: 0.25rem; color: var(--color-fg, #fff);
+  }
+  :global(.pf-modal-subtitle) {
+    color: var(--color-muted-fg, #888); font-size: 0.875rem; margin-bottom: 1.25rem;
+  }
+  :global(.pf-modal-details) {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    margin-bottom: 1.5rem; padding: 1rem;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--color-border, #333);
+  }
+  :global(.pf-row) {
+    display: flex; justify-content: space-between;
+    font-size: 0.875rem; gap: 1rem; color: var(--color-fg, #fff);
+  }
+  :global(.pf-row span:last-child) { text-align: right; font-weight: 600; }
+  :global(.pf-label) { color: var(--color-muted-fg, #888); flex-shrink: 0; }
+  :global(.pf-terms) {
+    display: flex; gap: 0.625rem; align-items: flex-start; padding: 0.75rem;
+    background: var(--color-muted, #1a1a2e); border: 1px solid var(--color-border, #333);
+    border-radius: 6px; cursor: pointer; font-size: 0.8rem; line-height: 1.4;
+    color: var(--color-muted-fg, #888); margin-bottom: 0.5rem;
+  }
+  :global(.pf-terms input[type="checkbox"]) {
+    margin-top: 2px; flex-shrink: 0; width: 16px; height: 16px; accent-color: #10B981; cursor: pointer;
+  }
+  :global(.pf-terms strong) { color: var(--color-fg, #fff); }
+  :global(.pf-confirm-btn:disabled) { opacity: 0.4; cursor: not-allowed; }
+  :global(.pf-modal-actions) { display: flex; flex-direction: column; gap: 0.75rem; }
 
-  .spinner {
-    width: 64px;
-    height: 64px;
-    border: 6px solid rgba(255, 255, 255, 0.2);
-    border-top-color: var(--color-red);
+  :global(.pf-loader-content) {
+    text-align: center; color: white; max-width: 400px; padding: 2rem;
+  }
+  :global(.pf-spinner) {
+    width: 64px; height: 64px;
+    border: 6px solid rgba(255,255,255,0.2);
+    border-top-color: var(--color-red, #ef4444);
     border-radius: 50% !important;
-    animation: spin 1s linear infinite;
+    animation: pf-spin 1s linear infinite;
     margin: 0 auto 1.5rem;
   }
+  :global(.pf-loader-msg) { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
+  :global(.pf-loader-hint) { font-size: 0.85rem; opacity: 0.6; }
 
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
+  @keyframes pf-spin { to { transform: rotate(360deg); } }
 
   .loader-message {
     font-size: 1.25rem;
@@ -1232,8 +1378,8 @@
     margin: 0;
   }
 
-  /* Toast Notification */
-  .toast {
+  /* Toast — rendered on document.body, needs :global */
+  :global(.pf-toast) {
     position: fixed;
     top: 20px;
     right: 20px;
@@ -1241,59 +1387,50 @@
     align-items: center;
     gap: 12px;
     padding: 16px 24px;
-    border: var(--border-bh) solid var(--color-border);
+    border: 2px solid rgba(255,255,255,0.15);
     z-index: 10000;
     min-width: 300px;
     max-width: 500px;
-    animation: slideInRight 0.3s ease-out, fadeOut 0.3s ease-in 3.7s;
+    animation: pf-slideIn 0.3s ease-out;
     font-size: 1rem;
+    font-family: var(--font-body, 'Plus Jakarta Sans', sans-serif);
   }
+  :global(.pf-toast-out) { opacity: 0; transition: opacity 0.3s ease-out; }
+  :global(.pf-toast-success) { background: var(--color-blue, #3b82f6); color: white; }
+  :global(.pf-toast-error) { background: var(--color-red, #ef4444); color: white; }
+  :global(.pf-toast-icon) {
+    width: 28px; height: 28px;
+    background: rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold; font-size: 1.2rem; flex-shrink: 0;
+  }
+  :global(.pf-toast-msg) { flex: 1; font-weight: 500; }
 
-  @keyframes slideInRight {
+  @keyframes pf-slideIn {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
   }
 
-  @keyframes fadeOut {
-    from { opacity: 1; }
-    to { opacity: 0; }
-  }
-
-  .toast.success {
-    background: var(--color-blue);
-    color: white;
-  }
-
-  .toast.error {
-    background: var(--color-red);
-    color: white;
-  }
-
-
-  .toast-icon {
-    width: 28px;
-    height: 28px;
-    background: rgba(255, 255, 255, 0.2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 1.2rem;
-    flex-shrink: 0;
-  }
-
-  .toast-message {
-    flex: 1;
-    font-weight: 500;
-  }
-
   @media (max-width: 768px) {
-    .toast {
-      top: 10px;
-      right: 10px;
-      left: 10px;
-      min-width: auto;
-      max-width: none;
+    :global(.pf-toast) {
+      top: 10px; right: 10px; left: 10px;
+      min-width: auto; max-width: none;
     }
+  }
+
+  /* Shake animation for missing fields */
+  :global(.field-shake) {
+    animation: fieldShake 0.5s ease-out;
+    outline: 2px solid var(--color-red) !important;
+    outline-offset: 2px;
+  }
+
+  @keyframes fieldShake {
+    0%, 100% { transform: translateX(0); }
+    15% { transform: translateX(-6px); }
+    30% { transform: translateX(5px); }
+    45% { transform: translateX(-4px); }
+    60% { transform: translateX(3px); }
+    75% { transform: translateX(-2px); }
   }
 </style>

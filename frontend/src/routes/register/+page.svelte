@@ -78,8 +78,8 @@
       return;
     }
 
-    if (password.length < 6) {
-      showError('Password must be at least 6 characters');
+    if (password.length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+      showError('Password must be at least 8 characters with uppercase, lowercase, and a number');
       return;
     }
 
@@ -138,10 +138,7 @@
         if (loginResponse.ok) {
           const data = await loginResponse.json();
 
-          // Store JWT token and user data in localStorage
-          if (data.token) {
-            localStorage.setItem('auth_token', data.token);
-          }
+          // Store user data for UI state (token is in httpOnly cookie)
           if (data.user) {
             localStorage.setItem('user_data', JSON.stringify(data.user));
           }
@@ -150,7 +147,7 @@
           authStore.set({
             isAuthenticated: true,
             user: data.user,
-            token: data.token,
+            token: null,
           });
 
           // Redirect to the intended page or homepage
@@ -260,7 +257,7 @@
             id="password"
             type={showPassword ? 'text' : 'password'}
             bind:value={password}
-            placeholder="Enter a strong password (min 6 characters)"
+            placeholder="Min 8 chars, uppercase, lowercase, number"
             required
             disabled={submitting || success}
             class="input-bh pr-12"

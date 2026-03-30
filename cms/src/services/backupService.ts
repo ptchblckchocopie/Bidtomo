@@ -1,6 +1,6 @@
 import { createGzip } from 'zlib';
 import { PassThrough } from 'stream';
-import { S3Client, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import cron from 'node-cron';
 
@@ -200,6 +200,55 @@ export async function cleanupOldBackups(): Promise<number> {
   }
 }
 
+/**
+ * Get the age of the latest backup in hours. Returns null if no backups found or S3 unavailable.
+ */
+export async function getLatestBackupAgeHours(): Promise<number | null> {
+  try {
+    const bucket = process.env.S3_BUCKET || 'veent';
+    const s3 = getS3Client();
+    const listResult = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: 'backups/',
+    }));
+
+    const objects = (listResult.Contents || []).filter(o => o.LastModified);
+    if (objects.length === 0) return null;
+
+    // Find the most recent backup
+    const latest = objects.reduce((a, b) =>
+      (a.LastModified!.getTime() > b.LastModified!.getTime()) ? a : b
+    );
+
+    return (Date.now() - latest.LastModified!.getTime()) / (1000 * 60 * 60);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verify a backup exists in S3 and has a non-zero size.
+ */
+export async function verifyBackup(key: string): Promise<{ verified: boolean; sizeBytes?: number; error?: string }> {
+  try {
+    const bucket = process.env.S3_BUCKET || 'veent';
+    const s3 = getS3Client();
+    const head = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    const size = head.ContentLength || 0;
+
+    if (size < 100) {
+      console.error(`[BACKUP] Verification FAILED: ${key} is only ${size} bytes (likely empty/corrupt)`);
+      return { verified: false, sizeBytes: size, error: 'Backup file too small' };
+    }
+
+    console.log(`[BACKUP] Verified: ${key} (${(size / 1024).toFixed(1)} KB)`);
+    return { verified: true, sizeBytes: size };
+  } catch (err: any) {
+    console.error(`[BACKUP] Verification FAILED: ${key} — ${err.message}`);
+    return { verified: false, error: err.message };
+  }
+}
+
 export function startBackupScheduler(): void {
   if (process.env.BACKUP_ENABLED !== 'true') {
     console.log('[BACKUP] Backup scheduler disabled (BACKUP_ENABLED != true)');
@@ -215,7 +264,10 @@ export function startBackupScheduler(): void {
 
   cron.schedule(schedule, async () => {
     console.log('[BACKUP] Scheduled backup starting...');
-    await runBackup();
+    const result = await runBackup();
+    if (result.success && result.key) {
+      await verifyBackup(result.key);
+    }
     await cleanupOldBackups();
   });
 

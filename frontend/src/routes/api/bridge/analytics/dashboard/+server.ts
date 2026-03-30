@@ -1,12 +1,12 @@
-import { cmsRequest, getTokenFromRequest, jsonResponse } from '$lib/server/cms';
+import { cmsRequest, getTokenFromRequest, jsonResponse, errorResponse } from '$lib/server/cms';
 import type { RequestHandler } from './$types';
 
 // GET /api/bridge/analytics/dashboard - Proxy analytics dashboard data from CMS
-export const GET: RequestHandler = async ({ request, url }) => {
+export const GET: RequestHandler = async ({ request, url, cookies }) => {
   try {
-    const token = getTokenFromRequest(request);
+    const token = getTokenFromRequest(request, cookies);
     if (!token) {
-      return jsonResponse({ error: 'Unauthorized' }, 401);
+      return errorResponse('Unauthorized', 401);
     }
 
     const from = url.searchParams.get('from');
@@ -26,7 +26,6 @@ export const GET: RequestHandler = async ({ request, url }) => {
     const data = await response.json();
     return jsonResponse(data);
   } catch (error: any) {
-    const status = error?.status || 500;
-    return jsonResponse({ error: error?.message || 'Failed to fetch analytics' }, status);
+    return errorResponse(error?.message || 'Failed to fetch analytics');
   }
 };
