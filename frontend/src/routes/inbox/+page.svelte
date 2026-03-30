@@ -846,13 +846,14 @@
   }
 
   // Update a specific conversation without reloading the entire list
-  function updateConversationInPlace(productId: string, latestMessage: Message) {
-    const convIndex = conversations.findIndex(c => c.product.id === productId);
+  function updateConversationInPlace(productId: string, latestMessage: Message, incrementUnread = false) {
+    const convIndex = conversations.findIndex(c => String(c.product.id) === String(productId));
     if (convIndex !== -1) {
-      // Update the conversation's last message
+      // Update the conversation's last message and optionally bump unread count
       conversations[convIndex] = {
         ...conversations[convIndex],
         lastMessage: latestMessage,
+        ...(incrementUnread ? { unreadCount: conversations[convIndex].unreadCount + 1 } : {}),
       };
 
       // Re-sort conversations by moving the updated one to the top
@@ -1030,6 +1031,9 @@
         }
         iAmTyping = false;
 
+        // Bubble this conversation to the top of the sidebar
+        updateConversationInPlace(selectedProduct.id, message);
+
         // Always scroll to bottom when user sends message
         shouldAutoScroll = true;
         setTimeout(scrollToBottom, 100);
@@ -1147,7 +1151,19 @@
             }
           }
 
-          // Update conversations list in background (without re-selecting) - debounced
+          // Immediately bubble the conversation to the top of the sidebar
+          // Build a lightweight message object from SSE event data for instant re-ordering
+          const sseMessage: Message | null = msgEvent.message
+            ? (msgEvent.message as unknown as Message)
+            : null;
+
+          if (sseMessage) {
+            // Increment unread count if this message is for a different conversation
+            const isOtherConversation = !selectedProduct || String(msgEvent.productId) !== String(selectedProduct.id);
+            updateConversationInPlace(String(msgEvent.productId), sseMessage, isOtherConversation);
+          }
+
+          // Also refresh full conversation data in background (for unread counts, etc.) - debounced
           if (conversationUpdateDebounce) {
             clearTimeout(conversationUpdateDebounce);
           }
