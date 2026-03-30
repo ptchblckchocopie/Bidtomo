@@ -7,12 +7,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
+import crypto from 'crypto';
 import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected, getRedisClient, getMaintenanceStatus, setMaintenanceStatus } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
 import { getOverviewStats, getTimeSeries, getTopSearchKeywords, getTopViewedProducts, getTopSoldProducts, getEventBreakdown } from './services/analyticsQueries';
 import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress, getLatestBackupAgeHours } from './services/backupService';
-import { invalidateProductCache } from './services/cache';
+import { invalidateProductCache, getCachedAnalytics, getCachedUserProfile, getCachedUserProducts, invalidateUserCache } from './services/cache';
 import { authenticateJWT } from './auth-helpers';
 import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
 import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema, analyticsTrackSchema, reportCreateSchema, autoBidSchema, autoBidCancelSchema } from './middleware/validate';
@@ -675,25 +676,26 @@ const start = async () => {
   }
 
   // ── Redis cache middleware for Payload product routes ──
-  // Checks Redis cache for GET product requests before Payload handles them.
-  // On cache hit: responds immediately without calling next().
-  // On cache miss: lets Payload handle it, then caches the response.
+  // Read-through cache: checks Redis first, falls through to Payload on miss.
+  // Caches both authenticated and unauthenticated GET requests.
+  // Admin requests use a separate cache prefix (admins see hidden products).
   app.use('/api/products', async (req, res, next) => {
-    // Only cache GET requests from unauthenticated clients
-    if (req.method !== 'GET' || req.headers.authorization) return next();
+    if (req.method !== 'GET') return next();
 
     const redis = getRedisClient();
     if (!redis || !isRedisConnected()) return next();
 
-    // Determine cache key
+    // Determine cache key — include auth context to prevent data leakage
+    const isAdmin = (req as any).user?.role === 'admin';
+    const authPrefix = isAdmin ? 'admin' : 'public';
     let cacheKey: string | null = null;
     const idMatch = req.path.match(/^\/(\d+)$/);
+
     if (idMatch) {
-      cacheKey = `cache:products:detail:${idMatch[1]}`;
+      cacheKey = `cache:products:detail:${authPrefix}:${idMatch[1]}`;
     } else if (req.path === '/' || req.path === '') {
-      const crypto = require('crypto');
       const hash = crypto.createHash('md5').update(JSON.stringify(req.query)).digest('hex').slice(0, 12);
-      cacheKey = `cache:products:list:${hash}`;
+      cacheKey = `cache:products:list:${authPrefix}:${hash}`;
     }
 
     if (!cacheKey) return next();
@@ -712,9 +714,41 @@ const start = async () => {
     const originalJson = res.json.bind(res);
     const ttl = idMatch ? 5 : 10;
     res.json = (body: any) => {
-      // Only cache successful responses
       if (res.statusCode >= 200 && res.statusCode < 300 && cacheKey) {
         redis.setex(cacheKey, ttl, JSON.stringify(body)).catch(() => {});
+      }
+      return originalJson(body);
+    };
+    next();
+  });
+
+  // ── Redis cache middleware for user profile routes ──
+  // Caches GET /api/users/:id for 30s (public profile data)
+  app.use('/api/users', async (req, res, next) => {
+    if (req.method !== 'GET') return next();
+
+    const redis = getRedisClient();
+    if (!redis || !isRedisConnected()) return next();
+
+    // Only cache individual user lookups (not /api/users list or /api/users/me)
+    const idMatch = req.path.match(/^\/(\d+)$/);
+    if (!idMatch) return next();
+
+    const cacheKey = `cache:users:profile:${idMatch[1]}`;
+
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        res.setHeader('X-Cache', 'HIT');
+        return res.json(JSON.parse(cached));
+      }
+    } catch { /* fall through */ }
+
+    res.setHeader('X-Cache', 'MISS');
+    const originalJson = res.json.bind(res);
+    res.json = (body: any) => {
+      if (res.statusCode >= 200 && res.statusCode < 300 && cacheKey) {
+        redis.setex(cacheKey, 30, JSON.stringify(body)).catch(() => {});
       }
       return originalJson(body);
     };
@@ -1438,26 +1472,22 @@ const start = async () => {
       const to = (req.query.to as string) || now.toISOString();
       const range = { from, to };
 
-      const pool = (payload.db as any).pool;
-
-      const [overview, timeSeries, topSearchKeywords, topViewedProducts, topSoldProducts, eventBreakdown] = await Promise.all([
-        getOverviewStats(pool, range),
-        getTimeSeries(pool, range),
-        getTopSearchKeywords(pool, range),
-        getTopViewedProducts(pool, range),
-        getTopSoldProducts(pool, range),
-        getEventBreakdown(pool, range),
-      ]);
-
-      res.json({
-        period: { from, to },
-        overview,
-        timeSeries,
-        topSearchKeywords,
-        topViewedProducts,
-        topSoldProducts,
-        eventBreakdown,
+      // Cache analytics for 60s — 6 heavy queries, data changes slowly
+      const cacheHash = crypto.createHash('md5').update(`${from}:${to}`).digest('hex').slice(0, 12);
+      const result = await getCachedAnalytics(cacheHash, async () => {
+        const pool = (payload.db as any).pool;
+        const [overview, timeSeries, topSearchKeywords, topViewedProducts, topSoldProducts, eventBreakdown] = await Promise.all([
+          getOverviewStats(pool, range),
+          getTimeSeries(pool, range),
+          getTopSearchKeywords(pool, range),
+          getTopViewedProducts(pool, range),
+          getTopSoldProducts(pool, range),
+          getEventBreakdown(pool, range),
+        ]);
+        return { period: { from, to }, overview, timeSeries, topSearchKeywords, topViewedProducts, topSoldProducts, eventBreakdown };
       });
+
+      res.json(result);
     } catch (error: any) {
       console.error('Error fetching analytics dashboard:', error);
       Sentry.captureException(error, { tags: { route: '/api/analytics/dashboard' } });

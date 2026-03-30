@@ -91,9 +91,11 @@ export async function invalidateProductCache(productId?: string | number): Promi
   try {
     const pipeline = redis.pipeline();
 
-    // Invalidate specific product detail
+    // Invalidate specific product detail (both public and admin variants)
     if (productId) {
       pipeline.del(`${KEY_PREFIX}products:detail:${productId}`);
+      pipeline.del(`${KEY_PREFIX}products:detail:public:${productId}`);
+      pipeline.del(`${KEY_PREFIX}products:detail:admin:${productId}`);
     }
 
     // Invalidate all list caches using SCAN (non-blocking, unlike KEYS)
@@ -111,6 +113,87 @@ export async function invalidateProductCache(productId?: string | number): Promi
   } catch {
     // Cache invalidation is best-effort
   }
+}
+
+// ── Additional cache helpers for heavy endpoints ──
+
+const ANALYTICS_TTL = 60;   // 1 minute — dashboard data changes slowly
+const USER_PROFILE_TTL = 30; // 30 seconds — public profile viewed by many
+const USER_PRODUCTS_TTL = 15; // 15 seconds — seller's product list
+
+/**
+ * Cache analytics dashboard response (expensive: 6 queries).
+ */
+export async function getCachedAnalytics<T>(
+  queryHash: string,
+  fetcher: () => Promise<T>,
+): Promise<T> {
+  return getCached(`analytics:${queryHash}`, ANALYTICS_TTL, fetcher);
+}
+
+/**
+ * Cache user public profile response.
+ */
+export async function getCachedUserProfile<T>(
+  userId: string | number,
+  fetcher: () => Promise<T>,
+): Promise<T> {
+  return getCached(`users:profile:${userId}`, USER_PROFILE_TTL, fetcher);
+}
+
+/**
+ * Cache user's product listings.
+ */
+export async function getCachedUserProducts<T>(
+  userId: string | number,
+  queryHash: string,
+  fetcher: () => Promise<T>,
+): Promise<T> {
+  return getCached(`users:products:${userId}:${queryHash}`, USER_PRODUCTS_TTL, fetcher);
+}
+
+/**
+ * Invalidate user-related caches (after profile update, product change, etc.)
+ */
+export async function invalidateUserCache(userId: string | number): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis || !isRedisConnected()) return;
+
+  try {
+    const pipeline = redis.pipeline();
+    pipeline.del(`${KEY_PREFIX}users:profile:${userId}`);
+
+    // Scan and delete user product caches
+    const pattern = `${KEY_PREFIX}users:products:${userId}:*`;
+    let cursor = '0';
+    do {
+      const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 50);
+      cursor = nextCursor;
+      if (keys.length > 0) pipeline.del(...keys);
+    } while (cursor !== '0');
+
+    await pipeline.exec();
+  } catch { /* best-effort */ }
+}
+
+/**
+ * Invalidate analytics cache.
+ */
+export async function invalidateAnalyticsCache(): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis || !isRedisConnected()) return;
+
+  try {
+    const pattern = `${KEY_PREFIX}analytics:*`;
+    let cursor = '0';
+    const pipeline = redis.pipeline();
+    do {
+      const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 50);
+      cursor = nextCursor;
+      if (keys.length > 0) pipeline.del(...keys);
+    } while (cursor !== '0');
+    await pipeline.exec();
+  } catch { /* best-effort */ }
 }
 
 /**
