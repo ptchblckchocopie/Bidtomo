@@ -2206,7 +2206,7 @@
 
   .product-detail {
     max-width: 1200px;
-    margin: 0 auto;
+    margin: 2.5rem auto;
     border: 1px solid var(--color-border);
     background: rgba(10, 10, 10, 0.85);
     backdrop-filter: blur(12px);
@@ -2324,6 +2324,8 @@
 
     .product-detail {
       padding: 1.5rem;
+      margin-top: 2rem;
+      margin-bottom: 2rem;
     }
   }
 
@@ -2335,6 +2337,8 @@
       max-width: none;
       margin-left: -1rem;
       margin-right: -1rem;
+      margin-top: 1rem;
+      margin-bottom: 1rem;
       padding-left: 1rem;
       padding-right: 1rem;
     }
