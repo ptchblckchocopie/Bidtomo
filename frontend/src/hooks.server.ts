@@ -3,6 +3,7 @@ import { handleErrorWithSentry, sentryHandle } from "@sentry/sveltekit";
 import type { Handle } from "@sveltejs/kit";
 import { json } from "@sveltejs/kit";
 import { env } from "$env/dynamic/private";
+import { env as publicEnv } from "$env/dynamic/public";
 
 /**
  * CSRF protection for bridge API endpoints.
@@ -114,8 +115,58 @@ function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+/**
+ * Content Security Policy header.
+ * Restricts which origins can load scripts, styles, images, and connections.
+ */
+const cspHandler: Handle = async ({ event, resolve }) => {
+  const response = await resolve(event);
+
+  // Skip CSP for bridge API routes (JSON responses)
+  if (event.url.pathname.startsWith('/api/')) {
+    return response;
+  }
+
+  const sseUrl = publicEnv.PUBLIC_SSE_URL || '';
+  // Extract SSE origin if it's cross-origin
+  let sseOrigin = '';
+  if (sseUrl) {
+    try { sseOrigin = new URL(sseUrl).origin; } catch {}
+  }
+
+  const connectSrc = [
+    "'self'",
+    'https://o4510938072219648.ingest.us.sentry.io',
+    sseOrigin,
+  ].filter(Boolean).join(' ');
+
+  const csp = [
+    "default-src 'self'",
+    // Sentry SDK uses eval() for stack traces in dev; unsafe-inline needed for Svelte event handlers
+    `script-src 'self' 'unsafe-inline' https://o4510938072219648.ingest.us.sentry.io`,
+    // unsafe-inline required for Svelte scoped styles + Google Fonts
+    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+    `font-src 'self' https://fonts.gstatic.com`,
+    `img-src 'self' data: blob: https://veent.sgp1.digitaloceanspaces.com https://sgp1.digitaloceanspaces.com`,
+    `media-src 'self' https://veent.sgp1.digitaloceanspaces.com`,
+    `connect-src ${connectSrc}`,
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+
+  response.headers.set('Content-Security-Policy', csp);
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  return response;
+};
+
 // If you have custom handlers, make sure to place them after `sentryHandle()` in the `sequence` function.
-export const handle = sequence(sentryHandle(), ogHandler, csrfProtection);
+export const handle = sequence(sentryHandle(), ogHandler, csrfProtection, cspHandler);
 
 // If you have a custom error handler, pass it to `handleErrorWithSentry`
 export const handleError = handleErrorWithSentry();

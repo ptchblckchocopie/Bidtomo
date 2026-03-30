@@ -2,12 +2,10 @@ import type { LayoutLoad } from './$types';
 import { browser } from '$app/environment';
 
 export const load: LayoutLoad = async () => {
-  // Check for auth on client-side only
+  // Check for auth on client-side only (user_data for UI state; token in httpOnly cookie)
   if (browser) {
-    const token = localStorage.getItem('auth_token');
     const userStr = localStorage.getItem('user_data');
-
-    if (token && userStr) {
+    if (userStr) {
       try {
         const user = JSON.parse(userStr);
         return {

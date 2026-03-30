@@ -1126,20 +1126,10 @@
     acceptSuccess = false;
 
     try {
-      // Queue accept bid through Redis to prevent race conditions
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        acceptError = 'You must be logged in to accept a bid.';
-        accepting = false;
-        return;
-      }
-
       const response = await fetch('/api/bridge/bid/accept', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `JWT ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           productId: data.product.id
         })

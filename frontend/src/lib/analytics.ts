@@ -3,7 +3,6 @@
 // All failures are silently swallowed to never impact user experience
 
 import { browser } from '$app/environment';
-import { getAuthToken } from './stores/auth';
 
 // Session ID: unique per browser tab, persisted in sessionStorage
 function getSessionId(): string {
@@ -62,17 +61,14 @@ function flush(useBeacon = false) {
   const batch = eventQueue.splice(0, MAX_BATCH);
   try {
     const body = JSON.stringify({ events: batch });
-    const token = getAuthToken();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     if (useBeacon) {
-      // sendBeacon for page unload — can't set custom headers, token may be missing
+      // sendBeacon for page unload — cookies sent automatically
       navigator.sendBeacon('/api/bridge/analytics/track', new Blob([body], { type: 'application/json' }));
     } else {
       fetch('/api/bridge/analytics/track', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body,
         credentials: 'include',
         keepalive: true,

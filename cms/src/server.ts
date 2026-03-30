@@ -639,6 +639,16 @@ const start = async () => {
       CREATE INDEX IF NOT EXISTS idx_auto_bids_active_product ON auto_bids(product_id) WHERE active = true;
       CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_void_requests_status ON void_requests(status, created_at);
+
+      -- Relation table indexes for JOIN performance
+      CREATE INDEX IF NOT EXISTS idx_bids_rels_parent_path ON bids_rels(parent_id, path);
+      CREATE INDEX IF NOT EXISTS idx_bids_rels_products ON bids_rels(products_id) WHERE products_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_bids_rels_users ON bids_rels(users_id) WHERE users_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_messages_rels_parent_path ON messages_rels(parent_id, path);
+      CREATE INDEX IF NOT EXISTS idx_messages_rels_users ON messages_rels(users_id) WHERE users_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_messages_rels_products ON messages_rels(products_id) WHERE products_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_products_rels_parent_path ON products_rels(parent_id, path);
+      CREATE INDEX IF NOT EXISTS idx_products_rels_media ON products_rels(parent_id, media_id) WHERE media_id IS NOT NULL;
     `);
 
     await prePool.end();

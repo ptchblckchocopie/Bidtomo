@@ -1,5 +1,4 @@
 import { BRIDGE_URL, getAuthHeaders } from './_shared';
-import { getAuthToken } from '../stores/auth';
 
 export async function deleteMedia(mediaId: string): Promise<boolean> {
   try {
@@ -26,17 +25,10 @@ export async function uploadMedia(file: File): Promise<string | null> {
     const formData = new FormData();
     formData.append('file', file);
 
-    const token = getAuthToken();
-    const headers: HeadersInit = {};
-    if (token) {
-      headers['Authorization'] = `JWT ${token}`;
-    } else {
-      console.error('No auth token found - user may not be logged in');
-    }
-
+    // Auth via httpOnly cookie (credentials: 'include')
+    // Don't set Content-Type — browser sets it with multipart boundary
     const response = await fetch(`${BRIDGE_URL}/api/bridge/media`, {
       method: 'POST',
-      headers,
       credentials: 'include',
       body: formData,
     });

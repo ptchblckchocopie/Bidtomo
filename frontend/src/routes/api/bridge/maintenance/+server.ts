@@ -19,9 +19,9 @@ export const GET: RequestHandler = async () => {
 };
 
 // POST /api/bridge/maintenance - Toggle maintenance mode (admin-only)
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, cookies }) => {
   try {
-    const token = getTokenFromRequest(request);
+    const token = getTokenFromRequest(request, cookies);
     if (!token) {
       return errorResponse('Unauthorized', 401);
     }

@@ -43,10 +43,7 @@
 
       const data = await response.json();
 
-      // Store JWT token and user data in localStorage
-      if (data.token) {
-        localStorage.setItem('auth_token', data.token);
-      }
+      // Store user data for UI state (token is in httpOnly cookie)
       if (data.user) {
         localStorage.setItem('user_data', JSON.stringify(data.user));
       }
@@ -55,7 +52,7 @@
       authStore.set({
         isAuthenticated: true,
         user: data.user,
-        token: data.token,
+        token: null,
       });
 
       // Redirect to the intended page or homepage

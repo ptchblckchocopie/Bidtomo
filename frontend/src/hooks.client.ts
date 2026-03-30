@@ -13,22 +13,21 @@ Sentry.init({
     sendDefaultPii: false
 })
 
-// Initialize auth state when the app loads
+// Initialize auth state from user_data (UI state only; token is in httpOnly cookie)
 if (typeof window !== 'undefined') {
-  const token = localStorage.getItem('auth_token');
-  const userStr = localStorage.getItem('user_data');
+  // Clean up legacy auth_token from before the refactor
+  localStorage.removeItem('auth_token');
 
-  if (token && userStr) {
+  const userStr = localStorage.getItem('user_data');
+  if (userStr) {
     try {
       const user = JSON.parse(userStr);
       authStore.set({
         isAuthenticated: true,
         user,
-        token,
+        token: null,
       });
     } catch (e) {
-      // Invalid data, clear it
-      localStorage.removeItem('auth_token');
       localStorage.removeItem('user_data');
     }
   }

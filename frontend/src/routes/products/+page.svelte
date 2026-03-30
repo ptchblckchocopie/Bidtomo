@@ -357,15 +357,9 @@
     }
 
     try {
-      const token = localStorage.getItem('auth_token');
-      const headers: HeadersInit = {};
-      if (token) {
-        headers['Authorization'] = `JWT ${token}`;
-      }
       const response = await fetch(
         `/api/bridge/bids?where[bidder][equals]=${$authStore.user.id}&limit=1000`,
         {
-          headers,
           credentials: 'include',
         }
       );

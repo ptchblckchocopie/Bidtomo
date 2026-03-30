@@ -1,7 +1,7 @@
 // Internal shared utilities for API modules
 
 import { browser } from '$app/environment';
-import { getAuthToken, authStore } from '../stores/auth';
+import { authStore } from '../stores/auth';
 import { goto } from '$app/navigation';
 
 /**
@@ -41,17 +41,9 @@ function getBridgeUrl(): string {
 
 export const BRIDGE_URL = getBridgeUrl();
 
+// Auth headers — token is in httpOnly cookie, sent via credentials: 'include'
 export function getAuthHeaders(): HeadersInit {
-  const token = getAuthToken();
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  if (token) {
-    headers['Authorization'] = `JWT ${token}`;
-  }
-
-  return headers;
+  return { 'Content-Type': 'application/json' };
 }
 
 // Handle expired/invalid token: auto-logout and redirect to login

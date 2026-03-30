@@ -35,13 +35,9 @@ function createMaintenanceStore() {
     async toggle(enabled: boolean, message = ''): Promise<boolean> {
       if (!browser) return false;
       try {
-        const token = localStorage.getItem('auth_token');
         const res = await fetch('/api/bridge/maintenance', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `JWT ${token}` } : {}),
-          },
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ enabled, message, scheduledAt: null }),
         });
@@ -58,13 +54,9 @@ function createMaintenanceStore() {
     async schedule(scheduledAt: number, message = ''): Promise<boolean> {
       if (!browser) return false;
       try {
-        const token = localStorage.getItem('auth_token');
         const res = await fetch('/api/bridge/maintenance', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `JWT ${token}` } : {}),
-          },
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ enabled: false, scheduledAt, message }),
         });
@@ -81,13 +73,9 @@ function createMaintenanceStore() {
     async cancel(): Promise<boolean> {
       if (!browser) return false;
       try {
-        const token = localStorage.getItem('auth_token');
         const res = await fetch('/api/bridge/maintenance', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `JWT ${token}` } : {}),
-          },
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ enabled: false, scheduledAt: null, message: '' }),
         });
