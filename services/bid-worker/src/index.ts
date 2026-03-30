@@ -376,34 +376,23 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
       return { success: false, error: `Bid must be at least ${minimumBid}` };
     }
 
-    // Create the bid (PayloadCMS schema - relationships are in separate table)
+    // Create bid + relationships + update product in fewer round-trips
+    // Query 1: Insert bid and get ID
     const bidResult = await client.query(
       `INSERT INTO bids (amount, bid_time, censor_name, created_at, updated_at)
        VALUES ($1, NOW(), $2, NOW(), NOW())
        RETURNING id`,
       [job.amount, job.censorName || false]
     );
-
     const bidId = bidResult.rows[0].id;
 
-    // Create relationship to product in bids_rels table
+    // Query 2: Insert both relationships + update product in one round-trip
     await client.query(
-      `INSERT INTO bids_rels (parent_id, path, products_id)
-       VALUES ($1, $2, $3)`,
-      [bidId, 'product', job.productId]
-    );
-
-    // Create relationship to bidder in bids_rels table
-    await client.query(
-      `INSERT INTO bids_rels (parent_id, path, users_id)
-       VALUES ($1, $2, $3)`,
-      [bidId, 'bidder', job.bidderId]
-    );
-
-    // Update product's current bid
-    await client.query(
-      `UPDATE products SET current_bid = $1, updated_at = NOW() WHERE id = $2`,
-      [job.amount, job.productId]
+      `INSERT INTO bids_rels (parent_id, path, products_id, users_id) VALUES
+       ($1, 'product', $2, NULL),
+       ($1, 'bidder', NULL, $3);
+       UPDATE products SET current_bid = $4, updated_at = NOW() WHERE id = $2;`,
+      [bidId, job.productId, job.bidderId, job.amount]
     );
 
     // Auto-extend: if bid arrives near auction end, extend the deadline (unlimited re-extensions)
@@ -426,38 +415,29 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
       }
     }
 
-    // Get bidder name for SSE event
-    const bidderResult = await client.query(
-      `SELECT name FROM users WHERE id = $1`,
-      [job.bidderId]
-    );
-    const bidderName = bidderResult.rows[0]?.name || 'Anonymous';
-
     await client.query('COMMIT');
 
-    // Publish auction extension SSE after commit (fire-and-forget)
-    if (auctionExtended && newEndDate && redisConnected) {
-      try {
-        await redisPub.publish(`sse:product:${job.productId}`, JSON.stringify({
-          type: 'auction_extended',
-          newEndDate,
-          autoExtendMinutes,
-          timestamp: Date.now(),
-        }));
-      } catch (sseError) {
-        log.error({ err: sseError, productId: job.productId }, 'Failed to publish auction extension SSE');
-      }
-    }
+    // Everything below is AFTER commit — bid is durable, now notify fast
 
-    // Invalidate product cache after bid
-    if (redisConnected) {
-      try {
-        await redisPub.publish('cache:invalidate', JSON.stringify({ productId: job.productId }));
-      } catch { /* best-effort */ }
-    }
+    // Get bidder name for SSE (outside transaction — non-blocking)
+    let bidderName = 'Anonymous';
+    try {
+      const bidderResult = await client.query(`SELECT name FROM users WHERE id = $1`, [job.bidderId]);
+      bidderName = bidderResult.rows[0]?.name || 'Anonymous';
+    } catch { /* non-critical */ }
 
     const bidTime = new Date().toISOString();
     log.info({ bidId, productId: job.productId, amount: job.amount }, 'Bid processed');
+
+    // Fire SSE events immediately (fire-and-forget — don't block return)
+    if (redisConnected) {
+      if (auctionExtended && newEndDate) {
+        redisPub.publish(`sse:product:${job.productId}`, JSON.stringify({
+          type: 'auction_extended', newEndDate, autoExtendMinutes, timestamp: Date.now(),
+        })).catch(() => {});
+      }
+      redisPub.publish('cache:invalidate', JSON.stringify({ productId: job.productId })).catch(() => {});
+    }
 
     return { success: true, bidId, bidderName, bidTime };
   } catch (error) {
