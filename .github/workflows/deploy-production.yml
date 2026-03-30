@@ -45,37 +45,49 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           command_timeout: 30m
           script: |
-            set -e
+            set -euo pipefail
             docker network inspect bidtomo-shared >/dev/null 2>&1 || docker network create bidtomo-shared
             cd /opt/bidtomo
 
+            # Validate .env exists
+            if [ ! -f .env ]; then
+              echo "ERROR: .env file not found in /opt/bidtomo"
+              exit 1
+            fi
+
             # Enable maintenance mode via Redis before deploying
             echo "Enabling maintenance mode..."
-            REDIS_PW=$(grep REDIS_PASSWORD .env | cut -d= -f2-)
-            docker exec prod-redis redis-cli -a "$REDIS_PW" --no-auth-warning SET maintenance:status '{"enabled":true,"scheduledAt":null,"message":"Deploying updates..."}' || true
+            REDIS_PW="$(grep '^REDIS_PASSWORD=' .env | cut -d= -f2- || echo '')"
+            docker exec prod-redis redis-cli -a "${REDIS_PW}" --no-auth-warning SET maintenance:status '{"enabled":true,"scheduledAt":null,"message":"Deploying updates..."}' || true
 
             git fetch origin
             git checkout main
             git pull origin main
-            export GIT_SHA=$(git rev-parse --short HEAD)
+            export GIT_SHA="$(git rev-parse --short HEAD)"
             docker compose -f docker-compose.prod.yml build
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker compose -f docker-compose.prod.yml exec -T cms npm run migrate
 
             # Wait for CMS to be healthy before disabling maintenance
             echo "Waiting for CMS to be healthy..."
+            CMS_HEALTHY=false
             for i in $(seq 1 30); do
-              HEALTH=$(docker exec prod-cms curl -sf http://localhost:3001/api/health 2>/dev/null || echo '{}')
-              if echo "$HEALTH" | grep -q '"status":"ok"'; then
+              HEALTH="$(docker exec prod-cms curl -sf http://localhost:3001/api/health 2>/dev/null || echo '{}')"
+              if echo "${HEALTH}" | grep -q '"status":"ok"'; then
                 echo "CMS is healthy!"
+                CMS_HEALTHY=true
                 break
               fi
-              echo "Attempt $i/30 — CMS not ready, waiting 5s..."
+              echo "Attempt ${i}/30 — CMS not ready, waiting 5s..."
               sleep 5
             done
 
+            if [ "${CMS_HEALTHY}" = false ]; then
+              echo "WARNING: CMS did not become healthy after 30 attempts"
+            fi
+
             # Disable maintenance mode
             echo "Disabling maintenance mode..."
-            docker exec prod-redis redis-cli -a "$REDIS_PW" --no-auth-warning SET maintenance:status '{"enabled":false,"scheduledAt":null,"message":""}' || true
+            docker exec prod-redis redis-cli -a "${REDIS_PW}" --no-auth-warning SET maintenance:status '{"enabled":false,"scheduledAt":null,"message":""}' || true
 
-            echo "Production deployed! Release: $GIT_SHA"
+            echo "Production deployed! Release: ${GIT_SHA}"

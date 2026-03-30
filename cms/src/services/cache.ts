@@ -96,11 +96,16 @@ export async function invalidateProductCache(productId?: string | number): Promi
       pipeline.del(`${KEY_PREFIX}products:detail:${productId}`);
     }
 
-    // Invalidate all list caches (pattern scan)
-    const listKeys = await redis.keys(`${KEY_PREFIX}products:list:*`);
-    if (listKeys.length > 0) {
-      pipeline.del(...listKeys);
-    }
+    // Invalidate all list caches using SCAN (non-blocking, unlike KEYS)
+    const pattern = `${KEY_PREFIX}products:list:*`;
+    let cursor = '0';
+    do {
+      const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+      if (keys.length > 0) {
+        pipeline.del(...keys);
+      }
+    } while (cursor !== '0');
 
     await pipeline.exec();
   } catch {

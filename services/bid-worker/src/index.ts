@@ -1136,10 +1136,23 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
 
 let schedulerRunning = false;
 let auctionCloseInterval: ReturnType<typeof setInterval> | null = null;
+const AUCTION_LOCK_KEY = 'auction:close:lock';
+const AUCTION_LOCK_TTL = 30; // seconds — must be longer than max processing time
+const WORKER_ID = `worker-${process.pid}-${Date.now()}`;
 let processingBid = false; // S9: track if a bid is being processed
 
 async function closeExpiredAuctions(): Promise<void> {
-  if (schedulerRunning) return; // Prevent overlapping runs
+  if (schedulerRunning) return; // Prevent overlapping runs within this process
+
+  // Distributed lock — only one worker instance runs auction close per cycle
+  try {
+    const acquired = await redisPub.set(AUCTION_LOCK_KEY, WORKER_ID, 'EX', AUCTION_LOCK_TTL, 'NX');
+    if (!acquired) return; // Another worker holds the lock
+  } catch (lockErr) {
+    log.warn({ err: lockErr }, 'Failed to acquire auction close lock, skipping cycle');
+    return;
+  }
+
   schedulerRunning = true;
 
   try {
@@ -1166,6 +1179,12 @@ async function closeExpiredAuctions(): Promise<void> {
     Sentry.captureException(error, { tags: { route: 'worker.closeExpiredAuctions.outer' } });
   } finally {
     schedulerRunning = false;
+    // Release lock early so next cycle can run sooner
+    try {
+      // Only release if we still own it (prevent deleting another worker's lock)
+      const owner = await redisPub.get(AUCTION_LOCK_KEY);
+      if (owner === WORKER_ID) await redisPub.del(AUCTION_LOCK_KEY);
+    } catch { /* best-effort release */ }
   }
 
   // Also check for expired void request offers

@@ -1,14 +1,12 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth';
 import { validate, typingSchema } from '../middleware/validate';
-import { publishTypingStatus } from '../redis';
+import { publishTypingStatus, getRedisClient, isRedisConnected } from '../redis';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-// In-memory typing status store
-// Structure: { 'productId:userId': timestamp }
-const typingStatus = new Map<string, number>();
-const TYPING_TIMEOUT = 3000; // 3 seconds
+const TYPING_TTL = 5; // seconds — auto-expires if client stops sending
+const TYPING_KEY_PREFIX = 'typing:';
 
 export function createTypingRouter(): Router {
   const router = Router();
@@ -19,13 +17,16 @@ export function createTypingRouter(): Router {
       const userId = (req as any).userId;
       const { product, isTyping } = req.body;
 
-      const key = `${product}:${userId}`;
       const productId = typeof product === 'string' ? parseInt(product, 10) : product;
+      const redis = getRedisClient();
 
-      if (isTyping) {
-        typingStatus.set(key, Date.now());
-      } else {
-        typingStatus.delete(key);
+      if (redis && isRedisConnected()) {
+        const key = `${TYPING_KEY_PREFIX}${productId}:${userId}`;
+        if (isTyping) {
+          await redis.setex(key, TYPING_TTL, '1');
+        } else {
+          await redis.del(key);
+        }
       }
 
       // Publish typing status via SSE for real-time updates
@@ -43,20 +44,25 @@ export function createTypingRouter(): Router {
     try {
       const { productId } = req.params;
       const currentUserId = (req as any).userId;
+      const redis = getRedisClient();
 
-      const now = Date.now();
       const typingUsers: string[] = [];
 
-      // Clean up expired typing statuses and find active ones
-      for (const [key, timestamp] of typingStatus.entries()) {
-        if (now - timestamp > TYPING_TIMEOUT) {
-          typingStatus.delete(key);
-        } else if (key.startsWith(`${productId}:`)) {
-          const userId = key.split(':')[1];
-          if (userId !== currentUserId) {
-            typingUsers.push(userId);
+      if (redis && isRedisConnected()) {
+        // SCAN for all typing keys for this product
+        const pattern = `${TYPING_KEY_PREFIX}${productId}:*`;
+        let cursor = '0';
+        do {
+          const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 50);
+          cursor = nextCursor;
+          for (const key of keys) {
+            // Extract userId from key: typing:productId:userId
+            const userId = key.split(':').pop();
+            if (userId && userId !== currentUserId) {
+              typingUsers.push(userId);
+            }
           }
-        }
+        } while (cursor !== '0');
       }
 
       res.json({ typing: typingUsers.length > 0, users: typingUsers });
