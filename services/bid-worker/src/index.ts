@@ -376,8 +376,7 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
       return { success: false, error: `Bid must be at least ${minimumBid}` };
     }
 
-    // Create bid + relationships + update product in fewer round-trips
-    // Query 1: Insert bid and get ID
+    // Create bid and relationships
     const bidResult = await client.query(
       `INSERT INTO bids (amount, bid_time, censor_name, created_at, updated_at)
        VALUES ($1, NOW(), $2, NOW(), NOW())
@@ -386,13 +385,18 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
     );
     const bidId = bidResult.rows[0].id;
 
-    // Query 2: Insert both relationships + update product in one round-trip
+    // Insert both relationships in one query
     await client.query(
       `INSERT INTO bids_rels (parent_id, path, products_id, users_id) VALUES
        ($1, 'product', $2, NULL),
-       ($1, 'bidder', NULL, $3);
-       UPDATE products SET current_bid = $4, updated_at = NOW() WHERE id = $2;`,
-      [bidId, job.productId, job.bidderId, job.amount]
+       ($1, 'bidder', NULL, $3)`,
+      [bidId, job.productId, job.bidderId]
+    );
+
+    // Update product's current bid
+    await client.query(
+      `UPDATE products SET current_bid = $1, updated_at = NOW() WHERE id = $2`,
+      [job.amount, job.productId]
     );
 
     // Auto-extend: if bid arrives near auction end, extend the deadline (unlimited re-extensions)
