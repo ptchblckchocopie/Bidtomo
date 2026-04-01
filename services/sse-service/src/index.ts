@@ -16,6 +16,7 @@ const app = express();
 const PORT = parseInt(process.env.PORT || process.env.SSE_PORT || '3002', 10);
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const REDIS_PREFIX = process.env.REDIS_PREFIX || '';
+const INSTANCE_ID = `sse-${process.pid}-${Date.now().toString(36)}`;
 const CORS_ORIGIN = process.env.SSE_CORS_ORIGIN || 'http://localhost:5173';
 
 // Payload v2 hashes the secret with SHA-256 before signing JWTs
@@ -63,6 +64,19 @@ function initRedis(): Redis {
     console.log('[SSE] Redis reconnecting...');
   });
 
+  return client;
+}
+
+// Separate Redis client for connection count tracking (subscriber can't publish)
+let redisPub: Redis;
+
+function initRedisPub(): Redis {
+  const client = new Redis(REDIS_URL, {
+    retryStrategy: (times) => Math.min(times * 500, 5000),
+    maxRetriesPerRequest: 3,
+    lazyConnect: true,
+  });
+  client.on('error', (err) => console.error('[SSE] Redis pub error:', err.message));
   return client;
 }
 
@@ -154,10 +168,23 @@ app.get('/ping', (_req, res) => {
   res.status(redisConnected ? 200 : 503).json({ status: redisConnected ? 'ok' : 'down', ts: Date.now() });
 });
 
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
   const mem = process.memoryUsage();
+
+  // Report this instance's stats to Redis (TTL 60s — auto-expires if instance dies)
+  if (redisConnected && redisPub) {
+    try {
+      await redisPub.setex(
+        `${REDIS_PREFIX}sse:instance:${INSTANCE_ID}`,
+        60,
+        JSON.stringify({ connections: globalConnectionCount, pid: process.pid, ts: Date.now() })
+      );
+    } catch { /* non-critical */ }
+  }
+
   res.json({
     status: redisConnected ? 'ok' : 'degraded',
+    instanceId: INSTANCE_ID,
     globalConnectionCount,
     maxGlobalConnections: MAX_GLOBAL_CONNECTIONS,
     productChannels: productConnections.size,
@@ -169,6 +196,73 @@ app.get('/health', (req, res) => {
     uptimeSeconds: Math.round(process.uptime()),
     timestamp: Date.now(),
   });
+});
+
+// Cluster health — aggregates all SSE instances (for load balancer monitoring)
+app.get('/health/cluster', async (req, res) => {
+  if (!redisConnected || !redisPub) {
+    return res.json({ instances: [{ id: INSTANCE_ID, connections: globalConnectionCount }], totalConnections: globalConnectionCount });
+  }
+
+  try {
+    const instances: { id: string; connections: number; pid: number; ts: number }[] = [];
+    let cursor = '0';
+    const pattern = `${REDIS_PREFIX}sse:instance:*`;
+
+    do {
+      const [nextCursor, keys] = await redisPub.scan(cursor, 'MATCH', pattern, 'COUNT', 50);
+      cursor = nextCursor;
+      for (const key of keys) {
+        const data = await redisPub.get(key);
+        if (data) {
+          const parsed = JSON.parse(data);
+          instances.push({ id: key.replace(`${REDIS_PREFIX}sse:instance:`, ''), ...parsed });
+        }
+      }
+    } while (cursor !== '0');
+
+    const totalConnections = instances.reduce((sum, i) => sum + i.connections, 0);
+    res.json({ instances, totalConnections });
+  } catch (error) {
+    res.json({ instances: [{ id: INSTANCE_ID, connections: globalConnectionCount }], totalConnections: globalConnectionCount });
+  }
+});
+
+// Prometheus-compatible metrics endpoint
+app.get('/metrics', (_req, res) => {
+  const mem = process.memoryUsage();
+  const metrics = [
+    `# HELP sse_connections_total Total active SSE connections`,
+    `# TYPE sse_connections_total gauge`,
+    `sse_connections_total ${globalConnectionCount}`,
+    `# HELP sse_connections_product Active product channel connections`,
+    `# TYPE sse_connections_product gauge`,
+    `sse_connections_product ${Array.from(productConnections.values()).reduce((sum, s) => sum + s.size, 0)}`,
+    `# HELP sse_connections_user Active user channel connections`,
+    `# TYPE sse_connections_user gauge`,
+    `sse_connections_user ${Array.from(userConnections.values()).reduce((sum, s) => sum + s.size, 0)}`,
+    `# HELP sse_connections_global Active global channel connections`,
+    `# TYPE sse_connections_global gauge`,
+    `sse_connections_global ${globalConnections.size}`,
+    `# HELP sse_product_channels Number of active product channels`,
+    `# TYPE sse_product_channels gauge`,
+    `sse_product_channels ${productConnections.size}`,
+    `# HELP sse_redis_connected Whether Redis is connected`,
+    `# TYPE sse_redis_connected gauge`,
+    `sse_redis_connected ${redisConnected ? 1 : 0}`,
+    `# HELP process_memory_rss_bytes Process RSS memory in bytes`,
+    `# TYPE process_memory_rss_bytes gauge`,
+    `process_memory_rss_bytes ${mem.rss}`,
+    `# HELP process_memory_heap_used_bytes Process heap used in bytes`,
+    `# TYPE process_memory_heap_used_bytes gauge`,
+    `process_memory_heap_used_bytes ${mem.heapUsed}`,
+    `# HELP process_uptime_seconds Process uptime in seconds`,
+    `# TYPE process_uptime_seconds gauge`,
+    `process_uptime_seconds ${Math.round(process.uptime())}`,
+  ].join('\n');
+
+  res.setHeader('Content-Type', 'text/plain; version=0.0.4');
+  res.send(metrics + '\n');
 });
 
 // Notify all clients about Redis status
@@ -555,6 +649,8 @@ function watchRedisConnection() {
 async function start() {
   try {
     redis = initRedis();
+    redisPub = initRedisPub();
+    await redisPub.connect().catch(() => console.warn('[SSE] Redis pub client failed to connect'));
 
     await new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
@@ -639,14 +735,24 @@ async function start() {
 Sentry.setupExpressErrorHandler(app);
 
 process.on('SIGTERM', async () => {
-  console.log('[SSE] Shutting down...');
+  console.log('[SSE] SIGTERM received, shutting down...');
+  // Remove instance from Redis
+  if (redisPub) {
+    try { await redisPub.del(`${REDIS_PREFIX}sse:instance:${INSTANCE_ID}`); } catch {}
+    redisPub.quit();
+  }
   if (redis) redis.quit();
   await Sentry.flush(2000);
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-  console.log('[SSE] Shutting down...');
+  console.log('[SSE] SIGINT received, shutting down...');
+  // Remove instance from Redis
+  if (redisPub) {
+    try { await redisPub.del(`${REDIS_PREFIX}sse:instance:${INSTANCE_ID}`); } catch {}
+    redisPub.quit();
+  }
   if (redis) redis.quit();
   await Sentry.flush(2000);
   process.exit(0);

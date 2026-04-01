@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/requireAuth';
 import { validate, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema } from '../middleware/validate';
 import { publishProductUpdate, publishMessageNotification } from '../redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from '../services/emailService';
+import { sendError, sendSuccess } from '../middleware/response';
 
 interface VoidRequestsDeps {
   payload: Payload;
@@ -27,7 +28,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
       });
 
       if (!transaction) {
-        return res.status(404).json({ error: 'Transaction not found' });
+        return sendError(res, 404, 'Transaction not found');
       }
 
       const buyerId = typeof transaction.buyer === 'object' ? transaction.buyer.id : transaction.buyer;
@@ -35,20 +36,18 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
       const productId = typeof transaction.product === 'object' ? transaction.product.id : transaction.product;
 
       if (userId !== buyerId && userId !== sellerId) {
-        return res.status(403).json({ error: 'Only buyer or seller can create void request' });
+        return sendError(res, 403, 'Only buyer or seller can create void request');
       }
 
       if (!['pending', 'in_progress'].includes(transaction.status)) {
-        return res.status(400).json({ error: `Cannot void transaction with status: ${transaction.status}` });
+        return sendError(res, 400, `Cannot void transaction with status: ${transaction.status}`);
       }
 
       // Cooldown: reject void requests on transactions created less than 1 hour ago
       const transactionCreatedAt = new Date(transaction.createdAt).getTime();
       const oneHourMs = 60 * 60 * 1000;
       if (Date.now() - transactionCreatedAt < oneHourMs) {
-        return res.status(400).json({
-          error: 'Void requests can only be submitted at least 1 hour after the transaction was created',
-        });
+        return sendError(res, 400, 'Void requests can only be submitted at least 1 hour after the transaction was created');
       }
 
       // Check if there's already a pending void request
@@ -62,7 +61,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
       });
 
       if (existingRequests.docs.length > 0) {
-        return res.status(400).json({ error: 'There is already a pending void request for this transaction' });
+        return sendError(res, 400, 'There is already a pending void request for this transaction');
       }
 
       // Rate limit: prevent spam
@@ -77,7 +76,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
       });
 
       if (recentUserRequests.totalDocs >= 5) {
-        return res.status(429).json({ error: 'Too many void requests. Please try again later.' });
+        return sendError(res, 429, 'Too many void requests. Please try again later.');
       }
 
       const initiatorRole = userId === sellerId ? 'seller' : 'buyer';
@@ -122,8 +121,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
       const trackEvent = (global as any).trackEvent;
       if (trackEvent) trackEvent('void_request_created', userId, { productId, transactionId, voidRequestId: voidRequest.id });
 
-      res.json({
-        success: true,
+      sendSuccess(res, {
         voidRequestId: voidRequest.id,
         message: 'Void request created successfully',
       });
@@ -134,7 +132,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         scope.setTag('route', '/api/void-request/create');
         Sentry.captureException(error);
       });
-      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+      sendError(res, 500, isProduction ? 'Internal server error' : error.message);
     }
   });
 
@@ -151,11 +149,11 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
       });
 
       if (!voidRequest) {
-        return res.status(404).json({ error: 'Void request not found' });
+        return sendError(res, 404, 'Void request not found');
       }
 
       if (voidRequest.status !== 'pending') {
-        return res.status(400).json({ error: `Void request is already ${voidRequest.status}` });
+        return sendError(res, 400, `Void request is already ${voidRequest.status}`);
       }
 
       const transaction = voidRequest.transaction;
@@ -164,11 +162,11 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
       const initiatorId = typeof voidRequest.initiator === 'object' ? voidRequest.initiator.id : voidRequest.initiator;
 
       if (userId === initiatorId) {
-        return res.status(403).json({ error: 'Cannot respond to your own void request' });
+        return sendError(res, 403, 'Cannot respond to your own void request');
       }
 
       if (userId !== buyerId && userId !== sellerId) {
-        return res.status(403).json({ error: 'Only buyer or seller can respond to void request' });
+        return sendError(res, 403, 'Only buyer or seller can respond to void request');
       }
 
       const productId = typeof voidRequest.product === 'object' ? voidRequest.product.id : voidRequest.product;
@@ -217,8 +215,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         const trackEvent = (global as any).trackEvent;
         if (trackEvent) trackEvent('void_request_responded', userId, { voidRequestId, action: 'approve', productId });
 
-        res.json({
-          success: true,
+        sendSuccess(res, {
           message: 'Void request approved',
           requiresSellerChoice: true,
           isSeller,
@@ -256,8 +253,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         const trackEvent = (global as any).trackEvent;
         if (trackEvent) trackEvent('void_request_responded', userId, { voidRequestId, action: 'reject', productId });
 
-        res.json({
-          success: true,
+        sendSuccess(res, {
           message: 'Void request rejected',
         });
       }
@@ -268,7 +264,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         scope.setTag('route', '/api/void-request/respond');
         Sentry.captureException(error);
       });
-      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+      sendError(res, 500, isProduction ? 'Internal server error' : error.message);
     }
   });
 
@@ -285,22 +281,22 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
       });
 
       if (!voidRequest) {
-        return res.status(404).json({ error: 'Void request not found' });
+        return sendError(res, 404, 'Void request not found');
       }
 
       if (voidRequest.status !== 'approved') {
-        return res.status(400).json({ error: 'Void request must be approved first' });
+        return sendError(res, 400, 'Void request must be approved first');
       }
 
       if (voidRequest.sellerChoice) {
-        return res.status(400).json({ error: 'Seller choice already made' });
+        return sendError(res, 400, 'Seller choice already made');
       }
 
       const transaction = voidRequest.transaction;
       const sellerId = typeof transaction.seller === 'object' ? transaction.seller.id : transaction.seller;
 
       if (userId !== sellerId) {
-        return res.status(403).json({ error: 'Only seller can make this choice' });
+        return sendError(res, 403, 'Only seller can make this choice');
       }
 
       const productId = typeof voidRequest.product === 'object' ? voidRequest.product.id : voidRequest.product;
@@ -368,8 +364,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         const trackEvent = (global as any).trackEvent;
         if (trackEvent) trackEvent('seller_choice_made', userId, { voidRequestId, choice: 'restart_bidding', productId });
 
-        res.json({
-          success: true,
+        sendSuccess(res, {
           message: 'Auction restarted successfully',
           newEndDate,
           notifiedBidders: notifiedBidders.size,
@@ -386,6 +381,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
 
         if (bids.docs.length < 2) {
           return res.status(400).json({
+            success: false,
             error: 'No second bidder available. Please restart the bidding instead.',
             onlyOption: 'restart_bidding',
           });
@@ -443,8 +439,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         const trackEvent = (global as any).trackEvent;
         if (trackEvent) trackEvent('seller_choice_made', userId, { voidRequestId, choice: 'offer_second_bidder', productId });
 
-        res.json({
-          success: true,
+        sendSuccess(res, {
           message: 'Offer sent to second highest bidder',
           secondBidder: {
             id: secondBidderId,
@@ -460,7 +455,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         scope.setTag('route', '/api/void-request/seller-choice');
         Sentry.captureException(error);
       });
-      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+      sendError(res, 500, isProduction ? 'Internal server error' : error.message);
     }
   });
 
@@ -477,15 +472,15 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
       });
 
       if (!voidRequest) {
-        return res.status(404).json({ error: 'Void request not found' });
+        return sendError(res, 404, 'Void request not found');
       }
 
       if (voidRequest.sellerChoice !== 'offer_second_bidder') {
-        return res.status(400).json({ error: 'No offer available for this void request' });
+        return sendError(res, 400, 'No offer available for this void request');
       }
 
       if (!voidRequest.secondBidderOffer || voidRequest.secondBidderOffer.offerStatus !== 'pending') {
-        return res.status(400).json({ error: 'Offer is not pending' });
+        return sendError(res, 400, 'Offer is not pending');
       }
 
       const offeredToId = typeof voidRequest.secondBidderOffer.offeredTo === 'object'
@@ -493,7 +488,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         : voidRequest.secondBidderOffer.offeredTo;
 
       if (userId !== offeredToId) {
-        return res.status(403).json({ error: 'Only the offered bidder can respond' });
+        return sendError(res, 403, 'Only the offered bidder can respond');
       }
 
       const transaction = voidRequest.transaction;
@@ -518,7 +513,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
 
           if (lockedProduct.rows.length === 0 || lockedProduct.rows[0].status === 'sold') {
             await client.query('ROLLBACK');
-            return res.status(400).json({ error: 'Product is no longer available' });
+            return sendError(res, 400, 'Product is no longer available');
           }
 
           await client.query(
@@ -535,7 +530,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
             scope.setTag('route', '/api/void-request/second-bidder-response.lock');
             Sentry.captureException(lockError);
           });
-          return res.status(500).json({ error: isProduction ? 'Internal server error' : lockError.message });
+          return sendError(res, 500, isProduction ? 'Internal server error' : lockError.message);
         } finally {
           client.release();
         }
@@ -615,8 +610,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         const trackEvent = (global as any).trackEvent;
         if (trackEvent) trackEvent('second_bidder_responded', userId, { voidRequestId, action: 'accept', productId });
 
-        res.json({
-          success: true,
+        sendSuccess(res, {
           message: 'Offer accepted successfully',
           transactionId: newTransaction.id,
         });
@@ -658,8 +652,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         const trackEvent = (global as any).trackEvent;
         if (trackEvent) trackEvent('second_bidder_responded', userId, { voidRequestId, action: 'decline', productId });
 
-        res.json({
-          success: true,
+        sendSuccess(res, {
           message: 'Offer declined',
           suggestRestartBidding: true,
         });
@@ -671,7 +664,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         scope.setTag('route', '/api/void-request/second-bidder-response');
         Sentry.captureException(error);
       });
-      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+      sendError(res, 500, isProduction ? 'Internal server error' : error.message);
     }
   });
 
@@ -688,14 +681,14 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
       });
 
       if (!transaction) {
-        return res.status(404).json({ error: 'Transaction not found' });
+        return sendError(res, 404, 'Transaction not found');
       }
 
       const buyerId = typeof transaction.buyer === 'object' ? transaction.buyer.id : transaction.buyer;
       const sellerId = typeof transaction.seller === 'object' ? transaction.seller.id : transaction.seller;
 
       if (userId !== buyerId && userId !== sellerId) {
-        return res.status(403).json({ error: 'You are not authorized to view this void request' });
+        return sendError(res, 403, 'You are not authorized to view this void request');
       }
 
       const voidRequests = await payload.find({
@@ -705,13 +698,12 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         depth: 2,
       });
 
-      res.json({
-        success: true,
+      sendSuccess(res, {
         voidRequests: voidRequests.docs,
       });
     } catch (error: any) {
       console.error('Error fetching void request:', error);
-      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+      sendError(res, 500, isProduction ? 'Internal server error' : error.message);
     }
   });
 

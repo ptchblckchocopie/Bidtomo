@@ -111,6 +111,48 @@ services:
     networks:
       - prod-internal
 
+  # Redis replica — read-only copy for failover
+  redis-replica:
+    image: redis:7-alpine
+    container_name: prod-redis-replica
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    command: redis-server --replicaof redis 6379 --masterauth ${REDIS_PASSWORD} --requirepass ${REDIS_PASSWORD} --appendonly yes
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - prod-internal
+
+  # Redis Sentinel — monitors master and handles automatic failover
+  redis-sentinel:
+    image: redis:7-alpine
+    container_name: prod-redis-sentinel
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    entrypoint: >
+      sh -c '
+        echo "sentinel monitor mymaster redis 6379 1" > /tmp/sentinel.conf &&
+        echo "sentinel down-after-milliseconds mymaster 5000" >> /tmp/sentinel.conf &&
+        echo "sentinel failover-timeout mymaster 10000" >> /tmp/sentinel.conf &&
+        echo "sentinel auth-pass mymaster ${REDIS_PASSWORD}" >> /tmp/sentinel.conf &&
+        echo "sentinel resolve-hostnames yes" >> /tmp/sentinel.conf &&
+        redis-sentinel /tmp/sentinel.conf
+      '
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - prod-internal
+
   # PayloadCMS Backend (PM2 cluster mode — uses all available CPUs)
   cms:
     deploy:
@@ -227,6 +269,51 @@ services:
     networks:
       - prod-internal
 
+  # Prometheus — metrics collection
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prod-prometheus
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=1GB'
+    networks:
+      - prod-internal
+
+  # Grafana — metrics dashboards & alerting
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: prod-grafana
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-bidtomo2026}
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3003}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3003:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - prod-internal
+
 networks:
   bidtomo-shared:
     external: true
@@ -238,3 +325,5 @@ volumes:
   redis_data:
   caddy_data:
   caddy_config:
+  prometheus_data:
+  grafana_data:

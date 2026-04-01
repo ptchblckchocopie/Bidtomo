@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/requireAuth';
 import { validate, bidQueueSchema, bidAcceptSchema } from '../middleware/validate';
 import { bidLimiter } from '../limiters';
 import { queueBid, queueAcceptBid, publishProductUpdate } from '../redis';
+import { sendError, sendSuccess } from '../middleware/response';
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -31,25 +32,25 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
       });
 
       if (!product) {
-        return res.status(404).json({ error: 'Product not found' });
+        return sendError(res, 404, 'Product not found');
       }
 
       if (product.status !== 'available') {
-        return res.status(400).json({ error: `Product is ${product.status}` });
+        return sendError(res, 400, `Product is ${product.status}`);
       }
 
       if (!product.active) {
-        return res.status(400).json({ error: 'Product is not active' });
+        return sendError(res, 400, 'Product is not active');
       }
 
       // Check auction end date (with 2-second buffer)
       const auctionEnd = new Date(product.auctionEndDate).getTime();
       const now = Date.now();
       if (auctionEnd <= now) {
-        return res.status(400).json({ error: 'Auction has ended' });
+        return sendError(res, 400, 'Auction has ended');
       }
       if (auctionEnd - now < 2000) {
-        return res.status(400).json({ error: 'Auction is ending, bid cannot be processed in time' });
+        return sendError(res, 400, 'Auction is ending, bid cannot be processed in time');
       }
 
       // Validate bid amount
@@ -60,6 +61,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
 
       if (amount < minimumBid) {
         return res.status(400).json({
+          success: false,
           error: `Bid must be at least ${minimumBid}`,
           minimumBid,
           currentBid,
@@ -69,7 +71,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
       // Check seller is not bidding on their own product
       const sellerId = typeof product.seller === 'object' ? product.seller.id : product.seller;
       if (sellerId === userId) {
-        return res.status(400).json({ error: 'You cannot bid on your own product' });
+        return sendError(res, 400, 'You cannot bid on your own product');
       }
 
       // Queue the bid
@@ -98,24 +100,24 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
 
           if (lockedResult.rows.length === 0) {
             await client.query('ROLLBACK');
-            return res.status(404).json({ error: 'Product not found' });
+            return sendError(res, 404, 'Product not found');
           }
 
           const locked = lockedResult.rows[0];
 
           if (locked.status !== 'available') {
             await client.query('ROLLBACK');
-            return res.status(400).json({ error: `Product is ${locked.status}` });
+            return sendError(res, 400, `Product is ${locked.status}`);
           }
 
           if (!locked.active) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ error: 'Product is not active' });
+            return sendError(res, 400, 'Product is not active');
           }
 
           if (new Date(locked.auction_end_date) <= new Date()) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ error: 'Auction has ended' });
+            return sendError(res, 400, 'Auction has ended');
           }
 
           const lockedCurrentBid = Number(locked.current_bid) || 0;
@@ -127,7 +129,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
 
           if (amount < lockedMinimumBid) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ error: `Bid must be at least ${lockedMinimumBid}` });
+            return sendError(res, 400, `Bid must be at least ${lockedMinimumBid}`);
           }
 
           // Shill-bidding check under lock
@@ -137,7 +139,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
           );
           if (sellerCheck.rows.length > 0 && sellerCheck.rows[0].users_id === userId) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ error: 'You cannot bid on your own product' });
+            return sendError(res, 400, 'You cannot bid on your own product');
           }
 
           // Create bid (Payload v2 schema)
@@ -183,8 +185,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
             bidTime,
           });
 
-          return res.json({
-            success: true,
+          return sendSuccess(res, {
             bidId,
             fallback: true,
             message: 'Bid placed successfully (direct)',
@@ -197,14 +198,13 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
             scope.setTag('route', '/api/bid/queue.fallback');
             Sentry.captureException(error);
           });
-          return res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+          return sendError(res, 500, isProduction ? 'Internal server error' : error.message);
         } finally {
           client.release();
         }
       }
 
-      res.json({
-        success: true,
+      sendSuccess(res, {
         jobId: result.jobId,
         queued: true,
         message: 'Bid queued for processing',
@@ -216,7 +216,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
         scope.setTag('route', '/api/bid/queue');
         Sentry.captureException(error);
       });
-      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+      sendError(res, 500, isProduction ? 'Internal server error' : error.message);
     }
   });
 
@@ -232,16 +232,16 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
       });
 
       if (!product) {
-        return res.status(404).json({ error: 'Product not found' });
+        return sendError(res, 404, 'Product not found');
       }
 
       const sellerId = typeof product.seller === 'object' ? product.seller.id : product.seller;
       if (sellerId !== userId) {
-        return res.status(403).json({ error: 'Only the seller can accept bids' });
+        return sendError(res, 403, 'Only the seller can accept bids');
       }
 
       if (product.status !== 'available') {
-        return res.status(400).json({ error: `Product is already ${product.status}` });
+        return sendError(res, 400, `Product is already ${product.status}`);
       }
 
       const bids = await payload.find({
@@ -252,7 +252,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
       });
 
       if (bids.docs.length === 0) {
-        return res.status(400).json({ error: 'No bids to accept' });
+        return sendError(res, 400, 'No bids to accept');
       }
 
       const highestBid: any = bids.docs[0];
@@ -282,14 +282,14 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
 
           if (freshResult.rows.length === 0) {
             await client.query('ROLLBACK');
-            return res.status(404).json({ error: 'Product not found' });
+            return sendError(res, 404, 'Product not found');
           }
 
           const freshProduct = freshResult.rows[0];
 
           if (freshProduct.status !== 'available') {
             await client.query('ROLLBACK');
-            return res.status(400).json({ error: `Product is already ${freshProduct.status}` });
+            return sendError(res, 400, `Product is already ${freshProduct.status}`);
           }
 
           await client.query(
@@ -351,8 +351,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
           const trackEvent = (global as any).trackEvent;
           if (trackEvent) trackEvent('bid_accepted', sellerId, { productId, bidderId: highestBidderId, amount: highestBid.amount });
 
-          return res.json({
-            success: true,
+          return sendSuccess(res, {
             fallback: true,
             message: 'Bid accepted successfully (direct)',
           });
@@ -364,7 +363,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
             scope.setTag('route', '/api/bid/accept.fallback');
             Sentry.captureException(error);
           });
-          return res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+          return sendError(res, 500, isProduction ? 'Internal server error' : error.message);
         } finally {
           client.release();
         }
@@ -373,8 +372,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
       const trackEvent = (global as any).trackEvent;
       if (trackEvent) trackEvent('bid_accepted', userId, { productId, bidderId: highestBidderId, amount: highestBid.amount });
 
-      res.json({
-        success: true,
+      sendSuccess(res, {
         jobId: result.jobId,
         queued: true,
         message: 'Accept bid queued for processing',
@@ -386,7 +384,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
         scope.setTag('route', '/api/bid/accept');
         Sentry.captureException(error);
       });
-      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+      sendError(res, 500, isProduction ? 'Internal server error' : error.message);
     }
   });
 
@@ -396,7 +394,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
     try {
       const productId = parseInt(req.params.productId, 10);
       if (isNaN(productId)) {
-        return res.status(400).json({ error: 'Invalid product ID' });
+        return sendError(res, 400, 'Invalid product ID');
       }
 
       const pool = (payload.db as any).pool;
@@ -443,7 +441,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
         scope.setTag('route', '/api/product-bids');
         Sentry.captureException(error);
       });
-      res.status(500).json({ error: isProduction ? 'Internal server error' : error.message });
+      sendError(res, 500, isProduction ? 'Internal server error' : error.message);
     }
   });
 

@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'cms'
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: ['cms:3001']
+
+  - job_name: 'sse-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['sse-service:3002']
+
+  - job_name: 'bid-worker'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['bid-worker:3003']
