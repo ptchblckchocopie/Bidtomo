@@ -38,7 +38,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 export default buildConfig({
   rateLimit: {
-    max: parseInt(process.env.PAYLOAD_RATE_LIMIT_MAX || '500', 10),
+    max: parseInt(process.env.PAYLOAD_RATE_LIMIT_MAX || '10000', 10),
     window: 15 * 60 * 1000, // 15 minutes
   },
   serverURL: process.env.SERVER_URL || '',
