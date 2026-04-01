@@ -116,7 +116,7 @@
   <meta property="og:locale" content="en_PH">
   <meta property="og:image" content="https://www.bidmo.to/bidmo.to.png">
   <meta name="twitter:card" content="summary">
-  <link rel="canonical" href="https://www.bidmo.to">
+  <link rel="canonical" href="https://www.bidmo.to{$page.url.pathname}">
 </svelte:head>
 
 <svelte:window onclick={handleClickOutside} />

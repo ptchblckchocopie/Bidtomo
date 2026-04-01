@@ -126,6 +126,7 @@
   {#if data.user.profilePicture?.url}
     <meta property="og:image" content={data.user.profilePicture.url}>
   {/if}
+  <link rel="canonical" href="https://www.bidmo.to/users/{data.user.id}">
 </svelte:head>
 
 <div class="profile-page">

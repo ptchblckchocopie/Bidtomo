@@ -36,6 +36,7 @@
   <meta name="description" content="Learn about BidMo.to - The Filipino way to bid, buy, and sell unique items. Join our experimental auction platform and help us grow!">
   <meta property="og:title" content="About Us - BidMo.to">
   <meta property="og:description" content="The Filipino way to bid, buy, and sell unique items.">
+  <link rel="canonical" href="https://www.bidmo.to/about-us">
 </svelte:head>
 
 <div class="about-fullwidth">

@@ -1159,6 +1159,7 @@
 <svelte:head>
   <title>{data.product?.title || 'Product'} - BidMo.to</title>
   <meta name="description" content={data.product?.description?.substring(0, 160) || 'Browse this auction on BidMo.to — the Filipino marketplace for unique items.'}>
+  <link rel="canonical" href="https://www.bidmo.to/products/{data.product?.id || ''}">
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website" />

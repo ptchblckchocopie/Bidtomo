@@ -11,6 +11,9 @@
   import ImageSlider from '$lib/components/ImageSlider.svelte';
   import ProductForm from '$lib/components/ProductForm.svelte';
   import { t } from '$lib/stores/locale';
+  import ProductCardSkeleton from '$lib/components/ProductCardSkeleton.svelte';
+  import EmptyState from '$lib/components/EmptyState.svelte';
+  import Skeleton from '$lib/components/Skeleton.svelte';
 
   let { data } = $props<{ data: PageData }>();
 
@@ -384,12 +387,13 @@
         <!-- Product Lists -->
         {#if productTab === 'active'}
           {#if activeProducts.length === 0}
-            <div class="empty-state">
-              <div class="empty-icon">📦</div>
-              <h2>{$t('dashboard.noActiveProducts')}</h2>
-              <p>{$t('dashboard.noActiveProductsDesc')}</p>
-              <a href="/sell" class="btn-primary">{$t('dashboard.listProduct')}</a>
-            </div>
+            <EmptyState
+              icon="📦"
+              title={$t('dashboard.noActiveProducts')}
+              message={$t('dashboard.noActiveProductsDesc')}
+              actionLabel={$t('dashboard.listProduct')}
+              actionHref="/sell"
+            />
           {:else}
             <div class="products-grid">
               {#each activeProducts as product}
@@ -400,7 +404,7 @@
                         {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
                         {#if validImages.length > 0}
                           {@const firstImage = validImages[0]}
-                          <img src={firstImage.image.url} alt={product.title} loading="lazy" />
+                          <img src={firstImage.image.sizes?.thumbnail?.url || firstImage.image.url} alt={product.title} loading="lazy" />
                         {:else}
                           <div class="placeholder-image">
                             <span class="placeholder-icon">📦</span>
@@ -467,7 +471,7 @@
                         {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
                         {#if validImages.length > 0}
                           {@const firstImage = validImages[0]}
-                          <img src={firstImage.image.url} alt={product.title} loading="lazy" />
+                          <img src={firstImage.image.sizes?.thumbnail?.url || firstImage.image.url} alt={product.title} loading="lazy" />
                         {:else}
                           <div class="placeholder-image">
                             <span class="placeholder-icon">📦</span>
@@ -532,7 +536,7 @@
                         {@const validImages = product.images.filter((img: any) => img && img.image && img.image.url)}
                         {#if validImages.length > 0}
                           {@const firstImage = validImages[0]}
-                          <img src={firstImage.image.url} alt={product.title} loading="lazy" />
+                          <img src={firstImage.image.sizes?.thumbnail?.url || firstImage.image.url} alt={product.title} loading="lazy" />
                         {:else}
                           <div class="placeholder-image">
                             <span class="placeholder-icon">📦</span>
@@ -575,16 +579,21 @@
       <!-- My Purchases Tab Content -->
       <div class="purchases-section">
         {#if purchasesLoading}
-          <div class="loading">{$t('dashboard.loadingPurchases')}</div>
+          <div class="products-grid">
+            {#each Array(3) as _}
+              <ProductCardSkeleton />
+            {/each}
+          </div>
         {:else if purchasesError}
           <div class="error-message">{purchasesError}</div>
         {:else if purchases.length === 0}
-          <div class="empty-state">
-            <div class="empty-icon">🛍️</div>
-            <h2>{$t('dashboard.noPurchasesYet')}</h2>
-            <p>{$t('dashboard.noPurchasesDesc')}</p>
-            <a href="/products" class="btn-primary">{$t('products.browseProducts')}</a>
-          </div>
+          <EmptyState
+            icon="🛍️"
+            title={$t('dashboard.noPurchasesYet')}
+            message={$t('dashboard.noPurchasesDesc')}
+            actionLabel={$t('products.browseProducts')}
+            actionHref="/products"
+          />
         {:else}
           <div class="purchases-list">
             {#each purchases as product}
@@ -595,7 +604,7 @@
                       {@const validImages = product.images.filter(img => img && img.image && img.image.url)}
                       {#if validImages.length > 0}
                         {@const firstImage = validImages[0]}
-                        <img src={firstImage.image.url} alt={product.title} loading="lazy" />
+                        <img src={firstImage.image.sizes?.thumbnail?.url || firstImage.image.url} alt={product.title} loading="lazy" />
                       {:else}
                         <div class="placeholder-image">
                           <span class="placeholder-icon">📦</span>

@@ -6,6 +6,8 @@
   import { fetchWatchlist } from '$lib/api';
   import { goto } from '$app/navigation';
   import WatchlistToggle from '$lib/components/WatchlistToggle.svelte';
+  import ProductCardSkeleton from '$lib/components/ProductCardSkeleton.svelte';
+  import EmptyState from '$lib/components/EmptyState.svelte';
 
   let products: any[] = $state([]);
   let loading = $state(true);
@@ -60,25 +62,17 @@
   {#if loading}
     <div class="products-grid">
       {#each Array(4) as _}
-        <div class="product-card skeleton-card">
-          <div class="product-image skeleton-pulse"></div>
-          <div class="product-info">
-            <div class="skeleton-line skeleton-pulse" style="width:70%;height:1.2rem"></div>
-            <div class="skeleton-line skeleton-pulse" style="width:90%;height:0.9rem;margin-top:0.5rem"></div>
-            <div class="skeleton-line skeleton-pulse" style="width:50%;height:1rem;margin-top:0.75rem"></div>
-          </div>
-        </div>
+        <ProductCardSkeleton />
       {/each}
     </div>
   {:else if products.length === 0}
-    <div class="empty-state">
-      <svg class="w-16 h-16 mx-auto mb-4 text-bh-muted-fg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-      </svg>
-      <h2>{$t('watchlist.empty')}</h2>
-      <p>{$t('watchlist.emptyDesc')}</p>
-      <a href="/products" class="btn-bh-red mt-4 inline-block">{$t('watchlist.browseProducts')}</a>
-    </div>
+    <EmptyState
+      icon="💛"
+      title={$t('watchlist.empty')}
+      message={$t('watchlist.emptyDesc')}
+      actionLabel={$t('watchlist.browseProducts')}
+      actionHref="/products"
+    />
   {:else}
     <div class="products-grid">
       {#each products as product (product.id)}
@@ -86,7 +80,7 @@
           <div class="product-image">
             {#if product.images && product.images.length > 0 && product.images[0].image}
               <img
-                src={product.images[0].image.url}
+                src={product.images[0].image.sizes?.thumbnail?.url || product.images[0].image.url}
                 alt={product.images[0].image.alt || product.title}
                 width="400"
                 height="200"
@@ -256,23 +250,6 @@
   .status-sold { background: var(--color-red, #dc2626); color: white; }
   .status-ended { background: var(--color-muted, #888); color: white; }
 
-  .empty-state {
-    text-align: center;
-    padding: 4rem 1rem;
-  }
-
-  .empty-state h2 {
-    font-size: 1.5rem;
-    font-weight: 800;
-    margin-bottom: 0.5rem;
-  }
-
-  .empty-state p {
-    color: var(--color-muted-fg);
-    max-width: 400px;
-    margin: 0 auto;
-  }
-
   .pagination {
     display: flex;
     justify-content: center;
@@ -283,25 +260,6 @@
 
   .page-info {
     font-weight: 600;
-  }
-
-  .skeleton-card {
-    pointer-events: none;
-  }
-
-  .skeleton-pulse {
-    background: linear-gradient(90deg, var(--color-muted) 25%, #e0e0e0 50%, var(--color-muted) 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-  }
-
-  .skeleton-line {
-    border-radius: 4px;
-  }
-
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
   }
 
   @media (max-width: 640px) {

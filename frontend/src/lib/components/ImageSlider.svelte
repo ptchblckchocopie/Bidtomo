@@ -4,10 +4,18 @@
     productTitle = '',
     autoplayInterval = 3000
   }: {
-    images?: Array<{ image: { url: string; alt?: string } }>;
+    images?: Array<{ image: { url: string; alt?: string; sizes?: { thumbnail?: { url?: string }; card?: { url?: string } } } }>;
     productTitle?: string;
     autoplayInterval?: number;
   } = $props();
+
+  function cardUrl(img: typeof images[0]): string {
+    return img.image.sizes?.card?.url || img.image.url;
+  }
+
+  function thumbUrl(img: typeof images[0]): string {
+    return img.image.sizes?.thumbnail?.url || img.image.url;
+  }
 
   let currentIndex = $state(0);
   let isAutoplayActive = $state(true);
@@ -157,7 +165,7 @@
         {#each images as imageItem, index}
           <div class="slide" class:active={index === currentIndex}>
             <img
-              src={imageItem.image.url}
+              src={cardUrl(imageItem)}
               alt={imageItem.image.alt || productTitle}
               loading={index === 0 ? 'eager' : 'lazy'}
               onload={(e) => e.currentTarget.classList.add('loaded')}
@@ -202,7 +210,7 @@
             aria-label={`Go to image ${index + 1}`}
           >
             <img
-              src={imageItem.image.url}
+              src={thumbUrl(imageItem)}
               alt={imageItem.image.alt || productTitle}
               loading="lazy"
               onload={(e) => e.currentTarget.classList.add('loaded')}

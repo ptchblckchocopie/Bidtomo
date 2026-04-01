@@ -26,6 +26,10 @@ export interface Product {
     image: {
       url: string;
       alt?: string;
+      sizes?: {
+        thumbnail?: { url?: string; width?: number; height?: number };
+        card?: { url?: string; width?: number; height?: number };
+      };
     };
   }>;
   createdAt: string;

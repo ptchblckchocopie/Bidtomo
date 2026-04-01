@@ -519,6 +519,7 @@
   <meta property="og:description" content="The Filipino auction marketplace. Bid on unique items in real-time.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="BidMo.to">
+  <link rel="canonical" href="https://www.bidmo.to/products">
 </svelte:head>
 <!-- Beta Notice Banner -->
 <div class="-mx-4 sm:-mx-6 lg:-mx-8 mb-0 overflow-hidden relative z-10">
@@ -804,7 +805,7 @@
             <a href="/products/{product.id}?from=browse" class="product-card !border-0" class:ended-card={data.status === 'ended'}>
               <div class="product-image">
                 {#if product.images && product.images.length > 0 && product.images[0].image}
-                  <img src="{product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" width="400" height="200" loading="lazy" decoding="async" onload={(e) => e.currentTarget.classList.add('loaded')} />
+                  <img src="{product.images[0].image.sizes?.thumbnail?.url || product.images[0].image.url}" alt="{product.images[0].image.alt || product.title}" width="400" height="200" loading="lazy" decoding="async" onload={(e) => e.currentTarget.classList.add('loaded')} />
                 {:else}
                   <div class="placeholder-image">
                     <span>{$t('products.noImage')}</span>

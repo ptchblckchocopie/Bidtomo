@@ -12,6 +12,8 @@
   import { trackConversationOpened } from '$lib/analytics';
   import { t } from '$lib/stores/locale';
   import { addToast } from '$lib/stores/toast';
+  import EmptyState from '$lib/components/EmptyState.svelte';
+  import Skeleton from '$lib/components/Skeleton.svelte';
 
   function handleBackToList() {
     selectedProduct = null;
@@ -1232,14 +1234,25 @@
   {/if}
 
   {#if loading}
-    <div class="loading">{$t('inbox.loadingConversations')}</div>
-  {:else if conversations.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">📬</div>
-      <h2>{$t('inbox.noMessagesYet')}</h2>
-      <p>{$t('inbox.noMessagesDesc')}</p>
-      <a href="/products" class="btn-browse">{$t('products.browseProducts')}</a>
+    <div class="inbox-skeleton">
+      {#each Array(5) as _}
+        <div style="display:flex;gap:0.75rem;padding:0.75rem;border-bottom:1px solid var(--color-border, rgba(255,255,255,0.1))">
+          <Skeleton width="48px" height="48px" rounded />
+          <div style="flex:1;display:flex;flex-direction:column;gap:0.5rem">
+            <Skeleton width="60%" height="0.875rem" />
+            <Skeleton width="80%" height="0.75rem" />
+          </div>
+        </div>
+      {/each}
     </div>
+  {:else if conversations.length === 0}
+    <EmptyState
+      icon="📬"
+      title={$t('inbox.noMessagesYet')}
+      message={$t('inbox.noMessagesDesc')}
+      actionLabel={$t('products.browseProducts')}
+      actionHref="/products"
+    />
   {:else}
     <div class="inbox-container">
       <!-- Conversations List -->
@@ -1285,7 +1298,7 @@
           >
             <div class="conversation-image">
               {#if conv.product.images && conv.product.images.length > 0 && conv.product.images[0].image}
-                <img src={conv.product.images[0].image.url} alt={conv.product.title} loading="lazy" />
+                <img src={conv.product.images[0].image.sizes?.thumbnail?.url || conv.product.images[0].image.url} alt={conv.product.title} loading="lazy" />
               {:else}
                 <div class="no-image">📦</div>
               {/if}
