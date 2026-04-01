@@ -1215,6 +1215,16 @@ async function closeExpiredAuctions(): Promise<void> {
 }
 
 async function closeOneAuction(product: any): Promise<void> {
+      // Per-product Redis lock to prevent duplicate close processing across workers
+      if (redisConnected) {
+        const lockKey = `${REDIS_PREFIX}auction:close:product:${product.id}`;
+        const locked = await redisPub.set(lockKey, WORKER_ID, 'EX', 60, 'NX');
+        if (!locked) {
+          log.info(`[Auction Close] Product ${product.id} already being closed by another worker`);
+          return;
+        }
+      }
+
       const client = await pool.connect();
 
       try {
@@ -1923,8 +1933,8 @@ async function runWorker() {
           continue;
         }
 
-        // Save to database in case of crash (fire-and-forget — don't block hot path)
-        savePendingBidToDb(jobToProcess).catch(err => log.error({ err, jobId: jobToProcess.jobId }, 'Failed to save pending bid'));
+        // Save to database in case of crash — must complete before processing
+        try { await savePendingBidToDb(jobToProcess); } catch (err) { log.warn({ err, jobId: jobToProcess.jobId }, 'Failed to save pending bid to DB'); }
 
         const bidResult = await processBid(jobToProcess);
 

@@ -42,6 +42,9 @@ app.set('trust proxy', 1); // Trust first proxy (Railway/reverse proxy) — requ
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Module-level reference for cleanup on shutdown
+let cacheInvalidationSubClient: any = null;
+
 // Configure CORS to allow requests from the frontend (including production URLs)
 const allowedOrigins: string[] = [
   'http://localhost:5173',
@@ -769,9 +772,9 @@ const start = async () => {
   const redisSub = getRedisClient();
   if (redisSub) {
     try {
-      const subClient = redisSub.duplicate();
-      subClient.subscribe(`${process.env.REDIS_PREFIX || ''}cache:invalidate`);
-      subClient.on('message', (_channel: string, message: string) => {
+      cacheInvalidationSubClient = redisSub.duplicate();
+      cacheInvalidationSubClient.subscribe(`${process.env.REDIS_PREFIX || ''}cache:invalidate`);
+      cacheInvalidationSubClient.on('message', (_channel: string, message: string) => {
         try {
           const { productId } = JSON.parse(message);
           invalidateProductCache(productId);
@@ -3319,6 +3322,21 @@ const start = async () => {
       }
     });
   }
+
+  // Graceful shutdown — clean up Redis subscription client
+  const shutdown = async () => {
+    console.log('Shutting down gracefully...');
+    if (cacheInvalidationSubClient) {
+      try {
+        cacheInvalidationSubClient.unsubscribe();
+        await cacheInvalidationSubClient.quit();
+      } catch { /* already closed */ }
+      cacheInvalidationSubClient = null;
+    }
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 };
 
 // Only auto-start in local development

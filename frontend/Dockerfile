@@ -1,22 +1,31 @@
-# Frontend Dockerfile (local dev + optional production build)
-FROM node:20-alpine
+# Frontend Dockerfile — local dev & staging only.
+# Production deploys to Vercel directly from git (not via Docker).
 
+# Stage 1: Build
+FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
-
-# Install dependencies (deterministic)
 RUN npm ci
 
-# Copy source code
 COPY . .
+RUN npm run build
 
-# Set ownership for non-root user
+# Stage 2: Runtime (production deps only)
+FROM node:20-alpine
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Copy built output from builder
+COPY --from=builder /app/build ./build
+COPY --from=builder /app/package.json ./package.json
+
 RUN chown -R node:node /app
 
 USER node
-EXPOSE 5173
+EXPOSE 3000
 
-# Start the application in development mode
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# For local dev, override CMD with: npm run dev -- --host 0.0.0.0
+CMD ["node", "build/index.js"]

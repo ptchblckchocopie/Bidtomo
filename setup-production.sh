@@ -7,7 +7,7 @@
   NC='\033[0m'
 
   APP_DIR="/var/www/marketplace"
-  DB_PASSWORD="changeme123"
+  DB_PASSWORD="${POSTGRES_PASSWORD:?Error: POSTGRES_PASSWORD environment variable must be set}"
 
   echo -e "${BLUE}==> Installing dependencies...${NC}"
   cd $APP_DIR/cms && npm install --legacy-peer-deps

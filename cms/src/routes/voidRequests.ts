@@ -329,15 +329,25 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
           depth: 1,
         });
 
-        const notifiedBidders = new Set<number>();
-        for (const bid of bids.docs) {
-          const bidderId = typeof (bid as any).bidder === 'object' ? (bid as any).bidder.id : (bid as any).bidder;
-          if (notifiedBidders.has(bidderId)) continue;
-          notifiedBidders.add(bidderId);
+        // Collect unique bidder IDs to batch-fetch instead of N+1 queries
+        const bidderIds = [...new Set(bids.docs.map((bid: any) => {
+          const bidderId = typeof bid.bidder === 'object' ? bid.bidder.id : bid.bidder;
+          return String(bidderId);
+        }).filter(Boolean))];
 
-          const bidder: any = await payload.findByID({ collection: 'users', id: bidderId });
+        const bidders = bidderIds.length > 0 ? await payload.find({
+          collection: 'users',
+          where: { id: { in: bidderIds } },
+          limit: bidderIds.length,
+          depth: 0,
+        }) : { docs: [] };
 
-          publishMessageNotification(bidderId, {
+        const bidderMap = new Map(bidders.docs.map((u: any) => [String(u.id), u]));
+
+        for (const bidderId of bidderIds) {
+          const bidder = bidderMap.get(bidderId);
+
+          publishMessageNotification(Number(bidderId), {
             type: 'auction_restarted',
             messageId: voidRequestId,
             productId,
@@ -367,7 +377,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
         sendSuccess(res, {
           message: 'Auction restarted successfully',
           newEndDate,
-          notifiedBidders: notifiedBidders.size,
+          notifiedBidders: bidderIds.length,
         });
       } else {
         // Offer to second highest bidder
@@ -501,9 +511,10 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
       if (action === 'accept') {
         // Atomically lock the product row and set to sold
         const pool = (payload.db as any).pool;
-        const client = await pool.connect();
+        let client: any;
 
         try {
+          client = await pool.connect();
           await client.query('BEGIN');
 
           const lockedProduct = await client.query(
@@ -523,7 +534,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
 
           await client.query('COMMIT');
         } catch (lockError: any) {
-          await client.query('ROLLBACK').catch(() => {});
+          if (client) await client.query('ROLLBACK').catch(() => {});
           console.error('Error locking product for second bidder accept:', lockError);
           Sentry.withScope(scope => {
             if ((req as any).userId) scope.setUser({ id: String((req as any).userId) });
@@ -532,7 +543,7 @@ export function createVoidRequestsRouter({ payload, isProduction }: VoidRequests
           });
           return sendError(res, 500, isProduction ? 'Internal server error' : lockError.message);
         } finally {
-          client.release();
+          if (client) client.release();
         }
 
         await payload.update({

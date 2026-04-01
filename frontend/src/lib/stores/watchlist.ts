@@ -13,6 +13,8 @@ function createWatchlistStore() {
     loaded: false,
   });
 
+  const store = { subscribe, set, update };
+
   return {
     subscribe,
 
@@ -33,7 +35,7 @@ function createWatchlistStore() {
     },
 
     async add(productId: string) {
-      if (get({ subscribe }).items.has(productId)) return true;
+      if (get(store).items.has(productId)) return true;
       const result = await addToWatchlist(productId);
       if (result) {
         update((state) => {
@@ -46,8 +48,8 @@ function createWatchlistStore() {
     },
 
     async remove(productId: string) {
-      const state = get({ subscribe });
-      const itemId = state.items.get(productId);
+      const currentState = get(store);
+      const itemId = currentState.items.get(productId);
       if (!itemId) return false;
 
       const success = await removeFromWatchlist(itemId);
@@ -62,7 +64,7 @@ function createWatchlistStore() {
     },
 
     isWatched(productId: string): boolean {
-      return get({ subscribe }).items.has(productId);
+      return get(store).items.has(productId);
     },
 
     reset() {

@@ -4,6 +4,11 @@ import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, HeadObjectCommand
 import { Upload } from '@aws-sdk/lib-storage';
 import cron from 'node-cron';
 
+/** Validate SQL identifier (table/database name) to prevent injection */
+function isValidIdentifier(name: string): boolean {
+  return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name);
+}
+
 let backupInProgress = false;
 
 export function isBackupInProgress(): boolean {
@@ -94,6 +99,11 @@ export async function runBackup(): Promise<{ success: boolean; key?: string; err
     for (const row of tablesResult.rows) {
       const table = row.tablename;
 
+      if (!isValidIdentifier(table)) {
+        console.warn(`[Backup] Skipping invalid table name: ${table}`);
+        continue;
+      }
+
       // Get column info for the table
       const colsResult = await pool.query(`
         SELECT column_name, data_type, column_default, is_nullable,
@@ -140,7 +150,7 @@ export async function runBackup(): Promise<{ success: boolean; key?: string; err
     if (seqResult.rows.length > 0) {
       gzip.write('-- Sequences\n');
       for (const seq of seqResult.rows) {
-        if (seq.last_value !== null) {
+        if (seq.last_value !== null && isValidIdentifier(seq.sequencename)) {
           gzip.write(`SELECT setval('"${seq.sequencename}"', ${seq.last_value}, true);\n`);
         }
       }
@@ -265,6 +275,9 @@ export async function restoreAndVerify(): Promise<{
   if (!dbUri) return { success: false, error: 'DATABASE_URI not configured' };
 
   const tempDbName = `bidmo_restore_test_${Date.now()}`;
+  if (!isValidIdentifier(tempDbName)) {
+    throw new Error('Generated temp database name is invalid');
+  }
   let adminPool: any = null;
   let tempPool: any = null;
   const sslConfig = dbUri.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined;
@@ -317,6 +330,12 @@ export async function restoreAndVerify(): Promise<{
     const createStatements: string[] = [];
     for (const row of tablesResult.rows) {
       const table = row.tablename;
+
+      if (!isValidIdentifier(table)) {
+        console.warn(`[Backup] Skipping invalid table name: ${table}`);
+        continue;
+      }
+
       const colsResult = await mainPool.query(`
         SELECT a.attname as column_name,
                format_type(a.atttypid, a.atttypmod) as data_type,
@@ -348,9 +367,11 @@ export async function restoreAndVerify(): Promise<{
     const seqResult = await mainPool.query(
       `SELECT sequencename FROM pg_sequences WHERE schemaname = 'public'`
     );
-    const sequenceStatements = seqResult.rows.map((seq: any) =>
-      `CREATE SEQUENCE IF NOT EXISTS "${seq.sequencename}";`
-    );
+    const sequenceStatements = seqResult.rows
+      .filter((seq: any) => isValidIdentifier(seq.sequencename))
+      .map((seq: any) =>
+        `CREATE SEQUENCE IF NOT EXISTS "${seq.sequencename}";`
+      );
 
     await mainPool.end();
 
