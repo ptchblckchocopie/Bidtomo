@@ -1,0 +1,97 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Infrastructure Alerts
+    folder: Bidtomo
+    interval: 1m
+    rules:
+      - uid: high-memory-sse
+        title: SSE High Memory Usage
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: process_memory_rss_bytes > 450000000
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [450000000]
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SSE service memory usage above 450MB (approaching 512MB limit)"
+
+      - uid: redis-disconnected
+        title: Redis Disconnected
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: sse_redis_connected == 0
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is disconnected — real-time updates, bidding queue, and caching are down"
+
+      - uid: high-connections
+        title: High SSE Connection Count
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: sse_connections_total > 8000
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [8000]
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SSE connections above 8000 (approaching 10000 cap)"

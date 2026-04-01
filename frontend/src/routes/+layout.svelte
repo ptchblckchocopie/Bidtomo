@@ -182,6 +182,7 @@
               onclick={(e) => { e.stopPropagation(); bgMenuOpen = !bgMenuOpen; }}
               class="bg-switch-btn px-2 py-1.5 rounded-md transition-all duration-200"
               title="Change background"
+              aria-label="Change background"
             >
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
@@ -250,6 +251,7 @@
               href="/inbox"
               class="relative p-2 text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200 hover:scale-110 {currentPath === '/inbox' ? 'text-[var(--color-fg)]' : ''}"
               title={$t('nav.inbox')}
+              aria-label="Messages"
             >
               <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -266,6 +268,7 @@
                 href="/admin/reports"
                 class="p-2 text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200 hover:scale-110 {currentPath === '/admin/reports' ? 'text-[var(--color-fg)]' : ''}"
                 title={$t('nav.reports')}
+                aria-label="Reports"
               >
                 <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -275,6 +278,7 @@
                 href="/admin/analytics"
                 class="p-2 text-[var(--color-muted-fg)] hover:text-[var(--color-fg)] transition-all duration-200 hover:scale-110 {currentPath === '/admin/analytics' ? 'text-[var(--color-fg)]' : ''}"
                 title={$t('nav.analytics')}
+                aria-label="Analytics"
               >
                 <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 13h2v8H3zm6-4h2v12H9zm6-6h2v18h-2zm6 10h2v8h-2z" />

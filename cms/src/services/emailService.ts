@@ -261,7 +261,7 @@ async function processEmailQueue(): Promise<void> {
         emailsSentInWindow++;
         // Mark as sent in DB
         if (pool) {
-          try { await pool.query(`UPDATE email_queue SET status = 'sent', sent_at = NOW(), attempts = $1 WHERE email_id = $2`, [email.attempts + 1, email.id]); } catch { /* best-effort */ }
+          try { await pool.query(`UPDATE email_queue SET status = 'sent', sent_at = NOW(), attempts = $1 WHERE email_id = $2`, [email.attempts + 1, email.id]); } catch (err) { console.warn('[Email] Failed to update email queue status:', (err as Error).message); }
         }
         console.log(`[EMAIL] Successfully processed ${email.id}`);
       } else {
@@ -283,7 +283,7 @@ async function processEmailQueue(): Promise<void> {
           });
           // Mark as failed in DB
           if (pool) {
-            try { await pool.query(`UPDATE email_queue SET status = 'failed', attempts = $1, last_error = $2 WHERE email_id = $3`, [email.attempts, email.lastError, email.id]); } catch { /* best-effort */ }
+            try { await pool.query(`UPDATE email_queue SET status = 'failed', attempts = $1, last_error = $2 WHERE email_id = $3`, [email.attempts, email.lastError, email.id]); } catch (err) { console.warn('[Email] Failed to update email queue status:', (err as Error).message); }
           }
           // Send alert to support
           await sendSupportAlert(email);
@@ -412,7 +412,7 @@ export async function recoverPendingEmails(): Promise<number> {
         await client.rpush(EMAIL_QUEUE_KEY, JSON.stringify(email));
         await pool.query(`UPDATE email_queue SET status = 'processing' WHERE email_id = $1`, [email.id]);
         recovered++;
-      } catch { /* skip malformed entries */ }
+      } catch (err) { console.warn('[Email] Skipped malformed email queue entry:', (err as Error).message); }
     }
 
     if (recovered > 0) {

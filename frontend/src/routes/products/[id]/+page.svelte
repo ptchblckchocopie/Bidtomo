@@ -92,7 +92,7 @@
     try {
       await navigator.clipboard.writeText(getShareUrl());
       linkCopied = true;
-      setTimeout(() => { linkCopied = false; }, 2000);
+      safeTimeout(() => { linkCopied = false; }, 2000);
     } catch {
       // Fallback
       const input = document.createElement('input');
@@ -102,7 +102,7 @@
       document.execCommand('copy');
       document.body.removeChild(input);
       linkCopied = true;
-      setTimeout(() => { linkCopied = false; }, 2000);
+      safeTimeout(() => { linkCopied = false; }, 2000);
     }
     closeShare();
   }
@@ -165,6 +165,21 @@
     } finally {
       submittingReport = false;
     }
+  }
+
+  // SSE cleanup (component-scoped, replaces window.__sseUnsubscribe)
+  let sseCleanup: (() => void) | null = $state(null);
+
+  // Timeout tracking for safe cleanup on unmount
+  let pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
+
+  function safeTimeout(fn: () => void, ms: number) {
+    const id = setTimeout(() => {
+      pendingTimeouts = pendingTimeouts.filter(t => t !== id);
+      fn();
+    }, ms);
+    pendingTimeouts.push(id);
+    return id;
   }
 
   let bidAmount = $state(0);
@@ -316,11 +331,11 @@
       outbidAnimating = true;
       currentBidderMessage = getRandomMessage(outbidMessages);
       // Reset animation after it plays
-      setTimeout(() => {
+      safeTimeout(() => {
         outbidAnimating = false;
       }, 500);
       // Auto-close the outbid alert after 5 seconds
-      setTimeout(() => {
+      safeTimeout(() => {
         wasOutbid = false;
       }, 5000);
     } else if (isCurrentlyHighest && !wasHighestBidder) {
@@ -471,7 +486,7 @@
 
           // Trigger animations for new bids
           if (newBidIds.size > 0) {
-            setTimeout(() => {
+            safeTimeout(() => {
               newBidIds = new Set();
             }, 3000);
           }
@@ -482,11 +497,11 @@
           priceChanged = true;
           showConfetti = true;
 
-          setTimeout(() => {
+          safeTimeout(() => {
             priceChanged = false;
           }, 1000);
 
-          setTimeout(() => {
+          safeTimeout(() => {
             showConfetti = false;
           }, 3000);
         }
@@ -644,7 +659,7 @@
               }
 
               // Clear animations after delay
-              setTimeout(() => {
+              safeTimeout(() => {
                 priceChanged = false;
                 newBidIds = new Set();
               }, 3000);
@@ -666,7 +681,7 @@
             data = { ...data };
 
             // Show success feedback without refresh
-            setTimeout(() => {
+            safeTimeout(() => {
               acceptSuccess = false;
             }, 3000);
           }
@@ -708,7 +723,7 @@
       });
 
       // Store unsubscribe for cleanup
-      (window as any).__sseUnsubscribe = unsubscribe;
+      sseCleanup = unsubscribe;
     }
 
     // Fallback polling every 10 seconds (reduced frequency since we have SSE)
@@ -758,13 +773,16 @@
     if (countdownInterval) clearInterval(countdownInterval);
     if (pollingInterval) clearInterval(pollingInterval);
 
+    // Clear all pending timeouts
+    pendingTimeouts.forEach(clearTimeout);
+    pendingTimeouts = [];
+
     // Disconnect from SSE
     if (data.product?.id) {
       disconnectProductSSE(String(data.product.id));
     }
-    if ((window as any).__sseUnsubscribe) {
-      (window as any).__sseUnsubscribe();
-    }
+    sseCleanup?.();
+    sseCleanup = null;
   });
 
   function formatPrice(price: number, currency: string = 'PHP'): string {
@@ -799,7 +817,7 @@
     if (!bidAmount || bidAmount < minBid) {
       bidAmount = minBid;
       bidError = `Bid amount adjusted to minimum: ${formatPrice(minBid, sellerCurrency)}`;
-      setTimeout(() => bidError = '', 3000);
+      safeTimeout(() => bidError = '', 3000);
       return;
     }
 
@@ -813,7 +831,7 @@
       const adjustment = bidInterval - remainder;
       bidAmount = bidAmount + adjustment;
       bidError = `Bid amount must be in increments of ${formatPrice(bidInterval, sellerCurrency)}. Adjusted to ${formatPrice(bidAmount, sellerCurrency)}`;
-      setTimeout(() => bidError = '', 3000);
+      safeTimeout(() => bidError = '', 3000);
     }
   }
 
@@ -912,21 +930,11 @@
         // else: bid was queued — SSE will deliver the real bid and the
         // onmessage handler will replace/supplement the optimistic entry
 
-        // Clear animations after delay
-        setTimeout(() => {
+        // Clear animations and success state after delay
+        safeTimeout(() => {
           priceChanged = false;
-        }, 1000);
-
-        setTimeout(() => {
           showConfetti = false;
-        }, 3000);
-
-        setTimeout(() => {
           newBidIds = new Set();
-        }, 3000);
-
-        // Auto-close success message after 5 seconds
-        setTimeout(() => {
           bidSuccess = false;
         }, 5000);
       } else {
@@ -1010,7 +1018,7 @@
         showAutoBidModal = false;
 
         // Force a data refresh since a bid was placed
-        setTimeout(() => forceUpdateCheck(), 500);
+        safeTimeout(() => forceUpdateCheck(), 500);
       } else {
         autoBidError = result.error || 'Failed to set auto-bid';
       }
@@ -1032,11 +1040,11 @@
         autoBidCurrentMax = 0;
       } else {
         bidError = result.error || 'Failed to cancel auto-bid';
-        setTimeout(() => { bidError = ''; }, 5000);
+        safeTimeout(() => { bidError = ''; }, 5000);
       }
     } catch (error) {
       bidError = 'Failed to cancel auto-bid. Please try again.';
-      setTimeout(() => { bidError = ''; }, 5000);
+      safeTimeout(() => { bidError = ''; }, 5000);
     } finally {
       cancellingAutoBid = false;
     }
@@ -1103,7 +1111,7 @@
       }
     }
 
-    setTimeout(() => {
+    safeTimeout(() => {
       closeEditModal();
     }, 1500);
   }

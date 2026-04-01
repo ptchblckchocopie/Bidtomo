@@ -91,6 +91,10 @@ const connectionCountByIp = new Map<string, number>();
 const MAX_CONNECTIONS_PER_IP = 20;
 const MAX_GLOBAL_CONNECTIONS = 10000;
 let globalConnectionCount = 0;
+let clusterConnectionCount = 0;
+
+// Named pmessage handler for targeted removal (avoids removeAllListeners)
+let pmessageHandler: ((_pattern: string, channel: string, message: string) => void) | null = null;
 
 // Rate limiting for failed auth attempts (per IP)
 const authFailures = new Map<string, { count: number; resetAt: number }>();
@@ -296,8 +300,8 @@ app.get('/events/products/:productId', (req: Request, res: Response) => {
     return;
   }
 
-  // Enforce global connection cap
-  if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
+  // Enforce global connection cap (local + cluster-wide)
+  if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS || clusterConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
     res.status(503).json({ error: 'Server at capacity' });
     return;
   }
@@ -400,8 +404,8 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
     return;
   }
 
-  // Enforce global connection cap
-  if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
+  // Enforce global connection cap (local + cluster-wide)
+  if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS || clusterConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
     res.status(503).json({ error: 'Server at capacity' });
     return;
   }
@@ -464,8 +468,8 @@ app.get('/events/users/:userId', (req: Request, res: Response) => {
 
 // SSE endpoint for global updates (new products, bid updates across all products)
 app.get('/events/global', (req: Request, res: Response) => {
-  // Enforce global connection cap
-  if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
+  // Enforce global connection cap (local + cluster-wide)
+  if (globalConnectionCount >= MAX_GLOBAL_CONNECTIONS || clusterConnectionCount >= MAX_GLOBAL_CONNECTIONS) {
     res.status(503).json({ error: 'Server at capacity' });
     return;
   }
@@ -593,9 +597,12 @@ async function setupRedisSubscriber() {
 
     await redis.psubscribe(productPattern, userPattern, globalChannel);
 
-    redis.removeAllListeners('pmessage');
+    // Remove previous handler if any (targeted removal instead of removeAllListeners)
+    if (pmessageHandler) {
+      redis.removeListener('pmessage', pmessageHandler);
+    }
 
-    redis.on('pmessage', (_pattern, channel, message) => {
+    pmessageHandler = (_pattern: string, channel: string, message: string) => {
       console.log(`[SSE] Redis pmessage received on channel: ${channel}`);
       try {
         const data = JSON.parse(message);
@@ -619,7 +626,9 @@ async function setupRedisSubscriber() {
         console.error('[SSE] Error processing Redis message:', error);
         Sentry.captureException(error, { tags: { route: 'sse.pmessage' }, extra: { channel } });
       }
-    });
+    };
+
+    redis.on('pmessage', pmessageHandler);
 
     console.log('[SSE] Redis subscriber ready');
   } catch (error) {
@@ -714,6 +723,24 @@ async function start() {
         if (now > record.resetAt) authFailures.delete(ip);
       }
     }, 30000);
+
+    // Cluster-wide connection count polling — cached every 10s for cap checks
+    setInterval(async () => {
+      if (!redisConnected || !redisPub) return;
+      try {
+        let total = 0;
+        let cursor = '0';
+        do {
+          const [nextCursor, keys] = await redisPub.scan(cursor, 'MATCH', `${REDIS_PREFIX}sse:instance:*`, 'COUNT', 50);
+          cursor = nextCursor;
+          for (const key of keys) {
+            const data = await redisPub.get(key);
+            if (data) total += JSON.parse(data).connections || 0;
+          }
+        } while (cursor !== '0');
+        clusterConnectionCount = total;
+      } catch { /* non-critical — falls back to local check */ }
+    }, 10000);
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`[SSE] Service listening on port ${PORT}`);

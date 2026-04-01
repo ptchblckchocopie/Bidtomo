@@ -285,7 +285,7 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=30d'
-      - '--storage.tsdb.retention.size=1GB'
+      - '--storage.tsdb.retention.size=5GB'
     networks:
       - prod-internal
 

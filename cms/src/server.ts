@@ -998,6 +998,7 @@ const start = async () => {
   });
 
   // Create conversations for sold products
+  // Note: N+1 pattern — acceptable for admin-only endpoint with low frequency
   app.post('/api/create-conversations', async (req, res) => {
     try {
       // Admin-only maintenance endpoint
@@ -1008,7 +1009,7 @@ const start = async () => {
 
       console.log('Starting conversation creation for sold products...');
 
-      // Find all sold products
+      // Find all sold products (limited to prevent catastrophic queries)
       const soldProducts = await payload.find({
         collection: 'products',
         where: {
@@ -1016,7 +1017,7 @@ const start = async () => {
             equals: 'sold',
           },
         },
-        limit: 1000,
+        limit: 100,
       });
 
       let conversationsCreated = 0;

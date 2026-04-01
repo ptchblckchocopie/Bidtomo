@@ -843,9 +843,9 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
 
     // Get ALL active auto-bids for this product (excluding seller)
     const allAutoBidsResult = await client.query(
-      `SELECT id, bidder_id, max_amount, censor_name, created_at FROM auto_bids
+      `SELECT id, bidder_id, max_amount, censor_name, created_at, updated_at FROM auto_bids
        WHERE product_id = $1 AND active = TRUE AND bidder_id != COALESCE($2, 0)
-       ORDER BY max_amount DESC, created_at ASC
+       ORDER BY max_amount DESC, COALESCE(updated_at, created_at) ASC
        FOR UPDATE`,
       [productId, sellerId]
     );
@@ -866,7 +866,7 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
         bidderId: row.bidder_id,
         maxAmount: parseFloat(row.max_amount),
         censorName: row.censor_name || false,
-        createdAt: new Date(row.created_at).getTime(),
+        createdAt: new Date(row.updated_at || row.created_at).getTime(),
       });
     }
 
