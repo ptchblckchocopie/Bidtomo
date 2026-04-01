@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/requireAuth';
 import { validate, typingSchema } from '../middleware/validate';
-import { publishTypingStatus, getRedisClient, isRedisConnected } from '../redis';
+import { publishTypingStatus, getRedisClient, isRedisConnected, REDIS_PREFIX } from '../redis';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
 const TYPING_TTL = 5; // seconds — auto-expires if client stops sending
-const TYPING_KEY_PREFIX = 'typing:';
+const TYPING_KEY_PREFIX = `${REDIS_PREFIX}typing:`;
 
 export function createTypingRouter(): Router {
   const router = Router();

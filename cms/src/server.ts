@@ -770,7 +770,7 @@ const start = async () => {
   if (redisSub) {
     try {
       const subClient = redisSub.duplicate();
-      subClient.subscribe('cache:invalidate');
+      subClient.subscribe(`${process.env.REDIS_PREFIX || ''}cache:invalidate`);
       subClient.on('message', (_channel: string, message: string) => {
         try {
           const { productId } = JSON.parse(message);
@@ -3244,10 +3244,9 @@ const start = async () => {
     }
   });
 
-  // In-memory typing status store
-  // Structure: { 'productId:userId': timestamp }
-  const typingStatus = new Map<string, number>();
-  const TYPING_TIMEOUT = 3000; // 3 seconds
+  // Redis-backed typing status store (supports multiple CMS instances)
+  const TYPING_TTL = 5; // seconds — auto-expires via Redis
+  const TYPING_KEY_PREFIX = `${process.env.REDIS_PREFIX || ''}typing:`;
 
   // Set typing status
   app.post('/api/typing', requireAuth, validate(typingSchema), async (req, res) => {
@@ -3255,15 +3254,16 @@ const start = async () => {
       const userId = (req as any).userId;
       const { product, isTyping } = req.body;
 
-      const key = `${product}:${userId}`;
       const productId = typeof product === 'string' ? parseInt(product, 10) : product;
+      const redis = getRedisClient();
 
-      if (isTyping) {
-        // Set typing with current timestamp
-        typingStatus.set(key, Date.now());
-      } else {
-        // Remove typing status
-        typingStatus.delete(key);
+      if (redis && isRedisConnected()) {
+        const key = `${TYPING_KEY_PREFIX}${productId}:${userId}`;
+        if (isTyping) {
+          await redis.setex(key, TYPING_TTL, '1');
+        } else {
+          await redis.del(key);
+        }
       }
 
       // Publish typing status via SSE for real-time updates
@@ -3281,22 +3281,23 @@ const start = async () => {
     try {
       const { productId } = req.params;
       const currentUserId = (req as any).userId;
+      const redis = getRedisClient();
 
-      const now = Date.now();
       const typingUsers: string[] = [];
 
-      // Clean up expired typing statuses and find active ones
-      for (const [key, timestamp] of typingStatus.entries()) {
-        if (now - timestamp > TYPING_TIMEOUT) {
-          // Expired, remove it
-          typingStatus.delete(key);
-        } else if (key.startsWith(`${productId}:`)) {
-          const userId = key.split(':')[1];
-          // Don't include current user's typing status
-          if (userId !== currentUserId) {
-            typingUsers.push(userId);
+      if (redis && isRedisConnected()) {
+        const pattern = `${TYPING_KEY_PREFIX}${productId}:*`;
+        let cursor = '0';
+        do {
+          const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 50);
+          cursor = nextCursor;
+          for (const key of keys) {
+            const userId = key.split(':').pop();
+            if (userId && userId !== currentUserId) {
+              typingUsers.push(userId);
+            }
           }
-        }
+        } while (cursor !== '0');
       }
 
       res.json({ typing: typingUsers.length > 0, users: typingUsers });

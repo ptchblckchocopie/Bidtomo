@@ -182,7 +182,7 @@ export async function publishMessageNotification(
       return false;
     }
 
-    const channel = `sse:user:${userId}`;
+    const channel = `${REDIS_PREFIX}sse:user:${userId}`;
     const message = JSON.stringify({
       ...data,
       timestamp: Date.now(),
@@ -217,7 +217,7 @@ export async function publishProductUpdate(
       return false;
     }
 
-    const channel = `sse:product:${productId}`;
+    const channel = `${REDIS_PREFIX}sse:product:${productId}`;
     const message = JSON.stringify({
       ...data,
       timestamp: Date.now(),
@@ -247,7 +247,7 @@ export async function publishTypingStatus(
       return false;
     }
 
-    const channel = `sse:product:${productId}`;
+    const channel = `${REDIS_PREFIX}sse:product:${productId}`;
     const message = JSON.stringify({
       type: 'typing',
       productId,
@@ -279,7 +279,7 @@ export async function publishGlobalEvent(
       return false;
     }
 
-    const channel = 'sse:global';
+    const channel = `${REDIS_PREFIX}sse:global`;
     const message = JSON.stringify({
       ...data,
       timestamp: Date.now(),
@@ -297,7 +297,7 @@ export async function publishGlobalEvent(
 
 // ── Maintenance Mode ──
 
-const MAINTENANCE_KEY = 'maintenance:status';
+const MAINTENANCE_KEY = `${REDIS_PREFIX}maintenance:status`;
 
 export interface MaintenanceStatus {
   enabled: boolean;

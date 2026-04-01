@@ -23,7 +23,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json postinstall.js ./
-RUN npm ci --omit=dev --legacy-peer-deps
+RUN npm ci --omit=dev --legacy-peer-deps && npm install -g pm2
 
 # Copy built output from builder
 COPY --from=builder /app/dist ./dist
@@ -38,7 +38,9 @@ ARG GIT_SHA=unknown
 ENV GIT_SHA=${GIT_SHA}
 ENV NODE_ENV=production
 ENV PAYLOAD_CONFIG_PATH=dist/payload.config.js
+# PM2 cluster instances: set to 'max' for all CPUs or a specific number
+ENV PM2_INSTANCES=${PM2_INSTANCES:-2}
 
 USER node
 EXPOSE 3001
-CMD ["node", "dist/server.js"]
+CMD ["sh", "-c", "pm2-runtime start dist/server.js -i ${PM2_INSTANCES} --name cms"]

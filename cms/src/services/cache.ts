@@ -12,11 +12,11 @@
  */
 
 import crypto from 'crypto';
-import { getRedisClient, isRedisConnected } from '../redis';
+import { getRedisClient, isRedisConnected, REDIS_PREFIX } from '../redis';
 
 const LIST_TTL = 10;   // seconds
 const DETAIL_TTL = 5;  // seconds
-const KEY_PREFIX = 'cache:';
+const KEY_PREFIX = `${REDIS_PREFIX}cache:`;
 
 /**
  * Get a cached value or fetch it from the source.
@@ -203,7 +203,7 @@ export async function publishCacheInvalidation(
   productId: string | number,
 ): Promise<void> {
   try {
-    await redis.publish('cache:invalidate', JSON.stringify({ productId }));
+    await redis.publish(`${REDIS_PREFIX}cache:invalidate`, JSON.stringify({ productId }));
   } catch {
     // Best-effort
   }

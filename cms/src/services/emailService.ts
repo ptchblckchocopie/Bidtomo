@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import Redis from 'ioredis';
+import { Pool } from 'pg';
 import * as Sentry from '@sentry/node';
 import type { Payload } from 'payload';
 
@@ -12,6 +13,22 @@ const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const REDIS_PREFIX = process.env.REDIS_PREFIX || '';
 const EMAIL_QUEUE_KEY = `${REDIS_PREFIX}email:queue`;
 const EMAIL_PROCESSING_KEY = `${REDIS_PREFIX}email:processing`;
+
+// Database pool for email queue durability
+let dbPool: Pool | null = null;
+function getDbPool(): Pool | null {
+  if (dbPool) return dbPool;
+  const dbUri = process.env.DATABASE_URI;
+  if (!dbUri) return null;
+  dbPool = new Pool({
+    connectionString: dbUri,
+    max: 3,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+    ssl: dbUri.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined,
+  });
+  return dbPool;
+}
 const RATE_LIMIT = 2; // Max 2 emails per second
 const RATE_WINDOW = 1000; // 1 second in milliseconds
 
@@ -134,6 +151,20 @@ export async function queueEmail(payload: EmailPayload): Promise<{ success: bool
       attempts: 0,
     };
 
+    // Persist to DB first for durability (Redis is the fast path, DB is the durable fallback)
+    const pool = getDbPool();
+    if (pool) {
+      try {
+        await pool.query(
+          `INSERT INTO email_queue (email_id, to_address, subject, payload, status)
+           VALUES ($1, $2, $3, $4, 'pending')`,
+          [queuedEmail.id, JSON.stringify(payload.to), payload.subject, JSON.stringify(queuedEmail)]
+        );
+      } catch (dbErr: any) {
+        console.warn(`[EMAIL] DB persist failed (non-fatal): ${dbErr.message}`);
+      }
+    }
+
     await client.rpush(EMAIL_QUEUE_KEY, JSON.stringify(queuedEmail));
     console.log(`[EMAIL] Queued email ${queuedEmail.id} to ${payload.to}`);
 
@@ -222,11 +253,16 @@ async function processEmailQueue(): Promise<void> {
 
     try {
       const sendResult = await sendEmailDirect(email);
+      const pool = getDbPool();
 
       if (sendResult.success) {
         // Successfully sent, remove from processing
         await client.hdel(EMAIL_PROCESSING_KEY, email.id);
         emailsSentInWindow++;
+        // Mark as sent in DB
+        if (pool) {
+          try { await pool.query(`UPDATE email_queue SET status = 'sent', sent_at = NOW(), attempts = $1 WHERE email_id = $2`, [email.attempts + 1, email.id]); } catch { /* best-effort */ }
+        }
         console.log(`[EMAIL] Successfully processed ${email.id}`);
       } else {
         // Failed, handle retry
@@ -245,6 +281,10 @@ async function processEmailQueue(): Promise<void> {
             tags: { route: 'emailService.processQueue', emailId: email.id },
             extra: { lastError: email.lastError, to: email.to, subject: email.subject },
           });
+          // Mark as failed in DB
+          if (pool) {
+            try { await pool.query(`UPDATE email_queue SET status = 'failed', attempts = $1, last_error = $2 WHERE email_id = $3`, [email.attempts, email.lastError, email.id]); } catch { /* best-effort */ }
+          }
           // Send alert to support
           await sendSupportAlert(email);
         }
@@ -346,6 +386,42 @@ export async function getEmailQueueStats(): Promise<{
     return { queued, processing };
   } catch (error) {
     return { queued: 0, processing: 0 };
+  }
+}
+
+/**
+ * Recover unsent emails from DB on startup.
+ * Re-queues any 'pending' emails that were persisted but never sent (e.g., Redis crashed).
+ */
+export async function recoverPendingEmails(): Promise<number> {
+  const pool = getDbPool();
+  if (!pool || !redisConnected) return 0;
+
+  try {
+    const result = await pool.query(
+      `SELECT payload FROM email_queue WHERE status = 'pending' AND created_at > NOW() - INTERVAL '48 hours' ORDER BY created_at ASC LIMIT 100`
+    );
+
+    if (result.rows.length === 0) return 0;
+
+    const client = getRedis();
+    let recovered = 0;
+    for (const row of result.rows) {
+      try {
+        const email = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
+        await client.rpush(EMAIL_QUEUE_KEY, JSON.stringify(email));
+        await pool.query(`UPDATE email_queue SET status = 'processing' WHERE email_id = $1`, [email.id]);
+        recovered++;
+      } catch { /* skip malformed entries */ }
+    }
+
+    if (recovered > 0) {
+      console.log(`[EMAIL] Recovered ${recovered} pending emails from DB`);
+    }
+    return recovered;
+  } catch (err: any) {
+    console.warn(`[EMAIL] Email recovery failed: ${err.message}`);
+    return 0;
   }
 }
 

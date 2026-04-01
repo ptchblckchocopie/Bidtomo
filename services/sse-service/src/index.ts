@@ -15,6 +15,7 @@ if (!process.env.PAYLOAD_SECRET) {
 const app = express();
 const PORT = parseInt(process.env.PORT || process.env.SSE_PORT || '3002', 10);
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const REDIS_PREFIX = process.env.REDIS_PREFIX || '';
 const CORS_ORIGIN = process.env.SSE_CORS_ORIGIN || 'http://localhost:5173';
 
 // Payload v2 hashes the secret with SHA-256 before signing JWTs
@@ -481,16 +482,22 @@ function broadcastToUser(userId: string, data: object) {
   console.log(`[SSE] Broadcast to user ${userId}: ${sent} clients`);
 }
 
-// Subscribe to Redis channels
+// Subscribe to Redis channels (with environment prefix support)
 async function setupRedisSubscriber() {
+  const productPattern = `${REDIS_PREFIX}sse:product:*`;
+  const userPattern = `${REDIS_PREFIX}sse:user:*`;
+  const globalChannel = `${REDIS_PREFIX}sse:global`;
+  const productChannelPrefix = `${REDIS_PREFIX}sse:product:`;
+  const userChannelPrefix = `${REDIS_PREFIX}sse:user:`;
+
   try {
     try {
-      await redis.punsubscribe('sse:product:*', 'sse:user:*', 'sse:global');
+      await redis.punsubscribe(productPattern, userPattern, globalChannel);
     } catch {
       // Ignore errors if not previously subscribed
     }
 
-    await redis.psubscribe('sse:product:*', 'sse:user:*', 'sse:global');
+    await redis.psubscribe(productPattern, userPattern, globalChannel);
 
     redis.removeAllListeners('pmessage');
 
@@ -499,10 +506,10 @@ async function setupRedisSubscriber() {
       try {
         const data = JSON.parse(message);
 
-        if (channel === 'sse:global') {
+        if (channel === globalChannel) {
           broadcastToGlobal(data);
-        } else if (channel.startsWith('sse:product:')) {
-          const productId = channel.replace('sse:product:', '');
+        } else if (channel.startsWith(productChannelPrefix)) {
+          const productId = channel.slice(productChannelPrefix.length);
           broadcastToProduct(productId, data);
 
           // Also forward bid and accepted events to global subscribers
@@ -510,8 +517,8 @@ async function setupRedisSubscriber() {
           if (data.type === 'bid' || data.type === 'accepted') {
             broadcastToGlobal({ ...data, productId: parseInt(productId, 10) });
           }
-        } else if (channel.startsWith('sse:user:')) {
-          const userId = channel.replace('sse:user:', '');
+        } else if (channel.startsWith(userChannelPrefix)) {
+          const userId = channel.slice(userChannelPrefix.length);
           broadcastToUser(userId, data);
         }
       } catch (error) {

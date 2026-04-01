@@ -8,8 +8,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 256M
+          cpus: '0.25'
+          memory: 128M
     ports:
       - "80:80"
       - "443:443"
@@ -42,8 +42,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 1G
+          cpus: '1.5'
+          memory: 1536M
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-marketplace}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -52,6 +52,38 @@ services:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - prod-internal
+
+  # PgBouncer — connection pooler for PostgreSQL
+  # Multiplexes many app connections into a small pool of real DB connections
+  pgbouncer:
+    image: edoburu/pgbouncer:1.23.1-p2
+    container_name: prod-pgbouncer
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 500
+      DEFAULT_POOL_SIZE: 25
+      MIN_POOL_SIZE: 5
+      RESERVE_POOL_SIZE: 5
+      RESERVE_POOL_TIMEOUT: 3
+      MAX_DB_CONNECTIONS: 40
+      AUTH_TYPE: scram-sha-256
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -67,7 +99,7 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 256M
+          memory: 512M
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --appendfsync everysec --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
@@ -79,26 +111,26 @@ services:
     networks:
       - prod-internal
 
-  # PayloadCMS Backend
+  # PayloadCMS Backend (PM2 cluster mode — uses all available CPUs)
   cms:
     deploy:
       resources:
         limits:
           cpus: '2'
-          memory: 1G
+          memory: 1536M
     build:
       context: ./cms
       dockerfile: Dockerfile
       args:
         SERVER_URL: ${SERVER_URL:-http://localhost:3001}
-        DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
+        DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB:-marketplace}
         PAYLOAD_SECRET: ${PAYLOAD_SECRET:?PAYLOAD_SECRET is required}
         GIT_SHA: ${GIT_SHA:-unknown}
     container_name: prod-cms
     restart: unless-stopped
     environment:
-      DATABASE_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
+      DATABASE_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB:-marketplace}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB:-marketplace}
       PAYLOAD_SECRET: ${PAYLOAD_SECRET}
       PORT: 3001
       SERVER_URL: ${SERVER_URL}
@@ -117,7 +149,7 @@ services:
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
       DB_PUSH: ${DB_PUSH:-false}
     depends_on:
-      postgres:
+      pgbouncer:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -182,13 +214,13 @@ services:
     restart: unless-stopped
     environment:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-marketplace}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB:-marketplace}
       PAYLOAD_SECRET: ${PAYLOAD_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
       NODE_ENV: production
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
-      postgres:
+      pgbouncer:
         condition: service_healthy
       redis:
         condition: service_healthy

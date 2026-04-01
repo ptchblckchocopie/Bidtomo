@@ -445,11 +445,11 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
     // Fire SSE events immediately (fire-and-forget — don't block return)
     if (redisConnected) {
       if (auctionExtended && newEndDate) {
-        redisPub.publish(`sse:product:${job.productId}`, JSON.stringify({
+        redisPub.publish(`${REDIS_PREFIX}sse:product:${job.productId}`, JSON.stringify({
           type: 'auction_extended', newEndDate, autoExtendMinutes, timestamp: Date.now(),
         })).catch(() => {});
       }
-      redisPub.publish('cache:invalidate', JSON.stringify({ productId: job.productId })).catch(() => {});
+      redisPub.publish(`${REDIS_PREFIX}cache:invalidate`, JSON.stringify({ productId: job.productId })).catch(() => {});
     }
 
     return { success: true, bidId, bidderName, bidTime };
@@ -487,6 +487,18 @@ async function queueEmail(emailData: {
       queuedAt: Date.now(),
       attempts: 0,
     };
+
+    // Persist to DB first for durability
+    try {
+      await pool.query(
+        `INSERT INTO email_queue (email_id, to_address, subject, payload, status)
+         VALUES ($1, $2, $3, $4, 'pending')`,
+        [queuedEmail.id, JSON.stringify(emailData.to), emailData.subject, JSON.stringify(queuedEmail)]
+      );
+    } catch (dbErr: any) {
+      log.warn({ err: dbErr }, 'DB email persist failed (non-fatal)');
+    }
+
     await redisPub.rpush(EMAIL_QUEUE_KEY, JSON.stringify(queuedEmail));
     log.info({ to: emailData.to, subject: emailData.subject }, 'Queued email');
     return true;
@@ -623,7 +635,7 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
     if (redisConnected) {
       try {
         const now = new Date().toISOString();
-        const channel = `sse:user:${job.bidderId}`;
+        const channel = `${REDIS_PREFIX}sse:user:${job.bidderId}`;
         const notification = JSON.stringify({
           type: 'new_message',
           messageId,
@@ -749,7 +761,7 @@ async function publishBidResult(
     return;
   }
 
-  const channel = `sse:product:${productId}`;
+  const channel = `${REDIS_PREFIX}sse:product:${productId}`;
   const message = JSON.stringify({
     type: 'bid',
     ...result,
@@ -772,7 +784,7 @@ async function publishAcceptResult(productId: number, result: { success: boolean
     return;
   }
 
-  const channel = `sse:product:${productId}`;
+  const channel = `${REDIS_PREFIX}sse:product:${productId}`;
   const message = JSON.stringify({
     type: 'accepted',
     status: 'sold',
@@ -1010,9 +1022,15 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
       }
     }
 
-    // Update product's current bid to final amount
-    const originalBid = Number(product.currentBid) || 0;
-    if (runningBid > originalBid) {
+    // Re-read currentBid within the transaction to guard against stale overwrites
+    const freshProductResult = await client.query(
+      `SELECT current_bid FROM products WHERE id = $1 FOR UPDATE`,
+      [productId]
+    );
+    const freshBid = Number(freshProductResult.rows[0]?.current_bid) || 0;
+
+    // Only update if our computed bid is still higher than the current value
+    if (runningBid > freshBid) {
       await client.query(
         `UPDATE products SET current_bid = $1, updated_at = NOW() WHERE id = $2`,
         [runningBid, productId]
@@ -1055,7 +1073,7 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
     // Publish auction extension SSE after commit
     if (autoExtendNewEndDate && redisConnected) {
       try {
-        await redisPub.publish(`sse:product:${productId}`, JSON.stringify({
+        await redisPub.publish(`${REDIS_PREFIX}sse:product:${productId}`, JSON.stringify({
           type: 'auction_extended',
           newEndDate: autoExtendNewEndDate,
           autoExtendMinutes: autoExtendMin,
@@ -1080,7 +1098,7 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
       }
 
       try {
-        const channel = `sse:product:${productId}`;
+        const channel = `${REDIS_PREFIX}sse:product:${productId}`;
         for (const bid of placedBids) {
           const message = JSON.stringify({
             type: 'bid',
@@ -1106,7 +1124,7 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
           isAutoBid: true,
           timestamp: Date.now(),
         });
-        await redisPub.publish('sse:global', globalMessage);
+        await redisPub.publish(`${REDIS_PREFIX}sse:global`, globalMessage);
 
         log.info({ channel, count: placedBids.length, productId }, 'Published auto-bid results');
       } catch (publishError) {
@@ -1118,7 +1136,7 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
     // Invalidate product cache after auto-bids
     if (placedBids.length > 0 && redisConnected) {
       try {
-        await redisPub.publish('cache:invalidate', JSON.stringify({ productId }));
+        await redisPub.publish(`${REDIS_PREFIX}cache:invalidate`, JSON.stringify({ productId }));
       } catch { /* best-effort */ }
     }
 
@@ -1311,7 +1329,7 @@ async function closeOneAuction(product: any): Promise<void> {
 
           // Invalidate product cache after auction close
           if (redisConnected) {
-            try { await redisPub.publish('cache:invalidate', JSON.stringify({ productId: product.id })); } catch { /* best-effort */ }
+            try { await redisPub.publish(`${REDIS_PREFIX}cache:invalidate`, JSON.stringify({ productId: product.id })); } catch { /* best-effort */ }
           }
 
           log.info({ productId: product.id, winnerId: winner.bidder_id, amount: winner.amount, transactionId }, 'Auction closed with winner');
@@ -1320,7 +1338,7 @@ async function closeOneAuction(product: any): Promise<void> {
           if (redisConnected) {
             try {
               // Product channel — auction closed
-              await redisPub.publish(`sse:product:${product.id}`, JSON.stringify({
+              await redisPub.publish(`${REDIS_PREFIX}sse:product:${product.id}`, JSON.stringify({
                 type: 'auction_closed',
                 status: 'ended',
                 winnerId: winner.bidder_id,
@@ -1331,7 +1349,7 @@ async function closeOneAuction(product: any): Promise<void> {
               }));
 
               // Winner user channel — notification
-              await redisPub.publish(`sse:user:${winner.bidder_id}`, JSON.stringify({
+              await redisPub.publish(`${REDIS_PREFIX}sse:user:${winner.bidder_id}`, JSON.stringify({
                 type: 'new_message',
                 messageId,
                 productId: product.id,
@@ -1421,14 +1439,14 @@ async function closeOneAuction(product: any): Promise<void> {
           // No bids — just end the auction
           await client.query('COMMIT');
           if (redisConnected) {
-            try { await redisPub.publish('cache:invalidate', JSON.stringify({ productId: product.id })); } catch { /* best-effort */ }
+            try { await redisPub.publish(`${REDIS_PREFIX}cache:invalidate`, JSON.stringify({ productId: product.id })); } catch { /* best-effort */ }
           }
           log.info({ productId: product.id }, 'Auction closed with no bids');
 
           // Publish SSE — auction ended with no winner
           if (redisConnected) {
             try {
-              await redisPub.publish(`sse:product:${product.id}`, JSON.stringify({
+              await redisPub.publish(`${REDIS_PREFIX}sse:product:${product.id}`, JSON.stringify({
                 type: 'auction_closed',
                 status: 'ended',
                 winnerId: null,
@@ -1534,7 +1552,7 @@ async function expireVoidRequestOffers(): Promise<void> {
         // Publish SSE — auction restarted
         if (redisConnected) {
           try {
-            await redisPub.publish(`sse:product:${offer.product_id}`, JSON.stringify({
+            await redisPub.publish(`${REDIS_PREFIX}sse:product:${offer.product_id}`, JSON.stringify({
               type: 'status_change',
               status: 'available',
               auctionEndDate: newEndDate,

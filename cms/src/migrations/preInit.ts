@@ -102,6 +102,29 @@ export async function runPreInitMigrations(pool: PoolType): Promise<void> {
     Sentry.captureException(preErr, { tags: { route: 'startup.migration.products' } });
   }
 
+  // Email queue durability — persist emails to DB before Redis queue
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "email_queue" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "email_id" varchar NOT NULL,
+        "to_address" varchar NOT NULL,
+        "subject" varchar NOT NULL,
+        "payload" jsonb NOT NULL,
+        "status" varchar NOT NULL DEFAULT 'pending',
+        "attempts" integer NOT NULL DEFAULT 0,
+        "last_error" varchar,
+        "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+        "sent_at" timestamp(3) with time zone
+      );
+      CREATE INDEX IF NOT EXISTS "email_queue_status_idx" ON "email_queue" USING btree ("status");
+      CREATE INDEX IF NOT EXISTS "email_queue_created_idx" ON "email_queue" USING btree ("created_at");
+    `);
+  } catch (preErr: any) {
+    console.error('Pre-init migration (email_queue) failed:', preErr.message);
+    Sentry.captureException(preErr, { tags: { route: 'startup.migration.email_queue' } });
+  }
+
   // Void request offer expiration — add offer_expires_at column
   try {
     await pool.query(`
