@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { isRedisConnected, getRedisClient } from '../redis';
 import { isElasticAvailable } from '../services/elasticSearch';
+import { getLatestBackupAgeHours } from '../services/backupService';
 import type { Payload } from 'payload';
 
 export function createHealthRouter(payload?: Payload): Router {
@@ -51,7 +52,17 @@ export function createHealthRouter(payload?: Payload): Router {
       }
     } catch { /* non-critical */ }
 
-    const allOk = postgres === 'connected' && isRedisConnected();
+    // Backup age check (>48h = degraded)
+    let backupAgeHours: number | null = null;
+    let backupStale = false;
+    if (process.env.BACKUP_ENABLED === 'true') {
+      try {
+        backupAgeHours = await getLatestBackupAgeHours();
+        backupStale = backupAgeHours === null || backupAgeHours > 48;
+      } catch { /* non-critical */ }
+    }
+
+    const allOk = postgres === 'connected' && isRedisConnected() && !backupStale;
 
     res.json({
       status: allOk ? 'ok' : 'degraded',
@@ -61,6 +72,10 @@ export function createHealthRouter(payload?: Payload): Router {
       pendingExpiredAuctions,
       emailQueueDepth,
       pendingBidsBacklog,
+      ...(process.env.BACKUP_ENABLED === 'true' && {
+        backupAgeHours: backupAgeHours !== null ? Math.round(backupAgeHours * 10) / 10 : null,
+        backupStale,
+      }),
       timestamp: Date.now(),
     });
   });

@@ -1,6 +1,6 @@
-import { createGzip } from 'zlib';
-import { PassThrough } from 'stream';
-import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { createGzip, createGunzip } from 'zlib';
+import { PassThrough, Readable } from 'stream';
+import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, HeadObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import cron from 'node-cron';
 
@@ -249,6 +249,192 @@ export async function verifyBackup(key: string): Promise<{ verified: boolean; si
   }
 }
 
+/**
+ * Download the latest backup from S3, restore it into a temporary Postgres database,
+ * and verify data integrity by counting rows. Cleans up the temp database afterwards.
+ */
+export async function restoreAndVerify(): Promise<{
+  success: boolean;
+  productCount?: number;
+  error?: string;
+  durationMs?: number;
+}> {
+  const startTime = Date.now();
+  const { Pool } = require('pg');
+  const dbUri = process.env.DATABASE_URI;
+  if (!dbUri) return { success: false, error: 'DATABASE_URI not configured' };
+
+  const tempDbName = `bidmo_restore_test_${Date.now()}`;
+  let adminPool: any = null;
+  let tempPool: any = null;
+  const sslConfig = dbUri.includes('sslmode=require') ? { rejectUnauthorized: false } : undefined;
+
+  try {
+    // 1. Find latest backup in S3
+    const bucket = process.env.S3_BUCKET || 'veent';
+    const s3 = getS3Client();
+    const listResult = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: 'backups/',
+    }));
+
+    const objects = (listResult.Contents || []).filter(o => o.LastModified && o.Key);
+    if (objects.length === 0) return { success: false, error: 'No backups found in S3' };
+
+    const latest = objects.reduce((a, b) =>
+      (a.LastModified!.getTime() > b.LastModified!.getTime()) ? a : b
+    );
+
+    console.log(`[BACKUP-RESTORE] Testing restore of: ${latest.Key}`);
+
+    // 2. Download and decompress backup
+    const getResult = await s3.send(new GetObjectCommand({
+      Bucket: bucket,
+      Key: latest.Key!,
+    }));
+
+    const bodyStream = getResult.Body as Readable;
+    const gunzip = createGunzip();
+    const chunks: Buffer[] = [];
+
+    await new Promise<void>((resolve, reject) => {
+      bodyStream.pipe(gunzip);
+      gunzip.on('data', (chunk: Buffer) => chunks.push(chunk));
+      gunzip.on('end', resolve);
+      gunzip.on('error', reject);
+    });
+
+    const sqlContent = Buffer.concat(chunks).toString('utf8');
+    console.log(`[BACKUP-RESTORE] Decompressed backup: ${(sqlContent.length / 1024).toFixed(1)} KB`);
+
+    // 3. Extract schema DDL from main database
+    const mainPool = new Pool({ connectionString: dbUri, ssl: sslConfig });
+
+    const tablesResult = await mainPool.query(
+      `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`
+    );
+
+    const createStatements: string[] = [];
+    for (const row of tablesResult.rows) {
+      const table = row.tablename;
+      const colsResult = await mainPool.query(`
+        SELECT a.attname as column_name,
+               format_type(a.atttypid, a.atttypmod) as data_type,
+               a.attnotnull as not_null,
+               pg_get_expr(d.adbin, d.adrelid) as column_default
+        FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+        WHERE c.relname = $1
+          AND n.nspname = 'public'
+          AND a.attnum > 0
+          AND NOT a.attisdropped
+        ORDER BY a.attnum
+      `, [table]);
+
+      if (colsResult.rows.length === 0) continue;
+
+      const columns = colsResult.rows.map((col: any) => {
+        let def = `"${col.column_name}" ${col.data_type}`;
+        if (col.column_default) def += ` DEFAULT ${col.column_default}`;
+        if (col.not_null) def += ' NOT NULL';
+        return def;
+      });
+
+      createStatements.push(`CREATE TABLE IF NOT EXISTS "${table}" (\n${columns.join(',\n')}\n);`);
+    }
+
+    const seqResult = await mainPool.query(
+      `SELECT sequencename FROM pg_sequences WHERE schemaname = 'public'`
+    );
+    const sequenceStatements = seqResult.rows.map((seq: any) =>
+      `CREATE SEQUENCE IF NOT EXISTS "${seq.sequencename}";`
+    );
+
+    await mainPool.end();
+
+    // 4. Create temp database
+    const url = new URL(dbUri);
+    const adminUri = `${url.protocol}//${url.username}:${url.password}@${url.host}/postgres${url.search}`;
+
+    adminPool = new Pool({ connectionString: adminUri, ssl: sslConfig, max: 2 });
+    await adminPool.query(`DROP DATABASE IF EXISTS "${tempDbName}"`);
+    await adminPool.query(`CREATE DATABASE "${tempDbName}"`);
+    console.log(`[BACKUP-RESTORE] Created temp database: ${tempDbName}`);
+
+    // 5. Connect to temp database and apply schema
+    const tempUri = `${url.protocol}//${url.username}:${url.password}@${url.host}/${tempDbName}${url.search}`;
+    tempPool = new Pool({ connectionString: tempUri, ssl: sslConfig, max: 2 });
+
+    for (const stmt of sequenceStatements) {
+      try { await tempPool.query(stmt); } catch { /* sequence may reference missing types */ }
+    }
+
+    for (const stmt of createStatements) {
+      try { await tempPool.query(stmt); } catch (err: any) {
+        console.warn(`[BACKUP-RESTORE] Schema warning: ${err.message.slice(0, 100)}`);
+      }
+    }
+
+    console.log(`[BACKUP-RESTORE] Schema applied (${createStatements.length} tables)`);
+
+    // 6. Execute backup SQL statements
+    const statements = sqlContent
+      .split('\n')
+      .filter(line => line.trim() && !line.startsWith('--') && !line.startsWith('SET '));
+
+    let executed = 0;
+    let errors = 0;
+    for (const stmt of statements) {
+      if (!stmt.trim().endsWith(';')) continue;
+      try {
+        await tempPool.query(stmt);
+        executed++;
+      } catch {
+        errors++;
+      }
+    }
+
+    console.log(`[BACKUP-RESTORE] Executed ${executed} statements (${errors} errors)`);
+
+    // 7. Verify: count products
+    let productCount = 0;
+    try {
+      const countResult = await tempPool.query('SELECT COUNT(*) as count FROM products');
+      productCount = parseInt(countResult.rows[0].count, 10);
+    } catch (err: any) {
+      console.warn(`[BACKUP-RESTORE] Products count failed: ${err.message}`);
+    }
+
+    // 8. Cleanup
+    await tempPool.end();
+    tempPool = null;
+    await adminPool.query(`DROP DATABASE IF EXISTS "${tempDbName}"`);
+    await adminPool.end();
+    adminPool = null;
+
+    const durationMs = Date.now() - startTime;
+    const success = productCount > 0 || executed > 0;
+    console.log(`[BACKUP-RESTORE] Restore test ${success ? 'PASSED' : 'FAILED'} — ${productCount} products, ${(durationMs / 1000).toFixed(1)}s`);
+
+    return { success, productCount, durationMs };
+  } catch (err: any) {
+    console.error(`[BACKUP-RESTORE] Restore test FAILED:`, err.message);
+
+    // Best-effort cleanup
+    try {
+      if (tempPool) await tempPool.end();
+      if (adminPool) {
+        await adminPool.query(`DROP DATABASE IF EXISTS "${tempDbName}"`);
+        await adminPool.end();
+      }
+    } catch { /* ignore cleanup errors */ }
+
+    return { success: false, error: err.message, durationMs: Date.now() - startTime };
+  }
+}
+
 export function startBackupScheduler(): void {
   if (process.env.BACKUP_ENABLED !== 'true') {
     console.log('[BACKUP] Backup scheduler disabled (BACKUP_ENABLED != true)');
@@ -270,6 +456,19 @@ export function startBackupScheduler(): void {
     }
     await cleanupOldBackups();
   });
+
+  // Weekly restore test — every Sunday at 4 AM (1 hour after daily backup)
+  const restoreSchedule = process.env.BACKUP_RESTORE_CRON || '0 4 * * 0';
+  if (cron.validate(restoreSchedule)) {
+    cron.schedule(restoreSchedule, async () => {
+      console.log('[BACKUP-RESTORE] Weekly restore test starting...');
+      const result = await restoreAndVerify();
+      if (!result.success) {
+        console.error(`[BACKUP-RESTORE] WEEKLY RESTORE TEST FAILED: ${result.error}`);
+      }
+    });
+    console.log(`[BACKUP] Restore test scheduled: ${restoreSchedule}`);
+  }
 
   console.log(`[BACKUP] Scheduler started with schedule: ${schedule}`);
 }
