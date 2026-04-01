@@ -6,6 +6,10 @@ import { validate, bidQueueSchema, bidAcceptSchema } from '../middleware/validat
 import { bidLimiter } from '../limiters';
 import { queueBid, queueAcceptBid, publishProductUpdate } from '../redis';
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 interface BidsDeps {
   payload: Payload;
   isProduction: boolean;
@@ -293,7 +297,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
             [parseInt(productId, 10)]
           );
 
-          const congratsMessage = `Congratulations! Your bid has been accepted for "${freshProduct.title}". Let's discuss the next steps for completing this transaction.`;
+          const congratsMessage = `Congratulations! Your bid has been accepted for "${escapeHtml(freshProduct.title)}". Let's discuss the next steps for completing this transaction.`;
           const messageResult = await client.query(
             `INSERT INTO messages (message, read, created_at, updated_at)
              VALUES ($1, false, NOW(), NOW()) RETURNING id`,
@@ -314,7 +318,7 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
             [messageId, highestBidderId]
           );
 
-          const txNotes = `Transaction created for "${freshProduct.title}" with winning bid of ${highestBid.amount}`;
+          const txNotes = `Transaction created for "${escapeHtml(freshProduct.title)}" with winning bid of ${highestBid.amount}`;
           const txResult = await client.query(
             `INSERT INTO transactions (amount, status, notes, created_at, updated_at)
              VALUES ($1, 'pending', $2, NOW(), NOW()) RETURNING id`,

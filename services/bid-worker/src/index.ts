@@ -5,10 +5,19 @@ import { Pool } from 'pg';
 import crypto from 'crypto';
 import log from './logger';
 
-// Warn if using default connection strings in production
+// Validate critical env vars at startup
+if (!process.env.PAYLOAD_SECRET) {
+  console.error('FATAL: PAYLOAD_SECRET is not set. Bid-worker cannot verify JWT tokens. Exiting.');
+  process.exit(1);
+}
 if (process.env.NODE_ENV === 'production') {
-  if (!process.env.REDIS_URL) console.warn('WARNING: REDIS_URL not set in production — using localhost default.');
-  if (!process.env.DATABASE_URL) console.warn('WARNING: DATABASE_URL not set in production — using localhost default.');
+  const PROD_REQUIRED = ['REDIS_URL', 'DATABASE_URL'] as const;
+  for (const key of PROD_REQUIRED) {
+    if (!process.env[key]) {
+      console.error(`FATAL: Required environment variable ${key} is not set in production. Exiting.`);
+      process.exit(1);
+    }
+  }
 }
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';

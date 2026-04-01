@@ -3,6 +3,10 @@
 
 import { env } from '$env/dynamic/private';
 
+if (!env.CMS_URL && process.env.NODE_ENV === 'production') {
+  console.error('FATAL: CMS_URL is not set in production. Frontend cannot proxy to CMS. Exiting.');
+  process.exit(1);
+}
 const CMS_URL = env.CMS_URL || 'http://localhost:3001';
 
 export interface CMSRequestOptions {
