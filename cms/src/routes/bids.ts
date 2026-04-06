@@ -204,24 +204,6 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
         }
       }
 
-      // Early SSE publish: notify other watchers immediately that a bid was placed.
-      // The CMS already validated (product active, auction not ended, amount valid),
-      // so this is safe. The worker will publish the confirmed bid event later.
-      // This cuts perceived latency from ~200-500ms to near-instant.
-      const bidderResult = await payload.findByID({
-        collection: 'users', id: userId, depth: 0, overrideAccess: true,
-      }).catch(() => null);
-      publishProductUpdate(parseInt(productId, 10), {
-        type: 'bid',
-        success: true,
-        amount,
-        bidderId: userId,
-        bidderName: censorName ? 'Anonymous' : (bidderResult?.name || 'Bidder'),
-        censorName: censorName || false,
-        bidTime: new Date().toISOString(),
-        pending: true, // Marks this as pre-confirmation; worker sends confirmed event
-      });
-
       sendSuccess(res, {
         jobId: result.jobId,
         queued: true,
