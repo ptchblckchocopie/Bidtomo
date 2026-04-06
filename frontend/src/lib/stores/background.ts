@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
-export type BackgroundType = 'horizontal_wave' | 'interactive_tile' | 'silk' | 'stream' | 'none';
+export type BackgroundType = 'horizontal_wave' | 'interactive_tile' | 'ripple_grid' | 'stream' | 'none';
 
 const STORAGE_KEY = 'background_preference';
 
