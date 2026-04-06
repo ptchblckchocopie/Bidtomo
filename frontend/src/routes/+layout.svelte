@@ -133,9 +133,9 @@
     {#await import('$lib/components/SplineBackground.svelte') then { default: SplineBackground }}
       <SplineBackground />
     {/await}
-  {:else if $backgroundStore === 'purple_planet'}
-    {#await import('$lib/components/SplineBackground.svelte') then { default: SplineBackground }}
-      <SplineBackground url="https://prod.spline.design/WAPPiTlGmbRxnziK/scene.splinecode?v=3" scale={100} offsetY={50} opacity={1} />
+  {:else if $backgroundStore === 'silk'}
+    {#await import('$lib/components/SilkBackground.svelte') then { default: SilkBackground }}
+      <SilkBackground />
     {/await}
   {:else if $backgroundStore === 'stream'}
     {#await import('$lib/components/SplineBackground.svelte') then { default: SplineBackground }}
@@ -211,14 +211,13 @@
                   <span>Interactive Tile</span>
                 </button>
                 <button
-                  onclick={() => selectBackground('purple_planet')}
-                  class="bg-dropdown-item {$backgroundStore === 'purple_planet' ? 'active' : ''}"
+                  onclick={() => selectBackground('silk')}
+                  class="bg-dropdown-item {$backgroundStore === 'silk' ? 'active' : ''}"
                 >
                   <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                    <circle cx="12" cy="12" r="9" />
-                    <circle cx="12" cy="12" r="4" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 8c3-4 6 4 9 0s6 4 9 0M3 16c3-4 6 4 9 0s6 4 9 0" />
                   </svg>
-                  <span>Purple Planet</span>
+                  <span>Silk</span>
                 </button>
                 <button
                   onclick={() => selectBackground('stream')}
