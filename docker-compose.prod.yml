@@ -61,7 +61,7 @@ services:
   # PgBouncer — connection pooler for PostgreSQL
   # Multiplexes many app connections into a small pool of real DB connections
   pgbouncer:
-    image: edoburu/pgbouncer:1.23.1-p2
+    image: edoburu/pgbouncer:latest
     container_name: prod-pgbouncer
     restart: unless-stopped
     deploy:
