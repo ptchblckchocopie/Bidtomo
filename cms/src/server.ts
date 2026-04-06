@@ -7,8 +7,9 @@ import cors from 'cors';
 import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
 import crypto from 'crypto';
-import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected, getRedisClient, getMaintenanceStatus, setMaintenanceStatus } from './redis';
+import { queueBid, queueAcceptBid, publishProductUpdate, publishMessageNotification, publishTypingStatus, publishGlobalEvent, isRedisConnected, getRedisClient, ensureRedisClient, getMaintenanceStatus, setMaintenanceStatus, REDIS_PREFIX } from './redis';
 import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRestartedEmail, sendSecondBidderOfferEmail } from './services/emailService';
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
 import { getOverviewStats, getTimeSeries, getTopSearchKeywords, getTopViewedProducts, getTopSoldProducts, getEventBreakdown } from './services/analyticsQueries';
@@ -133,6 +134,15 @@ app.use((req, res, next) => {
 // Parse JSON body with explicit size limit
 app.use(express.json({ limit: '1mb' }));
 
+// Redis-backed rate limit store (shared across CMS instances)
+const rateLimitRedis = ensureRedisClient();
+function createRedisStore(prefix: string) {
+  return new RedisStore({
+    sendCommand: (...args: string[]) => rateLimitRedis.call(args[0], ...args.slice(1)) as any,
+    prefix: `${REDIS_PREFIX}rl:${prefix}:`,
+  });
+}
+
 // Rate limiters
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -140,6 +150,7 @@ const loginLimiter = rateLimit({
   message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRedisStore('login'),
 });
 
 const registrationLimiter = rateLimit({
@@ -148,6 +159,7 @@ const registrationLimiter = rateLimit({
   message: { error: 'Too many registration attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRedisStore('register'),
 });
 
 const bidLimiter = rateLimit({
@@ -156,6 +168,7 @@ const bidLimiter = rateLimit({
   message: { error: 'Too many bid attempts. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRedisStore('bid'),
 });
 
 // Apply rate limiters to Payload's built-in auth endpoints
@@ -176,6 +189,7 @@ const analyticsLimiter = rateLimit({
   message: { error: 'Too many analytics requests.' },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRedisStore('analytics'),
 });
 
 const reportLimiter = rateLimit({
@@ -184,6 +198,7 @@ const reportLimiter = rateLimit({
   message: { error: 'Too many reports. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRedisStore('report'),
 });
 
 const analyticsDashboardLimiter = rateLimit({
@@ -192,6 +207,7 @@ const analyticsDashboardLimiter = rateLimit({
   message: { error: 'Too many analytics dashboard requests.' },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRedisStore('analytics-dash'),
 });
 
 const messageLimiter = rateLimit({
@@ -200,6 +216,7 @@ const messageLimiter = rateLimit({
   message: { error: 'Too many messages. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRedisStore('message'),
 });
 
 // Analytics track endpoint — registered before payload.init()

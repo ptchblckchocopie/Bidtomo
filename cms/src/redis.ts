@@ -55,6 +55,11 @@ export function getRedisClient(): Redis | null {
   return redis;
 }
 
+// Get or create the Redis client (ensures initialization)
+export function ensureRedisClient(): Redis {
+  return getRedis();
+}
+
 export function isRedisConnected(): boolean {
   return redisConnected;
 }
