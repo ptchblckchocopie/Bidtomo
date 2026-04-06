@@ -141,9 +141,10 @@ export default buildConfig({
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URI || process.env.DATABASE_URL || 'postgresql://localhost:5432/marketplace',
-      max: 30,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+      max: 50,
+      min: 5,
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 10000,
     },
     migrationDir: path.resolve(__dirname, '../migrations'),
     push: process.env.DB_PUSH === 'true', // Enable via env var for staging schema sync
@@ -233,6 +234,16 @@ export default buildConfig({
             // Strip PII for everyone else (including populated relations in products, bids, etc.)
             const { email, phoneNumber, countryCode, ...publicData } = doc;
             return publicData;
+          },
+        ],
+        afterChange: [
+          ({ doc }: any) => {
+            // Invalidate user cache on any profile update (name, picture, etc.)
+            try {
+              if (typeof (global as any).invalidateUserCache === 'function') {
+                (global as any).invalidateUserCache(doc.id);
+              }
+            } catch { /* best-effort */ }
           },
         ],
       },
@@ -1090,6 +1101,12 @@ export default buildConfig({
                       updatedAt: doc.updatedAt,
                     },
                   }).catch((err: Error) => console.error('Error publishing message notification:', err));
+                }
+                // Invalidate conversation caches for both sender and receiver
+                const invalidateConv = (global as any).invalidateConversationCache;
+                if (invalidateConv) {
+                  invalidateConv(senderId).catch(() => {});
+                  invalidateConv(receiverId).catch(() => {});
                 }
               } catch (error) {
                 console.error('Error in message afterChange hook:', error);

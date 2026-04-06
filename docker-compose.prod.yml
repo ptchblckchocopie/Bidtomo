@@ -241,6 +241,8 @@ services:
       - prod-internal
 
   # Bid Worker — no port, processes Redis queue
+  # Heartbeat file at /tmp/bid-worker-heartbeat is written every loop iteration.
+  # If it goes stale (>60s), Docker restarts the container.
   bid-worker:
     deploy:
       resources:
@@ -266,6 +268,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/bid-worker-heartbeat && test $$(( $$(date +%s) - $$(cat /tmp/bid-worker-heartbeat) )) -lt 60"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     networks:
       - prod-internal
 

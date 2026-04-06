@@ -10,7 +10,7 @@ export const GET: RequestHandler = async ({ params, url, request }) => {
     // Filter products by seller (server-set, not user-controlled)
     queryParams.set('where[seller][equals]', params.id);
 
-    // Default depth for seller info
+    // depth=1 needed for images[].image population (relationship inside array field)
     if (!queryParams.has('depth')) {
       queryParams.set('depth', '1');
     }

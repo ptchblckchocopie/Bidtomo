@@ -16,9 +16,15 @@ export interface CMSRequestOptions {
   token?: string;
 }
 
+/** Default timeout for CMS requests (ms). Prevents bridge routes from hanging
+ *  indefinitely when CMS is slow or unresponsive. Vercel functions timeout at
+ *  10s (standard) / 60s (Pro), so 8s gives headroom for response. */
+const DEFAULT_TIMEOUT_MS = 8_000;
+
 export async function cmsRequest(
   endpoint: string,
-  options: CMSRequestOptions = {}
+  options: CMSRequestOptions = {},
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<Response> {
   const { method = 'GET', body, headers = {}, token } = options;
 
@@ -31,10 +37,15 @@ export async function cmsRequest(
     requestHeaders['Authorization'] = `JWT ${token}`;
   }
 
+  // Abort if CMS doesn't respond within timeout
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+
   const fetchOptions: RequestInit = {
     method,
     headers: requestHeaders,
     keepalive: true,
+    signal: controller.signal,
   };
 
   if (body && method !== 'GET') {
@@ -42,7 +53,20 @@ export async function cmsRequest(
   }
 
   const url = `${CMS_URL}${endpoint}`;
-  return fetch(url, fetchOptions);
+  try {
+    return await fetch(url, fetchOptions);
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      // Return a synthetic 504 so callers handle it like any other HTTP error
+      return new Response(JSON.stringify({ error: 'CMS request timed out' }), {
+        status: 504,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
 }
 
 export function getTokenFromRequest(request: Request, cookies?: { get: (name: string) => string | undefined }): string | null {

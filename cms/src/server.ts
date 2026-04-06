@@ -14,7 +14,12 @@ import { queueEmail, sendVoidRequestEmail, sendVoidResponseEmail, sendAuctionRes
 import { ensureProductIndex, indexProduct, updateProductIndex, searchProducts, bulkSyncProducts, isElasticAvailable } from './services/elasticSearch';
 import { getOverviewStats, getTimeSeries, getTopSearchKeywords, getTopViewedProducts, getTopSoldProducts, getEventBreakdown } from './services/analyticsQueries';
 import { startBackupScheduler, runBackup, cleanupOldBackups, isBackupInProgress, getLatestBackupAgeHours } from './services/backupService';
-import { invalidateProductCache, getCachedAnalytics, getCachedUserProfile, getCachedUserProducts, invalidateUserCache } from './services/cache';
+import {
+  invalidateProductCache, getCachedAnalytics, getCachedUserProfile, getCachedUserProducts,
+  invalidateUserCache, getCachedConversations, invalidateConversationCache,
+  getCachedProductBids, invalidateBidCache, getCachedProductStatus, invalidateProductStatusCache,
+  readProductState, INVALIDATION_CHANNELS,
+} from './services/cache';
 import { authenticateJWT } from './auth-helpers';
 import { requireAuth, getPayloadJwtSecret } from './middleware/requireAuth';
 import { validate, bidQueueSchema, bidAcceptSchema, profilePictureSchema, voidRequestCreateSchema, voidRequestRespondSchema, voidRequestSellerChoiceSchema, voidRequestSecondBidderSchema, typingSchema, analyticsTrackSchema, reportCreateSchema, autoBidSchema, autoBidCancelSchema } from './middleware/validate';
@@ -45,6 +50,62 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // Module-level reference for cleanup on shutdown
 let cacheInvalidationSubClient: any = null;
+
+// ── Batched analytics buffer (module-level so pre-init routes can push events) ──
+// Events are collected here and flushed via batch INSERT every 5s after payload.init().
+const analyticsBuffer: Array<{ eventType: string; user?: number | string; page?: string; metadata?: any; sessionId?: string; deviceInfo?: any; referrer?: string; ip?: string }> = [];
+const ANALYTICS_FLUSH_MS = 5_000;
+const ANALYTICS_MAX_BUFFER = 500;
+let analyticsDbPool: any = null; // Set after payload.init()
+
+async function flushAnalyticsBuffer(): Promise<void> {
+  if (analyticsBuffer.length === 0 || !analyticsDbPool) return;
+  const batch = analyticsBuffer.splice(0, ANALYTICS_MAX_BUFFER);
+
+  try {
+    // Batch INSERT into user_events table
+    // Note: "user" is a relationship field stored in user_events_rels, not inline
+    const values: any[] = [];
+    const placeholders: string[] = [];
+    let idx = 1;
+    for (const ev of batch) {
+      placeholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, NOW(), NOW())`);
+      values.push(
+        ev.eventType,
+        ev.page || null,
+        ev.metadata ? JSON.stringify(ev.metadata) : null,
+        ev.sessionId || null,
+        ev.deviceInfo ? JSON.stringify(ev.deviceInfo) : null,
+        ev.referrer || null,
+        ev.ip || null,
+      );
+    }
+    const result = await analyticsDbPool.query(
+      `INSERT INTO user_events ("eventType", page, metadata, session_id, device_info, referrer, ip, created_at, updated_at)
+       VALUES ${placeholders.join(', ')} RETURNING id`,
+      values,
+    );
+
+    // Insert user relationships into user_events_rels (for events with userId)
+    const relValues: any[] = [];
+    const relPlaceholders: string[] = [];
+    let relIdx = 1;
+    for (let i = 0; i < batch.length; i++) {
+      if (batch[i].user) {
+        relPlaceholders.push(`($${relIdx++}, $${relIdx++}, $${relIdx++})`);
+        relValues.push(result.rows[i].id, 'user', batch[i].user);
+      }
+    }
+    if (relPlaceholders.length > 0) {
+      await analyticsDbPool.query(
+        `INSERT INTO user_events_rels (parent_id, path, users_id) VALUES ${relPlaceholders.join(', ')}`,
+        relValues,
+      );
+    }
+  } catch (err) {
+    console.error('[Analytics] Batch flush failed:', (err as Error).message);
+  }
+}
 
 // Configure CORS to allow requests from the frontend (including production URLs)
 const allowedOrigins: string[] = [
@@ -241,29 +302,24 @@ app.post('/api/analytics/track', analyticsLimiter, validate(analyticsTrackSchema
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip;
     const { events } = req.body;
 
-    // Fire-and-forget: write events without blocking response
-    setImmediate(async () => {
-      for (const event of events) {
-        try {
-          await payload.create({
-            collection: 'user-events',
-            data: {
-              eventType: event.eventType,
-              user: userId || undefined,
-              page: event.page,
-              metadata: event.metadata,
-              sessionId: event.sessionId,
-              deviceInfo: event.deviceInfo,
-              referrer: event.referrer,
-              ip,
-            },
-            overrideAccess: true,
-          });
-        } catch {
-          // Silently swallow
-        }
-      }
-    });
+    // Push events into the batched analytics buffer (flushed every 5s via batch INSERT)
+    // This prevents pool exhaustion from hundreds of individual payload.create() calls
+    for (const event of events) {
+      analyticsBuffer.push({
+        eventType: event.eventType,
+        user: userId,
+        page: event.page,
+        metadata: event.metadata,
+        sessionId: event.sessionId,
+        deviceInfo: event.deviceInfo,
+        referrer: event.referrer,
+        ip,
+      });
+    }
+    // Auto-flush if buffer is getting large
+    if (analyticsBuffer.length >= ANALYTICS_MAX_BUFFER) {
+      flushAnalyticsBuffer().catch(() => {});
+    }
 
     res.json({ success: true });
   } catch {
@@ -790,11 +846,25 @@ const start = async () => {
   if (redisSub) {
     try {
       cacheInvalidationSubClient = redisSub.duplicate();
-      cacheInvalidationSubClient.subscribe(`${process.env.REDIS_PREFIX || ''}cache:invalidate`);
-      cacheInvalidationSubClient.on('message', (_channel: string, message: string) => {
+      cacheInvalidationSubClient.subscribe(
+        INVALIDATION_CHANNELS.products,
+        INVALIDATION_CHANNELS.conversations,
+        INVALIDATION_CHANNELS.bids,
+        INVALIDATION_CHANNELS.users,
+      );
+      cacheInvalidationSubClient.on('message', (channel: string, message: string) => {
         try {
-          const { productId } = JSON.parse(message);
-          invalidateProductCache(productId);
+          const data = JSON.parse(message);
+          if (channel === INVALIDATION_CHANNELS.products) {
+            invalidateProductCache(data.productId);
+            invalidateProductStatusCache(data.productId);
+          } else if (channel === INVALIDATION_CHANNELS.conversations) {
+            invalidateConversationCache(data.userId);
+          } else if (channel === INVALIDATION_CHANNELS.bids) {
+            invalidateBidCache(data.productId);
+          } else if (channel === INVALIDATION_CHANNELS.users) {
+            invalidateUserCache(data.userId);
+          }
         } catch { /* ignore malformed messages */ }
       });
     } catch {
@@ -1164,6 +1234,9 @@ const start = async () => {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
+      // Redis-first: cache conversations per user (15s TTL, invalidated on new message)
+      const cachedResult = await getCachedConversations(user.id, async () => {
+
       const pool = (payload.db as any).pool;
       const result = await pool.query(
         `SELECT DISTINCT ON (br_product.products_id)
@@ -1258,7 +1331,10 @@ const start = async () => {
         new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime()
       );
 
-      res.json({ conversations });
+      return { conversations };
+      }); // end getCachedConversations
+
+      res.json(cachedResult);
     } catch (error: any) {
       console.error('Error fetching conversations:', error);
       Sentry.captureException(error, { tags: { route: '/api/conversations' } });
@@ -1267,18 +1343,36 @@ const start = async () => {
   });
 
   // Endpoint to get product update status (lightweight check for changes)
+  // Redis-first: checks write-through product state before hitting DB
   app.get('/api/products/:id/status', async (req, res) => {
     try {
       const productId = req.params.id;
 
-      // Fetch product with minimal fields
+      // Try write-through cache first (set by bid-worker after every bid)
+      // Only use write-through for active products — hidden products need auth check
+      const freshState = await readProductState(productId);
+      if (freshState && freshState.active) {
+        // Write-through hit on active product — safe to return without auth
+        return res.set('X-Cache', 'HIT:write-through').json({
+          id: Number(productId),
+          status: freshState.status,
+          currentBid: freshState.currentBid,
+          auctionEndDate: freshState.auctionEndDate,
+          active: freshState.active,
+          _cachedAt: freshState._cachedAt,
+        });
+      }
+
+      // Cache miss — fall through to DB with read-through cache (10s TTL)
+      const cachedResult = await getCachedProductStatus(productId, async () => {
+
       const product = await payload.findByID({
         collection: 'products',
         id: productId,
       });
 
       if (!product) {
-        return res.status(404).json({ error: 'Product not found' });
+        return null;
       }
 
       // Block hidden product status for non-admins (unless they're the seller)
@@ -1286,7 +1380,7 @@ const start = async () => {
         const user = await authenticateJWT(req);
         const sellerId = typeof product.seller === 'object' ? (product.seller as any).id : product.seller;
         if (!user || ((user as any).role !== 'admin' && (user as any).id !== sellerId)) {
-          return res.status(404).json({ error: 'Product not found' });
+          return null;
         }
       }
 
@@ -1304,15 +1398,21 @@ const start = async () => {
 
       const latestBidTime = latestBid.docs.length > 0 ? latestBid.docs[0].bidTime : null;
 
-      // Return minimal data for comparison
-      res.json({
+      return {
         id: product.id,
         updatedAt: product.updatedAt,
         status: product.status,
         currentBid: product.currentBid,
         latestBidTime,
         bidCount: latestBid.totalDocs,
-      });
+      };
+      }); // end getCachedProductStatus
+
+      if (!cachedResult) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+
+      res.json(cachedResult);
     } catch (error: any) {
       // Payload findByID throws NotFound — return 404 instead of 500
       if (error.name === 'NotFound' || error.status === 404) {
@@ -1335,6 +1435,8 @@ const start = async () => {
   // Expose product update publisher for hooks (visibility changes, etc.)
   (global as any).publishProductUpdate = publishProductUpdate;
   (global as any).invalidateProductCache = invalidateProductCache;
+  (global as any).invalidateUserCache = invalidateUserCache;
+  (global as any).invalidateConversationCache = invalidateConversationCache;
 
   // Expose WebP converter for media upload hook (avoids webpack bundling sharp's native binary)
   const sharp = require('sharp');
@@ -1342,23 +1444,17 @@ const start = async () => {
     return sharp(buffer).webp({ quality }).toBuffer();
   };
 
+  // ── Start batched analytics flush (pool now available after payload.init()) ──
+  analyticsDbPool = (payload.db as any).pool;
+  const analyticsFlushInterval = setInterval(flushAnalyticsBuffer, ANALYTICS_FLUSH_MS);
+  process.on('SIGTERM', async () => { clearInterval(analyticsFlushInterval); await flushAnalyticsBuffer(); });
+
   // Expose analytics event tracker for hooks (avoids webpack bundling issues)
   (global as any).trackEvent = (eventType: string, userId?: number | string, metadata?: Record<string, any>) => {
-    setImmediate(async () => {
-      try {
-        await payload.create({
-          collection: 'user-events',
-          data: {
-            eventType,
-            user: userId || undefined,
-            metadata: metadata || undefined,
-          },
-          overrideAccess: true,
-        });
-      } catch (err) {
-        // Silently swallow — analytics should never break anything
-      }
-    });
+    analyticsBuffer.push({ eventType, user: userId, metadata });
+    if (analyticsBuffer.length >= ANALYTICS_MAX_BUFFER) {
+      flushAnalyticsBuffer().catch(() => {});
+    }
   };
 
   // Sync endpoint to update product currentBid with highest bid (admin only)
@@ -1524,6 +1620,8 @@ const start = async () => {
         return res.status(400).json({ error: 'Invalid product ID' });
       }
 
+      // Redis-first: cache bid history per product (10s TTL, invalidated on new bid)
+      const cachedResult = await getCachedProductBids(productId, async () => {
       const pool = (payload.db as any).pool;
       const result = await pool.query(
         `SELECT b.id, b.amount, b.bid_time as "bidTime", b.censor_name as "censorName",
@@ -1534,7 +1632,8 @@ const start = async () => {
          JOIN bids_rels br2 ON b.id = br2.parent_id AND br2.path = 'bidder'
          JOIN users u ON br2.users_id = u.id
          WHERE br.products_id = $1
-         ORDER BY b.amount DESC`,
+         ORDER BY b.amount DESC
+         LIMIT 500`,
         [productId]
       );
 
@@ -1551,13 +1650,16 @@ const start = async () => {
         product: productId,
       }));
 
-      res.json({
+      return {
         docs,
         totalDocs: docs.length,
         limit: docs.length,
         totalPages: 1,
         page: 1,
-      });
+      };
+      }); // end getCachedProductBids
+
+      res.json(cachedResult);
     } catch (error: any) {
       console.error('Error fetching product bids:', error);
       Sentry.withScope(scope => {

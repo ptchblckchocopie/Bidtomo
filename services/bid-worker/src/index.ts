@@ -3,7 +3,15 @@ import * as Sentry from '@sentry/node';
 import Redis from 'ioredis';
 import { Pool } from 'pg';
 import crypto from 'crypto';
+import fs from 'fs';
 import log from './logger';
+
+// Heartbeat file — Docker healthcheck monitors this to detect hung workers
+// Writes Unix seconds (not ms) so the healthcheck arithmetic is clean
+const HEARTBEAT_PATH = '/tmp/bid-worker-heartbeat';
+function writeHeartbeat(): void {
+  try { fs.writeFileSync(HEARTBEAT_PATH, String(Math.floor(Date.now() / 1000))); } catch { /* best-effort */ }
+}
 
 // Validate critical env vars at startup
 if (!process.env.PAYLOAD_SECRET) {
@@ -29,6 +37,29 @@ const PROCESSING_KEY = `${REDIS_PREFIX}bids:processing`;
 const EMAIL_QUEUE_KEY = `${REDIS_PREFIX}email:queue`;
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
+
+// Cache invalidation channels — must match CMS INVALIDATION_CHANNELS
+const CACHE_CHANNELS = {
+  products: `${REDIS_PREFIX}cache:invalidate`,
+  conversations: `${REDIS_PREFIX}cache:invalidate:conversations`,
+  bids: `${REDIS_PREFIX}cache:invalidate:bids`,
+  users: `${REDIS_PREFIX}cache:invalidate:users`,
+} as const;
+
+// Write-through: push fresh product state to Redis so reads skip DB
+// Key must match CMS readProductState(): `${REDIS_PREFIX}cache:products:state:${id}`
+const CACHE_KEY_PREFIX = `${REDIS_PREFIX}cache:`;
+
+function writeProductState(productId: number, state: {
+  currentBid: number | null; status: string; auctionEndDate: string; active: boolean;
+}): void {
+  if (!redisConnected) return;
+  const entry = { ...state, _cachedAt: Date.now() };
+  redisPub.setex(
+    `${CACHE_KEY_PREFIX}products:state:${productId}`, 30,
+    JSON.stringify(entry),
+  ).catch(() => {});
+}
 
 // HTML escape for email templates — prevents stored HTML injection
 function escHtml(str: string): string {
@@ -235,7 +266,20 @@ async function ensureAutoBidsTable(): Promise<void> {
       log.warn({ err: cleanupErr }, 'Failed to clean up orphaned auto-bids (non-fatal)');
     }
 
-    log.info('auto_bids table ensured');
+    // Create performance indexes (IF NOT EXISTS is idempotent)
+    const indexes = [
+      `CREATE INDEX IF NOT EXISTS idx_auto_bids_product_active ON auto_bids(product_id) WHERE active = TRUE`,
+      `CREATE INDEX IF NOT EXISTS idx_auto_bids_bidder_active ON auto_bids(bidder_id) WHERE active = TRUE`,
+      `CREATE INDEX IF NOT EXISTS idx_products_status_active_end ON products(auction_end_date) WHERE status = 'available' AND active = TRUE`,
+      `CREATE INDEX IF NOT EXISTS idx_bids_rels_parent_path ON bids_rels(parent_id, path)`,
+      `CREATE INDEX IF NOT EXISTS idx_messages_rels_user_path ON messages_rels(users_id, path)`,
+      `CREATE INDEX IF NOT EXISTS idx_messages_rels_parent_path ON messages_rels(parent_id, path)`,
+    ];
+    for (const ddl of indexes) {
+      try { await pool.query(ddl); } catch { /* may already exist */ }
+    }
+
+    log.info('auto_bids table and performance indexes ensured');
   } catch (error) {
     log.error({ err: error }, 'Failed to ensure auto_bids table');
     Sentry.captureException(error, { tags: { route: 'worker.ensureAutoBidsTable' } });
@@ -442,14 +486,24 @@ async function processBid(job: BidJob): Promise<{ success: boolean; error?: stri
     const bidTime = new Date().toISOString();
     log.info({ bidId, productId: job.productId, amount: job.amount }, 'Bid processed');
 
-    // Fire SSE events immediately (fire-and-forget — don't block return)
+    // Fire SSE events + write-through cache (fire-and-forget — don't block return)
     if (redisConnected) {
+      // Write-through: push fresh product state so reads skip DB
+      writeProductState(job.productId, {
+        currentBid: job.amount,
+        status: product.status,
+        auctionEndDate: (auctionExtended && newEndDate) ? newEndDate : product.auctionEndDate,
+        active: product.active,
+      });
+
       if (auctionExtended && newEndDate) {
         redisPub.publish(`${REDIS_PREFIX}sse:product:${job.productId}`, JSON.stringify({
           type: 'auction_extended', newEndDate, autoExtendMinutes, timestamp: Date.now(),
         })).catch(() => {});
       }
-      redisPub.publish(`${REDIS_PREFIX}cache:invalidate`, JSON.stringify({ productId: job.productId })).catch(() => {});
+      // Invalidate product detail/list cache + bid history cache
+      redisPub.publish(CACHE_CHANNELS.products, JSON.stringify({ productId: job.productId })).catch(() => {});
+      redisPub.publish(CACHE_CHANNELS.bids, JSON.stringify({ productId: job.productId })).catch(() => {});
     }
 
     return { success: true, bidId, bidderName, bidTime };
@@ -517,7 +571,8 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
 
     // Get current product state with lock (including title for the message)
     const productResult = await client.query<Product & { title: string }>(
-      `SELECT id, title, current_bid as "currentBid", status, active
+      `SELECT id, title, current_bid as "currentBid", status, active,
+              auction_end_date as "auctionEndDate"
        FROM products WHERE id = $1 FOR UPDATE`,
       [job.productId]
     );
@@ -630,6 +685,23 @@ async function processAcceptBid(job: BidJob): Promise<{ success: boolean; error?
     await client.query('COMMIT');
 
     log.info({ productId: job.productId, messageId, transactionId }, 'Accept bid processed, product marked as sold');
+
+    // Write-through + invalidation (was MISSING — product status changes to 'sold')
+    if (redisConnected) {
+      writeProductState(job.productId, {
+        currentBid: job.amount,
+        status: 'sold',
+        auctionEndDate: product.auctionEndDate,
+        active: product.active,
+      });
+      redisPub.publish(CACHE_CHANNELS.products, JSON.stringify({ productId: job.productId })).catch(() => {});
+      redisPub.publish(CACHE_CHANNELS.bids, JSON.stringify({ productId: job.productId })).catch(() => {});
+      // Invalidate conversation caches for both buyer and seller
+      redisPub.publish(CACHE_CHANNELS.conversations, JSON.stringify({ userId: job.bidderId })).catch(() => {});
+      if (job.sellerId) {
+        redisPub.publish(CACHE_CHANNELS.conversations, JSON.stringify({ userId: job.sellerId })).catch(() => {});
+      }
+    }
 
     // Publish message notification to buyer via SSE (with full message data)
     if (redisConnected) {
@@ -1133,10 +1205,18 @@ async function processAutoBids(productId: number, currentBidAmount: number, curr
       }
     }
 
-    // Invalidate product cache after auto-bids
+    // Write-through + invalidate after auto-bids
     if (placedBids.length > 0 && redisConnected) {
+      const lastBidAmount = placedBids[placedBids.length - 1].amount;
+      writeProductState(productId, {
+        currentBid: lastBidAmount,
+        status: product.status,
+        auctionEndDate: autoExtendNewEndDate || product.auctionEndDate,
+        active: product.active,
+      });
       try {
-        await redisPub.publish(`${REDIS_PREFIX}cache:invalidate`, JSON.stringify({ productId }));
+        await redisPub.publish(CACHE_CHANNELS.products, JSON.stringify({ productId }));
+        await redisPub.publish(CACHE_CHANNELS.bids, JSON.stringify({ productId }));
       } catch { /* best-effort */ }
     }
 
@@ -1337,9 +1417,19 @@ async function closeOneAuction(product: any): Promise<void> {
 
           await client.query('COMMIT');
 
-          // Invalidate product cache after auction close
+          // Write-through + invalidation after auction close
           if (redisConnected) {
-            try { await redisPub.publish(`${REDIS_PREFIX}cache:invalidate`, JSON.stringify({ productId: product.id })); } catch { /* best-effort */ }
+            writeProductState(product.id, {
+              currentBid: winner.amount,
+              status: 'ended',
+              auctionEndDate: String(p.auction_end_date),
+              active: Boolean(p.active),
+            });
+            redisPub.publish(CACHE_CHANNELS.products, JSON.stringify({ productId: product.id })).catch(() => {});
+            redisPub.publish(CACHE_CHANNELS.bids, JSON.stringify({ productId: product.id })).catch(() => {});
+            // Invalidate conversation caches for winner and seller
+            redisPub.publish(CACHE_CHANNELS.conversations, JSON.stringify({ userId: winner.bidder_id })).catch(() => {});
+            redisPub.publish(CACHE_CHANNELS.conversations, JSON.stringify({ userId: sellerId })).catch(() => {});
           }
 
           log.info({ productId: product.id, winnerId: winner.bidder_id, amount: winner.amount, transactionId }, 'Auction closed with winner');
@@ -1449,7 +1539,13 @@ async function closeOneAuction(product: any): Promise<void> {
           // No bids — just end the auction
           await client.query('COMMIT');
           if (redisConnected) {
-            try { await redisPub.publish(`${REDIS_PREFIX}cache:invalidate`, JSON.stringify({ productId: product.id })); } catch { /* best-effort */ }
+            writeProductState(product.id, {
+              currentBid: null,
+              status: 'ended',
+              auctionEndDate: String(p.auction_end_date),
+              active: Boolean(p.active),
+            });
+            redisPub.publish(CACHE_CHANNELS.products, JSON.stringify({ productId: product.id })).catch(() => {});
           }
           log.info({ productId: product.id }, 'Auction closed with no bids');
 
@@ -1833,8 +1929,14 @@ async function runWorker() {
   // Run once immediately on startup to catch any backlog
   closeExpiredAuctions();
 
+  // Write initial heartbeat
+  writeHeartbeat();
+
   while (true) {
     try {
+      // Update heartbeat on every loop iteration so Docker knows we're alive
+      writeHeartbeat();
+
       if (!redisConnected) {
         log.info('Waiting for Redis connection');
         await new Promise((resolve) => setTimeout(resolve, 1000));
