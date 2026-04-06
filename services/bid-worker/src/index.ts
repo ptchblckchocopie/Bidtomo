@@ -2052,13 +2052,14 @@ async function runWorker() {
             censorName: jobToProcess.censorName,
           }).catch(err => log.error({ err, productId: jobToProcess.productId }, 'Failed to publish bid result'));
 
-          // Check for active auto-bids that should counter-bid (non-blocking)
-          try {
-            await processAutoBids(jobToProcess.productId, jobToProcess.amount, jobToProcess.bidderId);
-          } catch (autoBidError) {
-            log.error({ err: autoBidError, productId: jobToProcess.productId }, 'Auto-bid processing error (non-fatal)');
-            Sentry.captureException(autoBidError, { level: 'warning', tags: { route: 'worker.processAutoBids.trigger' }, extra: { productId: jobToProcess.productId } });
-          }
+          // Fire-and-forget: run auto-bid processing in background so the
+          // main loop can dequeue the next bid immediately. processAutoBids
+          // uses its own FOR UPDATE lock so it's safe to run concurrently.
+          processAutoBids(jobToProcess.productId, jobToProcess.amount, jobToProcess.bidderId)
+            .catch((autoBidError) => {
+              log.error({ err: autoBidError, productId: jobToProcess.productId }, 'Auto-bid processing error (non-fatal)');
+              Sentry.captureException(autoBidError, { level: 'warning', tags: { route: 'worker.processAutoBids.trigger' }, extra: { productId: jobToProcess.productId } });
+            });
         } else {
           // Check if it's a transient error (not a validation error)
           const isValidationError = [
