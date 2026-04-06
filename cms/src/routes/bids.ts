@@ -204,6 +204,21 @@ export function createBidsRouter({ payload, isProduction }: BidsDeps): Router {
         }
       }
 
+      // Early SSE: notify watchers immediately so they see the bid near-instantly.
+      // CMS already validated (product active, auction not ended, amount valid).
+      const bidderResult = await payload.findByID({
+        collection: 'users', id: userId, depth: 0, overrideAccess: true,
+      }).catch(() => null);
+      publishProductUpdate(parseInt(productId, 10), {
+        type: 'bid',
+        success: true,
+        amount,
+        bidderId: userId,
+        bidderName: censorName ? 'Anonymous' : (bidderResult?.name || 'Bidder'),
+        censorName: censorName || false,
+        bidTime: new Date().toISOString(),
+      });
+
       sendSuccess(res, {
         jobId: result.jobId,
         queued: true,
