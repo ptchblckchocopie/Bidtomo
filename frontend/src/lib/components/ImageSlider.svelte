@@ -9,12 +9,18 @@
     autoplayInterval?: number;
   } = $props();
 
+  function isValidUrl(url: string | null | undefined): boolean {
+    return !!url && !url.endsWith('/null') && !url.endsWith('/undefined');
+  }
+
   function cardUrl(img: typeof images[0]): string {
-    return img.image.sizes?.card?.url || img.image.url;
+    const card = img.image.sizes?.card?.url;
+    return isValidUrl(card) ? card! : img.image.url;
   }
 
   function thumbUrl(img: typeof images[0]): string {
-    return img.image.sizes?.thumbnail?.url || img.image.url;
+    const thumb = img.image.sizes?.thumbnail?.url;
+    return isValidUrl(thumb) ? thumb! : img.image.url;
   }
 
   let currentIndex = $state(0);
